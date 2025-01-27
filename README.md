@@ -22,3 +22,15 @@ npm run dev
 or
 
 pnpm dev
+
+**SHADCN COMPONENTS INSTALLATION**
+
+npm install @radix-ui/react-aspect-ratio
+npm install @radix-ui/react-avatar
+npm install @radix-ui/react-label
+npm install react-hook-form
+npm install @radix-ui/react-radio-group
+npm install @radix-ui/react-select
+npm install @radix-ui/react-separator
+npm install @radix-ui/react-switch
+npm install @radix-ui/react-toast
