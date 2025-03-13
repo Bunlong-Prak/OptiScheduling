@@ -39,9 +39,8 @@ export type Course = {
     title: string;
     type: string;
     code: string;
-    grade_type: string;
     color: string;
-    description: string;
+    // description: string;
     section_id: number;
     major_id: number;
     instructor_id: number;

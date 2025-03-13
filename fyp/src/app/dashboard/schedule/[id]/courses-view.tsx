@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { Pencil, Plus, Trash } from "lucide-react"
 import type { Course, CourseFormData, Instructor, Classroom, Major, Section } from "../../../types"
 
@@ -68,9 +67,9 @@ const initialCourses: Course[] = [
     title: "Introduction to Programming",
     type: "Lecture",
     code: "CS125",
-    grade_type: "Letter",
+    // grade_type: "Letter",
     color: "blue",
-    description: "Introduction to programming concepts and practices",
+    // description: "Introduction to programming concepts and practices",
     section_id: 1,
     major_id: 1,
     instructor_id: 1,
@@ -81,9 +80,9 @@ const initialCourses: Course[] = [
     title: "CALCULUS 1",
     type: "Lecture",
     code: "MATH131",
-    grade_type: "Letter",
+    // grade_type: "Letter",
     color: "green",
-    description: "Introduction to calculus",
+    // description: "Introduction to calculus",
     section_id: 2,
     major_id: 2,
     instructor_id: 2,
@@ -94,9 +93,9 @@ const initialCourses: Course[] = [
     title: "Final Year Project 1",
     type: "Project",
     code: "CS401",
-    grade_type: "Letter",
+    // grade_type: "Letter",
     color: "yellow",
-    description: "First part of the final year project",
+    // description: "First part of the final year project",
     section_id: 3,
     major_id: 3,
     instructor_id: 3,
@@ -114,9 +113,7 @@ export function CoursesView() {
     title: "",
     type: "",
     code: "",
-    grade_type: "",
     color: "",
-    description: "",
     section_id: 0,
     major_id: 0,
     instructor_id: 0,
@@ -156,9 +153,9 @@ export function CoursesView() {
       title: formData.title,
       type: formData.type,
       code: formData.code,
-      grade_type: formData.grade_type,
+
       color: formData.color || "blue",
-      description: formData.description,
+    //   description: "Introduction to programming concepts and practices",
       section_id: formData.section_id,
       major_id: formData.major_id,
       instructor_id: formData.instructor_id,
@@ -180,9 +177,9 @@ export function CoursesView() {
           title: formData.title,
           type: formData.type,
           code: formData.code,
-          grade_type: formData.grade_type,
+          grade_type: "Letter",
           color: formData.color,
-          description: formData.description,
+          description: "Introduction to programming concepts and practices",
           section_id: formData.section_id,
           major_id: formData.major_id,
           instructor_id: formData.instructor_id,
@@ -210,9 +207,7 @@ export function CoursesView() {
       title: "",
       type: "",
       code: "",
-      grade_type: "",
       color: "",
-      description: "",
       section_id: 0,
       major_id: 0,
       instructor_id: 0,
@@ -227,9 +222,7 @@ export function CoursesView() {
       title: course.title,
       type: course.type,
       code: course.code,
-      grade_type: course.grade_type,
       color: course.color,
-      description: course.description,
       section_id: course.section_id,
       major_id: course.major_id,
       instructor_id: course.instructor_id,
@@ -314,7 +307,7 @@ export function CoursesView() {
 
       {/* Add Course Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Course</DialogTitle>
           </DialogHeader>
@@ -327,7 +320,7 @@ export function CoursesView() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="title">Course Title</Label>
+                <Label htmlFor="title">Course Name</Label>
                 <Input id="title" name="title" value={formData.title} onChange={handleInputChange} />
               </div>
             </div>
@@ -335,46 +328,9 @@ export function CoursesView() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="type">Course Type</Label>
-                <Select value={formData.type} onValueChange={(value) => handleSelectChange("type", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Lecture">Lecture</SelectItem>
-                    <SelectItem value="Lab">Lab</SelectItem>
-                    <SelectItem value="Project">Project</SelectItem>
-                    <SelectItem value="Seminar">Seminar</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input id="type" name="type" value={formData.type} onChange={handleInputChange} />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="grade_type">Grade Type</Label>
-                <Select value={formData.grade_type} onValueChange={(value) => handleSelectChange("grade_type", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select grade type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Letter">Letter Grade</SelectItem>
-                    <SelectItem value="Pass/Fail">Pass/Fail</SelectItem>
-                    <SelectItem value="Percentage">Percentage</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                rows={3}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="section_id">Section</Label>
                 <Select
@@ -393,7 +349,9 @@ export function CoursesView() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="major_id">Major</Label>
                 <Select
@@ -412,9 +370,7 @@ export function CoursesView() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="instructor_id">Instructor</Label>
                 <Select
@@ -433,7 +389,9 @@ export function CoursesView() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="classroom_id">Classroom</Label>
                 <Select
@@ -446,28 +404,28 @@ export function CoursesView() {
                   <SelectContent>
                     {classrooms.map((classroom) => (
                       <SelectItem key={classroom.id} value={classroom.id.toString()}>
-                        {classroom.name} ({classroom.type}, Capacity: {classroom.capacity})
+                        {classroom.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="color">Color</Label>
-              <Select value={formData.color} onValueChange={(value) => handleSelectChange("color", value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select color" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="blue">Blue</SelectItem>
-                  <SelectItem value="green">Green</SelectItem>
-                  <SelectItem value="yellow">Yellow</SelectItem>
-                  <SelectItem value="red">Red</SelectItem>
-                  <SelectItem value="purple">Purple</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label htmlFor="color">Color</Label>
+                <Select value={formData.color} onValueChange={(value) => handleSelectChange("color", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select color" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="blue">Blue</SelectItem>
+                    <SelectItem value="green">Green</SelectItem>
+                    <SelectItem value="yellow">Yellow</SelectItem>
+                    <SelectItem value="red">Red</SelectItem>
+                    <SelectItem value="purple">Purple</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -482,7 +440,7 @@ export function CoursesView() {
 
       {/* Edit Course Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Course</DialogTitle>
           </DialogHeader>
@@ -495,7 +453,7 @@ export function CoursesView() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-title">Course Title</Label>
+                <Label htmlFor="edit-title">Course Name</Label>
                 <Input id="edit-title" name="title" value={formData.title} onChange={handleInputChange} />
               </div>
             </div>
@@ -503,46 +461,9 @@ export function CoursesView() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-type">Course Type</Label>
-                <Select value={formData.type} onValueChange={(value) => handleSelectChange("type", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Lecture">Lecture</SelectItem>
-                    <SelectItem value="Lab">Lab</SelectItem>
-                    <SelectItem value="Project">Project</SelectItem>
-                    <SelectItem value="Seminar">Seminar</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input id="edit-type" name="type" value={formData.type} onChange={handleInputChange} />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="edit-grade_type">Grade Type</Label>
-                <Select value={formData.grade_type} onValueChange={(value) => handleSelectChange("grade_type", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select grade type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Letter">Letter Grade</SelectItem>
-                    <SelectItem value="Pass/Fail">Pass/Fail</SelectItem>
-                    <SelectItem value="Percentage">Percentage</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
-              <Textarea
-                id="edit-description"
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                rows={3}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-section_id">Section</Label>
                 <Select
@@ -561,7 +482,9 @@ export function CoursesView() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-major_id">Major</Label>
                 <Select
@@ -580,9 +503,7 @@ export function CoursesView() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-instructor_id">Instructor</Label>
                 <Select
@@ -601,7 +522,9 @@ export function CoursesView() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-classroom_id">Classroom</Label>
                 <Select
@@ -614,28 +537,28 @@ export function CoursesView() {
                   <SelectContent>
                     {classrooms.map((classroom) => (
                       <SelectItem key={classroom.id} value={classroom.id.toString()}>
-                        {classroom.name} ({classroom.type}, Capacity: {classroom.capacity})
+                        {classroom.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="edit-color">Color</Label>
-              <Select value={formData.color} onValueChange={(value) => handleSelectChange("color", value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select color" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="blue">Blue</SelectItem>
-                  <SelectItem value="green">Green</SelectItem>
-                  <SelectItem value="yellow">Yellow</SelectItem>
-                  <SelectItem value="red">Red</SelectItem>
-                  <SelectItem value="purple">Purple</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label htmlFor="edit-color">Color</Label>
+                <Select value={formData.color} onValueChange={(value) => handleSelectChange("color", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select color" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="blue">Blue</SelectItem>
+                    <SelectItem value="green">Green</SelectItem>
+                    <SelectItem value="yellow">Yellow</SelectItem>
+                    <SelectItem value="red">Red</SelectItem>
+                    <SelectItem value="purple">Purple</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
