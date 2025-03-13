@@ -6,11 +6,12 @@ import { FileDown, Plus } from "lucide-react"
 import { useParams } from "next/navigation"
 import { ClassroomView } from "./classroom-view"
 // import { TimetableView } from "./timetable-view"
-// import { CoursesView } from "./courses-view"
-// import { InstructorsView } from "./instructors-view"
+import { CoursesView } from "./courses-view"
+import { InstructorsView } from "./instructors-view"
 // import { ClassroomView } from "./classroom-view"
-// import { MajorView } from "./major-view"
-// import { TimeConstraintView } from "./time-constraint-view"
+import { MajorView } from "./major-view"
+import { TimeConstraintView } from "./time-constraint-view"
+import { TimetableView } from "./timetable-view"
 
 export default function ScheduleDetail() {
   const params = useParams()
@@ -104,6 +105,22 @@ export default function ScheduleDetail() {
    <TabsContent value="classroom">
            <ClassroomView />
          </TabsContent>
+           <TabsContent value="instructors">
+          <InstructorsView />
+        </TabsContent>
+           <TabsContent value="courses">
+          <CoursesView />
+        </TabsContent>
+         <TabsContent value="major">
+          <MajorView />
+        </TabsContent>
+
+        <TabsContent value="timeConstant">
+          <TimeConstraintView />
+        </TabsContent>
+        <TabsContent value="timetable">
+          <TimetableView />
+        </TabsContent>
         {/* <TabsContent value="timetable">
           <TimetableView />
         </TabsContent>
