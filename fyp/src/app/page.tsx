@@ -10,7 +10,7 @@ export default function Home() {
                 <Link href="/dashboard">
                     <Button className="bg-black hover:bg-gray-800 text-white flex items-center gap-2">
                         <Image
-                            src=""
+                            src={"/image/google.png"}
                             alt="Google logo"
                             width={20}
                             height={20}
@@ -25,8 +25,8 @@ export default function Home() {
                     <div className="flex-1 space-y-6">
                         <div className="space-y-2">
                             <h2 className="text-3xl font-bold">
-                                OptiScheduling: Smart Scheduling for{" "}
-                                <span className="text-indigo-700">
+                                OptiScheduling: Smart Scheduling for
+                                <span className="ml-1 text-indigo-700">
                                     Paragon International University
                                 </span>
                             </h2>
@@ -41,10 +41,10 @@ export default function Home() {
 
                     <div className="flex-1 flex justify-center">
                         <Image
-                            src=""
+                            src={"/image/paragonlogo.png"}
                             alt="Paragon University Logo"
-                            width={300}
-                            height={300}
+                            width={150}
+                            height={150}
                             className="object-contain"
                         />
                     </div>

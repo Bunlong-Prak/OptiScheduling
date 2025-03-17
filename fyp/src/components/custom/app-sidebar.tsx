@@ -23,7 +23,7 @@ export function AppSidebar() {
             <span>Home</span>
           </Link>
           <Link
-            href="/dashboard/Admin"
+            href="/dashboard/admin"
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-gray-200 ${pathname.startsWith("/dashboard/schedules") ? "bg-gray-200 font-medium" : ""}`}
           >
             <Calendar className="h-4 w-4" />

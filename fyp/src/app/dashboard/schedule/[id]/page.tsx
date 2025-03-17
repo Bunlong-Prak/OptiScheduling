@@ -35,7 +35,7 @@ export default function ScheduleDetail() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button className="bg-green-600 hover:bg-green-700">
+          <Button>
             <Plus className="mr-2 h-4 w-4" /> Generate Schedule
           </Button>
           <Button variant="outline" className="bg-blue-500 text-white hover:bg-blue-600">
