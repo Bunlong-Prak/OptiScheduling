@@ -9,10 +9,16 @@ import {
 } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
-    id: int("id")
+    id: varchar("id", {
+        length: 255,
+    })
         .primaryKey()
         .default(sql`(uuid())`),
-    email: varchar("email").notNull().unique(),
+    email: varchar("email", {
+        length: 255,
+    })
+        .notNull()
+        .unique(),
     firstName: varchar("first_name", {
         length: 50,
     }).notNull(),
@@ -31,23 +37,33 @@ export const userRelations = relations(users, ({ many, one }) => ({
 }));
 // Session Table
 export const sessions = mysqlTable("sessions", {
-    id: varchar("id", { length: 255 }).primaryKey(),
-    expireAt: datetime("expire_at").notNull(),
+    id: varchar("id", {
+        length: 255,
+    }).primaryKey(),
+    expiresAt: datetime("expire_at").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
-    userId: int("user_id")
+    userId: varchar("user_id", { length: 255 })
         .notNull()
         .references(() => users.id, {
             onDelete: "cascade",
         }),
 });
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+    user: one(users, {
+        fields: [sessions.userId],
+        references: [users.id],
+    }),
+}));
 
 // O_Auth Provider Table
 export const oauthProviders = mysqlTable("oauth_providers", {
     id: int("id").primaryKey().autoincrement(),
+    // Example google
     providerId: varchar("provider_id", {
-        length: 50,
+        length: 255,
     }).notNull(),
+    // google user id
     providerUserId: varchar("provider_user_id", {
         length: 255,
     })
@@ -196,7 +212,7 @@ export const instructorUnavailableDays = mysqlTable(
     "instructor_unavailable_days",
     {
         id: int("id").primaryKey().autoincrement(),
-        daysOfWeek: varchar("days_of_the_week").notNull(),
+        daysOfWeek: varchar("days_of_the_week", { length: 50 }).notNull(),
         instructorId: int("instructor_id")
             .notNull()
             .references(() => instructors.id), // Foreign key to Instructor
@@ -208,7 +224,9 @@ export const instructorUnavailableTimePeriods = mysqlTable(
     "instructor_unavailable_time_periods",
     {
         id: int("id").primaryKey().autoincrement(),
-        timePeriod: varchar("time_period").notNull(),
+        timePeriod: varchar("time_period", {
+            length: 50,
+        }).notNull(),
         instructorUnavailableDayId: int("instructor_unavailable_day_id")
             .notNull()
             .references(() => instructors.id),
