@@ -8,12 +8,12 @@ export default function Home() {
             <header className="bg-gray-200 p-4 flex justify-between items-center">
                 <div className="text-2xl font-bold">OptiScheduling System</div>
                 <Link href="/dashboard">
-                    <Button className="bg-black hover:bg-gray-800 text-white flex items-center gap-2">
+                    <Button >
                         <Image
                             src={"/image/google.png"}
                             alt="Google logo"
-                            width={20}
-                            height={20}
+                            width={18}
+                            height={18}
                         />
                         Sign In
                     </Button>
