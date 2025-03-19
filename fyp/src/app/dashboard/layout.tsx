@@ -16,7 +16,7 @@ export default function DashboardLayout({
                         </h1>
                         <nav className="flex space-x-4">
                             <a
-                                href="/dashboard"
+                                href="/dashboard" 
                                 className="text-gray-600 hover:text-gray-900"
                             >
                                 Dashboard

@@ -352,6 +352,7 @@ export function TimetableView() {
               >
                 <h4 className="font-bold">{course.id}</h4>
                 <p className="text-sm">{course.name}</p>
+                <p className="text-xs mt-1">Duration: {course.duration} hour{course.duration > 1 ? 's' : ''}</p>
               </div>
             ))}
           </div>
