@@ -34,7 +34,7 @@ const majorGroups = [
   { id: "ARC2", name: "Architecture Year 2", color: "bg-gray-100" },
   { id: "CE2", name: "Civil Engineering Year 2", color: "bg-gray-100" },
   { id: "IE2", name: "Industrial Engineering Year 2", color: "bg-gray-100" },
-  { id: "CS2", name: "Computer Science Year 2", color: "bg-cyan-200" },
+  { id: "CS2", name: "Computer Science Year 2", color: "bg-gray-100" },
   { id: "MIS2", name: "Management Information Systems Year 2", color: "bg-gray-100" },
   { id: "DAD2", name: "Digital Art & Design Year 2", color: "bg-gray-100" },
   { id: "ECON2", name: "Economics Year 2", color: "bg-gray-100" },
@@ -86,47 +86,26 @@ const courses = [
   },
 ]
 
-type Course = {
-  id: string
-  name: string
-  color: string
-  duration: number
-  instructor: string
-  room: string
-  isStart?: boolean
-  isMiddle?: boolean
-  isEnd?: boolean
-  colspan?: number
-}
-
-type Schedule = Record<string, Course>
-
-type CellToDelete = {
-  day: string
-  majorId: string
-  timeSlot: string
-}
-
 export function TimetableView() {
-  const [schedule, setSchedule] = useState<Schedule>({})
-  const [draggedCourse, setDraggedCourse] = useState<Course | null>(null)
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [schedule, setSchedule] = useState({})
+  const [draggedCourse, setDraggedCourse] = useState(null)
+  const [selectedCourse, setSelectedCourse] = useState(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [cellToDelete, setCellToDelete] = useState<CellToDelete>({ day: "", majorId: "", timeSlot: "" })
+  const [cellToDelete, setCellToDelete] = useState({ day: "", majorId: "", timeSlot: "" })
 
   // Handle drag start
-  const handleDragStart = (course: Course) => {
+  const handleDragStart = (course) => {
     setDraggedCourse(course)
   }
 
   // Handle drag over
-  const handleDragOver = (e: React.DragEvent<HTMLTableCellElement>) => {
+  const handleDragOver = (e) => {
     e.preventDefault()
   }
 
   // Handle drop
-  const handleDrop = (day: string, majorId: string, timeSlot: string) => {
+  const handleDrop = (day, majorId, timeSlot) => {
     if (!draggedCourse) return
 
     // Check if the time slot is already occupied
@@ -174,7 +153,7 @@ export function TimetableView() {
   }
 
   // Handle course click
-  const handleCourseClick = (day: string, majorId: string, timeSlot: string, course: Course) => {
+  const handleCourseClick = (day, majorId, timeSlot, course) => {
     setSelectedCourse(course)
     setCellToDelete({ day, majorId, timeSlot })
     setIsDialogOpen(true)
@@ -287,7 +266,7 @@ export function TimetableView() {
                       {group.id}
                     </td>
                     {days.map((day) =>
-                      timeSlots.map((time) => {
+                      timeSlots.map((time, timeIndex) => {
                         const key = `${day}-${group.id}-${time}`
                         const course = schedule[key]
 
