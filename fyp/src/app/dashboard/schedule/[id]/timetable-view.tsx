@@ -250,14 +250,14 @@ export function TimetableView() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
+    <div className="relative min-h-screen">
+      <div className="flex justify-between items-center mb-8">
         <h2 className="text-2xl font-bold">Timetable</h2>
         <Button>Export Timetable</Button>
       </div>
 
       {/* Full week timetable */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] mb-40">
         <div className="inline-block min-w-full">
           <div className="border rounded-lg overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
@@ -339,23 +339,22 @@ export function TimetableView() {
       </div>
 
       {/* Draggable courses section */}
-      <div className="mt-8">
-        <h3 className="text-lg font-semibold mb-4">Available Courses</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {courses.map((course) => (
-            <div
-              key={course.id}
-              className={`${course.color} p-4 rounded-lg shadow cursor-move`}
-              draggable
-              onDragStart={() => handleDragStart(course)}
-            >
-              <h4 className="font-bold">{course.id}</h4>
-              <p className="text-sm">{course.name}</p>
-              <p className="text-xs mt-1">Duration: {course.duration} hour(s)</p>
-              <p className="text-xs">{course.instructor}</p>
-              <p className="text-xs">Room: {course.room}</p>
-            </div>
-          ))}
+      <div className="fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-lg shadow-lg z-50 border-t">
+        <div className="max-w-9xl mx-auto">
+          <h3 className="text-lg font-semibold mb-4">Available Courses</h3>
+          <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto">
+            {courses.map((course) => (
+              <div
+                key={course.id}
+                className={`${course.color} p-3 rounded-lg shadow cursor-move hover:shadow-md transition-shadow`}
+                draggable
+                onDragStart={() => handleDragStart(course)}
+              >
+                <h4 className="font-bold">{course.id}</h4>
+                <p className="text-sm">{course.name}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
