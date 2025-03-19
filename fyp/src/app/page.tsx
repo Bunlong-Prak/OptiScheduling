@@ -7,8 +7,8 @@ export default function Home() {
         <div className="min-h-screen flex flex-col">
             <header className="bg-gray-200 p-4 flex justify-between items-center">
                 <div className="text-2xl font-bold">OptiScheduling System</div>
-                <Link href="/dashboard">
-                    <Button >
+                <Link href={"/api/oauth/google"}>
+                    <Button>
                         <Image
                             src={"/image/google.png"}
                             alt="Google logo"

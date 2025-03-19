@@ -79,8 +79,6 @@ export async function GET(request: NextRequest) {
         });
     }
 
-    //TODO: store oauth provider info
-
     const loggedIn = await login({
         email: googleUser.email,
         avatarUrl: googleUser.picture,

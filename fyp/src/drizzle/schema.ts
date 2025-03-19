@@ -32,7 +32,6 @@ export const users = mysqlTable("users", {
 
 export const userRelations = relations(users, ({ many, one }) => ({
     schedules: many(schedules),
-    oauthProviders: many(oauthProviders),
     sessions: many(sessions),
 }));
 // Session Table
@@ -55,36 +54,6 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
         references: [users.id],
     }),
 }));
-
-// O_Auth Provider Table
-export const oauthProviders = mysqlTable("oauth_providers", {
-    id: int("id").primaryKey().autoincrement(),
-    // Example google
-    providerId: varchar("provider_id", {
-        length: 255,
-    }).notNull(),
-    // google user id
-    providerUserId: varchar("provider_user_id", {
-        length: 255,
-    })
-        .notNull()
-        .unique(),
-    accessToken: varchar("access_token", {
-        length: 255,
-    }),
-    refreshToken: varchar("refresh_token", {
-        length: 255,
-    }),
-    userId: varchar("user_id", {
-        length: 255,
-    })
-        .notNull()
-        .references(() => users.id, {
-            onDelete: "cascade",
-        }),
-    createdAt: timestamp("created_at").defaultNow(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
-});
 
 // Schedule Table
 export const schedules = mysqlTable("schedules", {

@@ -60,19 +60,6 @@ CREATE TABLE `majors` (
 	CONSTRAINT `majors_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `oauth_providers` (
-	`id` int AUTO_INCREMENT NOT NULL,
-	`provider_id` varchar(255) NOT NULL,
-	`provider_user_id` varchar(255) NOT NULL,
-	`access_token` varchar(255),
-	`refresh_token` varchar(255),
-	`user_id` varchar(255) NOT NULL,
-	`created_at` timestamp DEFAULT (now()),
-	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	CONSTRAINT `oauth_providers_id` PRIMARY KEY(`id`),
-	CONSTRAINT `oauth_providers_provider_user_id_unique` UNIQUE(`provider_user_id`)
-);
---> statement-breakpoint
 CREATE TABLE `schedule_days` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`days_of_week` varchar(50) NOT NULL,
@@ -129,7 +116,6 @@ ALTER TABLE `courses` ADD CONSTRAINT `courses_instructor_id_instructors_id_fk` F
 ALTER TABLE `instructor_unavailable_days` ADD CONSTRAINT `instructor_unavailable_days_instructor_id_instructors_id_fk` FOREIGN KEY (`instructor_id`) REFERENCES `instructors`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `instructor_unavailable_time_periods` ADD CONSTRAINT `instructor_unavailable_time_periods_instructor_unavailable_day_id_instructors_id_fk` FOREIGN KEY (`instructor_unavailable_day_id`) REFERENCES `instructors`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `instructor_unavailable_time_periods` ADD CONSTRAINT `instructor_unavailable_time_periods_instructor_id_instructors_id_fk` FOREIGN KEY (`instructor_id`) REFERENCES `instructors`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `oauth_providers` ADD CONSTRAINT `oauth_providers_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `schedule_days` ADD CONSTRAINT `schedule_days_schedule_id_schedules_id_fk` FOREIGN KEY (`schedule_id`) REFERENCES `schedules`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `schedule_time_periods` ADD CONSTRAINT `schedule_time_periods_schedule_id_schedules_id_fk` FOREIGN KEY (`schedule_id`) REFERENCES `schedules`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `schedules` ADD CONSTRAINT `schedules_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
