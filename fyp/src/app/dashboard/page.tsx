@@ -110,8 +110,8 @@ export default function Dashboard() {
 
       <div className="space-y-4">
         {schedules.map((schedule) => (
-          <div key={schedule.id} className="border rounded-md p-4">
-            <div className="flex items-start justify-between">
+          <div key={schedule.id} className="border rounded-md p-4 ">
+            <div className="flex items-start justify-between ">
               <div>
                 <h2 className="text-lg font-medium">{schedule.name}</h2>
                 <p className="text-sm text-gray-500">Created On {schedule.createdOn}</p>

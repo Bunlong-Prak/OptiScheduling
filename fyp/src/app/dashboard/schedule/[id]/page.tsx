@@ -27,7 +27,7 @@ export default function ScheduleDetail() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="w-full flex justify-between items-center mb-6 ">
         <div>
           <h1 className="text-2xl font-bold">{schedule.name}</h1>
           <p className="text-gray-500">

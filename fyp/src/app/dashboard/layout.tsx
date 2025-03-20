@@ -7,7 +7,7 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }) {
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="w-full min-h-screen bg-gray-50">
             <header className="bg-white shadow-sm">
                 <div className="px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16 items-center">
@@ -37,7 +37,7 @@ export default function DashboardLayout({
                     </div>
                 </div>
             </header>
-            <main className="px-4 sm:px-6 lg:px-8 py-6 w-full">{children}</main>
+            <main className="px-4 sm:px-6 lg:px-4 py-6 w-full">{children}</main>
         </div>
     );
 }
