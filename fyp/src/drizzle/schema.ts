@@ -10,7 +10,7 @@ import {
 
 export const users = mysqlTable("users", {
     id: varchar("id", {
-        length: 255,
+        length: 100,
     })
         .primaryKey()
         .default(sql`(uuid())`),
@@ -37,12 +37,12 @@ export const userRelations = relations(users, ({ many, one }) => ({
 // Session Table
 export const sessions = mysqlTable("sessions", {
     id: varchar("id", {
-        length: 255,
+        length: 100,
     }).primaryKey(),
     expiresAt: datetime("expire_at").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
-    userId: varchar("user_id", { length: 255 })
+    userId: varchar("user_id", { length: 100 })
         .notNull()
         .references(() => users.id, {
             onDelete: "cascade",

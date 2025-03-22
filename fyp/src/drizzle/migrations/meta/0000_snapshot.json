@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "91241c99-c702-47df-a3fc-a8ed689cb2ef",
+  "id": "a7c8941c-faf6-4e5a-bf22-3db7993fafe0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classrooms": {
@@ -702,7 +702,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(255)",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -733,7 +733,7 @@
         },
         "user_id": {
           "name": "user_id",
-          "type": "varchar(255)",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -771,7 +771,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(255)",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,

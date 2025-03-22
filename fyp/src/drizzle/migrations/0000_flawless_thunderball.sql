@@ -92,16 +92,16 @@ CREATE TABLE `sections` (
 );
 --> statement-breakpoint
 CREATE TABLE `sessions` (
-	`id` varchar(255) NOT NULL,
+	`id` varchar(100) NOT NULL,
 	`expire_at` datetime NOT NULL,
 	`created_at` timestamp DEFAULT (now()),
 	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`user_id` varchar(255) NOT NULL,
+	`user_id` varchar(100) NOT NULL,
 	CONSTRAINT `sessions_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `users` (
-	`id` varchar(255) NOT NULL DEFAULT (uuid()),
+	`id` varchar(100) NOT NULL DEFAULT (uuid()),
 	`email` varchar(255) NOT NULL,
 	`first_name` varchar(50) NOT NULL,
 	`last_name` varchar(50) NOT NULL,

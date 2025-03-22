@@ -1,12 +1,12 @@
 {
-  "version": "7",
+  "version": "8",
   "dialect": "mysql",
   "entries": [
     {
       "idx": 0,
       "version": "5",
-      "when": 1742372778682,
-      "tag": "0000_daffy_lenny_balinger",
+      "when": 1742459846894,
+      "tag": "0000_flawless_thunderball",
       "breakpoints": true
     }
   ]
