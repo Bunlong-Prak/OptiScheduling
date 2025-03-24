@@ -32,6 +32,12 @@ const instructorSchema = z.object({
     phoneNumber: z.string().optional(),
 });
 
+const deleteInstructorSchema = z.object({
+    id: z.number({
+        required_error: "ID is required",
+    }),
+});
+
 // GET all instructors
 export async function GET() {
     try {
@@ -134,17 +140,14 @@ export async function PATCH(request: Request) {
 // DELETE instructor
 export async function DELETE(request: Request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get("id");
+        const body = await request.json();
 
-        if (!id) {
-            return NextResponse.json(
-                { error: "ID is required" },
-                { status: 400 }
-            );
-        }
+        // Validate request body against schema
+        const validatedData = deleteInstructorSchema.parse(body);
 
-        await db.delete(instructors).where(eq(instructors.id, parseInt(id)));
+        const { id } = validatedData;
+
+        await db.delete(instructors).where(eq(instructors.id, id));
 
         return NextResponse.json({
             message: "Instructor deleted successfully",

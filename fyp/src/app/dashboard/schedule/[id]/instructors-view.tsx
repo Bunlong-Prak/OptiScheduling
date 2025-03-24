@@ -140,17 +140,26 @@ export function InstructorsView() {
                 phoneNumber: formData.phone_number,
             };
 
-            const response = await fetch("/api/instructors/update", {
-                method: "POST",
+            console.log("Sending update data:", apiData);
+
+            const response = await fetch("/api/instructors", {
+                method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify(apiData),
             });
 
+            const responseData = await response.json();
+
             if (!response.ok) {
-                throw new Error("Failed to update instructor");
+                console.error("Update failed:", responseData);
+                throw new Error(
+                    responseData.error || "Failed to update instructor"
+                );
             }
+
+            console.log("Update successful:", responseData);
 
             await fetchInstructors();
             setIsEditDialogOpen(false);
@@ -162,7 +171,10 @@ export function InstructorsView() {
         } catch (error) {
             console.error("Error updating instructor:", error);
             setStatusMessage({
-                text: "Failed to update instructor. Please try again.",
+                text:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to update instructor. Please try again.",
                 type: "error",
             });
         }
@@ -171,12 +183,16 @@ export function InstructorsView() {
         if (!selectedInstructor) return;
 
         try {
-            const response = await fetch(
-                `/api/instructors/${selectedInstructor.id}`,
-                {
-                    method: "DELETE",
-                }
-            );
+            const apiData = {
+                id: selectedInstructor.id,
+            };
+            const response = await fetch("/api/instructors", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
 
             if (!response.ok) {
                 throw new Error("Failed to delete instructor");
