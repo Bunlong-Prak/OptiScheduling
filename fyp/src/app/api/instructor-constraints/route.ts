@@ -47,7 +47,7 @@ export async function POST(request: Request) {
         if (timePeriods && timePeriods.length > 0) {
             const timePeriodValues = timePeriods.map((period: string) => ({
                 timePeriod: period,
-                instructorUnavailableDayId: newUnavailableDay.insertId,
+                instructorUnavailableDayId: newUnavailableDay,
                 instructorId,
             }));
 
