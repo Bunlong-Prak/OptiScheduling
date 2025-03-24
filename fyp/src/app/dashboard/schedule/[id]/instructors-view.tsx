@@ -21,7 +21,6 @@ import { Pencil, Plus, Trash } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import type { Instructor, InstructorFormData } from "../../../types";
-// No toast import needed
 
 export function InstructorsView() {
     const [instructors, setInstructors] = useState<Instructor[]>([]);
@@ -203,6 +202,7 @@ export function InstructorsView() {
 
             // Close dialog
             setIsDeleteDialogOpen(false);
+            setSelectedInstructor(null);
 
             setStatusMessage({
                 text: "Instructor deleted successfully",
@@ -229,6 +229,7 @@ export function InstructorsView() {
     };
 
     const openEditDialog = (instructor: Instructor) => {
+        resetForm(); // Reset first to clear any previous data
         setSelectedInstructor(instructor);
         setFormData({
             first_name: instructor.first_name,
@@ -243,6 +244,12 @@ export function InstructorsView() {
     const openDeleteDialog = (instructor: Instructor) => {
         setSelectedInstructor(instructor);
         setIsDeleteDialogOpen(true);
+    };
+
+    // Function to handle opening the add dialog
+    const openAddDialog = () => {
+        resetForm(); // Ensure form is clean before opening
+        setIsAddDialogOpen(true);
     };
 
     // Clear status message after 5 seconds
@@ -271,7 +278,7 @@ export function InstructorsView() {
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold">Instructors</h2>
                 <Button
-                    onClick={() => setIsAddDialogOpen(true)}
+                    onClick={openAddDialog}
                     className="bg-green-600 hover:bg-green-700"
                 >
                     <Plus className="mr-2 h-4 w-4" /> New Instructor
@@ -377,7 +384,13 @@ export function InstructorsView() {
             )}
 
             {/* Add Instructor Dialog */}
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <Dialog
+                open={isAddDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) resetForm();
+                    setIsAddDialogOpen(open);
+                }}
+            >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Add New Instructor</DialogTitle>
@@ -451,7 +464,10 @@ export function InstructorsView() {
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsAddDialogOpen(false)}
+                            onClick={() => {
+                                resetForm();
+                                setIsAddDialogOpen(false);
+                            }}
                         >
                             Cancel
                         </Button>
@@ -463,7 +479,13 @@ export function InstructorsView() {
             </Dialog>
 
             {/* Edit Instructor Dialog */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <Dialog
+                open={isEditDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) resetForm();
+                    setIsEditDialogOpen(open);
+                }}
+            >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Edit Instructor</DialogTitle>
@@ -541,7 +563,10 @@ export function InstructorsView() {
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsEditDialogOpen(false)}
+                            onClick={() => {
+                                resetForm();
+                                setIsEditDialogOpen(false);
+                            }}
                         >
                             Cancel
                         </Button>
@@ -555,7 +580,10 @@ export function InstructorsView() {
             {/* Delete Instructor Dialog */}
             <Dialog
                 open={isDeleteDialogOpen}
-                onOpenChange={setIsDeleteDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) setSelectedInstructor(null);
+                    setIsDeleteDialogOpen(open);
+                }}
             >
                 <DialogContent>
                     <DialogHeader>
@@ -573,7 +601,10 @@ export function InstructorsView() {
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsDeleteDialogOpen(false)}
+                            onClick={() => {
+                                setSelectedInstructor(null);
+                                setIsDeleteDialogOpen(false);
+                            }}
                         >
                             Cancel
                         </Button>
