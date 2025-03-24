@@ -1,13 +1,24 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { instructors } from "@/drizzle/schema";
+import { db } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
 
 // GET all instructors
 export async function GET() {
     try {
         const allInstructors = await db.select().from(instructors);
-        return NextResponse.json(allInstructors);
+
+        // Transform the data to match UI expectations
+        const formattedInstructors = allInstructors.map((instructor) => ({
+            id: instructor.id,
+            first_name: instructor.firstName,
+            last_name: instructor.lastName,
+            gender: instructor.gender,
+            email: instructor.email,
+            phone_number: instructor.phoneNumber,
+        }));
+
+        return NextResponse.json(formattedInstructors);
     } catch (error: unknown) {
         console.error("Error fetching instructors:", error);
         return NextResponse.json(
@@ -18,7 +29,9 @@ export async function GET() {
 }
 
 // POST new instructor
-export async function POST(request: Request) {
+export const POST = createInstructor;
+
+export async function createInstructor(request: Request) {
     try {
         const body = await request.json();
         const { lastName, firstName, gender, email, phoneNumber } = body;
@@ -41,35 +54,8 @@ export async function POST(request: Request) {
     }
 }
 
-// PUT update instructor
-export async function PUT(request: Request) {
-    try {
-        const body = await request.json();
-        const { id, lastName, firstName, gender, email, phoneNumber } = body;
-
-        const updatedInstructor = await db
-            .update(instructors)
-            .set({
-                lastName,
-                firstName,
-                gender,
-                email,
-                phoneNumber,
-            })
-            .where(eq(instructors.id, id));
-
-        return NextResponse.json(updatedInstructor);
-    } catch (error: unknown) {
-        console.error("Error updating instructor:", error);
-        return NextResponse.json(
-            { error: "Failed to update instructor" },
-            { status: 500 }
-        );
-    }
-}
-
 // DELETE instructor
-export async function DELETE(request: Request) {
+export async function DeleteInstructor(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get("id");

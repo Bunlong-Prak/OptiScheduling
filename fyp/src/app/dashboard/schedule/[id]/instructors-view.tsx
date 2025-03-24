@@ -1,15 +1,12 @@
 "use client";
 
-import type React from "react";
-
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,42 +18,21 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Pencil, Plus, Trash } from "lucide-react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import type { Instructor, InstructorFormData } from "../../../types";
-
-// Mock data for instructors
-const initialInstructors: Instructor[] = [
-    {
-        id: 1,
-        first_name: "Flordeliza P.",
-        last_name: "PONCIO",
-        gender: "Female",
-        email: "flordeliza.poncio@paragon.edu.kh",
-        phone_number: "012-345-678",
-    },
-    {
-        id: 2,
-        first_name: "Abdulkasim",
-        last_name: "Akhmedov",
-        gender: "Male",
-        email: "abdulkasim.akhmedov@paragon.edu.kh",
-        phone_number: "012-345-679",
-    },
-    {
-        id: 3,
-        first_name: "Nora",
-        last_name: "Patron",
-        gender: "Female",
-        email: "nora.patron@paragon.edu.kh",
-        phone_number: "012-345-680",
-    },
-];
+// No toast import needed
 
 export function InstructorsView() {
-    const [instructors, setInstructors] =
-        useState<Instructor[]>(initialInstructors);
+    const [instructors, setInstructors] = useState<Instructor[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [statusMessage, setStatusMessage] = useState<{
+        text: string;
+        type: "success" | "error";
+    } | null>(null);
     const [selectedInstructor, setSelectedInstructor] =
         useState<Instructor | null>(null);
     const [formData, setFormData] = useState<InstructorFormData>({
@@ -66,6 +42,32 @@ export function InstructorsView() {
         email: "",
         phone_number: "",
     });
+
+    // Fetch instructors from API
+    const fetchInstructors = async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch("/api/instructors");
+            if (!response.ok) {
+                throw new Error("Failed to fetch instructors");
+            }
+            const data = await response.json();
+            setInstructors(data);
+        } catch (error) {
+            console.error("Error fetching instructors:", error);
+            setStatusMessage({
+                text: "Failed to load instructors. Please try again.",
+                type: "error",
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Load instructors on component mount
+    useEffect(() => {
+        fetchInstructors();
+    }, []);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -82,51 +84,121 @@ export function InstructorsView() {
         });
     };
 
-    const handleAddInstructor = () => {
-        const newInstructor: Instructor = {
-            id: Math.max(0, ...instructors.map((i) => i.id)) + 1,
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            gender: formData.gender,
-            email: formData.email,
-            phone_number: formData.phone_number,
-        };
+    const handleAddInstructor = async () => {
+        try {
+            // Prepare data for API
+            const apiData = {
+                firstName: formData.first_name,
+                lastName: formData.last_name,
+                gender: formData.gender,
+                email: formData.email,
+                phoneNumber: formData.phone_number,
+            };
 
-        setInstructors([...instructors, newInstructor]);
-        setIsAddDialogOpen(false);
-        resetForm();
-    };
+            const response = await fetch("/api/instructors", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
 
-    const handleEditInstructor = () => {
-        if (!selectedInstructor) return;
-
-        const updatedInstructors = instructors.map((instructor) => {
-            if (instructor.id === selectedInstructor.id) {
-                return {
-                    ...instructor,
-                    first_name: formData.first_name,
-                    last_name: formData.last_name,
-                    gender: formData.gender,
-                    email: formData.email,
-                    phone_number: formData.phone_number,
-                };
+            if (!response.ok) {
+                throw new Error("Failed to create instructor");
             }
-            return instructor;
-        });
 
-        setInstructors(updatedInstructors);
-        setIsEditDialogOpen(false);
-        resetForm();
+            // Refresh the instructor list
+            await fetchInstructors();
+
+            // Close dialog and reset form
+            setIsAddDialogOpen(false);
+            resetForm();
+
+            setStatusMessage({
+                text: "Instructor added successfully",
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error adding instructor:", error);
+            setStatusMessage({
+                text: "Failed to add instructor. Please try again.",
+                type: "error",
+            });
+        }
     };
 
-    const handleDeleteInstructor = () => {
+    const handleEditInstructor = async () => {
         if (!selectedInstructor) return;
 
-        const updatedInstructors = instructors.filter(
-            (instructor) => instructor.id !== selectedInstructor.id
-        );
-        setInstructors(updatedInstructors);
-        setIsDeleteDialogOpen(false);
+        try {
+            const apiData = {
+                id: selectedInstructor.id,
+                firstName: formData.first_name,
+                lastName: formData.last_name,
+                gender: formData.gender,
+                email: formData.email,
+                phoneNumber: formData.phone_number,
+            };
+
+            const response = await fetch("/api/instructors/update", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to update instructor");
+            }
+
+            await fetchInstructors();
+            setIsEditDialogOpen(false);
+            resetForm();
+            setStatusMessage({
+                text: "Instructor updated successfully",
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error updating instructor:", error);
+            setStatusMessage({
+                text: "Failed to update instructor. Please try again.",
+                type: "error",
+            });
+        }
+    };
+    const handleDeleteInstructor = async () => {
+        if (!selectedInstructor) return;
+
+        try {
+            const response = await fetch(
+                `/api/instructors/${selectedInstructor.id}`,
+                {
+                    method: "DELETE",
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error("Failed to delete instructor");
+            }
+
+            // Refresh the instructor list
+            await fetchInstructors();
+
+            // Close dialog
+            setIsDeleteDialogOpen(false);
+
+            setStatusMessage({
+                text: "Instructor deleted successfully",
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error deleting instructor:", error);
+            setStatusMessage({
+                text: "Failed to delete instructor. Please try again.",
+                type: "error",
+            });
+        }
     };
 
     const resetForm = () => {
@@ -157,8 +229,29 @@ export function InstructorsView() {
         setIsDeleteDialogOpen(true);
     };
 
+    // Clear status message after 5 seconds
+    useEffect(() => {
+        if (statusMessage) {
+            const timer = setTimeout(() => {
+                setStatusMessage(null);
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [statusMessage]);
+
     return (
         <div>
+            {statusMessage && (
+                <div
+                    className={`mb-4 p-3 rounded ${
+                        statusMessage.type === "success"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                    }`}
+                >
+                    {statusMessage.text}
+                </div>
+            )}
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold">Instructors</h2>
                 <Button
@@ -169,79 +262,103 @@ export function InstructorsView() {
                 </Button>
             </div>
 
-            <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                    <thead>
-                        <tr>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                ID
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                FIRST NAME
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                LAST NAME
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                GENDER
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                EMAIL
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                PHONE
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {instructors.map((instructor) => (
-                            <tr key={instructor.id}>
-                                <td className="border p-2">{instructor.id}</td>
-                                <td className="border p-2">
-                                    {instructor.first_name}
-                                </td>
-                                <td className="border p-2">
-                                    {instructor.last_name}
-                                </td>
-                                <td className="border p-2">
-                                    {instructor.gender}
-                                </td>
-                                <td className="border p-2">
-                                    {instructor.email}
-                                </td>
-                                <td className="border p-2">
-                                    {instructor.phone_number}
-                                </td>
-                                <td className="border p-2">
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() =>
-                                                openEditDialog(instructor)
-                                            }
-                                        >
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() =>
-                                                openDeleteDialog(instructor)
-                                            }
-                                        >
-                                            <Trash className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </td>
+            {isLoading ? (
+                <div className="flex justify-center items-center h-64">
+                    <p>Loading instructors...</p>
+                </div>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    ID
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    FIRST NAME
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    LAST NAME
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    GENDER
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    EMAIL
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    PHONE
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    Actions
+                                </th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            {instructors.length === 0 ? (
+                                <tr>
+                                    <td
+                                        colSpan={7}
+                                        className="border p-4 text-center"
+                                    >
+                                        No instructors found. Add a new
+                                        instructor to get started.
+                                    </td>
+                                </tr>
+                            ) : (
+                                instructors.map((instructor) => (
+                                    <tr key={instructor.id}>
+                                        <td className="border p-2">
+                                            {instructor.id}
+                                        </td>
+                                        <td className="border p-2">
+                                            {instructor.first_name}
+                                        </td>
+                                        <td className="border p-2">
+                                            {instructor.last_name}
+                                        </td>
+                                        <td className="border p-2">
+                                            {instructor.gender}
+                                        </td>
+                                        <td className="border p-2">
+                                            {instructor.email}
+                                        </td>
+                                        <td className="border p-2">
+                                            {instructor.phone_number}
+                                        </td>
+                                        <td className="border p-2">
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        openEditDialog(
+                                                            instructor
+                                                        )
+                                                    }
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        openDeleteDialog(
+                                                            instructor
+                                                        )
+                                                    }
+                                                >
+                                                    <Trash className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
             {/* Add Instructor Dialog */}
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
