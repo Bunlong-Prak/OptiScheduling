@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card"
 import { Pencil, Plus, Trash } from "lucide-react"
 import type { TimeConstraint, TimeConstraintFormData, Instructor } from "../../../types"
+import CustomPagination from "@/components/custom/pagination" // Import the pagination component
 
 // Mock data for time slots and days
 const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -41,12 +42,21 @@ const instructors: Instructor[] = [
   },
 ]
 
-// Mock data for time constraints
+// Mock data for time constraints - added more to demonstrate pagination
 const initialTimeConstraints: TimeConstraint[] = [
   { id: 1, instructor_id: 1, day_of_the_week: "Monday", time_period: ["8:00 - 9:30"] },
   { id: 2, instructor_id: 2, day_of_the_week: "Wednesday", time_period: ["1:15 - 2:45"] },
   { id: 3, instructor_id: 3, day_of_the_week: "Friday", time_period: ["4:45 - 6:15"] },
+  { id: 4, instructor_id: 1, day_of_the_week: "Tuesday", time_period: ["9:45 - 11:15"] },
+  { id: 5, instructor_id: 2, day_of_the_week: "Thursday", time_period: ["3:00 - 4:30"] },
+  { id: 6, instructor_id: 3, day_of_the_week: "Monday", time_period: ["11:30 - 1:00"] },
+  { id: 7, instructor_id: 1, day_of_the_week: "Wednesday", time_period: ["8:00 - 9:30"] },
+  { id: 8, instructor_id: 2, day_of_the_week: "Friday", time_period: ["9:45 - 11:15"] },
+  { id: 9, instructor_id: 3, day_of_the_week: "Tuesday", time_period: ["1:15 - 2:45"] },
 ]
+
+// Define how many items to show per page
+const ITEMS_PER_PAGE = 6;
 
 export function TimeConstraintView() {
   const [timeConstraints, setTimeConstraints] = useState<TimeConstraint[]>(initialTimeConstraints)
@@ -59,6 +69,14 @@ export function TimeConstraintView() {
     time_period: [],
     instructor_id: 0,
   })
+  const [currentPage, setCurrentPage] = useState(1)
+
+  // Calculate pagination values
+  const totalPages = Math.ceil(timeConstraints.length / ITEMS_PER_PAGE);
+  const paginatedConstraints = timeConstraints.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const handleSelectChange = (name: string, value: string) => {
     if (name === "instructor_id") {
@@ -118,6 +136,11 @@ export function TimeConstraintView() {
     const updatedConstraints = timeConstraints.filter((constraint) => constraint.id !== selectedConstraint.id)
     setTimeConstraints(updatedConstraints)
     setIsDeleteDialogOpen(false)
+    
+    // Check if we need to adjust the current page after deletion
+    if (updatedConstraints.length > 0 && currentPage > Math.ceil(updatedConstraints.length / ITEMS_PER_PAGE)) {
+      setCurrentPage(Math.ceil(updatedConstraints.length / ITEMS_PER_PAGE));
+    }
   }
 
   const resetForm = () => {
@@ -158,33 +181,46 @@ export function TimeConstraintView() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {timeConstraints.map((constraint) => (
-          <Card key={constraint.id}>
-            <CardContent className="p-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-semibold">{getInstructorName(constraint.instructor_id)}</h3>
-                  <p className="text-sm text-gray-500">
-                    {constraint.day_of_the_week}, {constraint.time_period.join(", ")}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="icon" onClick={() => openEditDialog(constraint)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => openDeleteDialog(constraint)}>
-                    <Trash className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {timeConstraints.length === 0 && (
+      {timeConstraints.length === 0 ? (
         <div className="text-center p-8 text-gray-500">No time constraints added yet</div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {paginatedConstraints.map((constraint) => (
+              <Card key={constraint.id}>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-semibold">{getInstructorName(constraint.instructor_id)}</h3>
+                      <p className="text-sm text-gray-500">
+                        {constraint.day_of_the_week}, {constraint.time_period.join(", ")}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(constraint)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => openDeleteDialog(constraint)}>
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Add pagination if there are more items than fit on a page */}
+          {timeConstraints.length > ITEMS_PER_PAGE && (
+            <div className="mt-6">
+              <CustomPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* Add Constraint Dialog */}
@@ -367,4 +403,3 @@ export function TimeConstraintView() {
     </div>
   )
 }
-

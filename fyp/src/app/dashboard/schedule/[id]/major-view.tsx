@@ -9,13 +9,25 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Pencil, Plus, Trash } from "lucide-react"
 import type { Major, MajorFormData } from "../../../types"
+import CustomPagination from "@/components/custom/pagination" // Import the pagination component
 
-// Mock data for majors
+// Mock data for majors - let's add more to demonstrate pagination
 const initialMajors: Major[] = [
   { id: 1, name: "Computer Science", short_tag: "CS" },
   { id: 2, name: "Civil Engineering", short_tag: "CE" },
   { id: 3, name: "Industrial Engineering", short_tag: "IE" },
+  { id: 4, name: "Mechanical Engineering", short_tag: "ME" },
+  { id: 5, name: "Electrical Engineering", short_tag: "EE" },
+  { id: 6, name: "Chemical Engineering", short_tag: "ChE" },
+  { id: 7, name: "Business Administration", short_tag: "BA" },
+  { id: 8, name: "Economics", short_tag: "ECON" },
+  { id: 9, name: "Mathematics", short_tag: "MATH" },
+  { id: 10, name: "Physics", short_tag: "PHYS" },
+  { id: 11, name: "Chemistry", short_tag: "CHEM" },
+  { id: 12, name: "Biology", short_tag: "BIO" },
 ]
+
+const ITEMS_PER_PAGE = 5; // Define how many items to show per page
 
 export function MajorView() {
   const [majors, setMajors] = useState<Major[]>(initialMajors)
@@ -27,6 +39,14 @@ export function MajorView() {
     name: "",
     short_tag: "",
   })
+  const [currentPage, setCurrentPage] = useState(1)
+
+  // Calculate pagination values
+  const totalPages = Math.ceil(majors.length / ITEMS_PER_PAGE);
+  const paginatedMajors = majors.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE, 
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -73,6 +93,11 @@ export function MajorView() {
     const updatedMajors = majors.filter((major) => major.id !== selectedMajor.id)
     setMajors(updatedMajors)
     setIsDeleteDialogOpen(false)
+    
+    // Check if we need to adjust the current page after deletion
+    if (updatedMajors.length > 0 && currentPage > Math.ceil(updatedMajors.length / ITEMS_PER_PAGE)) {
+      setCurrentPage(Math.ceil(updatedMajors.length / ITEMS_PER_PAGE));
+    }
   }
 
   const resetForm = () => {
@@ -117,7 +142,7 @@ export function MajorView() {
             </tr>
           </thead>
           <tbody>
-            {majors.map((major) => (
+            {paginatedMajors.map((major) => (
               <tr key={major.id}>
                 <td className="border p-2">{major.id}</td>
                 <td className="border p-2">{major.name}</td>
@@ -137,6 +162,15 @@ export function MajorView() {
           </tbody>
         </table>
       </div>
+
+      {/* Add pagination */}
+      {majors.length > ITEMS_PER_PAGE && (
+        <CustomPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
+      )}
 
       {/* Add Major Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -221,4 +255,3 @@ export function MajorView() {
     </div>
   )
 }
-

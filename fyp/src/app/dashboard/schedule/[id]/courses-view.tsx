@@ -29,6 +29,7 @@ import type {
     Major,
     Section,
 } from "../../../types";
+import Pagination from "@/components/custom/pagination";
 
 // Mock data for instructors
 const instructors: Instructor[] = [
@@ -123,6 +124,7 @@ const initialCourses: Course[] = [
 ];
 
 export function CoursesView() {
+ 
     const [courses, setCourses] = useState<Course[]>(initialCourses);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -138,6 +140,15 @@ export function CoursesView() {
         instructor_id: 0,
         classroom_id: 0,
     });
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
+
+    const totalPages = Math.ceil(courses.length / itemsPerPage);
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -824,6 +835,15 @@ export function CoursesView() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <div>
+            {/* Replace with your custom table component or remove the data prop */}
+            {/* <CustomTable data={currentCourses} /> */}
+            <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+            />
+        </div>
         </div>
     );
 }

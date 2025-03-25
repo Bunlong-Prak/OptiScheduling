@@ -21,6 +21,9 @@ import { Pencil, Plus, Trash } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import type { Instructor, InstructorFormData } from "../../../types";
+import CustomPagination from "@/components/custom/pagination"; // Importing the Pagination component
+
+const ITEMS_PER_PAGE = 10; // Define how many items to show per page
 
 export function InstructorsView() {
     const [instructors, setInstructors] = useState<Instructor[]>([]);
@@ -41,6 +44,7 @@ export function InstructorsView() {
         email: "",
         phone_number: "",
     });
+    const [currentPage, setCurrentPage] = useState(1); // Add current page state
 
     // Fetch instructors from API
     const fetchInstructors = async () => {
@@ -52,6 +56,8 @@ export function InstructorsView() {
             }
             const data = await response.json();
             setInstructors(data);
+            // Reset to first page when data changes
+            setCurrentPage(1);
         } catch (error) {
             console.error("Error fetching instructors:", error);
             setStatusMessage({
@@ -262,6 +268,13 @@ export function InstructorsView() {
         }
     }, [statusMessage]);
 
+    // Calculate pagination values
+    const totalPages = Math.ceil(instructors.length / ITEMS_PER_PAGE);
+    const paginatedInstructors = instructors.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
     return (
         <div>
             {statusMessage && (
@@ -329,7 +342,7 @@ export function InstructorsView() {
                                     </td>
                                 </tr>
                             ) : (
-                                instructors.map((instructor) => (
+                                paginatedInstructors.map((instructor) => (
                                     <tr key={instructor.id}>
                                         <td className="border p-2">
                                             {instructor.id}
@@ -381,6 +394,15 @@ export function InstructorsView() {
                         </tbody>
                     </table>
                 </div>
+            )}
+
+            {/* Add pagination if we have instructors */}
+            {instructors.length > 0 && (
+                <CustomPagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                />
             )}
 
             {/* Add Instructor Dialog */}

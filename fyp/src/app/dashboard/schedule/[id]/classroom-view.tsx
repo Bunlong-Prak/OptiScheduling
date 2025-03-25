@@ -1,7 +1,7 @@
+// filepath: d:\Documents\OptiScheduling\fyp\src\app\dashboard\schedule\[id]\classroom-view.tsx
 "use client";
 
 import type React from "react";
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,27 +22,38 @@ import {
 } from "@/components/ui/select";
 import { Pencil, Plus, Trash } from "lucide-react";
 import type { Classroom, ClassroomFormData } from "../../../types";
+import CustomPagination from "@/components/custom/pagination"; // Updated import for our custom pagination component
 
-// Mock data for classrooms
 const initialClassrooms: Classroom[] = [
-    { id: 111, name: "111", type: "Computer Lab", capacity: 30 },
-    { id: 304, name: "304", type: "Lecture Room", capacity: 40 },
-    { id: 404, name: "404", type: "Lecture Room", capacity: 50 },
+    { id: 1121, name: "1131", type: "Computer Lab", capacity: 30 },
+    { id: 3044, name: "3204", type: "Lecture Room", capacity: 40 },
+    { id: 4024, name: "4024", type: "Lecture Room", capacity: 50 },
+      { id: 321, name: "11123", type: "Computer Lab", capacity: 30 },
+    { id: 423, name: "304231", type: "Lecture Room", capacity: 40 },
+    { id: 2352, name: "42304", type: "Lecture Room", capacity: 50 },
+      { id: 5342, name: "1311", type: "Computer Lab", capacity: 30 },
+    { id: 534, name: "3044", type: "Lecture Room", capacity: 40 },
+    { id: 644, name: "4034", type: "Lecture Room", capacity: 50 },
+      { id: 11551, name: "1151", type: "Computer Lab", capacity: 30 },
+    { id: 3045324, name: "3034", type: "Lecture Room", capacity: 40 },
+    { id: 4054, name: "4064", type: "Lecture Room", capacity: 50 },
+    
 ];
 
+const ITEMS_PER_PAGE = 10; // Define how many items to show per page
+
 export function ClassroomView() {
-    const [classrooms, setClassrooms] =
-        useState<Classroom[]>(initialClassrooms);
+    const [classrooms, setClassrooms] = useState<Classroom[]>(initialClassrooms);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [selectedClassroom, setSelectedClassroom] =
-        useState<Classroom | null>(null);
+    const [selectedClassroom, setSelectedClassroom] = useState<Classroom | null>(null);
     const [formData, setFormData] = useState<ClassroomFormData>({
         name: "",
         type: "",
         capacity: "",
     });
+    const [currentPage, setCurrentPage] = useState(1);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -61,7 +72,7 @@ export function ClassroomView() {
 
     const handleAddClassroom = () => {
         const newClassroom: Classroom = {
-            id: Number.parseInt(formData.name), // Using room number as ID
+            id: Number.parseInt(formData.name),
             name: formData.name,
             type: formData.type,
             capacity: Number.parseInt(formData.capacity),
@@ -126,6 +137,9 @@ export function ClassroomView() {
         setIsDeleteDialogOpen(true);
     };
 
+    const totalPages = Math.ceil(classrooms.length / ITEMS_PER_PAGE);
+    const paginatedClassrooms = classrooms.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
     return (
         <div>
             <div className="flex justify-between items-center mb-6">
@@ -142,49 +156,33 @@ export function ClassroomView() {
                 <table className="w-full border-collapse">
                     <thead>
                         <tr>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                ID
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                NAME
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                TYPE
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                CAPACITY
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                Actions
-                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">ID</th>
+                            <th className="border p-2 bg-gray-100 text-left">NAME</th>
+                            <th className="border p-2 bg-gray-100 text-left">TYPE</th>
+                            <th className="border p-2 bg-gray-100 text-left">CAPACITY</th>
+                            <th className="border p-2 bg-gray-100 text-left">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {classrooms.map((classroom) => (
+                        {paginatedClassrooms.map((classroom) => (
                             <tr key={classroom.id}>
                                 <td className="border p-2">{classroom.id}</td>
                                 <td className="border p-2">{classroom.name}</td>
                                 <td className="border p-2">{classroom.type}</td>
-                                <td className="border p-2">
-                                    {classroom.capacity}
-                                </td>
+                                <td className="border p-2">{classroom.capacity}</td>
                                 <td className="border p-2">
                                     <div className="flex gap-2">
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={() =>
-                                                openEditDialog(classroom)
-                                            }
+                                            onClick={() => openEditDialog(classroom)}
                                         >
                                             <Pencil className="h-4 w-4" />
                                         </Button>
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={() =>
-                                                openDeleteDialog(classroom)
-                                            }
+                                            onClick={() => openDeleteDialog(classroom)}
                                         >
                                             <Trash className="h-4 w-4" />
                                         </Button>
@@ -195,6 +193,12 @@ export function ClassroomView() {
                     </tbody>
                 </table>
             </div>
+
+            <CustomPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+            />
 
             {/* Add Classroom Dialog */}
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -218,23 +222,15 @@ export function ClassroomView() {
                             <Label htmlFor="type">Type</Label>
                             <Select
                                 value={formData.type}
-                                onValueChange={(value) =>
-                                    handleSelectChange("type", value)
-                                }
+                                onValueChange={(value) => handleSelectChange("type", value)}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Lecture Room">
-                                        Lecture Room
-                                    </SelectItem>
-                                    <SelectItem value="Computer Lab">
-                                        Computer Lab
-                                    </SelectItem>
-                                    <SelectItem value="Conference Room">
-                                        Conference Room
-                                    </SelectItem>
+                                    <SelectItem value="Lecture Room">Lecture Room</SelectItem>
+                                    <SelectItem value="Computer Lab">Computer Lab</SelectItem>
+                                    <SelectItem value="Conference Room">Conference Room</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -252,15 +248,10 @@ export function ClassroomView() {
                     </div>
 
                     <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsAddDialogOpen(false)}
-                        >
+                        <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                             Cancel
                         </Button>
-                        <Button onClick={handleAddClassroom}>
-                            Add Classroom
-                        </Button>
+                        <Button onClick={handleAddClassroom}>Add Classroom</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -274,9 +265,7 @@ export function ClassroomView() {
 
                     <div className="grid gap-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="edit-name">
-                                Classroom Name/Number
-                            </Label>
+                            <Label htmlFor="edit-name">Classroom Name/Number</Label>
                             <Input
                                 id="edit-name"
                                 name="name"
@@ -289,23 +278,15 @@ export function ClassroomView() {
                             <Label htmlFor="edit-type">Type</Label>
                             <Select
                                 value={formData.type}
-                                onValueChange={(value) =>
-                                    handleSelectChange("type", value)
-                                }
+                                onValueChange={(value) => handleSelectChange("type", value)}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Lecture Room">
-                                        Lecture Room
-                                    </SelectItem>
-                                    <SelectItem value="Computer Lab">
-                                        Computer Lab
-                                    </SelectItem>
-                                    <SelectItem value="Conference Room">
-                                        Conference Room
-                                    </SelectItem>
+                                    <SelectItem value="Lecture Room">Lecture Room</SelectItem>
+                                    <SelectItem value="Computer Lab">Computer Lab</SelectItem>
+                                    <SelectItem value="Conference Room">Conference Room</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -323,24 +304,16 @@ export function ClassroomView() {
                     </div>
 
                     <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsEditDialogOpen(false)}
-                        >
+                        <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                             Cancel
                         </Button>
-                        <Button onClick={handleEditClassroom}>
-                            Save Changes
-                        </Button>
+                        <Button onClick={handleEditClassroom}>Save Changes</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
             {/* Delete Classroom Dialog */}
-            <Dialog
-                open={isDeleteDialogOpen}
-                onOpenChange={setIsDeleteDialogOpen}
-            >
+            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Delete Classroom</DialogTitle>
@@ -349,22 +322,15 @@ export function ClassroomView() {
                     <div className="py-4">
                         <p>Are you sure you want to delete this classroom?</p>
                         <p className="font-medium mt-2">
-                            {selectedClassroom?.name} ({selectedClassroom?.type}
-                            )
+                            {selectedClassroom?.name} ({selectedClassroom?.type})
                         </p>
                     </div>
 
                     <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsDeleteDialogOpen(false)}
-                        >
+                        <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
                             Cancel
                         </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={handleDeleteClassroom}
-                        >
+                        <Button variant="destructive" onClick={handleDeleteClassroom}>
                             Delete
                         </Button>
                     </DialogFooter>
