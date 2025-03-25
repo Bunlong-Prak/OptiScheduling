@@ -8,7 +8,7 @@ export type Major = {
 
 export type Classroom = {
     id: number;
-    name: string;
+    code: string;
     type: string;
     capacity: number;
 };
@@ -59,9 +59,9 @@ export type CourseFormData = {
     title: string;
     type: string;
     code: string;
-   
+
     color: string;
-   
+
     section_id: number;
     major_id: number;
     instructor_id: number;
@@ -77,7 +77,7 @@ export type InstructorFormData = {
 };
 
 export type ClassroomFormData = {
-    name: string;
+    code: string;
     type: string;
     capacity: string; // String for form input, will be converted to number
 };

@@ -1,12 +1,12 @@
 {
-  "version": "8",
+  "version": "7",
   "dialect": "mysql",
   "entries": [
     {
       "idx": 0,
       "version": "5",
-      "when": 1742459846894,
-      "tag": "0000_flawless_thunderball",
+      "when": 1742889440495,
+      "tag": "0000_concerned_paibok",
       "breakpoints": true
     }
   ]

@@ -1,15 +1,13 @@
-// filepath: d:\Documents\OptiScheduling\fyp\src\app\dashboard\schedule\[id]\classroom-view.tsx
 "use client";
 
-import type React from "react";
-import { useState } from "react";
+import CustomPagination from "@/components/custom/pagination";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,39 +19,70 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Pencil, Plus, Trash } from "lucide-react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import type { Classroom, ClassroomFormData } from "../../../types";
-import CustomPagination from "@/components/custom/pagination"; // Updated import for our custom pagination component
 
-const initialClassrooms: Classroom[] = [
-    { id: 1121, name: "1131", type: "Computer Lab", capacity: 30 },
-    { id: 3044, name: "3204", type: "Lecture Room", capacity: 40 },
-    { id: 4024, name: "4024", type: "Lecture Room", capacity: 50 },
-      { id: 321, name: "11123", type: "Computer Lab", capacity: 30 },
-    { id: 423, name: "304231", type: "Lecture Room", capacity: 40 },
-    { id: 2352, name: "42304", type: "Lecture Room", capacity: 50 },
-      { id: 5342, name: "1311", type: "Computer Lab", capacity: 30 },
-    { id: 534, name: "3044", type: "Lecture Room", capacity: 40 },
-    { id: 644, name: "4034", type: "Lecture Room", capacity: 50 },
-      { id: 11551, name: "1151", type: "Computer Lab", capacity: 30 },
-    { id: 3045324, name: "3034", type: "Lecture Room", capacity: 40 },
-    { id: 4054, name: "4064", type: "Lecture Room", capacity: 50 },
-    
-];
-
-const ITEMS_PER_PAGE = 10; // Define how many items to show per page
+const ITEMS_PER_PAGE = 10;
 
 export function ClassroomView() {
-    const [classrooms, setClassrooms] = useState<Classroom[]>(initialClassrooms);
+    const [classrooms, setClassrooms] = useState<Classroom[]>([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [selectedClassroom, setSelectedClassroom] = useState<Classroom | null>(null);
+    const [selectedClassroom, setSelectedClassroom] =
+        useState<Classroom | null>(null);
     const [formData, setFormData] = useState<ClassroomFormData>({
-        name: "",
+        code: "",
         type: "",
         capacity: "",
     });
     const [currentPage, setCurrentPage] = useState(1);
+    const [isLoading, setIsLoading] = useState(false);
+    const [statusMessage, setStatusMessage] = useState<{
+        text: string;
+        type: "success" | "error" | "info";
+    } | null>(null);
+
+    // Fetch classrooms from API
+    const fetchClassrooms = async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch("/api/classrooms");
+            if (!response.ok) {
+                throw new Error("Failed to fetch classrooms");
+            }
+            const data = await response.json();
+            setClassrooms(data);
+            setStatusMessage({
+                text: "Classrooms loaded successfully",
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error fetching classrooms:", error);
+            setStatusMessage({
+                text: "Failed to load classrooms. Please try again.",
+                type: "error",
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchClassrooms();
+    }, []);
+
+    // Clear status message after 3 seconds
+    useEffect(() => {
+        if (statusMessage) {
+            const timer = setTimeout(() => {
+                setStatusMessage(null);
+            }, 3000);
+
+            return () => clearTimeout(timer);
+        }
+    }, [statusMessage]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -70,52 +99,127 @@ export function ClassroomView() {
         });
     };
 
-    const handleAddClassroom = () => {
-        const newClassroom: Classroom = {
-            id: Number.parseInt(formData.name),
-            name: formData.name,
-            type: formData.type,
-            capacity: Number.parseInt(formData.capacity),
-        };
-
-        setClassrooms([...classrooms, newClassroom]);
-        setIsAddDialogOpen(false);
-        resetForm();
-    };
-
-    const handleEditClassroom = () => {
-        if (!selectedClassroom) return;
-
-        const updatedClassrooms = classrooms.map((classroom) => {
-            if (classroom.id === selectedClassroom.id) {
-                return {
-                    ...classroom,
-                    name: formData.name,
-                    type: formData.type,
-                    capacity: Number.parseInt(formData.capacity),
-                };
+    const handleAddClassroom = async () => {
+        setIsLoading(true);
+        try {
+            // Prepare data for API
+            const apiData = {
+                code: formData.code,
+                type: formData.type,
+                capacity: Number.parseInt(formData.capacity),
+            };
+            const response = await fetch("/api/classrooms", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
+            if (!response.ok) {
+                throw new Error("Failed to create classroom");
             }
-            return classroom;
-        });
-
-        setClassrooms(updatedClassrooms);
-        setIsEditDialogOpen(false);
-        resetForm();
+            // Refresh the classroom list
+            await fetchClassrooms();
+            // Close dialog and reset form
+            setIsAddDialogOpen(false);
+            resetForm();
+            setStatusMessage({
+                text: "Classroom added successfully",
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error adding classroom:", error);
+            setStatusMessage({
+                text: "Failed to add classroom. Please try again.",
+                type: "error",
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const handleDeleteClassroom = () => {
+    const handleEditClassroom = async () => {
         if (!selectedClassroom) return;
 
-        const updatedClassrooms = classrooms.filter(
-            (classroom) => classroom.id !== selectedClassroom.id
-        );
-        setClassrooms(updatedClassrooms);
-        setIsDeleteDialogOpen(false);
+        setIsLoading(true);
+        try {
+            // Prepare data for API
+            const apiData = {
+                id: selectedClassroom.id,
+                code: formData.code,
+                type: formData.type,
+                capacity: Number.parseInt(formData.capacity),
+            };
+            const response = await fetch(`/api/classrooms/`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
+            if (!response.ok) {
+                throw new Error("Failed to update classroom");
+            }
+            // Refresh the classroom list
+            await fetchClassrooms();
+            // Close dialog and reset form
+            setIsEditDialogOpen(false);
+            resetForm();
+            setStatusMessage({
+                text: "Classroom updated successfully",
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error updating classroom:", error);
+            setStatusMessage({
+                text: "Failed to update classroom. Please try again.",
+                type: "error",
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleDeleteClassroom = async () => {
+        if (!selectedClassroom) return;
+
+        setIsLoading(true);
+        try {
+            const apiData = {
+                id: selectedClassroom.id,
+            };
+            const response = await fetch(`/api/classrooms/`, {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
+            if (!response.ok) {
+                throw new Error("Failed to delete classroom");
+            }
+            // Refresh the classroom list
+            await fetchClassrooms();
+            // Close dialog
+            setIsDeleteDialogOpen(false);
+            setStatusMessage({
+                text: "Classroom deleted successfully",
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error deleting classroom:", error);
+            setStatusMessage({
+                text: "Failed to delete classroom. Please try again.",
+                type: "error",
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const resetForm = () => {
         setFormData({
-            name: "",
+            code: "",
             type: "",
             capacity: "",
         });
@@ -125,7 +229,7 @@ export function ClassroomView() {
     const openEditDialog = (classroom: Classroom) => {
         setSelectedClassroom(classroom);
         setFormData({
-            name: classroom.name,
+            code: classroom.code,
             type: classroom.type,
             capacity: classroom.capacity.toString(),
         });
@@ -138,15 +242,31 @@ export function ClassroomView() {
     };
 
     const totalPages = Math.ceil(classrooms.length / ITEMS_PER_PAGE);
-    const paginatedClassrooms = classrooms.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+    const paginatedClassrooms = classrooms.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
 
     return (
         <div>
+            {statusMessage && (
+                <div
+                    className={`mb-4 p-3 rounded-md ${
+                        statusMessage.type === "success"
+                            ? "bg-green-100 text-green-700 border border-green-200"
+                            : "bg-red-100 text-red-700 border border-red-200"
+                    }`}
+                >
+                    {statusMessage.text}
+                </div>
+            )}
+
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold">Classrooms</h2>
                 <Button
                     onClick={() => setIsAddDialogOpen(true)}
                     className="bg-green-600 hover:bg-green-700"
+                    disabled={isLoading}
                 >
                     <Plus className="mr-2 h-4 w-4" /> New Classroom
                 </Button>
@@ -156,49 +276,95 @@ export function ClassroomView() {
                 <table className="w-full border-collapse">
                     <thead>
                         <tr>
-                            <th className="border p-2 bg-gray-100 text-left">ID</th>
-                            <th className="border p-2 bg-gray-100 text-left">NAME</th>
-                            <th className="border p-2 bg-gray-100 text-left">TYPE</th>
-                            <th className="border p-2 bg-gray-100 text-left">CAPACITY</th>
-                            <th className="border p-2 bg-gray-100 text-left">Actions</th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                ID
+                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                NAME
+                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                TYPE
+                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                CAPACITY
+                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                Actions
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
-                        {paginatedClassrooms.map((classroom) => (
-                            <tr key={classroom.id}>
-                                <td className="border p-2">{classroom.id}</td>
-                                <td className="border p-2">{classroom.name}</td>
-                                <td className="border p-2">{classroom.type}</td>
-                                <td className="border p-2">{classroom.capacity}</td>
-                                <td className="border p-2">
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => openEditDialog(classroom)}
-                                        >
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => openDeleteDialog(classroom)}
-                                        >
-                                            <Trash className="h-4 w-4" />
-                                        </Button>
-                                    </div>
+                        {isLoading ? (
+                            <tr>
+                                <td
+                                    colSpan={5}
+                                    className="border p-2 text-center"
+                                >
+                                    Loading...
                                 </td>
                             </tr>
-                        ))}
+                        ) : paginatedClassrooms.length === 0 ? (
+                            <tr>
+                                <td
+                                    colSpan={5}
+                                    className="border p-2 text-center"
+                                >
+                                    No classrooms found
+                                </td>
+                            </tr>
+                        ) : (
+                            paginatedClassrooms.map((classroom) => (
+                                <tr key={classroom.id}>
+                                    <td className="border p-2">
+                                        {classroom.id}
+                                    </td>
+                                    <td className="border p-2">
+                                        {classroom.code}
+                                    </td>
+                                    <td className="border p-2">
+                                        {classroom.type}
+                                    </td>
+                                    <td className="border p-2">
+                                        {classroom.capacity}
+                                    </td>
+                                    <td className="border p-2">
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    openEditDialog(classroom)
+                                                }
+                                                disabled={isLoading}
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    openDeleteDialog(classroom)
+                                                }
+                                                disabled={isLoading}
+                                            >
+                                                <Trash className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
 
-            <CustomPagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-            />
+            {classrooms.length > 0 && (
+                <CustomPagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                />
+            )}
 
             {/* Add Classroom Dialog */}
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -209,11 +375,11 @@ export function ClassroomView() {
 
                     <div className="grid gap-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="name">Classroom Name/Number</Label>
+                            <Label htmlFor="code">Classroom Code</Label>
                             <Input
-                                id="name"
-                                name="name"
-                                value={formData.name}
+                                id="code"
+                                name="code"
+                                value={formData.code}
                                 onChange={handleInputChange}
                             />
                         </div>
@@ -222,15 +388,23 @@ export function ClassroomView() {
                             <Label htmlFor="type">Type</Label>
                             <Select
                                 value={formData.type}
-                                onValueChange={(value) => handleSelectChange("type", value)}
+                                onValueChange={(value) =>
+                                    handleSelectChange("type", value)
+                                }
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Lecture Room">Lecture Room</SelectItem>
-                                    <SelectItem value="Computer Lab">Computer Lab</SelectItem>
-                                    <SelectItem value="Conference Room">Conference Room</SelectItem>
+                                    <SelectItem value="Lecture Room">
+                                        Lecture Room
+                                    </SelectItem>
+                                    <SelectItem value="Computer Lab">
+                                        Computer Lab
+                                    </SelectItem>
+                                    <SelectItem value="Conference Room">
+                                        Conference Room
+                                    </SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -248,10 +422,19 @@ export function ClassroomView() {
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsAddDialogOpen(false)}
+                            disabled={isLoading}
+                        >
                             Cancel
                         </Button>
-                        <Button onClick={handleAddClassroom}>Add Classroom</Button>
+                        <Button
+                            onClick={handleAddClassroom}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? "Adding..." : "Add Classroom"}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -265,11 +448,11 @@ export function ClassroomView() {
 
                     <div className="grid gap-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="edit-name">Classroom Name/Number</Label>
+                            <Label htmlFor="edit-code">Classroom Code</Label>
                             <Input
-                                id="edit-name"
-                                name="name"
-                                value={formData.name}
+                                id="edit-code"
+                                name="code"
+                                value={formData.code}
                                 onChange={handleInputChange}
                             />
                         </div>
@@ -278,15 +461,23 @@ export function ClassroomView() {
                             <Label htmlFor="edit-type">Type</Label>
                             <Select
                                 value={formData.type}
-                                onValueChange={(value) => handleSelectChange("type", value)}
+                                onValueChange={(value) =>
+                                    handleSelectChange("type", value)
+                                }
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Lecture Room">Lecture Room</SelectItem>
-                                    <SelectItem value="Computer Lab">Computer Lab</SelectItem>
-                                    <SelectItem value="Conference Room">Conference Room</SelectItem>
+                                    <SelectItem value="Lecture Room">
+                                        Lecture Room
+                                    </SelectItem>
+                                    <SelectItem value="Computer Lab">
+                                        Computer Lab
+                                    </SelectItem>
+                                    <SelectItem value="Conference Room">
+                                        Conference Room
+                                    </SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -304,16 +495,28 @@ export function ClassroomView() {
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsEditDialogOpen(false)}
+                            disabled={isLoading}
+                        >
                             Cancel
                         </Button>
-                        <Button onClick={handleEditClassroom}>Save Changes</Button>
+                        <Button
+                            onClick={handleEditClassroom}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? "Saving..." : "Save Changes"}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
             {/* Delete Classroom Dialog */}
-            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <Dialog
+                open={isDeleteDialogOpen}
+                onOpenChange={setIsDeleteDialogOpen}
+            >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Delete Classroom</DialogTitle>
@@ -322,16 +525,25 @@ export function ClassroomView() {
                     <div className="py-4">
                         <p>Are you sure you want to delete this classroom?</p>
                         <p className="font-medium mt-2">
-                            {selectedClassroom?.name} ({selectedClassroom?.type})
+                            {selectedClassroom?.code} ({selectedClassroom?.type}
+                            )
                         </p>
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsDeleteDialogOpen(false)}
+                            disabled={isLoading}
+                        >
                             Cancel
                         </Button>
-                        <Button variant="destructive" onClick={handleDeleteClassroom}>
-                            Delete
+                        <Button
+                            variant="destructive"
+                            onClick={handleDeleteClassroom}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? "Deleting..." : "Delete"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

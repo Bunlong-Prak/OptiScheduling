@@ -1,6 +1,6 @@
 CREATE TABLE `classrooms` (
 	`id` int AUTO_INCREMENT NOT NULL,
-	`name` varchar(255) NOT NULL,
+	`code` varchar(255) NOT NULL,
 	`type` varchar(50) NOT NULL,
 	`capacity` int NOT NULL,
 	CONSTRAINT `classrooms_id` PRIMARY KEY(`id`)
@@ -17,8 +17,6 @@ CREATE TABLE `courses` (
 	`title` varchar(255) NOT NULL,
 	`type` varchar(50) NOT NULL,
 	`code` varchar(50) NOT NULL,
-	`degree` varchar(50) NOT NULL,
-	`grade_type` varchar(50) NOT NULL,
 	`color` varchar(50),
 	`capacity` int NOT NULL,
 	`description` varchar(255),

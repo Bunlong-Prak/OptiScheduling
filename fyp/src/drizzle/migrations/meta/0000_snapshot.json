@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "a7c8941c-faf6-4e5a-bf22-3db7993fafe0",
+  "id": "95ddbe09-5195-476f-8d0b-90312281fd08",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classrooms": {
@@ -14,8 +14,8 @@
           "notNull": true,
           "autoincrement": true
         },
-        "name": {
-          "name": "name",
+        "code": {
+          "name": "code",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true,
@@ -106,20 +106,6 @@
         },
         "code": {
           "name": "code",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "degree": {
-          "name": "degree",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "grade_type": {
-          "name": "grade_type",
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true,

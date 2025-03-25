@@ -100,8 +100,6 @@ export const courses = mysqlTable("courses", {
     title: varchar("title", { length: 255 }).notNull(),
     type: varchar("type", { length: 50 }).notNull(),
     code: varchar("code", { length: 50 }).notNull(),
-    degree: varchar("degree", { length: 50 }).notNull(),
-    gradeType: varchar("grade_type", { length: 50 }).notNull(),
     color: varchar("color", { length: 50 }),
     capacity: int("capacity").notNull(),
     description: varchar("description", {
@@ -158,7 +156,7 @@ export const majors = mysqlTable("majors", {
 
 export const classrooms = mysqlTable("classrooms", {
     id: int("id").primaryKey().autoincrement(),
-    name: varchar("name", { length: 255 }).notNull(),
+    code: varchar("code", { length: 255 }).notNull(),
     type: varchar("type", { length: 50 }).notNull(),
     capacity: int("capacity").notNull(),
 });

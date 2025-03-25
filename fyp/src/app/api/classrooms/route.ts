@@ -1,13 +1,69 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { classrooms } from "@/drizzle/schema";
+import { db } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
+import { z } from "zod";
 
+// Define the classroom schema using Zod
+export const createClassroomSchema = z.object({
+    // ID: Optional for creation (auto-incremented by DB), required for updates
+    id: z.number().int().positive().optional(),
+
+    // Name: Required, string, max 255 chars
+    code: z
+        .string()
+        .min(1, { message: "Classroom name is required" })
+        .max(255, { message: "Classroom name cannot exceed 255 characters" }),
+
+    // Type: Required, string, max 50 chars
+    type: z
+        .string()
+        .min(1, { message: "Classroom type is required" })
+        .max(50, { message: "Classroom type cannot exceed 50 characters" }),
+
+    // Capacity: Required, positive integer
+    capacity: z
+        .number()
+        .int({ message: "Capacity must be a whole number" })
+        .positive({ message: "Capacity must be a positive number" }),
+});
+
+export const editClassroomSchema = z.object({
+    // ID: Optional for creation (auto-incremented by DB), required for updates
+    id: z.number({
+        required_error: "ID is required",
+    }),
+
+    // Name: Required, string, max 255 chars
+    code: z
+        .string()
+        .min(1, { message: "Classroom name is required" })
+        .max(255, { message: "Classroom name cannot exceed 255 characters" }),
+
+    // Type: Required, string, max 50 chars
+    type: z
+        .string()
+        .min(1, { message: "Classroom type is required" })
+        .max(50, { message: "Classroom type cannot exceed 50 characters" }),
+
+    // Capacity: Required, positive integer
+    capacity: z
+        .number()
+        .int({ message: "Capacity must be a whole number" })
+        .positive({ message: "Capacity must be a positive number" }),
+});
 // GET all classrooms
 export async function GET() {
     try {
         const allClassrooms = await db.select().from(classrooms);
-        return NextResponse.json(allClassrooms);
+
+        const formattedClassrooms = allClassrooms.map((classroom) => ({
+            id: classroom.id,
+            code: classroom.code,
+            type: classroom.type,
+            capacity: classroom.capacity,
+        }));
+        return NextResponse.json(formattedClassrooms);
     } catch (error: unknown) {
         console.error("Error fetching classrooms:", error);
         return NextResponse.json(
@@ -17,14 +73,22 @@ export async function GET() {
     }
 }
 
+export const deleteClassroomSchema = z.object({
+    // ID: Optional for creation (auto-incremented by DB), required for updates
+    id: z.number({
+        required_error: "ID is required",
+    }),
+});
+
 // POST new classroom
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { name, type, capacity } = body;
+        const validatedData = createClassroomSchema.parse(body);
+        const { code, type, capacity } = validatedData;
 
         const newClassroom = await db.insert(classrooms).values({
-            name,
+            code,
             type,
             capacity,
         });
@@ -40,14 +104,15 @@ export async function POST(request: Request) {
 }
 
 // PUT update classroom
-export async function PUT(request: Request) {
+export async function PATCH(request: Request) {
     try {
         const body = await request.json();
-        const { id, name, type, capacity } = body;
+        const validatedData = editClassroomSchema.parse(body);
+        const { id, code, type, capacity } = validatedData;
 
         const updatedClassroom = await db
             .update(classrooms)
-            .set({ name, type, capacity })
+            .set({ code, type, capacity })
             .where(eq(classrooms.id, id));
 
         return NextResponse.json(updatedClassroom);
@@ -63,8 +128,9 @@ export async function PUT(request: Request) {
 // DELETE classroom
 export async function DELETE(request: Request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get("id");
+        const body = await request.json();
+        const validatedData = deleteClassroomSchema.parse(body);
+        const { id } = validatedData;
 
         if (!id) {
             return NextResponse.json(
@@ -73,8 +139,7 @@ export async function DELETE(request: Request) {
             );
         }
 
-        await db.delete(classrooms).where(eq(classrooms.id, parseInt(id)));
-
+        await db.delete(classrooms).where(eq(classrooms.id, id));
         return NextResponse.json({ message: "Classroom deleted successfully" });
     } catch (error: unknown) {
         console.error("Error deleting classroom:", error);
