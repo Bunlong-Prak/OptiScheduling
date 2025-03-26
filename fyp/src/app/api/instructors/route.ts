@@ -4,8 +4,32 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-// Define the schema for instructor data validation
-const instructorSchema = z.object({
+const createInstructorSchema = z.object({
+    firstName: z
+        .string({
+            required_error: "First name is required",
+        })
+        .min(1, "First name cannot be empty"),
+    lastName: z
+        .string({
+            required_error: "Last name is required",
+        })
+        .min(1, "Last name cannot be empty"),
+    gender: z
+        .string({
+            required_error: "Gender is required",
+        })
+        .min(1, "Gender cannot be empty"),
+    email: z
+        .string({
+            required_error: "Email is required",
+        })
+        .email("Invalid email format"),
+    phoneNumber: z.string({
+        required_error: "Phone Number is required",
+    }),
+});
+const editInstructorSchema = z.object({
     id: z.number({
         required_error: "ID is required",
     }),
@@ -29,7 +53,9 @@ const instructorSchema = z.object({
             required_error: "Email is required",
         })
         .email("Invalid email format"),
-    phoneNumber: z.string().optional(),
+    phoneNumber: z.string({
+        required_error: "Phone Number is required",
+    }),
 });
 
 const deleteInstructorSchema = z.object({
@@ -69,11 +95,16 @@ export const POST = createInstructor;
 export async function createInstructor(request: Request) {
     try {
         const body = await request.json();
-        const { lastName, firstName, gender, email, phoneNumber } = body;
+
+        // Validate request body against schema
+        const validatedData = createInstructorSchema.parse(body);
+
+        const { firstName, lastName, gender, email, phoneNumber } =
+            validatedData;
 
         const newInstructor = await db.insert(instructors).values({
-            lastName,
             firstName,
+            lastName,
             gender,
             email,
             phoneNumber,
@@ -95,7 +126,7 @@ export async function PATCH(request: Request) {
         const body = await request.json();
 
         // Validate request body against schema
-        const validatedData = instructorSchema.parse(body);
+        const validatedData = editInstructorSchema.parse(body);
 
         const { id, firstName, lastName, gender, email, phoneNumber } =
             validatedData;

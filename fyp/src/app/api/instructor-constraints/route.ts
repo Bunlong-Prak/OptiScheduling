@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import {
     instructorUnavailableDays,
     instructorUnavailableTimePeriods,
 } from "@/drizzle/schema";
+import { db } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
 
 // GET all instructor constraints
 export async function GET() {
@@ -117,9 +117,8 @@ export async function PUT(request: Request) {
 // DELETE instructor constraint
 export async function DELETE(request: Request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get("id");
-
+        const body = await request.json();
+        const { id } = body;
         if (!id) {
             return NextResponse.json(
                 { error: "ID is required" },
@@ -133,14 +132,14 @@ export async function DELETE(request: Request) {
             .where(
                 eq(
                     instructorUnavailableTimePeriods.instructorUnavailableDayId,
-                    parseInt(id)
+                    id
                 )
             );
 
         // Then delete the unavailable day
         await db
             .delete(instructorUnavailableDays)
-            .where(eq(instructorUnavailableDays.id, parseInt(id)));
+            .where(eq(instructorUnavailableDays.id, id));
 
         return NextResponse.json({
             message: "Instructor constraint deleted successfully",

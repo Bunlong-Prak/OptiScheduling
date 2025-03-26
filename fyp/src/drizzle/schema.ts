@@ -157,14 +157,21 @@ export const majors = mysqlTable("majors", {
 export const classrooms = mysqlTable("classrooms", {
     id: int("id").primaryKey().autoincrement(),
     code: varchar("code", { length: 255 }).notNull(),
-    type: varchar("type", { length: 50 }).notNull(),
     capacity: int("capacity").notNull(),
+    classroomTypeId: int("classroom_type_id")
+        .notNull()
+        .references(() => classroomTypes.id),
+});
+
+export const classroomTypes = mysqlTable("classroom_types", {
+    id: int("id").primaryKey().autoincrement(),
+    name: varchar("name", { length: 255 }).notNull(),
 });
 
 export const instructors = mysqlTable("instructors", {
     id: int("id").primaryKey().autoincrement(),
-    lastName: varchar("last_name", { length: 255 }).notNull(),
     firstName: varchar("first_name", { length: 255 }).notNull(),
+    lastName: varchar("last_name", { length: 255 }).notNull(),
     gender: varchar("gender", { length: 50 }).notNull(),
     email: varchar("email", { length: 255 }).notNull(),
     phoneNumber: varchar("phone_number", { length: 50 }).notNull(),

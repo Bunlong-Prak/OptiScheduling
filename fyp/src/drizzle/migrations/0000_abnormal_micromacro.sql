@@ -1,8 +1,14 @@
+CREATE TABLE `classroom_types` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`name` varchar(255) NOT NULL,
+	CONSTRAINT `classroom_types_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
 CREATE TABLE `classrooms` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`code` varchar(255) NOT NULL,
-	`type` varchar(50) NOT NULL,
 	`capacity` int NOT NULL,
+	`classroom_type_id` int NOT NULL,
 	CONSTRAINT `classrooms_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -43,8 +49,8 @@ CREATE TABLE `instructor_unavailable_time_periods` (
 --> statement-breakpoint
 CREATE TABLE `instructors` (
 	`id` int AUTO_INCREMENT NOT NULL,
-	`last_name` varchar(255) NOT NULL,
 	`first_name` varchar(255) NOT NULL,
+	`last_name` varchar(255) NOT NULL,
 	`gender` varchar(50) NOT NULL,
 	`email` varchar(255) NOT NULL,
 	`phone_number` varchar(50) NOT NULL,
@@ -108,6 +114,7 @@ CREATE TABLE `users` (
 	CONSTRAINT `users_email_unique` UNIQUE(`email`)
 );
 --> statement-breakpoint
+ALTER TABLE `classrooms` ADD CONSTRAINT `classrooms_classroom_type_id_classroom_types_id_fk` FOREIGN KEY (`classroom_type_id`) REFERENCES `classroom_types`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `courses` ADD CONSTRAINT `courses_schedule_id_schedules_id_fk` FOREIGN KEY (`schedule_id`) REFERENCES `schedules`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `courses` ADD CONSTRAINT `courses_major_id_majors_id_fk` FOREIGN KEY (`major_id`) REFERENCES `majors`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `courses` ADD CONSTRAINT `courses_instructor_id_instructors_id_fk` FOREIGN KEY (`instructor_id`) REFERENCES `instructors`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint

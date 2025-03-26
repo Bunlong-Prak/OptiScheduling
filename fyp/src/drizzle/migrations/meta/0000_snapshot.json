@@ -1,9 +1,40 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "95ddbe09-5195-476f-8d0b-90312281fd08",
+  "id": "441e08cc-2767-4018-b67f-fdb1c170e283",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
+    "classroom_types": {
+      "name": "classroom_types",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "classroom_types_id": {
+          "name": "classroom_types_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
     "classrooms": {
       "name": "classrooms",
       "columns": {
@@ -21,15 +52,15 @@
           "notNull": true,
           "autoincrement": false
         },
-        "type": {
-          "name": "type",
-          "type": "varchar(50)",
+        "capacity": {
+          "name": "capacity",
+          "type": "int",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "capacity": {
-          "name": "capacity",
+        "classroom_type_id": {
+          "name": "classroom_type_id",
           "type": "int",
           "primaryKey": false,
           "notNull": true,
@@ -37,7 +68,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "classrooms_classroom_type_id_classroom_types_id_fk": {
+          "name": "classrooms_classroom_type_id_classroom_types_id_fk",
+          "tableFrom": "classrooms",
+          "tableTo": "classroom_types",
+          "columnsFrom": [
+            "classroom_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {
         "classrooms_id": {
           "name": "classrooms_id",
@@ -341,15 +386,15 @@
           "notNull": true,
           "autoincrement": true
         },
-        "last_name": {
-          "name": "last_name",
+        "first_name": {
+          "name": "first_name",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "first_name": {
-          "name": "first_name",
+        "last_name": {
+          "name": "last_name",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true,

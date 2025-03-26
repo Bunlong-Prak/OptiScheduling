@@ -6,9 +6,6 @@ import { z } from "zod";
 
 // Define the classroom schema using Zod
 export const createClassroomSchema = z.object({
-    // ID: Optional for creation (auto-incremented by DB), required for updates
-    id: z.number().int().positive().optional(),
-
     // Name: Required, string, max 255 chars
     code: z
         .string()
@@ -52,6 +49,13 @@ export const editClassroomSchema = z.object({
         .int({ message: "Capacity must be a whole number" })
         .positive({ message: "Capacity must be a positive number" }),
 });
+
+export const deleteClassroomSchema = z.object({
+    // ID: Optional for creation (auto-incremented by DB), required for updates
+    id: z.number({
+        required_error: "ID is required",
+    }),
+});
 // GET all classrooms
 export async function GET() {
     try {
@@ -72,13 +76,6 @@ export async function GET() {
         );
     }
 }
-
-export const deleteClassroomSchema = z.object({
-    // ID: Optional for creation (auto-incremented by DB), required for updates
-    id: z.number({
-        required_error: "ID is required",
-    }),
-});
 
 // POST new classroom
 export async function POST(request: Request) {

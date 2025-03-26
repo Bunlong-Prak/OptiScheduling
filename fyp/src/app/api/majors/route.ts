@@ -1,12 +1,61 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { majors } from "@/drizzle/schema";
+import { db } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
+import { z } from "zod";
 
+export const createMajorSchema = z.object({
+    // ID: Optional for creation (auto-incremented by DB)
+    id: z.number().int().positive().optional(),
+
+    // Name: Required, string, max 100 chars
+    name: z
+        .string()
+        .min(1, { message: "Major name is required" })
+        .max(100, { message: "Major name cannot exceed 100 characters" }),
+
+    // Short Tag: Required, string, max 10 chars
+    shortTag: z
+        .string()
+        .min(1, { message: "Short tag is required" })
+        .max(10, { message: "Short tag cannot exceed 10 characters" }),
+});
+
+export const editMajorSchema = z.object({
+    // ID: Required for updates
+    id: z.number({
+        required_error: "ID is required",
+    }),
+
+    // Name: Required, string, max 100 chars
+    name: z
+        .string()
+        .min(1, { message: "Major name is required" })
+        .max(100, { message: "Major name cannot exceed 100 characters" }),
+
+    // Short Tag: Required, string, max 10 chars
+    shortTag: z
+        .string()
+        .min(1, { message: "Short tag is required" })
+        .max(10, { message: "Short tag cannot exceed 10 characters" }),
+});
+
+export const deleteMajorSchema = z.object({
+    // ID: Required for deletion
+    id: z.number({
+        required_error: "ID is required",
+    }),
+});
 // GET all majors
 export async function GET() {
     try {
         const allMajors = await db.select().from(majors);
+
+        const formattedInstructors = allMajors.map((major) => ({
+            id: major.id,
+            name: major.name,
+            short_tag: major.shortTag,
+        }));
         return NextResponse.json(allMajors);
     } catch (error: unknown) {
         console.error("Error fetching majors:", error);
@@ -21,7 +70,8 @@ export async function GET() {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { name, shortTag } = body;
+        const validatedData = createMajorSchema.parse(body);
+        const { name, shortTag } = validatedData;
 
         const newMajor = await db.insert(majors).values({
             name,
@@ -42,7 +92,8 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
-        const { id, name, shortTag } = body;
+        const validatedData = editMajorSchema.parse(body);
+        const { id, name, shortTag } = validatedData;
 
         const updatedMajor = await db
             .update(majors)
@@ -65,8 +116,9 @@ export async function PUT(request: Request) {
 // DELETE major
 export async function DELETE(request: Request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get("id");
+        const body = await request.json();
+        const validatedData = deleteMajorSchema.parse(body);
+        const { id } = validatedData;
 
         if (!id) {
             return NextResponse.json(
@@ -75,7 +127,7 @@ export async function DELETE(request: Request) {
             );
         }
 
-        await db.delete(majors).where(eq(majors.id, parseInt(id)));
+        await db.delete(majors).where(eq(majors.id, id));
 
         return NextResponse.json({ message: "Major deleted successfully" });
     } catch (error: unknown) {
