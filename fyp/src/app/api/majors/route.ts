@@ -51,12 +51,12 @@ export async function GET() {
     try {
         const allMajors = await db.select().from(majors);
 
-        const formattedInstructors = allMajors.map((major) => ({
+        const formattedMajors = allMajors.map((major) => ({
             id: major.id,
             name: major.name,
             short_tag: major.shortTag,
         }));
-        return NextResponse.json(allMajors);
+        return NextResponse.json(formattedMajors);
     } catch (error: unknown) {
         console.error("Error fetching majors:", error);
         return NextResponse.json(
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 }
 
 // PUT update major
-export async function PUT(request: Request) {
+export async function PATCH(request: Request) {
     try {
         const body = await request.json();
         const validatedData = editMajorSchema.parse(body);
@@ -119,13 +119,6 @@ export async function DELETE(request: Request) {
         const body = await request.json();
         const validatedData = deleteMajorSchema.parse(body);
         const { id } = validatedData;
-
-        if (!id) {
-            return NextResponse.json(
-                { error: "ID is required" },
-                { status: 400 }
-            );
-        }
 
         await db.delete(majors).where(eq(majors.id, id));
 

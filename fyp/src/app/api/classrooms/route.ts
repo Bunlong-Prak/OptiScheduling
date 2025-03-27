@@ -12,12 +12,6 @@ export const createClassroomSchema = z.object({
         .min(1, { message: "Classroom name is required" })
         .max(255, { message: "Classroom name cannot exceed 255 characters" }),
 
-    // Type: Required, string, max 50 chars
-    classroomTypeId: z
-        .string()
-        .min(1, { message: "Classroom type is required" })
-        .max(50, { message: "Classroom type cannot exceed 50 characters" }),
-
     // Capacity: Required, positive integer
     capacity: z
         .number()
@@ -36,12 +30,6 @@ export const editClassroomSchema = z.object({
         .string()
         .min(1, { message: "Classroom name is required" })
         .max(255, { message: "Classroom name cannot exceed 255 characters" }),
-
-    // Type: Required, string, max 50 chars
-    type: z
-        .string()
-        .min(1, { message: "Classroom type is required" })
-        .max(50, { message: "Classroom type cannot exceed 50 characters" }),
 
     // Capacity: Required, positive integer
     capacity: z

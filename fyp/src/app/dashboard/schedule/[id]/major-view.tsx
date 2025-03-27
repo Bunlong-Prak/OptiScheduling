@@ -2,50 +2,54 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import CustomPagination from "@/components/custom/pagination";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pencil, Plus, Trash } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { Major, MajorFormData } from "../../../types";
-import CustomPagination from "@/components/custom/pagination"; // Import the pagination component
 
-// Mock data for majors - let's add more to demonstrate pagination
-const initialMajors: Major[] = [
-    { id: 1, name: "Computer Science", short_tag: "CS" },
-    { id: 2, name: "Civil Engineering", short_tag: "CE" },
-    { id: 3, name: "Industrial Engineering", short_tag: "IE" },
-    { id: 4, name: "Mechanical Engineering", short_tag: "ME" },
-    { id: 5, name: "Electrical Engineering", short_tag: "EE" },
-    { id: 6, name: "Chemical Engineering", short_tag: "ChE" },
-    { id: 7, name: "Business Administration", short_tag: "BA" },
-    { id: 8, name: "Economics", short_tag: "ECON" },
-    { id: 9, name: "Mathematics", short_tag: "MATH" },
-    { id: 10, name: "Physics", short_tag: "PHYS" },
-    { id: 11, name: "Chemistry", short_tag: "CHEM" },
-    { id: 12, name: "Biology", short_tag: "BIO" },
-];
-
-const ITEMS_PER_PAGE = 5; // Define how many items to show per page
+const ITEMS_PER_PAGE = 5;
 
 export function MajorView() {
-    const [majors, setMajors] = useState<Major[]>(initialMajors);
+    const [majors, setMajors] = useState<Major[]>([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [statusMessage, setStatusMessage] = useState<{
+        text: string;
+        type: "success" | "error";
+    } | null>(null);
     const [selectedMajor, setSelectedMajor] = useState<Major | null>(null);
     const [formData, setFormData] = useState<MajorFormData>({
         name: "",
         short_tag: "",
     });
     const [currentPage, setCurrentPage] = useState(1);
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Load majors on component mount
+    useEffect(() => {
+        fetchMajors();
+    }, []);
+
+    // Clear status message after 5 seconds
+    useEffect(() => {
+        if (statusMessage) {
+            const timer = setTimeout(() => {
+                setStatusMessage(null);
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [statusMessage]);
 
     // Calculate pagination values
     const totalPages = Math.ceil(majors.length / ITEMS_PER_PAGE);
@@ -53,6 +57,30 @@ export function MajorView() {
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
+
+    const fetchMajors = async () => {
+        try {
+            setIsLoading(true);
+            const response = await fetch("/api/majors");
+
+            if (!response.ok) {
+                throw new Error("Failed to fetch majors");
+            }
+
+            const data = await response.json();
+            setMajors(data);
+            // Reset to first page when data changes
+            setCurrentPage(1);
+        } catch (error) {
+            console.error("Error fetching majors:", error);
+            setStatusMessage({
+                text: "Failed to load majors. Please try again.",
+                type: "error",
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -62,52 +90,136 @@ export function MajorView() {
         });
     };
 
-    const handleAddMajor = () => {
-        const newMajor: Major = {
-            id: Math.max(0, ...majors.map((m) => m.id)) + 1,
-            name: formData.name,
-            short_tag: formData.short_tag,
-        };
-
-        setMajors([...majors, newMajor]);
-        setIsAddDialogOpen(false);
-        resetForm();
+    // Function to handle opening the add dialog
+    const openAddDialog = () => {
+        resetForm(); // Ensure form is clean before opening
+        setIsAddDialogOpen(true);
     };
 
-    const handleEditMajor = () => {
-        if (!selectedMajor) return;
+    const handleAddMajor = async () => {
+        try {
+            // Prepare data for API
+            const apiData = {
+                name: formData.name,
+                shortTag: formData.short_tag,
+            };
 
-        const updatedMajors = majors.map((major) => {
-            if (major.id === selectedMajor.id) {
-                return {
-                    ...major,
-                    name: formData.name,
-                    short_tag: formData.short_tag,
-                };
+            const response = await fetch("/api/majors", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to create major");
             }
-            return major;
-        });
 
-        setMajors(updatedMajors);
-        setIsEditDialogOpen(false);
-        resetForm();
+            // Refresh the major list
+            await fetchMajors();
+
+            // Close dialog and reset form
+            setIsAddDialogOpen(false);
+            resetForm();
+
+            setStatusMessage({
+                text: "Major added successfully",
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error adding major:", error);
+            setStatusMessage({
+                text: "Failed to add major. Please try again.",
+                type: "error",
+            });
+        }
     };
 
-    const handleDeleteMajor = () => {
+    const handleEditMajor = async () => {
         if (!selectedMajor) return;
 
-        const updatedMajors = majors.filter(
-            (major) => major.id !== selectedMajor.id
-        );
-        setMajors(updatedMajors);
-        setIsDeleteDialogOpen(false);
+        try {
+            const apiData = {
+                id: selectedMajor.id,
+                name: formData.name,
+                shortTag: formData.short_tag,
+            };
 
-        // Check if we need to adjust the current page after deletion
-        if (
-            updatedMajors.length > 0 &&
-            currentPage > Math.ceil(updatedMajors.length / ITEMS_PER_PAGE)
-        ) {
-            setCurrentPage(Math.ceil(updatedMajors.length / ITEMS_PER_PAGE));
+            console.log("Sending update data:", apiData);
+
+            const response = await fetch("/api/majors", {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
+
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                console.error("Update failed:", responseData);
+                throw new Error(responseData.error || "Failed to update major");
+            }
+
+            console.log("Update successful:", responseData);
+
+            await fetchMajors();
+            setIsEditDialogOpen(false);
+            resetForm();
+            setStatusMessage({
+                text: "Major updated successfully",
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error updating major:", error);
+            setStatusMessage({
+                text:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to update major. Please try again.",
+                type: "error",
+            });
+        }
+    };
+
+    const handleDeleteMajor = async () => {
+        if (!selectedMajor) return;
+
+        try {
+            const apiData = {
+                id: selectedMajor.id,
+            };
+            const response = await fetch("/api/majors", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to delete major");
+            }
+
+            // Refresh the major list
+            await fetchMajors();
+
+            // Close dialog
+            setIsDeleteDialogOpen(false);
+            setSelectedMajor(null);
+
+            setStatusMessage({
+                text: "Major deleted successfully",
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error deleting major:", error);
+            setStatusMessage({
+                text: "Failed to delete major. Please try again.",
+                type: "error",
+            });
         }
     };
 
@@ -120,6 +232,7 @@ export function MajorView() {
     };
 
     const openEditDialog = (major: Major) => {
+        resetForm(); // Reset first to clear any previous data
         setSelectedMajor(major);
         setFormData({
             name: major.name,
@@ -135,81 +248,126 @@ export function MajorView() {
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold">Majors</h2>
-                <Button
-                    onClick={() => setIsAddDialogOpen(true)}
-                    className="bg-green-600 hover:bg-green-700"
-                >
-                    <Plus className="mr-2 h-4 w-4" /> New Major
-                </Button>
-            </div>
+            {isLoading ? (
+                <div className="flex justify-center my-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                </div>
+            ) : (
+                <>
+                    {statusMessage && (
+                        <div
+                            className={`mb-4 p-3 rounded ${
+                                statusMessage.type === "success"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-red-100 text-red-800"
+                            }`}
+                        >
+                            {statusMessage.text}
+                        </div>
+                    )}
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xl font-bold">Majors</h2>
+                        <Button
+                            onClick={openAddDialog}
+                            className="bg-green-600 hover:bg-green-700"
+                        >
+                            <Plus className="mr-2 h-4 w-4" /> New Major
+                        </Button>
+                    </div>
 
-            <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                    <thead>
-                        <tr>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                ID
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                NAME
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                SHORT TAG
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {paginatedMajors.map((major) => (
-                            <tr key={major.id}>
-                                <td className="border p-2">{major.id}</td>
-                                <td className="border p-2">{major.name}</td>
-                                <td className="border p-2">
-                                    {major.short_tag}
-                                </td>
-                                <td className="border p-2">
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() =>
-                                                openEditDialog(major)
-                                            }
+                    <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                            <thead>
+                                <tr>
+                                    <th className="border p-2 bg-gray-100 text-left">
+                                        ID
+                                    </th>
+                                    <th className="border p-2 bg-gray-100 text-left">
+                                        NAME
+                                    </th>
+                                    <th className="border p-2 bg-gray-100 text-left">
+                                        SHORT TAG
+                                    </th>
+                                    <th className="border p-2 bg-gray-100 text-left">
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {majors.length === 0 ? (
+                                    <tr>
+                                        <td
+                                            colSpan={4}
+                                            className="border p-4 text-center"
                                         >
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() =>
-                                                openDeleteDialog(major)
-                                            }
-                                        >
-                                            <Trash className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                                            No majors found. Add a new major to
+                                            get started.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    paginatedMajors.map((major) => (
+                                        <tr key={major.id}>
+                                            <td className="border p-2">
+                                                {major.id}
+                                            </td>
+                                            <td className="border p-2">
+                                                {major.name}
+                                            </td>
+                                            <td className="border p-2">
+                                                {major.short_tag}
+                                            </td>
+                                            <td className="border p-2">
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() =>
+                                                            openEditDialog(
+                                                                major
+                                                            )
+                                                        }
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() =>
+                                                            openDeleteDialog(
+                                                                major
+                                                            )
+                                                        }
+                                                    >
+                                                        <Trash className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
 
-            {/* Add pagination */}
-            {majors.length > ITEMS_PER_PAGE && (
-                <CustomPagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={setCurrentPage}
-                />
+                    {/* Add pagination if we have majors */}
+                    {majors.length > 0 && (
+                        <CustomPagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={setCurrentPage}
+                        />
+                    )}
+                </>
             )}
 
             {/* Add Major Dialog */}
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <Dialog
+                open={isAddDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) resetForm();
+                    setIsAddDialogOpen(open);
+                }}
+            >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Add New Major</DialogTitle>
@@ -240,7 +398,10 @@ export function MajorView() {
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsAddDialogOpen(false)}
+                            onClick={() => {
+                                resetForm();
+                                setIsAddDialogOpen(false);
+                            }}
                         >
                             Cancel
                         </Button>
@@ -250,7 +411,13 @@ export function MajorView() {
             </Dialog>
 
             {/* Edit Major Dialog */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <Dialog
+                open={isEditDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) resetForm();
+                    setIsEditDialogOpen(open);
+                }}
+            >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Edit Major</DialogTitle>
@@ -281,7 +448,10 @@ export function MajorView() {
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsEditDialogOpen(false)}
+                            onClick={() => {
+                                resetForm();
+                                setIsEditDialogOpen(false);
+                            }}
                         >
                             Cancel
                         </Button>
@@ -293,7 +463,10 @@ export function MajorView() {
             {/* Delete Major Dialog */}
             <Dialog
                 open={isDeleteDialogOpen}
-                onOpenChange={setIsDeleteDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) setSelectedMajor(null);
+                    setIsDeleteDialogOpen(open);
+                }}
             >
                 <DialogContent>
                     <DialogHeader>
@@ -310,7 +483,10 @@ export function MajorView() {
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsDeleteDialogOpen(false)}
+                            onClick={() => {
+                                setSelectedMajor(null);
+                                setIsDeleteDialogOpen(false);
+                            }}
                         >
                             Cancel
                         </Button>
