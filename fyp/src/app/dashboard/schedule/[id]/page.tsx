@@ -12,6 +12,7 @@ import { InstructorsView } from "./instructors-view";
 import { MajorView } from "./major-view";
 import { TimeConstraintView } from "./time-constraint-view";
 import { TimetableView } from "./timetable-view";
+import { ClassroomTypeView } from "./classroomtype-view";
 
 export default function ScheduleDetail() {
     const params = useParams();
@@ -104,6 +105,12 @@ export default function ScheduleDetail() {
                     >
                         Time Constant
                     </TabsTrigger>
+                     <TabsTrigger
+                        value="classroomType"
+                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:bg-transparent"
+                    >
+                        Classroom Type
+                    </TabsTrigger>
                 </TabsList>
                 <TabsContent value="classroom">
                     <ClassroomView />
@@ -124,6 +131,10 @@ export default function ScheduleDetail() {
                 <TabsContent value="timetable">
                     <TimetableView />
                 </TabsContent>
+                 <TabsContent value="classroomType">
+                    <ClassroomTypeView />
+                </TabsContent>
+                
                 {/* <TabsContent value="timetable">
           <TimetableView />
         </TabsContent>

@@ -98,7 +98,7 @@ export const scheduleTimePeriods = mysqlTable("schedule_time_periods", {
 export const courses = mysqlTable("courses", {
     id: int("id").primaryKey().autoincrement(),
     title: varchar("title", { length: 255 }).notNull(),
-    type: varchar("type", { length: 50 }).notNull(),
+    // type: varchar("type", { length: 50 }).notNull(), there is no type
     code: varchar("code", { length: 50 }).notNull(),
     color: varchar("color", { length: 50 }),
     capacity: int("capacity").notNull(),
@@ -167,6 +167,17 @@ export const classroomTypes = mysqlTable("classroom_types", {
     id: int("id").primaryKey().autoincrement(),
     name: varchar("name", { length: 255 }).notNull(),
 });
+
+export const classroomTypeRelations = relations(classroomTypes, ({ many }) => ({
+    classrooms: many(classrooms),
+}));
+
+export const classroomRelations = relations(classrooms, ({ one }) => ({
+    classroomType: one(classroomTypes, {
+        fields: [classrooms.classroomTypeId],
+        references: [classroomTypes.id],
+    }),
+}));
 
 export const instructors = mysqlTable("instructors", {
     id: int("id").primaryKey().autoincrement(),

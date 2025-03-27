@@ -27,7 +27,7 @@ const ITEMS_PER_PAGE = 10; // Define how many items to show per page
 
 export function InstructorsView() {
     const [instructors, setInstructors] = useState<Instructor[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -48,7 +48,7 @@ export function InstructorsView() {
 
     // Fetch instructors from API
     const fetchInstructors = async () => {
-        setIsLoading(true);
+       
         try {
             const response = await fetch("/api/instructors");
             if (!response.ok) {
@@ -64,8 +64,6 @@ export function InstructorsView() {
                 text: "Failed to load instructors. Please try again.",
                 type: "error",
             });
-        } finally {
-            setIsLoading(false);
         }
     };
 
@@ -298,11 +296,7 @@ export function InstructorsView() {
                 </Button>
             </div>
 
-            {isLoading ? (
-                <div className="flex justify-center items-center h-64">
-                    <p>Loading instructors...</p>
-                </div>
-            ) : (
+          
                 <div className="overflow-x-auto">
                     <table className="w-full border-collapse">
                         <thead>
@@ -394,7 +388,6 @@ export function InstructorsView() {
                         </tbody>
                     </table>
                 </div>
-            )}
 
             {/* Add pagination if we have instructors */}
             {instructors.length > 0 && (

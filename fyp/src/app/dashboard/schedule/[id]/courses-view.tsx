@@ -1,7 +1,6 @@
 "use client";
 
 import type React from "react";
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,16 +19,36 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Pencil, Plus, Trash } from "lucide-react";
+import { 
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+} from "@/components/ui/command";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Pencil, Plus, Trash, Check, ChevronsUpDown } from "lucide-react";
 import type {
     Course,
     CourseFormData,
     Instructor,
     Classroom,
     Major,
-    Section,
 } from "../../../types";
 import Pagination from "@/components/custom/pagination";
+
+// Interface for section-classroom pairs
+interface SectionClassroomPair {
+    id: number;
+    section_id: number;
+    classroom_id: number;
+}
 
 // Mock data for instructors
 const instructors: Instructor[] = [
@@ -61,9 +80,9 @@ const instructors: Instructor[] = [
 
 // Mock data for classrooms
 const classrooms: Classroom[] = [
-    { id: 111, name: "111", type: "Computer Lab", capacity: 30 },
-    { id: 304, name: "304", type: "Lecture Room", capacity: 40 },
-    { id: 404, name: "404", type: "Lecture Room", capacity: 50 },
+    { id: 111, code: "111", type: "Computer Lab", capacity: 30 },
+    { id: 304, code: "304", type: "Lecture Room", capacity: 40 },
+    { id: 404, code: "404", type: "Lecture Room", capacity: 50 },
 ];
 
 // Mock data for majors
@@ -73,13 +92,6 @@ const majors: Major[] = [
     { id: 3, name: "Industrial Engineering", short_tag: "IE" },
 ];
 
-// Mock data for sections
-const sections: Section[] = [
-    { id: 1, number: 1 },
-    { id: 2, number: 2 },
-    { id: 3, number: 3 },
-];
-
 // Mock data for courses
 const initialCourses: Course[] = [
     {
@@ -87,9 +99,7 @@ const initialCourses: Course[] = [
         title: "Introduction to Programming",
         type: "Lecture",
         code: "CS125",
-        // grade_type: "Letter",
         color: "blue",
-        // description: "Introduction to programming concepts and practices",
         section_id: 1,
         major_id: 1,
         instructor_id: 1,
@@ -100,9 +110,7 @@ const initialCourses: Course[] = [
         title: "CALCULUS 1",
         type: "Lecture",
         code: "MATH131",
-        // grade_type: "Letter",
         color: "green",
-        // description: "Introduction to calculus",
         section_id: 2,
         major_id: 2,
         instructor_id: 2,
@@ -113,9 +121,7 @@ const initialCourses: Course[] = [
         title: "Final Year Project 1",
         type: "Project",
         code: "CS401",
-        // grade_type: "Letter",
         color: "yellow",
-        // description: "First part of the final year project",
         section_id: 3,
         major_id: 3,
         instructor_id: 3,
@@ -124,7 +130,6 @@ const initialCourses: Course[] = [
 ];
 
 export function CoursesView() {
- 
     const [courses, setCourses] = useState<Course[]>(initialCourses);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -140,7 +145,11 @@ export function CoursesView() {
         instructor_id: 0,
         classroom_id: 0,
     });
+    const [sectionClassrooms, setSectionClassrooms] = useState<SectionClassroomPair[]>([]);
+    const [instructorOpen, setInstructorOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
+    const [currentSection, setCurrentSection] = useState("");
+    const [currentClassroom, setCurrentClassroom] = useState("");
     const itemsPerPage = 5;
 
     const totalPages = Math.ceil(courses.length / itemsPerPage);
@@ -148,7 +157,6 @@ export function CoursesView() {
     const handlePageChange = (page: number) => {
         setCurrentPage(page);
     };
-
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -161,12 +169,7 @@ export function CoursesView() {
     };
 
     const handleSelectChange = (name: string, value: string) => {
-        if (["section_id", "major_id", "instructor_id"].includes(name)) {
-            setFormData({
-                ...formData,
-                [name]: Number.parseInt(value),
-            });
-        } else if (name === "classroom_id") {
+        if (["major_id", "instructor_id", "classroom_id"].includes(name)) {
             setFormData({
                 ...formData,
                 [name]: Number.parseInt(value),
@@ -180,21 +183,43 @@ export function CoursesView() {
     };
 
     const handleAddCourse = () => {
+        // Make sure we have at least one section/classroom pair
+        if (sectionClassrooms.length === 0) {
+            return;
+        }
+        
+        // Create base course with first section/classroom pair
+        const baseSection = sectionClassrooms[0];
+            
         const newCourse: Course = {
             id: Math.max(0, ...courses.map((c) => c.id)) + 1,
             title: formData.title,
-            type: formData.type,
+            type: formData.type || "Lecture",
             code: formData.code,
-
             color: formData.color || "blue",
-            //   description: "Introduction to programming concepts and practices",
-            section_id: formData.section_id,
+            section_id: baseSection.section_id,
             major_id: formData.major_id,
             instructor_id: formData.instructor_id,
-            classroom_id: formData.classroom_id,
+            classroom_id: baseSection.classroom_id,
         };
 
-        setCourses([...courses, newCourse]);
+        const newCourses = [newCourse];
+        
+        // Create additional courses for each additional section/classroom pair
+        if (sectionClassrooms.length > 1) {
+            for (let i = 1; i < sectionClassrooms.length; i++) {
+                const pair = sectionClassrooms[i];
+                const additionalCourse = {
+                    ...newCourse,
+                    id: Math.max(0, ...courses.map((c) => c.id), ...newCourses.map(c => c.id)) + 1,
+                    section_id: pair.section_id,
+                    classroom_id: pair.classroom_id,
+                };
+                newCourses.push(additionalCourse);
+            }
+        }
+
+        setCourses([...courses, ...newCourses]);
         setIsAddDialogOpen(false);
         resetForm();
     };
@@ -207,16 +232,13 @@ export function CoursesView() {
                 return {
                     ...course,
                     title: formData.title,
-                    type: formData.type,
+                    type: formData.type || course.type,
                     code: formData.code,
-                    grade_type: "Letter",
                     color: formData.color,
-                    description:
-                        "Introduction to programming concepts and practices",
-                    section_id: formData.section_id,
+                    section_id: sectionClassrooms[0].section_id,
                     major_id: formData.major_id,
                     instructor_id: formData.instructor_id,
-                    classroom_id: formData.classroom_id,
+                    classroom_id: sectionClassrooms[0].classroom_id,
                 };
             }
             return course;
@@ -247,24 +269,31 @@ export function CoursesView() {
             major_id: 0,
             instructor_id: 0,
             classroom_id: 0,
-
         });
         setSelectedCourse(null);
+        setSectionClassrooms([]);
+        setCurrentSection("");
+        setCurrentClassroom("");
     };
-
-    const openEditDialog = (course: Course) => {
-        setSelectedCourse(course);
-        setFormData({
-            title: course.title,
-            type: course.type,
-            code: course.code,
-            color: course.color,
-            section_id: course.section_id,
-            major_id: course.major_id,
-            instructor_id: course.instructor_id,
-            classroom_id: course.classroom_id,
-        });
-        setIsEditDialogOpen(true);
+    
+    const addSectionClassroom = () => {
+        if (currentSection && currentClassroom) {
+            const newPair = {
+                id: sectionClassrooms.length + 1,
+                section_id: parseInt(currentSection),
+                classroom_id: parseInt(currentClassroom),
+            };
+            
+            setSectionClassrooms([...sectionClassrooms, newPair]);
+            
+            // Reset section and classroom inputs
+            setCurrentSection("");
+            setCurrentClassroom("");
+        }
+    };
+    
+    const removeSectionClassroom = (id: number) => {
+        setSectionClassrooms(sectionClassrooms.filter(pair => pair.id !== id));
     };
 
     const openDeleteDialog = (course: Course) => {
@@ -281,7 +310,7 @@ export function CoursesView() {
 
     const getClassroomName = (classroomId: number) => {
         const classroom = classrooms.find((c) => c.id === classroomId);
-        return classroom ? classroom.name : "Unknown";
+        return classroom ? classroom.code : "Unknown";
     };
 
     const getMajorTag = (majorId: number) => {
@@ -289,9 +318,27 @@ export function CoursesView() {
         return major ? major.short_tag : "Unknown";
     };
 
-    const getSectionNumber = (sectionId: number) => {
-        const section = sections.find((s) => s.id === sectionId);
-        return section ? section.number : 0;
+    const openEditDialog = (course: Course) => {
+        setSelectedCourse(course);
+        setFormData({
+            title: course.title,
+            type: course.type,
+            code: course.code,
+            color: course.color,
+            section_id: course.section_id,
+            major_id: course.major_id,
+            instructor_id: course.instructor_id,
+            classroom_id: course.classroom_id,
+        });
+        
+        // Initialize with the current section/classroom
+        setSectionClassrooms([{
+            id: 1,
+            section_id: course.section_id,
+            classroom_id: course.classroom_id
+        }]);
+        
+        setIsEditDialogOpen(true);
     };
 
     return (
@@ -329,9 +376,6 @@ export function CoursesView() {
                                 MAJOR
                             </th>
                             <th className="border p-2 bg-gray-100 text-left">
-                                TYPE
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
                                 Actions
                             </th>
                         </tr>
@@ -342,7 +386,7 @@ export function CoursesView() {
                                 <td className="border p-2">{course.code}</td>
                                 <td className="border p-2">{course.title}</td>
                                 <td className="border p-2">
-                                    {getSectionNumber(course.section_id)}
+                                    {course.section_id}
                                 </td>
                                 <td className="border p-2">
                                     {getInstructorName(course.instructor_id)}
@@ -353,7 +397,6 @@ export function CoursesView() {
                                 <td className="border p-2">
                                     {getMajorTag(course.major_id)}
                                 </td>
-                                <td className="border p-2">{course.type}</td>
                                 <td className="border p-2">
                                     <div className="flex gap-2">
                                         <Button
@@ -414,46 +457,6 @@ export function CoursesView() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="type">Course Type</Label>
-                                <Input
-                                    id="type"
-                                    name="type"
-                                    value={formData.type}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="section_id">Section</Label>
-                                <Select
-                                    value={
-                                        formData.section_id
-                                            ? formData.section_id.toString()
-                                            : ""
-                                    }
-                                    onValueChange={(value) =>
-                                        handleSelectChange("section_id", value)
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select section" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {sections.map((section) => (
-                                            <SelectItem
-                                                key={section.id}
-                                                value={section.id.toString()}
-                                            >
-                                                Section {section.number}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
                                 <Label htmlFor="major_id">Major</Label>
                                 <Select
                                     value={
@@ -475,73 +478,6 @@ export function CoursesView() {
                                                 value={major.id.toString()}
                                             >
                                                 {major.name} ({major.short_tag})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="instructor_id">
-                                    Instructor
-                                </Label>
-                                <Select
-                                    value={
-                                        formData.instructor_id
-                                            ? formData.instructor_id.toString()
-                                            : ""
-                                    }
-                                    onValueChange={(value) =>
-                                        handleSelectChange(
-                                            "instructor_id",
-                                            value
-                                        )
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select instructor" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {instructors.map((instructor) => (
-                                            <SelectItem
-                                                key={instructor.id}
-                                                value={instructor.id.toString()}
-                                            >
-                                                {instructor.first_name}{" "}
-                                                {instructor.last_name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="classroom_id">Classroom</Label>
-                                <Select
-                                    value={
-                                        formData.classroom_id
-                                            ? formData.classroom_id.toString()
-                                            : ""
-                                    }
-                                    onValueChange={(value) =>
-                                        handleSelectChange(
-                                            "classroom_id",
-                                            value
-                                        )
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select classroom" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {classrooms.map((classroom) => (
-                                            <SelectItem
-                                                key={classroom.id}
-                                                value={classroom.id.toString()}
-                                            >
-                                                {classroom.name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -577,6 +513,133 @@ export function CoursesView() {
                                 </Select>
                             </div>
                         </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="instructor_id">Instructor</Label>
+                            <Popover open={instructorOpen} onOpenChange={setInstructorOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        aria-expanded={instructorOpen}
+                                        className="w-full justify-between"
+                                    >
+                                        {formData.instructor_id
+                                            ? getInstructorName(formData.instructor_id)
+                                            : "Select instructor..."}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-full p-0">
+                                    <Command>
+                                        <CommandInput placeholder="Search instructor..." />
+                                        <CommandEmpty>No instructor found.</CommandEmpty>
+                                        <CommandGroup>
+                                            {instructors.map((instructor) => (
+                                                <CommandItem
+                                                    key={instructor.id}
+                                                    value={`${instructor.first_name} ${instructor.last_name}`}
+                                                    onSelect={() => {
+                                                        handleSelectChange(
+                                                            "instructor_id",
+                                                            instructor.id.toString()
+                                                        );
+                                                        setInstructorOpen(false);
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={`mr-2 h-4 w-4 ${
+                                                            formData.instructor_id === instructor.id
+                                                                ? "opacity-100"
+                                                                : "opacity-0"
+                                                        }`}
+                                                    />
+                                                    {instructor.first_name} {instructor.last_name}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                        
+                        {/* Section and Classroom pairs - Improved UI */}
+                        <div className="space-y-6">
+                            <div>
+                                <Label className="text-base font-medium">Sections and Classrooms</Label>
+                                <p className="text-sm text-gray-500 mt-1">Assign classrooms to course sections</p>
+                            </div>
+                            
+                            {sectionClassrooms.length > 0 && (
+                                <div className="space-y-2 mb-2">
+                                    {sectionClassrooms.map((pair) => (
+                                        <Card key={pair.id} className="p-3 flex justify-between items-center">
+                                            <div className="flex items-center space-x-3">
+                                                <Badge variant="outline" className="bg-blue-50">
+                                                    Section {pair.section_id}
+                                                </Badge>
+                                                <span className="text-gray-400">→</span>
+                                                <Badge variant="outline" className="bg-gray-50">
+                                                    Room {getClassroomName(pair.classroom_id)}
+                                                </Badge>
+                                            </div>
+                                            <Button 
+                                                variant="ghost" 
+                                                size="icon"
+                                                onClick={() => removeSectionClassroom(pair.id)}
+                                                className="h-8 w-8"
+                                            >
+                                                <Trash className="h-4 w-4" />
+                                            </Button>
+                                        </Card>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            <div className="flex items-end gap-3">
+                                <div className="flex-1 space-y-2">
+                                    <Label htmlFor="section">Section</Label>
+                                    <Input
+                                        id="section"
+                                        type="number"
+                                        placeholder="Enter section number"
+                                        min="1"
+                                        value={currentSection}
+                                        onChange={(e) => setCurrentSection(e.target.value)}
+                                    />
+                                </div>
+                                
+                                <div className="flex-1 space-y-2">
+                                    <Label htmlFor="classroom">Classroom</Label>
+                                    <Select
+                                        value={currentClassroom}
+                                        onValueChange={setCurrentClassroom}
+                                    >
+                                        <SelectTrigger id="classroom">
+                                            <SelectValue placeholder="Select classroom" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {classrooms.map((classroom) => (
+                                                <SelectItem
+                                                    key={classroom.id}
+                                                    value={classroom.id.toString()}
+                                                >
+                                                    {classroom.code} ({classroom.type})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                
+                                <Button 
+                                    onClick={addSectionClassroom}
+                                    disabled={!currentSection || !currentClassroom}
+                                    className="flex-shrink-0"
+                                >
+                                    <Plus className="h-4 w-4 mr-2" /> Add
+                                </Button>
+                            </div>
+                        </div>
                     </div>
 
                     <DialogFooter>
@@ -586,7 +649,12 @@ export function CoursesView() {
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleAddCourse}>Add Course</Button>
+                        <Button 
+                            onClick={handleAddCourse}
+                            disabled={sectionClassrooms.length === 0 || !formData.title || !formData.code || !formData.major_id || !formData.instructor_id}
+                        >
+                            Add Course
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -623,46 +691,6 @@ export function CoursesView() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="edit-type">Course Type</Label>
-                                <Input
-                                    id="edit-type"
-                                    name="type"
-                                    value={formData.type}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-section_id">Section</Label>
-                                <Select
-                                    value={
-                                        formData.section_id
-                                            ? formData.section_id.toString()
-                                            : ""
-                                    }
-                                    onValueChange={(value) =>
-                                        handleSelectChange("section_id", value)
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select section" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {sections.map((section) => (
-                                            <SelectItem
-                                                key={section.id}
-                                                value={section.id.toString()}
-                                            >
-                                                Section {section.number}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
                                 <Label htmlFor="edit-major_id">Major</Label>
                                 <Select
                                     value={
@@ -684,75 +712,6 @@ export function CoursesView() {
                                                 value={major.id.toString()}
                                             >
                                                 {major.name} ({major.short_tag})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-instructor_id">
-                                    Instructor
-                                </Label>
-                                <Select
-                                    value={
-                                        formData.instructor_id
-                                            ? formData.instructor_id.toString()
-                                            : ""
-                                    }
-                                    onValueChange={(value) =>
-                                        handleSelectChange(
-                                            "instructor_id",
-                                            value
-                                        )
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select instructor" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {instructors.map((instructor) => (
-                                            <SelectItem
-                                                key={instructor.id}
-                                                value={instructor.id.toString()}
-                                            >
-                                                {instructor.first_name}{" "}
-                                                {instructor.last_name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-classroom_id">
-                                    Classroom
-                                </Label>
-                                <Select
-                                    value={
-                                        formData.classroom_id
-                                            ? formData.classroom_id.toString()
-                                            : ""
-                                    }
-                                    onValueChange={(value) =>
-                                        handleSelectChange(
-                                            "classroom_id",
-                                            value
-                                        )
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select classroom" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {classrooms.map((classroom) => (
-                                            <SelectItem
-                                                key={classroom.id}
-                                                value={classroom.id.toString()}
-                                            >
-                                                {classroom.name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -786,6 +745,132 @@ export function CoursesView() {
                                         </SelectItem>
                                     </SelectContent>
                                 </Select>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-instructor_id">Instructor</Label>
+                            <Popover open={instructorOpen} onOpenChange={setInstructorOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        aria-expanded={instructorOpen}
+                                        className="w-full justify-between"
+                                    >
+                                        {formData.instructor_id
+                                            ? getInstructorName(formData.instructor_id)
+                                            : "Select instructor..."}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-full p-0">
+                                    <Command>
+                                        <CommandInput placeholder="Search instructor..." />
+                                        <CommandEmpty>No instructor found.</CommandEmpty>
+                                        <CommandGroup>
+                                            {instructors.map((instructor) => (
+                                                <CommandItem
+                                                    key={instructor.id}
+                                                    value={`${instructor.first_name} ${instructor.last_name}`}
+                                                    onSelect={() => {
+                                                        handleSelectChange(
+                                                            "instructor_id",
+                                                            instructor.id.toString()
+                                                        );
+                                                        setInstructorOpen(false);
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={`mr-2 h-4 w-4 ${
+                                                            formData.instructor_id === instructor.id
+                                                                ? "opacity-100"
+                                                                : "opacity-0"
+                                                        }`}
+                                                    />
+                                                    {instructor.first_name} {instructor.last_name}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                        
+                        {/* Section and Classroom pairs - Improved UI */}
+                        <div className="space-y-6">
+                            <div>
+                                <Label className="text-base font-medium">Sections and Classrooms</Label>
+                                <p className="text-sm text-gray-500 mt-1">Assign classrooms to course sections</p>
+                            </div>
+                            
+                            {sectionClassrooms.length > 0 && (
+                                <div className="space-y-2 mb-2">
+                                    {sectionClassrooms.map((pair) => (
+                                        <Card key={pair.id} className="p-3 flex justify-between items-center">
+                                            <div className="flex items-center space-x-3">
+                                                <Badge variant="outline" className="bg-blue-50">
+                                                    Section {pair.section_id}
+                                                </Badge>
+                                                <span className="text-gray-400">→</span>
+                                                <Badge variant="outline" className="bg-gray-50">
+                                                    Room {getClassroomName(pair.classroom_id)}
+                                                </Badge>
+                                            </div>
+                                            <Button 
+                                                variant="ghost" 
+                                                size="icon"
+                                                onClick={() => removeSectionClassroom(pair.id)}
+                                                className="h-8 w-8"
+                                            >
+                                                <Trash className="h-4 w-4" />
+                                            </Button>
+                                        </Card>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            <div className="flex items-end gap-3">
+                                <div className="flex-1 space-y-2">
+                                    <Label htmlFor="edit-section">Section</Label>
+                                    <Input
+                                        id="edit-section"
+                                        type="number"
+                                        placeholder="Enter section number"
+                                        min="1"
+                                        value={currentSection}
+                                        onChange={(e) => setCurrentSection(e.target.value)}
+                                    />
+                                </div>
+                                <div className="flex-1 space-y-2">
+                                    <Label htmlFor="edit-classroom">Classroom</Label>
+                                    <Select
+                                        value={currentClassroom}
+                                        onValueChange={setCurrentClassroom}
+                                    >
+                                        <SelectTrigger id="edit-classroom">
+                                            <SelectValue placeholder="Select classroom" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {classrooms.map((classroom) => (
+                                                <SelectItem
+                                                    key={classroom.id}
+                                                    value={classroom.id.toString()}
+                                                >
+                                                    {classroom.code} ({classroom.type})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                
+                                <Button 
+                                    onClick={addSectionClassroom}
+                                    disabled={!currentSection || !currentClassroom}
+                                    className="flex-shrink-0"
+                                >
+                                    <Plus className="h-4 w-4 mr-2" /> Add
+                                </Button>
                             </div>
                         </div>
                     </div>
@@ -835,15 +920,14 @@ export function CoursesView() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            <div>
-            {/* Replace with your custom table component or remove the data prop */}
-            {/* <CustomTable data={currentCourses} /> */}
-            <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-            />
-        </div>
+
+            <div className="mt-4">
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                />
+            </div>
         </div>
     );
 }

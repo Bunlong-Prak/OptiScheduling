@@ -128,10 +128,22 @@ const initialTimeConstraints: TimeConstraint[] = [
         day_of_the_week: "Tuesday",
         time_period: ["1:15 - 2:45"],
     },
+     {
+        id: 10,
+        instructor_id: 32,
+        day_of_the_week: "Tuesday",
+        time_period: ["1:15 - 2:45"],
+    },
+     {
+        id: 11,
+        instructor_id: 34,
+        day_of_the_week: "Tuesday",
+        time_period: ["1:15 - 2:45"],
+    },
 ];
 
 // Define how many items to show per page
-const ITEMS_PER_PAGE = 6;
+const ITEMS_PER_PAGE = 12;
 
 export function TimeConstraintView() {
     const [timeConstraints, setTimeConstraints] = useState<TimeConstraint[]>(
@@ -321,8 +333,8 @@ export function TimeConstraintView() {
                         ))}
                     </div>
 
-                    {/* Add pagination if there are more items than fit on a page */}
-                    {timeConstraints.length > ITEMS_PER_PAGE && (
+                    {/* Add pagination if there are items to display */}
+                    {timeConstraints.length > 0 && (
                         <div className="mt-6">
                             <CustomPagination
                                 currentPage={currentPage}
