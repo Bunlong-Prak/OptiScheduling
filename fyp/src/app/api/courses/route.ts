@@ -62,7 +62,6 @@ export async function POST(request: Request) {
         const body = await request.json();
         const {
             title,
-            type,
             code,
             color,
             capacity,
@@ -74,7 +73,6 @@ export async function POST(request: Request) {
 
         const newCourse = await db.insert(courses).values({
             title,
-            type,
             code,
             color,
             capacity,
@@ -117,7 +115,6 @@ export async function PUT(request: Request) {
             .update(courses)
             .set({
                 title,
-                type,
                 code,
                 color,
                 capacity,

@@ -98,7 +98,6 @@ export const scheduleTimePeriods = mysqlTable("schedule_time_periods", {
 export const courses = mysqlTable("courses", {
     id: int("id").primaryKey().autoincrement(),
     title: varchar("title", { length: 255 }).notNull(),
-    // type: varchar("type", { length: 50 }).notNull(), there is no type
     code: varchar("code", { length: 50 }).notNull(),
     color: varchar("color", { length: 50 }),
     capacity: int("capacity").notNull(),
@@ -189,15 +188,14 @@ export const instructors = mysqlTable("instructors", {
 });
 
 export const instructorRelations = relations(instructors, ({ many, one }) => ({
-    instructorUnavailableDays: many(instructorUnavailableDays),
+    instructorUnavailableDays: many(instructorTimeConstraint),
     majors: many(majors),
 }));
 
-export const instructorUnavailableDays = mysqlTable(
-    "instructor_unavailable_days",
+export const instructorTimeConstraint = mysqlTable(
+    "instructor_time_constraints",
     {
         id: int("id").primaryKey().autoincrement(),
-        daysOfWeek: varchar("days_of_the_week", { length: 50 }).notNull(),
         instructorId: int("instructor_id")
             .notNull()
             .references(() => instructors.id), // Foreign key to Instructor
@@ -205,18 +203,28 @@ export const instructorUnavailableDays = mysqlTable(
 );
 
 // Schedule Time Period Table
-export const instructorUnavailableTimePeriods = mysqlTable(
-    "instructor_unavailable_time_periods",
+export const instructorTimeConstraintDay = mysqlTable(
+    "instructor_time_constraint_days",
     {
         id: int("id").primaryKey().autoincrement(),
-        timePeriod: varchar("time_period", {
+        day: varchar("day", {
             length: 50,
         }).notNull(),
-        instructorUnavailableDayId: int("instructor_unavailable_day_id")
+        instructorTimeConstraintId: int("instructor_time_constraint_id")
             .notNull()
-            .references(() => instructors.id),
-        instructorId: int("instructor_id")
+            .references(() => instructorTimeConstraint.id),
+    }
+);
+
+export const instructorTimeConstraintTimeSlot = mysqlTable(
+    "instructor_time_constraint_time_slots",
+    {
+        id: int("id").primaryKey().autoincrement(),
+        time_slot: varchar("day", {
+            length: 50,
+        }).notNull(),
+        instructorTimeConstraintDayId: int("instructor_time_constraint_day_id")
             .notNull()
-            .references(() => instructors.id), // Foreign key to Instructor
+            .references(() => instructorTimeConstraintDay.id),
     }
 );

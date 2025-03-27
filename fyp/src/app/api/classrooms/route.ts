@@ -13,7 +13,7 @@ export const createClassroomSchema = z.object({
         .max(255, { message: "Classroom name cannot exceed 255 characters" }),
 
     // Type: Required, string, max 50 chars
-    type: z
+    classroomTypeId: z
         .string()
         .min(1, { message: "Classroom type is required" })
         .max(50, { message: "Classroom type cannot exceed 50 characters" }),
@@ -64,7 +64,6 @@ export async function GET() {
         const formattedClassrooms = allClassrooms.map((classroom) => ({
             id: classroom.id,
             code: classroom.code,
-            type: classroom.type,
             capacity: classroom.capacity,
         }));
         return NextResponse.json(formattedClassrooms);
@@ -82,12 +81,12 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const validatedData = createClassroomSchema.parse(body);
-        const { code, type, capacity } = validatedData;
+        const { code, capacity, classroomTypeId } = validatedData;
 
         const newClassroom = await db.insert(classrooms).values({
             code,
-            type,
             capacity,
+            classroomTypeId,
         });
 
         return NextResponse.json(newClassroom);

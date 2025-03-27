@@ -9,8 +9,13 @@ export type Major = {
 export type Classroom = {
     id: number;
     code: string;
-    type: string;
     capacity: number;
+    classroom_type_id: number;
+};
+
+export type ClassroomType = {
+    id: number;
+    name: string;
 };
 
 export type Instructor = {
@@ -37,10 +42,8 @@ export type TimeConstraint = {
 export type Course = {
     id: number;
     title: string;
-    type: string;
     code: string;
     color: string;
-    // description: string;
     section_id: number;
     major_id: number;
     instructor_id: number;

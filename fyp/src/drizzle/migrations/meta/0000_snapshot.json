@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "441e08cc-2767-4018-b67f-fdb1c170e283",
+  "id": "aa35be0e-36a1-4946-9805-9a64f5698637",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -142,13 +142,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "type": {
-          "name": "type",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "code": {
           "name": "code",
           "type": "varchar(50)",
@@ -252,8 +245,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "instructor_unavailable_days": {
-      "name": "instructor_unavailable_days",
+    "instructor_time_constraints": {
+      "name": "instructor_time_constraints",
       "columns": {
         "id": {
           "name": "id",
@@ -261,13 +254,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": true
-        },
-        "days_of_the_week": {
-          "name": "days_of_the_week",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
         },
         "instructor_id": {
           "name": "instructor_id",
@@ -279,9 +265,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "instructor_unavailable_days_instructor_id_instructors_id_fk": {
-          "name": "instructor_unavailable_days_instructor_id_instructors_id_fk",
-          "tableFrom": "instructor_unavailable_days",
+        "instructor_time_constraints_instructor_id_instructors_id_fk": {
+          "name": "instructor_time_constraints_instructor_id_instructors_id_fk",
+          "tableFrom": "instructor_time_constraints",
           "tableTo": "instructors",
           "columnsFrom": [
             "instructor_id"
@@ -294,8 +280,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "instructor_unavailable_days_id": {
-          "name": "instructor_unavailable_days_id",
+        "instructor_time_constraints_id": {
+          "name": "instructor_time_constraints_id",
           "columns": [
             "id"
           ]
@@ -304,8 +290,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "instructor_unavailable_time_periods": {
-      "name": "instructor_unavailable_time_periods",
+    "instructor_time_constraint_days": {
+      "name": "instructor_time_constraint_days",
       "columns": {
         "id": {
           "name": "id",
@@ -314,22 +300,15 @@
           "notNull": true,
           "autoincrement": true
         },
-        "time_period": {
-          "name": "time_period",
+        "day": {
+          "name": "day",
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "instructor_unavailable_day_id": {
-          "name": "instructor_unavailable_day_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "instructor_id": {
-          "name": "instructor_id",
+        "instructor_time_constraint_id": {
+          "name": "instructor_time_constraint_id",
           "type": "int",
           "primaryKey": false,
           "notNull": true,
@@ -338,25 +317,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "instructor_unavailable_time_periods_instructor_unavailable_day_id_instructors_id_fk": {
-          "name": "instructor_unavailable_time_periods_instructor_unavailable_day_id_instructors_id_fk",
-          "tableFrom": "instructor_unavailable_time_periods",
-          "tableTo": "instructors",
+        "instructor_time_constraint_days_instructor_time_constraint_id_instructor_time_constraints_id_fk": {
+          "name": "instructor_time_constraint_days_instructor_time_constraint_id_instructor_time_constraints_id_fk",
+          "tableFrom": "instructor_time_constraint_days",
+          "tableTo": "instructor_time_constraints",
           "columnsFrom": [
-            "instructor_unavailable_day_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "instructor_unavailable_time_periods_instructor_id_instructors_id_fk": {
-          "name": "instructor_unavailable_time_periods_instructor_id_instructors_id_fk",
-          "tableFrom": "instructor_unavailable_time_periods",
-          "tableTo": "instructors",
-          "columnsFrom": [
-            "instructor_id"
+            "instructor_time_constraint_id"
           ],
           "columnsTo": [
             "id"
@@ -366,8 +332,60 @@
         }
       },
       "compositePrimaryKeys": {
-        "instructor_unavailable_time_periods_id": {
-          "name": "instructor_unavailable_time_periods_id",
+        "instructor_time_constraint_days_id": {
+          "name": "instructor_time_constraint_days_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "instructor_time_constraint_time_slots": {
+      "name": "instructor_time_constraint_time_slots",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "day": {
+          "name": "day",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "instructor_time_constraint_day_id": {
+          "name": "instructor_time_constraint_day_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "instructor_time_constraint_time_slots_instructor_time_constraint_day_id_instructor_time_constraint_days_id_fk": {
+          "name": "instructor_time_constraint_time_slots_instructor_time_constraint_day_id_instructor_time_constraint_days_id_fk",
+          "tableFrom": "instructor_time_constraint_time_slots",
+          "tableTo": "instructor_time_constraint_days",
+          "columnsFrom": [
+            "instructor_time_constraint_day_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "instructor_time_constraint_time_slots_id": {
+          "name": "instructor_time_constraint_time_slots_id",
           "columns": [
             "id"
           ]
