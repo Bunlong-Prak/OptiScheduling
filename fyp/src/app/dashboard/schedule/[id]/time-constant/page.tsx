@@ -25,7 +25,7 @@ import type {
     TimeConstraint,
     TimeConstraintFormData,
     Instructor,
-} from "../../../types";
+} from "@/app/types";
 import CustomPagination from "@/components/custom/pagination";
 
 // Mock data for time slots and days
@@ -147,7 +147,7 @@ const initialTimeConstraints: TimeConstraint[] = [
 // Define how many items to show per page
 const ITEMS_PER_PAGE = 12;
 
-export function TimeConstraintView() {
+export default function TimeConstraintView() {
     const [timeConstraints, setTimeConstraints] = useState<TimeConstraint[]>(
         initialTimeConstraints
     );

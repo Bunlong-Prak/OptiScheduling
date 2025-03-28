@@ -40,7 +40,7 @@ import type {
     Instructor,
     Classroom,
     Major,
-} from "../../../types";
+} from "@/app/types";
 import Pagination from "@/components/custom/pagination";
 
 // Interface for section-classroom pairs
@@ -129,7 +129,7 @@ const initialCourses: Course[] = [
     },
 ];
 
-export function CoursesView() {
+export default function CoursesView() {
     const [courses, setCourses] = useState<Course[]>(initialCourses);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);

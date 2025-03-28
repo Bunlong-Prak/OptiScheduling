@@ -1,5 +1,6 @@
 "use client";
 
+import { Classroom } from "@/app/types";
 import CustomPagination from "@/components/custom/pagination";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +22,8 @@ import {
 import { Pencil, Plus, Trash } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import type { Classroom, ClassroomFormData } from "../../../types";
+// import type { Classroom, ClassroomFormData } from "../../../types;
+import { ClassroomFormData } from "@/app/types";
 
 interface ClassroomType {
     id: number;
@@ -30,7 +32,7 @@ interface ClassroomType {
 
 const ITEMS_PER_PAGE = 10;
 
-export function ClassroomView() {
+export default function ClassroomView() {
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
     const [classroomTypes, setClassroomTypes] = useState<ClassroomType[]>([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);

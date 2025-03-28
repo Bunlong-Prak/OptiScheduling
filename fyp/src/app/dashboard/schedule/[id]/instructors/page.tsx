@@ -20,12 +20,12 @@ import {
 import { Pencil, Plus, Trash } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import type { Instructor, InstructorFormData } from "../../../types";
+import type { Instructor, InstructorFormData } from "@/app/types";
 import CustomPagination from "@/components/custom/pagination"; // Importing the Pagination component
 
 const ITEMS_PER_PAGE = 10; // Define how many items to show per page
 
-export function InstructorsView() {
+export default function InstructorsView() {
     const [instructors, setInstructors] = useState<Instructor[]>([]);
     
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);

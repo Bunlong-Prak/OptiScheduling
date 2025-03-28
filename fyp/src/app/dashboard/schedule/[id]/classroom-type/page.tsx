@@ -1,7 +1,5 @@
 "use client";
 
-import type React from "react";
-
 import CustomPagination from "@/components/custom/pagination";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,13 +12,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pencil, Plus, Trash } from "lucide-react";
+import type React from "react";
 import { useEffect, useState } from "react";
-import type { Major, MajorFormData } from "../../../types";
+
+interface ClassroomType {
+    id: number;
+    name: string;
+}
 
 const ITEMS_PER_PAGE = 5;
 
-export function MajorView() {
-    const [majors, setMajors] = useState<Major[]>([]);
+export default function ClassroomTypeView() {
+    const [classroomTypes, setClassroomTypes] = useState<ClassroomType[]>([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -28,17 +31,17 @@ export function MajorView() {
         text: string;
         type: "success" | "error";
     } | null>(null);
-    const [selectedMajor, setSelectedMajor] = useState<Major | null>(null);
-    const [formData, setFormData] = useState<MajorFormData>({
+    const [selectedClassroomType, setSelectedClassroomType] =
+        useState<ClassroomType | null>(null);
+    const [formData, setFormData] = useState({
         name: "",
-        short_tag: "",
     });
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
 
-    // Load majors on component mount
+    // Load classroom types on component mount
     useEffect(() => {
-        fetchMajors();
+        fetchClassroomTypes();
     }, []);
 
     // Clear status message after 5 seconds
@@ -52,29 +55,29 @@ export function MajorView() {
     }, [statusMessage]);
 
     // Calculate pagination values
-    const totalPages = Math.ceil(majors.length / ITEMS_PER_PAGE);
-    const paginatedMajors = majors.slice(
+    const totalPages = Math.ceil(classroomTypes.length / ITEMS_PER_PAGE);
+    const paginatedClassroomTypes = classroomTypes.slice(
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
 
-    const fetchMajors = async () => {
+    const fetchClassroomTypes = async () => {
         try {
             setIsLoading(true);
-            const response = await fetch("/api/majors");
+            const response = await fetch("/api/classroom-types");
 
             if (!response.ok) {
-                throw new Error("Failed to fetch majors");
+                throw new Error("Failed to fetch classroom types");
             }
 
             const data = await response.json();
-            setMajors(data);
+            setClassroomTypes(data);
             // Reset to first page when data changes
             setCurrentPage(1);
         } catch (error) {
-            console.error("Error fetching majors:", error);
+            console.error("Error fetching classroom types:", error);
             setStatusMessage({
-                text: "Failed to load majors. Please try again.",
+                text: "Failed to load classroom types. Please try again.",
                 type: "error",
             });
         } finally {
@@ -96,15 +99,14 @@ export function MajorView() {
         setIsAddDialogOpen(true);
     };
 
-    const handleAddMajor = async () => {
+    const handleAddClassroomType = async () => {
         try {
             // Prepare data for API
             const apiData = {
                 name: formData.name,
-                shortTag: formData.short_tag,
             };
 
-            const response = await fetch("/api/majors", {
+            const response = await fetch("/api/classroom-types", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -113,42 +115,41 @@ export function MajorView() {
             });
 
             if (!response.ok) {
-                throw new Error("Failed to create major");
+                throw new Error("Failed to create classroom type");
             }
 
-            // Refresh the major list
-            await fetchMajors();
+            // Refresh the classroom types list
+            await fetchClassroomTypes();
 
             // Close dialog and reset form
             setIsAddDialogOpen(false);
             resetForm();
 
             setStatusMessage({
-                text: "Major added successfully",
+                text: "Classroom type added successfully",
                 type: "success",
             });
         } catch (error) {
-            console.error("Error adding major:", error);
+            console.error("Error adding classroom type:", error);
             setStatusMessage({
-                text: "Failed to add major. Please try again.",
+                text: "Failed to add classroom type. Please try again.",
                 type: "error",
             });
         }
     };
 
-    const handleEditMajor = async () => {
-        if (!selectedMajor) return;
+    const handleEditClassroomType = async () => {
+        if (!selectedClassroomType) return;
 
         try {
             const apiData = {
-                id: selectedMajor.id,
+                id: selectedClassroomType.id,
                 name: formData.name,
-                shortTag: formData.short_tag,
             };
 
             console.log("Sending update data:", apiData);
 
-            const response = await fetch("/api/majors", {
+            const response = await fetch("/api/classroom-types", {
                 method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",
@@ -160,38 +161,40 @@ export function MajorView() {
 
             if (!response.ok) {
                 console.error("Update failed:", responseData);
-                throw new Error(responseData.error || "Failed to update major");
+                throw new Error(
+                    responseData.error || "Failed to update classroom type"
+                );
             }
 
             console.log("Update successful:", responseData);
 
-            await fetchMajors();
+            await fetchClassroomTypes();
             setIsEditDialogOpen(false);
             resetForm();
             setStatusMessage({
-                text: "Major updated successfully",
+                text: "Classroom type updated successfully",
                 type: "success",
             });
         } catch (error) {
-            console.error("Error updating major:", error);
+            console.error("Error updating classroom type:", error);
             setStatusMessage({
                 text:
                     error instanceof Error
                         ? error.message
-                        : "Failed to update major. Please try again.",
+                        : "Failed to update classroom type. Please try again.",
                 type: "error",
             });
         }
     };
 
-    const handleDeleteMajor = async () => {
-        if (!selectedMajor) return;
+    const handleDeleteClassroomType = async () => {
+        if (!selectedClassroomType) return;
 
         try {
             const apiData = {
-                id: selectedMajor.id,
+                id: selectedClassroomType.id,
             };
-            const response = await fetch("/api/majors", {
+            const response = await fetch("/api/classroom-types", {
                 method: "DELETE",
                 headers: {
                     "Content-Type": "application/json",
@@ -200,24 +203,24 @@ export function MajorView() {
             });
 
             if (!response.ok) {
-                throw new Error("Failed to delete major");
+                throw new Error("Failed to delete classroom type");
             }
 
-            // Refresh the major list
-            await fetchMajors();
+            // Refresh the classroom type list
+            await fetchClassroomTypes();
 
             // Close dialog
             setIsDeleteDialogOpen(false);
-            setSelectedMajor(null);
+            setSelectedClassroomType(null);
 
             setStatusMessage({
-                text: "Major deleted successfully",
+                text: "Classroom type deleted successfully",
                 type: "success",
             });
         } catch (error) {
-            console.error("Error deleting major:", error);
+            console.error("Error deleting classroom type:", error);
             setStatusMessage({
-                text: "Failed to delete major. Please try again.",
+                text: "Failed to delete classroom type. Please try again.",
                 type: "error",
             });
         }
@@ -226,23 +229,21 @@ export function MajorView() {
     const resetForm = () => {
         setFormData({
             name: "",
-            short_tag: "",
         });
-        setSelectedMajor(null);
+        setSelectedClassroomType(null);
     };
 
-    const openEditDialog = (major: Major) => {
+    const openEditDialog = (classroomType: ClassroomType) => {
         resetForm(); // Reset first to clear any previous data
-        setSelectedMajor(major);
+        setSelectedClassroomType(classroomType);
         setFormData({
-            name: major.name,
-            short_tag: major.short_tag,
+            name: classroomType.name,
         });
         setIsEditDialogOpen(true);
     };
 
-    const openDeleteDialog = (major: Major) => {
-        setSelectedMajor(major);
+    const openDeleteDialog = (classroomType: ClassroomType) => {
+        setSelectedClassroomType(classroomType);
         setIsDeleteDialogOpen(true);
     };
 
@@ -266,12 +267,12 @@ export function MajorView() {
                         </div>
                     )}
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-xl font-bold">Majors</h2>
+                        <h2 className="text-xl font-bold">Classroom Types</h2>
                         <Button
                             onClick={openAddDialog}
                             className="bg-green-600 hover:bg-green-700"
                         >
-                            <Plus className="mr-2 h-4 w-4" /> New Major
+                            <Plus className="mr-2 h-4 w-4" /> New Classroom Type
                         </Button>
                     </div>
 
@@ -286,71 +287,67 @@ export function MajorView() {
                                         NAME
                                     </th>
                                     <th className="border p-2 bg-gray-100 text-left">
-                                        SHORT TAG
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
                                         Actions
                                     </th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {majors.length === 0 ? (
+                                {classroomTypes.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan={4}
+                                            colSpan={3}
                                             className="border p-4 text-center"
                                         >
-                                            No majors found. Add a new major to
-                                            get started.
+                                            No classroom types found. Add a new
+                                            classroom type to get started.
                                         </td>
                                     </tr>
                                 ) : (
-                                    paginatedMajors.map((major) => (
-                                        <tr key={major.id}>
-                                            <td className="border p-2">
-                                                {major.id}
-                                            </td>
-                                            <td className="border p-2">
-                                                {major.name}
-                                            </td>
-                                            <td className="border p-2">
-                                                {major.short_tag}
-                                            </td>
-                                            <td className="border p-2">
-                                                <div className="flex gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            openEditDialog(
-                                                                major
-                                                            )
-                                                        }
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            openDeleteDialog(
-                                                                major
-                                                            )
-                                                        }
-                                                    >
-                                                        <Trash className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
+                                    paginatedClassroomTypes.map(
+                                        (classroomType) => (
+                                            <tr key={classroomType.id}>
+                                                <td className="border p-2">
+                                                    {classroomType.id}
+                                                </td>
+                                                <td className="border p-2">
+                                                    {classroomType.name}
+                                                </td>
+                                                <td className="border p-2">
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() =>
+                                                                openEditDialog(
+                                                                    classroomType
+                                                                )
+                                                            }
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() =>
+                                                                openDeleteDialog(
+                                                                    classroomType
+                                                                )
+                                                            }
+                                                        >
+                                                            <Trash className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )
+                                    )
                                 )}
                             </tbody>
                         </table>
                     </div>
 
-                    {/* Add pagination if we have majors */}
-                    {majors.length > 0 && (
+                    {/* Add pagination if we have classroom types */}
+                    {classroomTypes.length > 0 && (
                         <CustomPagination
                             currentPage={currentPage}
                             totalPages={totalPages}
@@ -360,7 +357,7 @@ export function MajorView() {
                 </>
             )}
 
-            {/* Add Major Dialog */}
+            {/* Add Classroom Type Dialog */}
             <Dialog
                 open={isAddDialogOpen}
                 onOpenChange={(open) => {
@@ -370,26 +367,16 @@ export function MajorView() {
             >
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Add New Major</DialogTitle>
+                        <DialogTitle>Add New Classroom Type</DialogTitle>
                     </DialogHeader>
 
                     <div className="grid gap-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="name">Major Name</Label>
+                            <Label htmlFor="name">Name</Label>
                             <Input
                                 id="name"
                                 name="name"
                                 value={formData.name}
-                                onChange={handleInputChange}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="short_tag">Short Tag</Label>
-                            <Input
-                                id="short_tag"
-                                name="short_tag"
-                                value={formData.short_tag}
                                 onChange={handleInputChange}
                             />
                         </div>
@@ -405,12 +392,17 @@ export function MajorView() {
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleAddMajor}>Add Major</Button>
+                        <Button
+                            onClick={handleAddClassroomType}
+                            disabled={!formData.name}
+                        >
+                            Add Classroom Type
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* Edit Major Dialog */}
+            {/* Edit Classroom Type Dialog */}
             <Dialog
                 open={isEditDialogOpen}
                 onOpenChange={(open) => {
@@ -420,26 +412,16 @@ export function MajorView() {
             >
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Edit Major</DialogTitle>
+                        <DialogTitle>Edit Classroom Type</DialogTitle>
                     </DialogHeader>
 
                     <div className="grid gap-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="edit-name">Major Name</Label>
+                            <Label htmlFor="edit-name">Name</Label>
                             <Input
                                 id="edit-name"
                                 name="name"
                                 value={formData.name}
-                                onChange={handleInputChange}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-short_tag">Short Tag</Label>
-                            <Input
-                                id="edit-short_tag"
-                                name="short_tag"
-                                value={formData.short_tag}
                                 onChange={handleInputChange}
                             />
                         </div>
@@ -455,28 +437,35 @@ export function MajorView() {
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleEditMajor}>Save Changes</Button>
+                        <Button
+                            onClick={handleEditClassroomType}
+                            disabled={!formData.name}
+                        >
+                            Save Changes
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* Delete Major Dialog */}
+            {/* Delete Classroom Type Dialog */}
             <Dialog
                 open={isDeleteDialogOpen}
                 onOpenChange={(open) => {
-                    if (!open) setSelectedMajor(null);
+                    if (!open) setSelectedClassroomType(null);
                     setIsDeleteDialogOpen(open);
                 }}
             >
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Delete Major</DialogTitle>
+                        <DialogTitle>Delete Classroom Type</DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4">
-                        <p>Are you sure you want to delete this major?</p>
+                        <p>
+                            Are you sure you want to delete this classroom type?
+                        </p>
                         <p className="font-medium mt-2">
-                            {selectedMajor?.name} ({selectedMajor?.short_tag})
+                            {selectedClassroomType?.name}
                         </p>
                     </div>
 
@@ -484,7 +473,7 @@ export function MajorView() {
                         <Button
                             variant="outline"
                             onClick={() => {
-                                setSelectedMajor(null);
+                                setSelectedClassroomType(null);
                                 setIsDeleteDialogOpen(false);
                             }}
                         >
@@ -492,7 +481,7 @@ export function MajorView() {
                         </Button>
                         <Button
                             variant="destructive"
-                            onClick={handleDeleteMajor}
+                            onClick={handleDeleteClassroomType}
                         >
                             Delete
                         </Button>

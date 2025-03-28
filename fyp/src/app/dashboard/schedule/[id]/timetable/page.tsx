@@ -209,7 +209,7 @@ const initialSchedule: Schedule = {
     "Tuesday-CE101-17:00": { ...courses[7], isStart: true, colspan: 1 }, // CE101
 };
 
-export function TimetableView() {
+export default function TimetableView() {
     const [schedule, setSchedule] = useState<Schedule>(initialSchedule);
     const [draggedCourse, setDraggedCourse] = useState<Course | null>(null);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
