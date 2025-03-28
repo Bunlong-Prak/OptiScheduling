@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -18,13 +18,15 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Pencil, Plus, Trash } from "lucide-react";
+import { Pencil, Plus, Trash, X, Clock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import type {
     TimeConstraint,
     TimeConstraintFormData,
     Instructor,
 } from "../../../types";
-import CustomPagination from "@/components/custom/pagination"; // Import the pagination component
+import CustomPagination from "@/components/custom/pagination";
 
 // Mock data for time slots and days
 const days = [
@@ -72,7 +74,7 @@ const instructors: Instructor[] = [
     },
 ];
 
-// Mock data for time constraints - added more to demonstrate pagination
+// Mock data for time constraints
 const initialTimeConstraints: TimeConstraint[] = [
     {
         id: 1,
@@ -96,7 +98,7 @@ const initialTimeConstraints: TimeConstraint[] = [
         id: 4,
         instructor_id: 1,
         day_of_the_week: "Tuesday",
-        time_period: ["9:45 - 11:15"],
+        time_period: ["9:45 - 11:15", "11:30 - 1:00"],
     },
     {
         id: 5,
@@ -108,7 +110,7 @@ const initialTimeConstraints: TimeConstraint[] = [
         id: 6,
         instructor_id: 3,
         day_of_the_week: "Monday",
-        time_period: ["11:30 - 1:00"],
+        time_period: ["11:30 - 1:00", "1:15 - 2:45"],
     },
     {
         id: 7,
@@ -128,17 +130,17 @@ const initialTimeConstraints: TimeConstraint[] = [
         day_of_the_week: "Tuesday",
         time_period: ["1:15 - 2:45"],
     },
-     {
+    {
         id: 10,
-        instructor_id: 32,
+        instructor_id: 2,
         day_of_the_week: "Tuesday",
         time_period: ["1:15 - 2:45"],
     },
-     {
+    {
         id: 11,
-        instructor_id: 34,
+        instructor_id: 1,
         day_of_the_week: "Tuesday",
-        time_period: ["1:15 - 2:45"],
+        time_period: ["1:15 - 2:45", "3:00 - 4:30"],
     },
 ];
 
@@ -159,6 +161,7 @@ export function TimeConstraintView() {
         time_period: [],
         instructor_id: 0,
     });
+    const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
 
     // Calculate pagination values
@@ -168,16 +171,18 @@ export function TimeConstraintView() {
         currentPage * ITEMS_PER_PAGE
     );
 
+    // Effect to sync selected time slots with formData
+    useEffect(() => {
+        if (selectedConstraint) {
+            setSelectedTimeSlots(selectedConstraint.time_period);
+        }
+    }, [selectedConstraint]);
+
     const handleSelectChange = (name: string, value: string) => {
         if (name === "instructor_id") {
             setFormData({
                 ...formData,
                 [name]: Number.parseInt(value),
-            });
-        } else if (name === "time_period") {
-            setFormData({
-                ...formData,
-                [name]: [value],
             });
         } else {
             setFormData({
@@ -187,7 +192,33 @@ export function TimeConstraintView() {
         }
     };
 
+    const toggleTimeSlot = (timeSlot: string) => {
+        setSelectedTimeSlots(prev => {
+            if (prev.includes(timeSlot)) {
+                return prev.filter(ts => ts !== timeSlot);
+            } else {
+                return [...prev, timeSlot];
+            }
+        });
+    };
+
+    const updateFormTimeSlots = () => {
+        setFormData({
+            ...formData,
+            time_period: selectedTimeSlots
+        });
+    };
+
+    // Update form data whenever selected time slots change
+    useEffect(() => {
+        updateFormTimeSlots();
+    }, [selectedTimeSlots]);
+
     const handleAddConstraint = () => {
+        if (!formData.day_of_the_week || formData.time_period.length === 0 || !formData.instructor_id) {
+            return;
+        }
+
         const newConstraint: TimeConstraint = {
             id: Math.max(0, ...timeConstraints.map((c) => c.id)) + 1,
             instructor_id: formData.instructor_id,
@@ -246,6 +277,7 @@ export function TimeConstraintView() {
             time_period: [],
             instructor_id: 0,
         });
+        setSelectedTimeSlots([]);
         setSelectedConstraint(null);
     };
 
@@ -256,6 +288,7 @@ export function TimeConstraintView() {
             time_period: constraint.time_period,
             instructor_id: constraint.instructor_id,
         });
+        setSelectedTimeSlots(constraint.time_period);
         setIsEditDialogOpen(true);
     };
 
@@ -269,6 +302,35 @@ export function TimeConstraintView() {
         return instructor
             ? `${instructor.first_name} ${instructor.last_name}`
             : "Unknown";
+    };
+
+    // Get existing time slots for an instructor on a specific day
+    const getInstructorTimeSlots = (instructorId: number, day: string) => {
+        const constraints = timeConstraints.filter(
+            constraint => constraint.instructor_id === instructorId && constraint.day_of_the_week === day
+        );
+        return constraints.flatMap(constraint => constraint.time_period);
+    };
+
+    // Check if a time slot is already assigned for the selected instructor and day
+    const isTimeSlotAvailable = (timeSlot: string) => {
+        if (!formData.instructor_id || !formData.day_of_the_week) {
+            return true;
+        }
+
+        // For edit mode, exclude the current constraint from checking
+        const existingConstraints = timeConstraints.filter(constraint => {
+            if (selectedConstraint && constraint.id === selectedConstraint.id) {
+                return false;
+            }
+            return (
+                constraint.instructor_id === formData.instructor_id &&
+                constraint.day_of_the_week === formData.day_of_the_week
+            );
+        });
+
+        const usedTimeSlots = existingConstraints.flatMap(constraint => constraint.time_period);
+        return !usedTimeSlots.includes(timeSlot);
     };
 
     return (
@@ -300,12 +362,17 @@ export function TimeConstraintView() {
                                                     constraint.instructor_id
                                                 )}
                                             </h3>
-                                            <p className="text-sm text-gray-500">
-                                                {constraint.day_of_the_week},{" "}
-                                                {constraint.time_period.join(
-                                                    ", "
-                                                )}
+                                            <p className="text-sm text-gray-600 font-medium mt-1">
+                                                {constraint.day_of_the_week}
                                             </p>
+                                            <div className="flex flex-wrap gap-1 mt-2">
+                                                {constraint.time_period.map((time, index) => (
+                                                    <Badge key={index} variant="outline" className="text-xs flex items-center">
+                                                        <Clock className="h-3 w-3 mr-1" />
+                                                        {time}
+                                                    </Badge>
+                                                ))}
+                                            </div>
                                         </div>
                                         <div className="flex gap-2">
                                             <Button
@@ -357,7 +424,7 @@ export function TimeConstraintView() {
                         <div className="space-y-2">
                             <Label htmlFor="instructor_id">Instructor</Label>
                             <Select
-                                value={formData.instructor_id.toString()}
+                                value={formData.instructor_id ? formData.instructor_id.toString() : ""}
                                 onValueChange={(value) =>
                                     handleSelectChange("instructor_id", value)
                                 }
@@ -400,36 +467,77 @@ export function TimeConstraintView() {
                             </Select>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="time_period">Time Slot</Label>
-                            <Select
-                                value={formData.time_period[0] || ""}
-                                onValueChange={(value) =>
-                                    handleSelectChange("time_period", value)
-                                }
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select time slot" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {timeSlots.map((slot) => (
-                                        <SelectItem key={slot} value={slot}>
+                        {/* Time Slots Selection with Checkboxes */}
+                        {formData.instructor_id > 0 && formData.day_of_the_week && (
+                            <div className="space-y-3">
+                                <Label>Time Slots</Label>
+                                <div className="border rounded-md p-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {timeSlots.map((slot) => {
+                                            const isAvailable = isTimeSlotAvailable(slot);
+                                            const isSelected = selectedTimeSlots.includes(slot);
+                                            
+                                            return (
+                                                <div 
+                                                    key={slot} 
+                                                    className={`flex items-center space-x-2 p-2 rounded ${
+                                                        !isAvailable && !isSelected ? 'bg-gray-100 opacity-60' : 
+                                                        isSelected ? 'bg-blue-50' : ''
+                                                    }`}
+                                                >
+                                                    <Checkbox 
+                                                        id={`time-${slot}`}
+                                                        checked={isSelected}
+                                                        disabled={!isAvailable && !isSelected}
+                                                        onCheckedChange={() => toggleTimeSlot(slot)}
+                                                    />
+                                                    <label
+                                                        htmlFor={`time-${slot}`}
+                                                        className={`text-sm ${!isAvailable && !isSelected ? 'text-gray-400' : ''}`}
+                                                    >
+                                                        {slot}
+                                                    </label>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Show selected time slots */}
+                        {selectedTimeSlots.length > 0 && (
+                            <div className="space-y-2">
+                                <Label className="text-sm text-gray-500">Selected Time Slots:</Label>
+                                <div className="flex flex-wrap gap-1">
+                                    {selectedTimeSlots.map((slot, index) => (
+                                        <Badge key={index} className="flex items-center gap-1 pr-1">
                                             {slot}
-                                        </SelectItem>
+                                            <X 
+                                                className="h-3 w-3 cursor-pointer ml-1" 
+                                                onClick={() => toggleTimeSlot(slot)}
+                                            />
+                                        </Badge>
                                     ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsAddDialogOpen(false)}
+                            onClick={() => {
+                                setIsAddDialogOpen(false);
+                                resetForm();
+                            }}
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleAddConstraint}>
+                        <Button 
+                            onClick={handleAddConstraint}
+                            disabled={!formData.day_of_the_week || selectedTimeSlots.length === 0 || !formData.instructor_id}
+                        >
                             Add Constraint
                         </Button>
                     </DialogFooter>
@@ -492,36 +600,77 @@ export function TimeConstraintView() {
                             </Select>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-time_period">Time Slot</Label>
-                            <Select
-                                value={formData.time_period[0] || ""}
-                                onValueChange={(value) =>
-                                    handleSelectChange("time_period", value)
-                                }
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select time slot" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {timeSlots.map((slot) => (
-                                        <SelectItem key={slot} value={slot}>
+                        {/* Time Slots Selection with Checkboxes */}
+                        {formData.instructor_id > 0 && formData.day_of_the_week && (
+                            <div className="space-y-3">
+                                <Label>Time Slots</Label>
+                                <div className="border rounded-md p-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {timeSlots.map((slot) => {
+                                            const isAvailable = isTimeSlotAvailable(slot);
+                                            const isSelected = selectedTimeSlots.includes(slot);
+                                            
+                                            return (
+                                                <div 
+                                                    key={slot} 
+                                                    className={`flex items-center space-x-2 p-2 rounded ${
+                                                        !isAvailable && !isSelected ? 'bg-gray-100 opacity-60' : 
+                                                        isSelected ? 'bg-blue-50' : ''
+                                                    }`}
+                                                >
+                                                    <Checkbox 
+                                                        id={`edit-time-${slot}`}
+                                                        checked={isSelected}
+                                                        disabled={!isAvailable && !isSelected}
+                                                        onCheckedChange={() => toggleTimeSlot(slot)}
+                                                    />
+                                                    <label
+                                                        htmlFor={`edit-time-${slot}`}
+                                                        className={`text-sm ${!isAvailable && !isSelected ? 'text-gray-400' : ''}`}
+                                                    >
+                                                        {slot}
+                                                    </label>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Show selected time slots */}
+                        {selectedTimeSlots.length > 0 && (
+                            <div className="space-y-2">
+                                <Label className="text-sm text-gray-500">Selected Time Slots:</Label>
+                                <div className="flex flex-wrap gap-1">
+                                    {selectedTimeSlots.map((slot, index) => (
+                                        <Badge key={index} className="flex items-center gap-1 pr-1">
                                             {slot}
-                                        </SelectItem>
+                                            <X 
+                                                className="h-3 w-3 cursor-pointer ml-1" 
+                                                onClick={() => toggleTimeSlot(slot)}
+                                            />
+                                        </Badge>
                                     ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsEditDialogOpen(false)}
+                            onClick={() => {
+                                setIsEditDialogOpen(false);
+                                resetForm();
+                            }}
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleEditConstraint}>
+                        <Button 
+                            onClick={handleEditConstraint}
+                            disabled={!formData.day_of_the_week || selectedTimeSlots.length === 0 || !formData.instructor_id}
+                        >
                             Save Changes
                         </Button>
                     </DialogFooter>
@@ -544,13 +693,18 @@ export function TimeConstraintView() {
                             constraint?
                         </p>
                         {selectedConstraint && (
-                            <p className="font-medium mt-2">
-                                {getInstructorName(
-                                    selectedConstraint.instructor_id
-                                )}{" "}
-                                - {selectedConstraint.day_of_the_week},{" "}
-                                {selectedConstraint.time_period.join(", ")}
-                            </p>
+                            <div>
+                                <p className="font-medium mt-2">
+                                    {getInstructorName(selectedConstraint.instructor_id)} - {selectedConstraint.day_of_the_week}
+                                </p>
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                    {selectedConstraint.time_period.map((time, index) => (
+                                        <Badge key={index} variant="outline">
+                                            {time}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </div>
                         )}
                     </div>
 
