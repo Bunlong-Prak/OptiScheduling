@@ -89,28 +89,52 @@ export async function GET() {
     }
 }
 
-// POST new instructor
-export const POST = createInstructor;
-
-export async function createInstructor(request: Request) {
+export async function POST(request: Request) {
     try {
         const body = await request.json();
 
         // Validate request body against schema
-        const validatedData = createInstructorSchema.parse(body);
+        try {
+            const validatedData = createInstructorSchema.parse(body);
 
-        const { firstName, lastName, gender, email, phoneNumber } =
-            validatedData;
+            const { firstName, lastName, gender, email, phoneNumber } =
+                validatedData;
 
-        const newInstructor = await db.insert(instructors).values({
-            firstName,
-            lastName,
-            gender,
-            email,
-            phoneNumber,
-        });
+            // Insert the instructor
+            const result = await db
+                .insert(instructors)
+                .values({
+                    firstName,
+                    lastName,
+                    gender,
+                    email,
+                    phoneNumber,
+                })
+                .$returningId(); // Get the inserted record's ID
 
-        return NextResponse.json(newInstructor);
+            // Check if insertion was successful
+            if (!result || result.length === 0) {
+                return NextResponse.json(
+                    {
+                        error: "Failed to create instructor - no record returned",
+                    },
+                    { status: 500 }
+                );
+            }
+
+            // Fetch the complete record
+            const createdInstructor = await db.query.instructors.findFirst({
+                where: eq(instructors.id, result[0].id),
+            });
+
+            return NextResponse.json(createdInstructor);
+        } catch (validationError) {
+            console.error("Validation error:", validationError);
+            return NextResponse.json(
+                { error: "Invalid instructor data", details: validationError },
+                { status: 400 }
+            );
+        }
     } catch (error: unknown) {
         console.error("Error creating instructor:", error);
         return NextResponse.json(
