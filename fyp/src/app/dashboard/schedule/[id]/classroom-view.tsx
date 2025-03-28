@@ -23,10 +23,16 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import type { Classroom, ClassroomFormData } from "../../../types";
 
+interface ClassroomType {
+    id: number;
+    name: string;
+}
+
 const ITEMS_PER_PAGE = 10;
 
 export function ClassroomView() {
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+    const [classroomTypes, setClassroomTypes] = useState<ClassroomType[]>([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -39,10 +45,32 @@ export function ClassroomView() {
     });
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
+    const [isTypesLoading, setIsTypesLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState<{
         text: string;
         type: "success" | "error" | "info";
     } | null>(null);
+
+    // Fetch classroom types from API
+    const fetchClassroomTypes = async () => {
+        try {
+            setIsTypesLoading(true);
+            const response = await fetch("/api/classroom-types");
+            if (!response.ok) {
+                throw new Error("Failed to fetch classroom types");
+            }
+            const data = await response.json();
+            setClassroomTypes(data);
+        } catch (error) {
+            console.error("Error fetching classroom types:", error);
+            setStatusMessage({
+                text: "Failed to load classroom types. Please try again.",
+                type: "error",
+            });
+        } finally {
+            setIsTypesLoading(false);
+        }
+    };
 
     // Fetch classrooms from API
     const fetchClassrooms = async () => {
@@ -71,6 +99,7 @@ export function ClassroomView() {
 
     useEffect(() => {
         fetchClassrooms();
+        fetchClassroomTypes();
     }, []);
 
     // Clear status message after 3 seconds
@@ -396,15 +425,24 @@ export function ClassroomView() {
                                     <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Lecture Room">
-                                        Lecture Room
-                                    </SelectItem>
-                                    <SelectItem value="Computer Lab">
-                                        Computer Lab
-                                    </SelectItem>
-                                    <SelectItem value="Conference Room">
-                                        Conference Room
-                                    </SelectItem>
+                                    {isTypesLoading ? (
+                                        <SelectItem value="" disabled>
+                                            Loading classroom types...
+                                        </SelectItem>
+                                    ) : classroomTypes.length === 0 ? (
+                                        <SelectItem value="" disabled>
+                                            No classroom types available
+                                        </SelectItem>
+                                    ) : (
+                                        classroomTypes.map((type) => (
+                                            <SelectItem
+                                                key={type.id}
+                                                value={type.name}
+                                            >
+                                                {type.name}
+                                            </SelectItem>
+                                        ))
+                                    )}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -469,15 +507,24 @@ export function ClassroomView() {
                                     <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Lecture Room">
-                                        Lecture Room
-                                    </SelectItem>
-                                    <SelectItem value="Computer Lab">
-                                        Computer Lab
-                                    </SelectItem>
-                                    <SelectItem value="Conference Room">
-                                        Conference Room
-                                    </SelectItem>
+                                    {isTypesLoading ? (
+                                        <SelectItem value="" disabled>
+                                            Loading classroom types...
+                                        </SelectItem>
+                                    ) : classroomTypes.length === 0 ? (
+                                        <SelectItem value="" disabled>
+                                            No classroom types available
+                                        </SelectItem>
+                                    ) : (
+                                        classroomTypes.map((type) => (
+                                            <SelectItem
+                                                key={type.id}
+                                                value={type.name}
+                                            >
+                                                {type.name}
+                                            </SelectItem>
+                                        ))
+                                    )}
                                 </SelectContent>
                             </Select>
                         </div>

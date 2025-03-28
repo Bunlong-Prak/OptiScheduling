@@ -10,6 +10,7 @@ export type Classroom = {
     id: number;
     code: string;
     capacity: number;
+    type: string;
     classroom_type_id: number;
 };
 
