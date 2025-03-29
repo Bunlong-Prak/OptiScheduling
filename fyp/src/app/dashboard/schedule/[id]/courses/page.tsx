@@ -19,7 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { 
+import {
     Command,
     CommandEmpty,
     CommandGroup,
@@ -145,7 +145,9 @@ export default function CoursesView() {
         instructor_id: 0,
         classroom_id: 0,
     });
-    const [sectionClassrooms, setSectionClassrooms] = useState<SectionClassroomPair[]>([]);
+    const [sectionClassrooms, setSectionClassrooms] = useState<
+        SectionClassroomPair[]
+    >([]);
     const [instructorOpen, setInstructorOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [currentSection, setCurrentSection] = useState("");
@@ -187,10 +189,10 @@ export default function CoursesView() {
         if (sectionClassrooms.length === 0) {
             return;
         }
-        
+
         // Create base course with first section/classroom pair
         const baseSection = sectionClassrooms[0];
-            
+
         const newCourse: Course = {
             id: Math.max(0, ...courses.map((c) => c.id)) + 1,
             title: formData.title,
@@ -204,14 +206,19 @@ export default function CoursesView() {
         };
 
         const newCourses = [newCourse];
-        
+
         // Create additional courses for each additional section/classroom pair
         if (sectionClassrooms.length > 1) {
             for (let i = 1; i < sectionClassrooms.length; i++) {
                 const pair = sectionClassrooms[i];
                 const additionalCourse = {
                     ...newCourse,
-                    id: Math.max(0, ...courses.map((c) => c.id), ...newCourses.map(c => c.id)) + 1,
+                    id:
+                        Math.max(
+                            0,
+                            ...courses.map((c) => c.id),
+                            ...newCourses.map((c) => c.id)
+                        ) + 1,
                     section_id: pair.section_id,
                     classroom_id: pair.classroom_id,
                 };
@@ -275,7 +282,7 @@ export default function CoursesView() {
         setCurrentSection("");
         setCurrentClassroom("");
     };
-    
+
     const addSectionClassroom = () => {
         if (currentSection && currentClassroom) {
             const newPair = {
@@ -283,17 +290,19 @@ export default function CoursesView() {
                 section_id: parseInt(currentSection),
                 classroom_id: parseInt(currentClassroom),
             };
-            
+
             setSectionClassrooms([...sectionClassrooms, newPair]);
-            
+
             // Reset section and classroom inputs
             setCurrentSection("");
             setCurrentClassroom("");
         }
     };
-    
+
     const removeSectionClassroom = (id: number) => {
-        setSectionClassrooms(sectionClassrooms.filter(pair => pair.id !== id));
+        setSectionClassrooms(
+            sectionClassrooms.filter((pair) => pair.id !== id)
+        );
     };
 
     const openDeleteDialog = (course: Course) => {
@@ -330,14 +339,16 @@ export default function CoursesView() {
             instructor_id: course.instructor_id,
             classroom_id: course.classroom_id,
         });
-        
+
         // Initialize with the current section/classroom
-        setSectionClassrooms([{
-            id: 1,
-            section_id: course.section_id,
-            classroom_id: course.classroom_id
-        }]);
-        
+        setSectionClassrooms([
+            {
+                id: 1,
+                section_id: course.section_id,
+                classroom_id: course.classroom_id,
+            },
+        ]);
+
         setIsEditDialogOpen(true);
     };
 
@@ -516,7 +527,10 @@ export default function CoursesView() {
 
                         <div className="space-y-2">
                             <Label htmlFor="instructor_id">Instructor</Label>
-                            <Popover open={instructorOpen} onOpenChange={setInstructorOpen}>
+                            <Popover
+                                open={instructorOpen}
+                                onOpenChange={setInstructorOpen}
+                            >
                                 <PopoverTrigger asChild>
                                     <Button
                                         variant="outline"
@@ -525,7 +539,9 @@ export default function CoursesView() {
                                         className="w-full justify-between"
                                     >
                                         {formData.instructor_id
-                                            ? getInstructorName(formData.instructor_id)
+                                            ? getInstructorName(
+                                                  formData.instructor_id
+                                              )
                                             : "Select instructor..."}
                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                     </Button>
@@ -533,7 +549,9 @@ export default function CoursesView() {
                                 <PopoverContent className="w-full p-0">
                                     <Command>
                                         <CommandInput placeholder="Search instructor..." />
-                                        <CommandEmpty>No instructor found.</CommandEmpty>
+                                        <CommandEmpty>
+                                            No instructor found.
+                                        </CommandEmpty>
                                         <CommandGroup>
                                             {instructors.map((instructor) => (
                                                 <CommandItem
@@ -544,17 +562,21 @@ export default function CoursesView() {
                                                             "instructor_id",
                                                             instructor.id.toString()
                                                         );
-                                                        setInstructorOpen(false);
+                                                        setInstructorOpen(
+                                                            false
+                                                        );
                                                     }}
                                                 >
                                                     <Check
                                                         className={`mr-2 h-4 w-4 ${
-                                                            formData.instructor_id === instructor.id
+                                                            formData.instructor_id ===
+                                                            instructor.id
                                                                 ? "opacity-100"
                                                                 : "opacity-0"
                                                         }`}
                                                     />
-                                                    {instructor.first_name} {instructor.last_name}
+                                                    {instructor.first_name}{" "}
+                                                    {instructor.last_name}
                                                 </CommandItem>
                                             ))}
                                         </CommandGroup>
@@ -562,31 +584,53 @@ export default function CoursesView() {
                                 </PopoverContent>
                             </Popover>
                         </div>
-                        
+
                         {/* Section and Classroom pairs - Improved UI */}
                         <div className="space-y-6">
                             <div>
-                                <Label className="text-base font-medium">Sections and Classrooms</Label>
-                                <p className="text-sm text-gray-500 mt-1">Assign classrooms to course sections</p>
+                                <Label className="text-base font-medium">
+                                    Sections and Classrooms
+                                </Label>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Assign classrooms to course sections
+                                </p>
                             </div>
-                            
+
                             {sectionClassrooms.length > 0 && (
                                 <div className="space-y-2 mb-2">
                                     {sectionClassrooms.map((pair) => (
-                                        <Card key={pair.id} className="p-3 flex justify-between items-center">
+                                        <Card
+                                            key={pair.id}
+                                            className="p-3 flex justify-between items-center"
+                                        >
                                             <div className="flex items-center space-x-3">
-                                                <Badge variant="outline" className="bg-blue-50">
+                                                <Badge
+                                                    variant="outline"
+                                                    className="bg-blue-50"
+                                                >
                                                     Section {pair.section_id}
                                                 </Badge>
-                                                <span className="text-gray-400">→</span>
-                                                <Badge variant="outline" className="bg-gray-50">
-                                                    Room {getClassroomName(pair.classroom_id)}
+                                                <span className="text-gray-400">
+                                                    →
+                                                </span>
+                                                <Badge
+                                                    variant="outline"
+                                                    className="bg-gray-50"
+                                                >
+                                                    Room{" "}
+                                                    {getClassroomName(
+                                                        pair.classroom_id
+                                                    )}
                                                 </Badge>
                                             </div>
-                                            <Button 
-                                                variant="ghost" 
+                                            <Button
+                                                variant="ghost"
                                                 size="icon"
-                                                onClick={() => removeSectionClassroom(pair.id)}
+                                                onClick={() =>
+                                                    removeSectionClassroom(
+                                                        pair.id
+                                                    )
+                                                }
                                                 className="h-8 w-8"
                                             >
                                                 <Trash className="h-4 w-4" />
@@ -595,7 +639,7 @@ export default function CoursesView() {
                                     ))}
                                 </div>
                             )}
-                            
+
                             <div className="flex items-end gap-3">
                                 <div className="flex-1 space-y-2">
                                     <Label htmlFor="section">Section</Label>
@@ -605,10 +649,12 @@ export default function CoursesView() {
                                         placeholder="Enter section number"
                                         min="1"
                                         value={currentSection}
-                                        onChange={(e) => setCurrentSection(e.target.value)}
+                                        onChange={(e) =>
+                                            setCurrentSection(e.target.value)
+                                        }
                                     />
                                 </div>
-                                
+
                                 <div className="flex-1 space-y-2">
                                     <Label htmlFor="classroom">Classroom</Label>
                                     <Select
@@ -624,16 +670,19 @@ export default function CoursesView() {
                                                     key={classroom.id}
                                                     value={classroom.id.toString()}
                                                 >
-                                                    {classroom.code} ({classroom.type})
+                                                    {classroom.code} (
+                                                    {classroom.type})
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                
-                                <Button 
+
+                                <Button
                                     onClick={addSectionClassroom}
-                                    disabled={!currentSection || !currentClassroom}
+                                    disabled={
+                                        !currentSection || !currentClassroom
+                                    }
                                     className="flex-shrink-0"
                                 >
                                     <Plus className="h-4 w-4 mr-2" /> Add
@@ -649,9 +698,15 @@ export default function CoursesView() {
                         >
                             Cancel
                         </Button>
-                        <Button 
+                        <Button
                             onClick={handleAddCourse}
-                            disabled={sectionClassrooms.length === 0 || !formData.title || !formData.code || !formData.major_id || !formData.instructor_id}
+                            disabled={
+                                sectionClassrooms.length === 0 ||
+                                !formData.title ||
+                                !formData.code ||
+                                !formData.major_id ||
+                                !formData.instructor_id
+                            }
                         >
                             Add Course
                         </Button>
@@ -749,8 +804,13 @@ export default function CoursesView() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="edit-instructor_id">Instructor</Label>
-                            <Popover open={instructorOpen} onOpenChange={setInstructorOpen}>
+                            <Label htmlFor="edit-instructor_id">
+                                Instructor
+                            </Label>
+                            <Popover
+                                open={instructorOpen}
+                                onOpenChange={setInstructorOpen}
+                            >
                                 <PopoverTrigger asChild>
                                     <Button
                                         variant="outline"
@@ -759,7 +819,9 @@ export default function CoursesView() {
                                         className="w-full justify-between"
                                     >
                                         {formData.instructor_id
-                                            ? getInstructorName(formData.instructor_id)
+                                            ? getInstructorName(
+                                                  formData.instructor_id
+                                              )
                                             : "Select instructor..."}
                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                     </Button>
@@ -767,7 +829,9 @@ export default function CoursesView() {
                                 <PopoverContent className="w-full p-0">
                                     <Command>
                                         <CommandInput placeholder="Search instructor..." />
-                                        <CommandEmpty>No instructor found.</CommandEmpty>
+                                        <CommandEmpty>
+                                            No instructor found.
+                                        </CommandEmpty>
                                         <CommandGroup>
                                             {instructors.map((instructor) => (
                                                 <CommandItem
@@ -778,17 +842,21 @@ export default function CoursesView() {
                                                             "instructor_id",
                                                             instructor.id.toString()
                                                         );
-                                                        setInstructorOpen(false);
+                                                        setInstructorOpen(
+                                                            false
+                                                        );
                                                     }}
                                                 >
                                                     <Check
                                                         className={`mr-2 h-4 w-4 ${
-                                                            formData.instructor_id === instructor.id
+                                                            formData.instructor_id ===
+                                                            instructor.id
                                                                 ? "opacity-100"
                                                                 : "opacity-0"
                                                         }`}
                                                     />
-                                                    {instructor.first_name} {instructor.last_name}
+                                                    {instructor.first_name}{" "}
+                                                    {instructor.last_name}
                                                 </CommandItem>
                                             ))}
                                         </CommandGroup>
@@ -796,31 +864,53 @@ export default function CoursesView() {
                                 </PopoverContent>
                             </Popover>
                         </div>
-                        
+
                         {/* Section and Classroom pairs - Improved UI */}
                         <div className="space-y-6">
                             <div>
-                                <Label className="text-base font-medium">Sections and Classrooms</Label>
-                                <p className="text-sm text-gray-500 mt-1">Assign classrooms to course sections</p>
+                                <Label className="text-base font-medium">
+                                    Sections and Classrooms
+                                </Label>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Assign classrooms to course sections
+                                </p>
                             </div>
-                            
+
                             {sectionClassrooms.length > 0 && (
                                 <div className="space-y-2 mb-2">
                                     {sectionClassrooms.map((pair) => (
-                                        <Card key={pair.id} className="p-3 flex justify-between items-center">
+                                        <Card
+                                            key={pair.id}
+                                            className="p-3 flex justify-between items-center"
+                                        >
                                             <div className="flex items-center space-x-3">
-                                                <Badge variant="outline" className="bg-blue-50">
+                                                <Badge
+                                                    variant="outline"
+                                                    className="bg-blue-50"
+                                                >
                                                     Section {pair.section_id}
                                                 </Badge>
-                                                <span className="text-gray-400">→</span>
-                                                <Badge variant="outline" className="bg-gray-50">
-                                                    Room {getClassroomName(pair.classroom_id)}
+                                                <span className="text-gray-400">
+                                                    →
+                                                </span>
+                                                <Badge
+                                                    variant="outline"
+                                                    className="bg-gray-50"
+                                                >
+                                                    Room{" "}
+                                                    {getClassroomName(
+                                                        pair.classroom_id
+                                                    )}
                                                 </Badge>
                                             </div>
-                                            <Button 
-                                                variant="ghost" 
+                                            <Button
+                                                variant="ghost"
                                                 size="icon"
-                                                onClick={() => removeSectionClassroom(pair.id)}
+                                                onClick={() =>
+                                                    removeSectionClassroom(
+                                                        pair.id
+                                                    )
+                                                }
                                                 className="h-8 w-8"
                                             >
                                                 <Trash className="h-4 w-4" />
@@ -829,21 +919,27 @@ export default function CoursesView() {
                                     ))}
                                 </div>
                             )}
-                            
+
                             <div className="flex items-end gap-3">
                                 <div className="flex-1 space-y-2">
-                                    <Label htmlFor="edit-section">Section</Label>
+                                    <Label htmlFor="edit-section">
+                                        Section
+                                    </Label>
                                     <Input
                                         id="edit-section"
                                         type="number"
                                         placeholder="Enter section number"
                                         min="1"
                                         value={currentSection}
-                                        onChange={(e) => setCurrentSection(e.target.value)}
+                                        onChange={(e) =>
+                                            setCurrentSection(e.target.value)
+                                        }
                                     />
                                 </div>
                                 <div className="flex-1 space-y-2">
-                                    <Label htmlFor="edit-classroom">Classroom</Label>
+                                    <Label htmlFor="edit-classroom">
+                                        Classroom
+                                    </Label>
                                     <Select
                                         value={currentClassroom}
                                         onValueChange={setCurrentClassroom}
@@ -857,16 +953,19 @@ export default function CoursesView() {
                                                     key={classroom.id}
                                                     value={classroom.id.toString()}
                                                 >
-                                                    {classroom.code} ({classroom.type})
+                                                    {classroom.code} (
+                                                    {classroom.type})
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                
-                                <Button 
+
+                                <Button
                                     onClick={addSectionClassroom}
-                                    disabled={!currentSection || !currentClassroom}
+                                    disabled={
+                                        !currentSection || !currentClassroom
+                                    }
                                     className="flex-shrink-0"
                                 >
                                     <Plus className="h-4 w-4 mr-2" /> Add
