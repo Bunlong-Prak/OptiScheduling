@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "aa35be0e-36a1-4946-9805-9a64f5698637",
+  "id": "3b304d1c-6e4a-47b0-9653-4bffa5cf6597",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -352,8 +352,8 @@
           "notNull": true,
           "autoincrement": true
         },
-        "day": {
-          "name": "day",
+        "time_slot": {
+          "name": "time_slot",
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true,

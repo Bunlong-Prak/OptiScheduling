@@ -92,8 +92,8 @@ export type MajorFormData = {
 };
 
 export type TimeConstraintFormData = {
-    day_of_the_week: string;
-    time_period: string[];
+    day: string;
+    time_slots: string[];
     instructor_id: number;
 };
 

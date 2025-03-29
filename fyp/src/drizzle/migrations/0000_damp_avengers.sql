@@ -46,7 +46,7 @@ CREATE TABLE `instructor_time_constraint_days` (
 --> statement-breakpoint
 CREATE TABLE `instructor_time_constraint_time_slots` (
 	`id` int AUTO_INCREMENT NOT NULL,
-	`day` varchar(50) NOT NULL,
+	`time_slot` varchar(50) NOT NULL,
 	`instructor_time_constraint_day_id` int NOT NULL,
 	CONSTRAINT `instructor_time_constraint_time_slots_id` PRIMARY KEY(`id`)
 );

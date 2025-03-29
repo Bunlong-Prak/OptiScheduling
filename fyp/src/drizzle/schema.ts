@@ -220,7 +220,7 @@ export const instructorTimeConstraintTimeSlot = mysqlTable(
     "instructor_time_constraint_time_slots",
     {
         id: int("id").primaryKey().autoincrement(),
-        time_slot: varchar("day", {
+        timeSlot: varchar("time_slot", {
             length: 50,
         }).notNull(),
         instructorTimeConstraintDayId: int("instructor_time_constraint_day_id")

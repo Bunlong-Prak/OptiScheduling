@@ -45,7 +45,12 @@ const courseSchema = z.object({
 // GET all courses
 export async function GET() {
     try {
-        const allCourses = await db.select().from(courses);
+        const allCourses = await db
+            .select({
+                title: courses.title,
+                code: courses.code,
+            })
+            .from(courses);
         return NextResponse.json(allCourses);
     } catch (error: unknown) {
         console.error("Error fetching courses:", error);

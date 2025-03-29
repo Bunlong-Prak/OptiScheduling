@@ -66,7 +66,6 @@ export async function GET() {
             .select({
                 id: classrooms.id,
                 code: classrooms.code,
-                classroomTypeId: classrooms.classroomTypeId,
                 typeName: classroomTypes.name,
                 capacity: classrooms.capacity,
             })
