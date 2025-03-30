@@ -272,10 +272,9 @@ export default function TimeConstraintView() {
         setIsLoading(true);
         try {
             const apiData = {
-                id: selectedConstraint.id,
-                instructor_id: formData.instructor_id,
+                instructorId: formData.instructor_id,
                 day: formData.day,
-                time_slots: formData.time_slots,
+                timeSlots: formData.time_slots,
             };
 
             console.log("Sending update data:", apiData);
@@ -326,7 +325,7 @@ export default function TimeConstraintView() {
         setIsLoading(true);
         try {
             const apiData = {
-                id: selectedConstraint.id,
+                instructorId: selectedConstraint.instructor_id,
             };
 
             const response = await fetch("/api/time-constraints", {

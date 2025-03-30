@@ -5,7 +5,7 @@ import {
     instructorTimeConstraintTimeSlot,
 } from "@/drizzle/schema";
 import { db } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -40,19 +40,11 @@ export const createInstructorConstraintSchema = z.object({
         .min(1, { message: "At least one time slot is required" }),
 });
 
-export const updateInstructorConstraintSchema = z.object({
-    // constraintId: Required, positive integer
-    constraintId: z
-        .number()
-        .int({ message: "Constraint ID must be a whole number" })
-        .positive({ message: "Constraint ID must be a positive number" }),
-
-    // instructorId: Optional, positive integer
+export const editInstructorConstraintSchema = z.object({
     instructorId: z
         .number()
         .int({ message: "Instructor ID must be a whole number" })
-        .positive({ message: "Instructor ID must be a positive number" })
-        .optional(),
+        .positive({ message: "Instructor ID must be a positive number" }),
 
     // day: Required, string
     day: z
@@ -80,10 +72,10 @@ export const updateInstructorConstraintSchema = z.object({
 
 export const deleteInstructorConstraintSchema = z.object({
     // constraintId: Required, positive integer
-    constraintId: z
+    instructorId: z
         .number()
-        .int({ message: "Constraint ID must be a whole number" })
-        .positive({ message: "Constraint ID must be a positive number" }),
+        .int({ message: "Instructor ID must be a whole number" })
+        .positive({ message: "Instructor ID must be a positive number" }),
 });
 
 // GET all instructor constraints
@@ -201,10 +193,7 @@ export async function POST(request: Request) {
         // Get the inserted day ID
         const constraintDay =
             await db.query.instructorTimeConstraintDay.findFirst({
-                where: eq(
-                    instructorTimeConstraintDay.day,
-                    day
-                ),
+                where: eq(instructorTimeConstraintDay.day, day),
             });
         if (!constraintDay) {
             return NextResponse.json(
@@ -239,11 +228,8 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
-
         // Validate request data
-        const validationResult =
-            updateInstructorConstraintSchema.safeParse(body);
-
+        const validationResult = editInstructorConstraintSchema.safeParse(body);
         if (!validationResult.success) {
             return NextResponse.json(
                 {
@@ -254,89 +240,83 @@ export async function PATCH(request: Request) {
             );
         }
 
-        const { constraintId, instructorId, day, timeSlots } =
-            validationResult.data;
+        const { instructorId, day, timeSlots } = validationResult.data;
 
-        // Update the constraint's instructor ID if provided
-        if (instructorId) {
-            await db
-                .update(instructorTimeConstraint)
-                .set({ instructorId })
-                .where(eq(instructorTimeConstraint.id, constraintId));
+        // Find the existing constraint
+        const constraint = await db.query.instructorTimeConstraint.findFirst({
+            where: eq(instructorTimeConstraint.instructorId, instructorId),
+        });
+
+        if (!constraint) {
+            return NextResponse.json(
+                { error: "Instructor constraint not found" },
+                { status: 404 }
+            );
         }
 
-        // First check if this day already exists for this constraint
-        const existingDay = await db
-            .select({ id: instructorTimeConstraintDay.id })
-            .from(instructorTimeConstraintDay)
-            .where(
-                eq(
-                    instructorTimeConstraintDay.instructorTimeConstraintId,
-                    constraintId
-                )
-            )
-            .where(eq(instructorTimeConstraintDay.day, day))
-            .limit(1);
+        // Find the day entry
+        const constraintDay =
+            await db.query.instructorTimeConstraintDay.findFirst({
+                where: and(
+                    eq(
+                        instructorTimeConstraintDay.instructorTimeConstraintId,
+                        constraint.id
+                    ),
+                    eq(instructorTimeConstraintDay.day, day)
+                ),
+            });
 
-        let dayId;
+        if (!constraintDay) {
+            return NextResponse.json(
+                { error: "Day constraint not found" },
+                { status: 404 }
+            );
+        }
 
-        if (existingDay.length > 0) {
-            // Day exists - use its ID
-            dayId = existingDay[0].id;
-
+        // Use a transaction for the update
+        return await db.transaction(async (tx) => {
             // Delete existing time slots for this day
-            await db
+            await tx
                 .delete(instructorTimeConstraintTimeSlot)
                 .where(
                     eq(
                         instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId,
-                        dayId
+                        constraintDay.id
                     )
                 );
-        } else {
-            // Create a new day record
-            await db.insert(instructorTimeConstraintDay).values({
-                instructorTimeConstraintId: constraintId,
-                day: day,
-            });
 
-            // Get the newly created day ID
-            const newDay = await db
-                .select({ id: instructorTimeConstraintDay.id })
-                .from(instructorTimeConstraintDay)
-                .where(
-                    eq(
-                        instructorTimeConstraintDay.instructorTimeConstraintId,
-                        constraintId
-                    )
-                )
-                .where(eq(instructorTimeConstraintDay.day, day))
-                .limit(1);
-
-            if (newDay.length === 0) {
-                throw new Error("Failed to retrieve the created day");
-            }
-
-            dayId = newDay[0].id;
-        }
-
-        // Add the new time slots
-        if (timeSlots.length > 0) {
+            // Create new time slots
             const timeSlotValues = timeSlots.map((slot: string) => ({
-                instructorTimeConstraintDayId: dayId,
+                instructorTimeConstraintDayId: constraintDay.id,
                 timeSlot: slot,
             }));
 
-            await db
+            await tx
                 .insert(instructorTimeConstraintTimeSlot)
                 .values(timeSlotValues);
-        }
 
-        return NextResponse.json({
-            message: "Instructor time constraint updated successfully",
+            return NextResponse.json({
+                message: "Instructor time constraint updated successfully",
+                data: {
+                    constraintId: constraint.id,
+                    dayId: constraintDay.id,
+                    timeSlots: timeSlots,
+                },
+            });
         });
     } catch (error: unknown) {
         console.error("Error updating instructor constraint:", error);
+
+        if (error instanceof Error) {
+            return NextResponse.json(
+                {
+                    error: "Failed to update instructor constraint",
+                    message: error.message,
+                },
+                { status: 500 }
+            );
+        }
+
         return NextResponse.json(
             { error: "Failed to update instructor constraint" },
             { status: 500 }
@@ -348,11 +328,9 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
     try {
         const body = await request.json();
-
         // Validate request data
         const validationResult =
             deleteInstructorConstraintSchema.safeParse(body);
-
         if (!validationResult.success) {
             return NextResponse.json(
                 {
@@ -363,51 +341,80 @@ export async function DELETE(request: Request) {
             );
         }
 
-        const { constraintId } = validationResult.data;
+        const { instructorId } = validationResult.data;
 
-        // Get all days for this constraint
-        const days = await db
-            .select({ id: instructorTimeConstraintDay.id })
-            .from(instructorTimeConstraintDay)
-            .where(
-                eq(
-                    instructorTimeConstraintDay.instructorTimeConstraintId,
-                    constraintId
-                )
+        // Get the constraint ID first
+        const constraint = await db.query.instructorTimeConstraint.findFirst({
+            where: eq(instructorTimeConstraint.instructorId, instructorId),
+        });
+
+        if (!constraint) {
+            return NextResponse.json(
+                { error: "Instructor constraint not found" },
+                { status: 404 }
             );
-
-        // For each day, delete its time slots
-        for (const day of days) {
-            await db
-                .delete(instructorTimeConstraintTimeSlot)
-                .where(
-                    eq(
-                        instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId,
-                        day.id
-                    )
-                );
         }
 
-        // Delete all days
-        await db
-            .delete(instructorTimeConstraintDay)
-            .where(
-                eq(
-                    instructorTimeConstraintDay.instructorTimeConstraintId,
-                    constraintId
-                )
-            );
+        const constraintId = constraint.id;
 
-        // Finally, delete the constraint itself
-        await db
-            .delete(instructorTimeConstraint)
-            .where(eq(instructorTimeConstraint.id, constraintId));
+        // Use a transaction to ensure all deletions succeed or fail together
+        return await db.transaction(async (tx) => {
+            // Get all days for this constraint
+            const days = await tx
+                .select({ id: instructorTimeConstraintDay.id })
+                .from(instructorTimeConstraintDay)
+                .where(
+                    eq(
+                        instructorTimeConstraintDay.instructorTimeConstraintId,
+                        constraintId
+                    )
+                );
 
-        return NextResponse.json({
-            message: "Instructor time constraint deleted successfully",
+            // Delete all time slots for all days in one query
+            if (days.length > 0) {
+                const dayIds = days.map((day) => day.id);
+                await tx
+                    .delete(instructorTimeConstraintTimeSlot)
+                    .where(
+                        inArray(
+                            instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId,
+                            dayIds
+                        )
+                    );
+            }
+
+            // Delete all days
+            await tx
+                .delete(instructorTimeConstraintDay)
+                .where(
+                    eq(
+                        instructorTimeConstraintDay.instructorTimeConstraintId,
+                        constraintId
+                    )
+                );
+
+            // Finally, delete the constraint itself
+            await tx
+                .delete(instructorTimeConstraint)
+                .where(eq(instructorTimeConstraint.id, constraintId));
+
+            return NextResponse.json({
+                message: "Instructor time constraint deleted successfully",
+            });
         });
     } catch (error: unknown) {
         console.error("Error deleting instructor constraint:", error);
+
+        if (error instanceof Error) {
+            return NextResponse.json(
+                {
+                    error: "Failed to delete instructor constraint",
+                    message: error.message,
+                },
+                { status: 500 }
+            );
+        }
+
         return NextResponse.json(
             { error: "Failed to delete instructor constraint" },
             { status: 500 }
