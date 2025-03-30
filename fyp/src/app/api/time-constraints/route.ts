@@ -202,8 +202,8 @@ export async function POST(request: Request) {
         const constraintDay =
             await db.query.instructorTimeConstraintDay.findFirst({
                 where: eq(
-                    instructorTimeConstraintDay.instructorTimeConstraintId,
-                    constraint.id
+                    instructorTimeConstraintDay.day,
+                    day
                 ),
             });
         if (!constraintDay) {
