@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "3b304d1c-6e4a-47b0-9653-4bffa5cf6597",
+  "id": "7fc36cbc-c95f-474f-8a30-fad1531760b0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -104,8 +104,8 @@
           "notNull": true,
           "autoincrement": true
         },
-        "time_period": {
-          "name": "time_period",
+        "time_slot": {
+          "name": "time_slot",
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true,
@@ -163,11 +163,11 @@
           "notNull": true,
           "autoincrement": false
         },
-        "description": {
-          "name": "description",
-          "type": "varchar(255)",
+        "duration": {
+          "name": "duration",
+          "type": "int",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "schedule_id": {
@@ -666,7 +666,7 @@
         },
         "number": {
           "name": "number",
-          "type": "int",
+          "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false

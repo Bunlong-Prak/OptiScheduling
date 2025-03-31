@@ -101,9 +101,7 @@ export const courses = mysqlTable("courses", {
     code: varchar("code", { length: 50 }).notNull(),
     color: varchar("color", { length: 50 }),
     capacity: int("capacity").notNull(),
-    description: varchar("description", {
-        length: 255,
-    }), // Foreign key to Section
+    duration: int("duration").notNull(), // Foreign key to Section
     scheduleId: int("schedule_id")
         .notNull()
         .references(() => schedules.id, {
@@ -125,7 +123,7 @@ export const courseRelations = relations(courses, ({ many, one }) => ({
 
 export const sections = mysqlTable("sections", {
     id: int("id").primaryKey().autoincrement(),
-    number: int("number").notNull(),
+    number: varchar("number", { length: 50 }).notNull(),
     courseHoursId: int("course_hours_id")
         .notNull()
         .references(() => courseHours.id), // Foreign key to Course Hours
@@ -144,7 +142,7 @@ export const sectionRelations = relations(sections, ({ many, one }) => ({
 
 export const courseHours = mysqlTable("course_hours", {
     id: int("id").primaryKey().autoincrement(),
-    timePeriod: varchar("time_period", { length: 50 }).notNull(),
+    timeSlot: varchar("time_slot", { length: 50 }).notNull(),
 });
 
 export const majors = mysqlTable("majors", {

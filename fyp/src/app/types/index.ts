@@ -41,14 +41,18 @@ export type TimeConstraint = {
 };
 
 export type Course = {
-    id: number;
+    id?: number;
     title: string;
     code: string;
+    major: string;
     color: string;
-    section_id: number;
-    major_id: number;
-    instructor_id: number;
-    classroom_id: number;
+    firstName?: string;
+    lastName?: string;
+    instructor: string;
+    duration: number;
+    capacity: number;
+    section: string;
+    classroom: string;
 };
 
 export type Schedule = {

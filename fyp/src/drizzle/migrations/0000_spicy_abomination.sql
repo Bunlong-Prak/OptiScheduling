@@ -14,7 +14,7 @@ CREATE TABLE `classrooms` (
 --> statement-breakpoint
 CREATE TABLE `course_hours` (
 	`id` int AUTO_INCREMENT NOT NULL,
-	`time_period` varchar(50) NOT NULL,
+	`time_slot` varchar(50) NOT NULL,
 	CONSTRAINT `course_hours_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -24,7 +24,7 @@ CREATE TABLE `courses` (
 	`code` varchar(50) NOT NULL,
 	`color` varchar(50),
 	`capacity` int NOT NULL,
-	`description` varchar(255),
+	`duration` int NOT NULL,
 	`schedule_id` int NOT NULL,
 	`major_id` int NOT NULL,
 	`instructor_id` int NOT NULL,
@@ -92,7 +92,7 @@ CREATE TABLE `schedules` (
 --> statement-breakpoint
 CREATE TABLE `sections` (
 	`id` int AUTO_INCREMENT NOT NULL,
-	`number` int NOT NULL,
+	`number` varchar(50) NOT NULL,
 	`course_hours_id` int NOT NULL,
 	`course_id` int NOT NULL,
 	`classroom_id` int NOT NULL,

@@ -120,10 +120,10 @@ export async function GET() {
             if (!constraintMap.has(key)) {
                 // Create new constraint entry
                 constraintMap.set(key, {
-                    id: item.dayId, // Use dayId as the constraint ID
-                    instructor_id: item.instructorId, // Use the actual instructor ID
-                    day_of_the_week: item.day, // Use the renamed field to match frontend expectations
-                    time_period: [item.timeSlot], // Start an array with the first time slot
+                    id: item.dayId,
+                    instructor_id: item.instructorId,
+                    day_of_the_week: item.day,
+                    time_period: [item.timeSlot],
                 });
             } else {
                 // Add time slot to existing constraint

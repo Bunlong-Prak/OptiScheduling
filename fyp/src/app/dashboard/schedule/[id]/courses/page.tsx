@@ -1,24 +1,7 @@
 "use client";
 
-import type React from "react";
-import { useState } from "react";
+import { Classroom, Course, Instructor, Major } from "@/app/types";
 import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import {
     Command,
     CommandEmpty,
@@ -27,138 +10,101 @@ import {
     CommandItem,
 } from "@/components/ui/command";
 import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
     Popover,
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { Pencil, Plus, Trash, Check, ChevronsUpDown } from "lucide-react";
-import type {
-    Course,
-    CourseFormData,
-    Instructor,
-    Classroom,
-    Major,
-} from "@/app/types";
-import Pagination from "@/components/custom/pagination";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Check, ChevronsUpDown, Pencil, Plus, Trash } from "lucide-react";
+import { useEffect, useState } from "react";
 
-// Interface for section-classroom pairs
-interface SectionClassroomPair {
-    id: number;
-    section_id: number;
-    classroom_id: number;
-}
-
-// Mock data for instructors
-const instructors: Instructor[] = [
-    {
-        id: 1,
-        first_name: "Flordeliza P.",
-        last_name: "PONCIO",
-        gender: "Female",
-        email: "flordeliza.poncio@paragon.edu.kh",
-        phone_number: "012-345-678",
-    },
-    {
-        id: 2,
-        first_name: "Abdulkasim",
-        last_name: "Akhmedov",
-        gender: "Male",
-        email: "abdulkasim.akhmedov@paragon.edu.kh",
-        phone_number: "012-345-679",
-    },
-    {
-        id: 3,
-        first_name: "Nora",
-        last_name: "Patron",
-        gender: "Female",
-        email: "nora.patron@paragon.edu.kh",
-        phone_number: "012-345-680",
-    },
-];
-
-// Mock data for classrooms
-const classrooms: Classroom[] = [
-    { id: 111, code: "111", type: "Computer Lab", capacity: 30 },
-    { id: 304, code: "304", type: "Lecture Room", capacity: 40 },
-    { id: 404, code: "404", type: "Lecture Room", capacity: 50 },
-];
-
-// Mock data for majors
-const majors: Major[] = [
-    { id: 1, name: "Computer Science", short_tag: "CS" },
-    { id: 2, name: "Civil Engineering", short_tag: "CE" },
-    { id: 3, name: "Industrial Engineering", short_tag: "IE" },
-];
-
-// Mock data for courses
-const initialCourses: Course[] = [
-    {
-        id: 1,
-        title: "Introduction to Programming",
-        type: "Lecture",
-        code: "CS125",
-        color: "blue",
-        section_id: 1,
-        major_id: 1,
-        instructor_id: 1,
-        classroom_id: 111,
-    },
-    {
-        id: 2,
-        title: "CALCULUS 1",
-        type: "Lecture",
-        code: "MATH131",
-        color: "green",
-        section_id: 2,
-        major_id: 2,
-        instructor_id: 2,
-        classroom_id: 404,
-    },
-    {
-        id: 3,
-        title: "Final Year Project 1",
-        type: "Project",
-        code: "CS401",
-        color: "yellow",
-        section_id: 3,
-        major_id: 3,
-        instructor_id: 3,
-        classroom_id: 304,
-    },
-];
+// Define types based on API structure
 
 export default function CoursesView() {
-    const [courses, setCourses] = useState<Course[]>(initialCourses);
+    const [courses, setCourses] = useState<Course[]>([]);
+    const [majors, setMajors] = useState<Major[]>([]);
+    const [instructors, setInstructors] = useState<Instructor[]>([]);
+    const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-    const [formData, setFormData] = useState<CourseFormData>({
-        title: "",
-        type: "",
-        code: "",
-        color: "",
-        section_id: 0,
-        major_id: 0,
-        instructor_id: 0,
-        classroom_id: 0,
-    });
     const [sectionClassrooms, setSectionClassrooms] = useState<
-        SectionClassroomPair[]
+        { id: number; section_id: string; classroom_id: string }[]
     >([]);
-    const [instructorOpen, setInstructorOpen] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
     const [currentSection, setCurrentSection] = useState("");
     const [currentClassroom, setCurrentClassroom] = useState("");
-    const itemsPerPage = 5;
+    const [formData, setFormData] = useState<Course>({
+        title: "",
+        code: "",
+        major: "",
+        color: "",
+        instructor: "",
+        duration: 0,
+        capacity: 0,
+        section: "",
+        classroom: "",
+    });
+    const [instructorOpen, setInstructorOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const totalPages = Math.ceil(courses.length / itemsPerPage);
+    // Fetch all data on component mount
+    useEffect(() => {
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                // Fetch courses
+                const coursesRes = await fetch("/api/courses");
+                if (coursesRes.ok) {
+                    const coursesData = await coursesRes.json();
+                    setCourses(coursesData);
+                }
 
-    const handlePageChange = (page: number) => {
-        setCurrentPage(page);
-    };
+                // Fetch majors
+                const majorsRes = await fetch("/api/majors");
+                if (majorsRes.ok) {
+                    const majorsData = await majorsRes.json();
+                    setMajors(majorsData);
+                }
+
+                // Fetch instructors
+                const instructorsRes = await fetch("/api/instructors");
+                if (instructorsRes.ok) {
+                    const instructorsData = await instructorsRes.json();
+                    setInstructors(instructorsData);
+                }
+
+                // Fetch classrooms
+                const classroomsRes = await fetch("/api/classrooms");
+                if (classroomsRes.ok) {
+                    const classroomsData = await classroomsRes.json();
+                    setClassrooms(classroomsData);
+                }
+            } catch (error) {
+                console.error("Error fetching data:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchData();
+    }, []);
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -171,10 +117,10 @@ export default function CoursesView() {
     };
 
     const handleSelectChange = (name: string, value: string) => {
-        if (["major_id", "instructor_id", "classroom_id"].includes(name)) {
+        if (name === "duration") {
             setFormData({
                 ...formData,
-                [name]: Number.parseInt(value),
+                [name]: parseInt(value),
             });
         } else {
             setFormData({
@@ -183,99 +129,144 @@ export default function CoursesView() {
             });
         }
     };
-
-    const handleAddCourse = () => {
+    const handleAddCourse = async () => {
         // Make sure we have at least one section/classroom pair
         if (sectionClassrooms.length === 0) {
             return;
         }
 
-        // Create base course with first section/classroom pair
-        const baseSection = sectionClassrooms[0];
+        try {
+            // Create an array of section/classroom pairs
+            const sections = sectionClassrooms.map((pair) => ({
+                section: pair.section_id,
+                classroom: pair.classroom_id,
+            }));
 
-        const newCourse: Course = {
-            id: Math.max(0, ...courses.map((c) => c.id)) + 1,
-            title: formData.title,
-            type: formData.type || "Lecture",
-            code: formData.code,
-            color: formData.color || "blue",
-            section_id: baseSection.section_id,
-            major_id: formData.major_id,
-            instructor_id: formData.instructor_id,
-            classroom_id: baseSection.classroom_id,
-        };
+            // Create API payload with the base course data and all sections
+            const apiData = {
+                code: formData.code,
+                title: formData.title,
+                major: formData.major,
+                color: formData.color,
+                instructor: formData.instructor,
+                duration: Number(formData.duration),
+                capacity: Number(formData.capacity),
+                sectionClassroom: sections,
+            };
 
-        const newCourses = [newCourse];
+            const response = await fetch("/api/courses", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
 
-        // Create additional courses for each additional section/classroom pair
-        if (sectionClassrooms.length > 1) {
-            for (let i = 1; i < sectionClassrooms.length; i++) {
-                const pair = sectionClassrooms[i];
-                const additionalCourse = {
-                    ...newCourse,
-                    id:
-                        Math.max(
-                            0,
-                            ...courses.map((c) => c.id),
-                            ...newCourses.map((c) => c.id)
-                        ) + 1,
-                    section_id: pair.section_id,
-                    classroom_id: pair.classroom_id,
-                };
-                newCourses.push(additionalCourse);
+            if (response.ok) {
+                // Refresh course list after adding
+                const refreshResponse = await fetch("/api/courses");
+                if (refreshResponse.ok) {
+                    const refreshedCourses = await refreshResponse.json();
+                    setCourses(refreshedCourses);
+                }
+
+                setIsAddDialogOpen(false);
+                resetForm();
+            } else {
+                const error = await response.json();
+                console.error("Error adding courses:", error);
             }
+        } catch (error) {
+            console.error("Error adding courses:", error);
+        }
+    };
+
+    const handleEditCourse = async () => {
+        if (!selectedCourse?.id) return;
+
+        // Make sure we have at least one section/classroom pair
+        if (sectionClassrooms.length === 0) {
+            return;
         }
 
-        setCourses([...courses, ...newCourses]);
-        setIsAddDialogOpen(false);
-        resetForm();
-    };
+        // Create API payload from form data and first section
+        const baseSection = sectionClassrooms[0];
 
-    const handleEditCourse = () => {
-        if (!selectedCourse) return;
+        const apiData = {
+            code: formData.code,
+            title: formData.title,
+            major: formData.major,
+            color: formData.color,
+            instructor: formData.instructor,
+            duration: formData.duration,
+            section: baseSection.section_id,
+            classroom: baseSection.classroom_id,
+        };
 
-        const updatedCourses = courses.map((course) => {
-            if (course.id === selectedCourse.id) {
-                return {
-                    ...course,
-                    title: formData.title,
-                    type: formData.type || course.type,
-                    code: formData.code,
-                    color: formData.color,
-                    section_id: sectionClassrooms[0].section_id,
-                    major_id: formData.major_id,
-                    instructor_id: formData.instructor_id,
-                    classroom_id: sectionClassrooms[0].classroom_id,
-                };
+        try {
+            const response = await fetch(`/api/courses/${selectedCourse.id}`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
+
+            if (response.ok) {
+                // Refresh course list after updating
+                const refreshResponse = await fetch("/api/courses");
+                if (refreshResponse.ok) {
+                    const refreshedCourses = await refreshResponse.json();
+                    setCourses(refreshedCourses);
+                }
+
+                setIsEditDialogOpen(false);
+                resetForm();
+            } else {
+                const error = await response.json();
+                console.error("Error updating course:", error);
+                // Handle error feedback to user
             }
-            return course;
-        });
-
-        setCourses(updatedCourses);
-        setIsEditDialogOpen(false);
-        resetForm();
+        } catch (error) {
+            console.error("Error updating course:", error);
+        }
     };
 
-    const handleDeleteCourse = () => {
-        if (!selectedCourse) return;
+    const handleDeleteCourse = async () => {
+        if (!selectedCourse?.id) return;
 
-        const updatedCourses = courses.filter(
-            (course) => course.id !== selectedCourse.id
-        );
-        setCourses(updatedCourses);
-        setIsDeleteDialogOpen(false);
+        try {
+            const response = await fetch(`/api/courses/${selectedCourse.id}`, {
+                method: "DELETE",
+            });
+
+            if (response.ok) {
+                setCourses(
+                    courses.filter((course) => course.id !== selectedCourse.id)
+                );
+                setIsDeleteDialogOpen(false);
+                resetForm();
+            } else {
+                const error = await response.json();
+                console.error("Error deleting course:", error);
+                // Handle error feedback to user
+            }
+        } catch (error) {
+            console.error("Error deleting course:", error);
+        }
     };
 
     const resetForm = () => {
         setFormData({
             title: "",
-            type: "",
             code: "",
+            major: "",
             color: "",
-            section_id: 0,
-            major_id: 0,
-            instructor_id: 0,
-            classroom_id: 0,
+            instructor: "",
+            duration: 0,
+            capacity: 0,
+            section: "",
+            classroom: "",
         });
         setSelectedCourse(null);
         setSectionClassrooms([]);
@@ -287,8 +278,8 @@ export default function CoursesView() {
         if (currentSection && currentClassroom) {
             const newPair = {
                 id: sectionClassrooms.length + 1,
-                section_id: parseInt(currentSection),
-                classroom_id: parseInt(currentClassroom),
+                section_id: currentSection,
+                classroom_id: currentClassroom,
             };
 
             setSectionClassrooms([...sectionClassrooms, newPair]);
@@ -305,51 +296,35 @@ export default function CoursesView() {
         );
     };
 
-    const openDeleteDialog = (course: Course) => {
-        setSelectedCourse(course);
-        setIsDeleteDialogOpen(true);
-    };
-
-    const getInstructorName = (instructorId: number) => {
-        const instructor = instructors.find((i) => i.id === instructorId);
-        return instructor
-            ? `${instructor.first_name} ${instructor.last_name}`
-            : "Unknown";
-    };
-
-    const getClassroomName = (classroomId: number) => {
-        const classroom = classrooms.find((c) => c.id === classroomId);
-        return classroom ? classroom.code : "Unknown";
-    };
-
-    const getMajorTag = (majorId: number) => {
-        const major = majors.find((m) => m.id === majorId);
-        return major ? major.short_tag : "Unknown";
-    };
-
     const openEditDialog = (course: Course) => {
         setSelectedCourse(course);
         setFormData({
             title: course.title,
-            type: course.type,
             code: course.code,
+            major: course.major,
             color: course.color,
-            section_id: course.section_id,
-            major_id: course.major_id,
-            instructor_id: course.instructor_id,
-            classroom_id: course.classroom_id,
+            instructor: course.lastName || "",
+            duration: course.duration,
+            capacity: course.capacity,
+            section: course.section,
+            classroom: course.classroom,
         });
 
         // Initialize with the current section/classroom
         setSectionClassrooms([
             {
                 id: 1,
-                section_id: course.section_id,
-                classroom_id: course.classroom_id,
+                section_id: course.section,
+                classroom_id: course.classroom,
             },
         ]);
 
         setIsEditDialogOpen(true);
+    };
+
+    const openDeleteDialog = (course: Course) => {
+        setSelectedCourse(course);
+        setIsDeleteDialogOpen(true);
     };
 
     return (
@@ -364,77 +339,87 @@ export default function CoursesView() {
                 </Button>
             </div>
 
-            <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                    <thead>
-                        <tr>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                CODE
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                TITLE
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                SECTION
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                INSTRUCTOR
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                CLASSROOM
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                MAJOR
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {courses.map((course) => (
-                            <tr key={course.id}>
-                                <td className="border p-2">{course.code}</td>
-                                <td className="border p-2">{course.title}</td>
-                                <td className="border p-2">
-                                    {course.section_id}
-                                </td>
-                                <td className="border p-2">
-                                    {getInstructorName(course.instructor_id)}
-                                </td>
-                                <td className="border p-2">
-                                    {getClassroomName(course.classroom_id)}
-                                </td>
-                                <td className="border p-2">
-                                    {getMajorTag(course.major_id)}
-                                </td>
-                                <td className="border p-2">
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() =>
-                                                openEditDialog(course)
-                                            }
-                                        >
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() =>
-                                                openDeleteDialog(course)
-                                            }
-                                        >
-                                            <Trash className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </td>
+            {isLoading ? (
+                <div>Loading courses...</div>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    CODE
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    TITLE
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    SECTION
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    INSTRUCTOR
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    CLASSROOM
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    MAJOR
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    Actions
+                                </th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            {courses.map((course) => (
+                                <tr key={course.id}>
+                                    <td className="border p-2">
+                                        {course.code}
+                                    </td>
+                                    <td className="border p-2">
+                                        {course.title}
+                                    </td>
+                                    <td className="border p-2">
+                                        {course.section}
+                                    </td>
+                                    <td className="border p-2">
+                                        {`${course.firstName || ""} ${
+                                            course.lastName || ""
+                                        }`}
+                                    </td>
+                                    <td className="border p-2">
+                                        {course.classroom}
+                                    </td>
+                                    <td className="border p-2">
+                                        {course.major}
+                                    </td>
+                                    <td className="border p-2">
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    openEditDialog(course)
+                                                }
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    openDeleteDialog(course)
+                                                }
+                                            >
+                                                <Trash className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
             {/* Add Course Dialog */}
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -468,15 +453,11 @@ export default function CoursesView() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="major_id">Major</Label>
+                                <Label htmlFor="major">Major</Label>
                                 <Select
-                                    value={
-                                        formData.major_id
-                                            ? formData.major_id.toString()
-                                            : ""
-                                    }
+                                    value={formData.major}
                                     onValueChange={(value) =>
-                                        handleSelectChange("major_id", value)
+                                        handleSelectChange("major", value)
                                     }
                                 >
                                     <SelectTrigger>
@@ -486,9 +467,9 @@ export default function CoursesView() {
                                         {majors.map((major) => (
                                             <SelectItem
                                                 key={major.id}
-                                                value={major.id.toString()}
+                                                value={major.name}
                                             >
-                                                {major.name} ({major.short_tag})
+                                                {major.name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -526,7 +507,7 @@ export default function CoursesView() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="instructor_id">Instructor</Label>
+                            <Label htmlFor="instructor">Instructor</Label>
                             <Popover
                                 open={instructorOpen}
                                 onOpenChange={setInstructorOpen}
@@ -538,10 +519,8 @@ export default function CoursesView() {
                                         aria-expanded={instructorOpen}
                                         className="w-full justify-between"
                                     >
-                                        {formData.instructor_id
-                                            ? getInstructorName(
-                                                  formData.instructor_id
-                                              )
+                                        {formData.instructor
+                                            ? formData.instructor
                                             : "Select instructor..."}
                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                     </Button>
@@ -559,8 +538,10 @@ export default function CoursesView() {
                                                     value={`${instructor.first_name} ${instructor.last_name}`}
                                                     onSelect={() => {
                                                         handleSelectChange(
-                                                            "instructor_id",
-                                                            instructor.id.toString()
+                                                            "instructor",
+                                                            instructor.first_name +
+                                                                " " +
+                                                                instructor.last_name
                                                         );
                                                         setInstructorOpen(
                                                             false
@@ -569,8 +550,8 @@ export default function CoursesView() {
                                                 >
                                                     <Check
                                                         className={`mr-2 h-4 w-4 ${
-                                                            formData.instructor_id ===
-                                                            instructor.id
+                                                            formData.instructor ===
+                                                            instructor.last_name
                                                                 ? "opacity-100"
                                                                 : "opacity-0"
                                                         }`}
@@ -585,7 +566,35 @@ export default function CoursesView() {
                             </Popover>
                         </div>
 
-                        {/* Section and Classroom pairs - Improved UI */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="duration">
+                                    Duration (hours)
+                                </Label>
+                                <Input
+                                    id="duration"
+                                    name="duration"
+                                    type="number"
+                                    min="1"
+                                    value={formData.duration}
+                                    onChange={handleInputChange}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="capacity">Capacity</Label>
+                                <Input
+                                    id="capacity"
+                                    name="capacity"
+                                    type="number"
+                                    min="1"
+                                    value={formData.capacity}
+                                    onChange={handleInputChange}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Section and Classroom pairs */}
                         <div className="space-y-6">
                             <div>
                                 <Label className="text-base font-medium">
@@ -599,29 +608,20 @@ export default function CoursesView() {
                             {sectionClassrooms.length > 0 && (
                                 <div className="space-y-2 mb-2">
                                     {sectionClassrooms.map((pair) => (
-                                        <Card
+                                        <div
                                             key={pair.id}
-                                            className="p-3 flex justify-between items-center"
+                                            className="p-3 border rounded-md flex justify-between items-center"
                                         >
                                             <div className="flex items-center space-x-3">
-                                                <Badge
-                                                    variant="outline"
-                                                    className="bg-blue-50"
-                                                >
+                                                <span className="bg-blue-50 px-2 py-1 rounded-md text-sm">
                                                     Section {pair.section_id}
-                                                </Badge>
+                                                </span>
                                                 <span className="text-gray-400">
                                                     →
                                                 </span>
-                                                <Badge
-                                                    variant="outline"
-                                                    className="bg-gray-50"
-                                                >
-                                                    Room{" "}
-                                                    {getClassroomName(
-                                                        pair.classroom_id
-                                                    )}
-                                                </Badge>
+                                                <span className="bg-gray-50 px-2 py-1 rounded-md text-sm">
+                                                    Room {pair.classroom_id}
+                                                </span>
                                             </div>
                                             <Button
                                                 variant="ghost"
@@ -635,7 +635,7 @@ export default function CoursesView() {
                                             >
                                                 <Trash className="h-4 w-4" />
                                             </Button>
-                                        </Card>
+                                        </div>
                                     ))}
                                 </div>
                             )}
@@ -645,9 +645,7 @@ export default function CoursesView() {
                                     <Label htmlFor="section">Section</Label>
                                     <Input
                                         id="section"
-                                        type="number"
                                         placeholder="Enter section number"
-                                        min="1"
                                         value={currentSection}
                                         onChange={(e) =>
                                             setCurrentSection(e.target.value)
@@ -668,10 +666,9 @@ export default function CoursesView() {
                                             {classrooms.map((classroom) => (
                                                 <SelectItem
                                                     key={classroom.id}
-                                                    value={classroom.id.toString()}
+                                                    value={classroom.code}
                                                 >
-                                                    {classroom.code} (
-                                                    {classroom.type})
+                                                    {classroom.code}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -701,11 +698,11 @@ export default function CoursesView() {
                         <Button
                             onClick={handleAddCourse}
                             disabled={
-                                sectionClassrooms.length === 0 ||
                                 !formData.title ||
                                 !formData.code ||
-                                !formData.major_id ||
-                                !formData.instructor_id
+                                !formData.major ||
+                                !formData.instructor ||
+                                sectionClassrooms.length === 0
                             }
                         >
                             Add Course
@@ -746,15 +743,11 @@ export default function CoursesView() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="edit-major_id">Major</Label>
+                                <Label htmlFor="edit-major">Major</Label>
                                 <Select
-                                    value={
-                                        formData.major_id
-                                            ? formData.major_id.toString()
-                                            : ""
-                                    }
+                                    value={formData.major}
                                     onValueChange={(value) =>
-                                        handleSelectChange("major_id", value)
+                                        handleSelectChange("major", value)
                                     }
                                 >
                                     <SelectTrigger>
@@ -764,9 +757,9 @@ export default function CoursesView() {
                                         {majors.map((major) => (
                                             <SelectItem
                                                 key={major.id}
-                                                value={major.id.toString()}
+                                                value={major.name}
                                             >
-                                                {major.name} ({major.short_tag})
+                                                {major.name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -804,9 +797,7 @@ export default function CoursesView() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="edit-instructor_id">
-                                Instructor
-                            </Label>
+                            <Label htmlFor="edit-instructor">Instructor</Label>
                             <Popover
                                 open={instructorOpen}
                                 onOpenChange={setInstructorOpen}
@@ -818,10 +809,8 @@ export default function CoursesView() {
                                         aria-expanded={instructorOpen}
                                         className="w-full justify-between"
                                     >
-                                        {formData.instructor_id
-                                            ? getInstructorName(
-                                                  formData.instructor_id
-                                              )
+                                        {formData.instructor
+                                            ? formData.instructor
                                             : "Select instructor..."}
                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                     </Button>
@@ -839,8 +828,10 @@ export default function CoursesView() {
                                                     value={`${instructor.first_name} ${instructor.last_name}`}
                                                     onSelect={() => {
                                                         handleSelectChange(
-                                                            "instructor_id",
-                                                            instructor.id.toString()
+                                                            "instructor",
+                                                            instructor.first_name +
+                                                                " " +
+                                                                instructor.last_name
                                                         );
                                                         setInstructorOpen(
                                                             false
@@ -849,8 +840,8 @@ export default function CoursesView() {
                                                 >
                                                     <Check
                                                         className={`mr-2 h-4 w-4 ${
-                                                            formData.instructor_id ===
-                                                            instructor.id
+                                                            formData.instructor ===
+                                                            instructor.last_name
                                                                 ? "opacity-100"
                                                                 : "opacity-0"
                                                         }`}
@@ -865,7 +856,21 @@ export default function CoursesView() {
                             </Popover>
                         </div>
 
-                        {/* Section and Classroom pairs - Improved UI */}
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-duration">
+                                Duration (hours)
+                            </Label>
+                            <Input
+                                id="edit-duration"
+                                name="duration"
+                                type="number"
+                                min="1"
+                                value={formData.duration}
+                                onChange={handleInputChange}
+                            />
+                        </div>
+
+                        {/* Section and Classroom pairs */}
                         <div className="space-y-6">
                             <div>
                                 <Label className="text-base font-medium">
@@ -879,29 +884,20 @@ export default function CoursesView() {
                             {sectionClassrooms.length > 0 && (
                                 <div className="space-y-2 mb-2">
                                     {sectionClassrooms.map((pair) => (
-                                        <Card
+                                        <div
                                             key={pair.id}
-                                            className="p-3 flex justify-between items-center"
+                                            className="p-3 border rounded-md flex justify-between items-center"
                                         >
                                             <div className="flex items-center space-x-3">
-                                                <Badge
-                                                    variant="outline"
-                                                    className="bg-blue-50"
-                                                >
+                                                <span className="bg-blue-50 px-2 py-1 rounded-md text-sm">
                                                     Section {pair.section_id}
-                                                </Badge>
+                                                </span>
                                                 <span className="text-gray-400">
                                                     →
                                                 </span>
-                                                <Badge
-                                                    variant="outline"
-                                                    className="bg-gray-50"
-                                                >
-                                                    Room{" "}
-                                                    {getClassroomName(
-                                                        pair.classroom_id
-                                                    )}
-                                                </Badge>
+                                                <span className="bg-gray-50 px-2 py-1 rounded-md text-sm">
+                                                    Room {pair.classroom_id}
+                                                </span>
                                             </div>
                                             <Button
                                                 variant="ghost"
@@ -915,7 +911,7 @@ export default function CoursesView() {
                                             >
                                                 <Trash className="h-4 w-4" />
                                             </Button>
-                                        </Card>
+                                        </div>
                                     ))}
                                 </div>
                             )}
@@ -927,15 +923,14 @@ export default function CoursesView() {
                                     </Label>
                                     <Input
                                         id="edit-section"
-                                        type="number"
                                         placeholder="Enter section number"
-                                        min="1"
                                         value={currentSection}
                                         onChange={(e) =>
                                             setCurrentSection(e.target.value)
                                         }
                                     />
                                 </div>
+
                                 <div className="flex-1 space-y-2">
                                     <Label htmlFor="edit-classroom">
                                         Classroom
@@ -951,10 +946,9 @@ export default function CoursesView() {
                                             {classrooms.map((classroom) => (
                                                 <SelectItem
                                                     key={classroom.id}
-                                                    value={classroom.id.toString()}
+                                                    value={classroom.code}
                                                 >
-                                                    {classroom.code} (
-                                                    {classroom.type})
+                                                    {classroom.code}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -1019,14 +1013,6 @@ export default function CoursesView() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-
-            <div className="mt-4">
-                <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={handlePageChange}
-                />
-            </div>
         </div>
     );
 }
