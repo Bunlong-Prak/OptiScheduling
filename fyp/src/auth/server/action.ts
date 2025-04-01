@@ -48,6 +48,7 @@ export async function login(
 
         return true;
     } catch (error) {
+        console.log(error);
         logger.error("Error logging in", error);
     }
 

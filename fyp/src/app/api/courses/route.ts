@@ -52,6 +52,7 @@ export async function GET() {
     try {
         const allCourses = await db
             .select({
+                id: courses.id,
                 title: courses.title,
                 code: courses.code,
                 major: majors.name,
@@ -59,6 +60,7 @@ export async function GET() {
                 firstName: instructors.firstName,
                 lastName: instructors.lastName,
                 duration: courses.duration,
+                sectionId: sections.id,
                 section: sections.number,
                 classroom: classrooms.code,
             })
@@ -123,12 +125,12 @@ export async function POST(request: Request) {
             );
         }
         if (nameParts.length >= 2) {
-            // Last part is the last name
+           
             lastName = nameParts[nameParts.length - 1];
-            // Everything before the last part is the first name
+            
             firstName = nameParts.slice(0, nameParts.length - 1).join(" ");
         } else {
-            // If there's only one part, assume it's the last name
+            
             lastName = instructor;
         }
 

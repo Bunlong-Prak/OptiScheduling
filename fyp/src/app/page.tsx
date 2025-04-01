@@ -1,23 +1,40 @@
+import { getAuthUser } from "@/auth/server/action";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import Link from "next/link";
 
-export default function Home() {
+export default async function Home() {
+    const authUser = await getAuthUser();
+
     return (
         <div className="min-h-screen flex flex-col">
             <header className="bg-gray-200 p-4 flex justify-between items-center">
                 <div className="text-2xl font-bold">OptiScheduling System</div>
-                <Link href={"/api/oauth/google"}>
-                    <Button>
-                        <Image
-                            src={"/image/google.png"}
-                            alt="Google logo"
-                            width={18}
-                            height={18}
-                        />
-                        Sign In
-                    </Button>
-                </Link>
+                {authUser ? (
+                    <Link href={"/dashboard"}>
+                        <Button>
+                            <Image
+                                src={"/image/google.png"}
+                                alt="Google logo"
+                                width={18}
+                                height={18}
+                            />
+                            Dashboard
+                        </Button>
+                    </Link>
+                ) : (
+                    <Link href={"/api/oauth/google"}>
+                        <Button>
+                            <Image
+                                src={"/image/google.png"}
+                                alt="Google logo"
+                                width={18}
+                                height={18}
+                            />
+                            Sign In
+                        </Button>
+                    </Link>
+                )}
             </header>
 
             <main className="flex-1 flex items-center justify-center">

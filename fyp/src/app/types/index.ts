@@ -41,7 +41,7 @@ export type TimeConstraint = {
 };
 
 export type Course = {
-    id?: number;
+    id: number;
     title: string;
     code: string;
     major: string;
@@ -51,6 +51,7 @@ export type Course = {
     instructor: string;
     duration: number;
     capacity: number;
+    sectionId: number;
     section: string;
     classroom: string;
 };

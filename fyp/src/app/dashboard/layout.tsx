@@ -1,11 +1,18 @@
-import type React from "react";
+import { getAuthUser } from "@/auth/server/action";
 import { Link } from "lucide-react";
+import { redirect } from "next/navigation";
+import type React from "react";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const authUser = await getAuthUser();
+    if (!authUser) {
+        return redirect("/?message=You must be logged in to access this page");
+    }
+
     return (
         <div className="w-full min-h-screen bg-gray-50">
             <header className="bg-white shadow-sm">
@@ -16,7 +23,7 @@ export default function DashboardLayout({
                         </h1>
                         <nav className="flex space-x-4">
                             <a
-                                href="/dashboard" 
+                                href="/dashboard"
                                 className="text-gray-600 hover:text-gray-900"
                             >
                                 Dashboard

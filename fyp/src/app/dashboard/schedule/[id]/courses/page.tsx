@@ -50,7 +50,7 @@ export default function CoursesView() {
     >([]);
     const [currentSection, setCurrentSection] = useState("");
     const [currentClassroom, setCurrentClassroom] = useState("");
-    const [formData, setFormData] = useState<Course>({
+    const [formData, setFormData] = useState({
         title: "",
         code: "",
         major: "",
@@ -371,7 +371,7 @@ export default function CoursesView() {
                         </thead>
                         <tbody>
                             {courses.map((course) => (
-                                <tr key={course.id}>
+                                <tr key={course.sectionId}>
                                     <td className="border p-2">
                                         {course.code}
                                     </td>
