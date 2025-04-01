@@ -182,29 +182,32 @@ export default function CoursesView() {
     };
 
     const handleEditCourse = async () => {
-        if (!selectedCourse?.id) return;
-
         // Make sure we have at least one section/classroom pair
         if (sectionClassrooms.length === 0) {
             return;
         }
 
-        // Create API payload from form data and first section
-        const baseSection = sectionClassrooms[0];
-
-        const apiData = {
-            code: formData.code,
-            title: formData.title,
-            major: formData.major,
-            color: formData.color,
-            instructor: formData.instructor,
-            duration: formData.duration,
-            section: baseSection.section_id,
-            classroom: baseSection.classroom_id,
-        };
-
         try {
-            const response = await fetch(`/api/courses/${selectedCourse.id}`, {
+            // Create an array of section/classroom pairs
+            const sections = sectionClassrooms.map((pair) => ({
+                section: pair.section_id,
+                classroom: pair.classroom_id,
+            }));
+
+            // Create API payload with the base course data and the sectionId from the selectedCourse
+            const apiData = {
+                sectionId: selectedCourse?.sectionId, // The section ID from the course being edited
+                code: formData.code,
+                title: formData.title,
+                major: formData.major,
+                color: formData.color,
+                instructor: formData.instructor,
+                duration: Number(formData.duration),
+                capacity: Number(formData.capacity),
+                sectionClassroom: sections,
+            };
+
+            const response = await fetch("/api/courses", {
                 method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",
@@ -213,36 +216,45 @@ export default function CoursesView() {
             });
 
             if (response.ok) {
-                // Refresh course list after updating
+                // Refresh course list after editing
                 const refreshResponse = await fetch("/api/courses");
                 if (refreshResponse.ok) {
                     const refreshedCourses = await refreshResponse.json();
                     setCourses(refreshedCourses);
                 }
-
                 setIsEditDialogOpen(false);
                 resetForm();
             } else {
                 const error = await response.json();
-                console.error("Error updating course:", error);
-                // Handle error feedback to user
+                console.error("Error editing course:", error);
+                // Optional: Display error to user
             }
         } catch (error) {
-            console.error("Error updating course:", error);
+            console.error("Error editing course:", error);
         }
     };
 
     const handleDeleteCourse = async () => {
-        if (!selectedCourse?.id) return;
+        if (!selectedCourse?.sectionId) return;
 
         try {
-            const response = await fetch(`/api/courses/${selectedCourse.id}`, {
+            const response = await fetch("/api/courses", {
                 method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    sectionId: selectedCourse.sectionId,
+                }),
             });
 
             if (response.ok) {
+                // Update local state to remove the deleted course
                 setCourses(
-                    courses.filter((course) => course.id !== selectedCourse.id)
+                    courses.filter(
+                        (course) =>
+                            course.sectionId !== selectedCourse.sectionId
+                    )
                 );
                 setIsDeleteDialogOpen(false);
                 resetForm();
@@ -365,6 +377,9 @@ export default function CoursesView() {
                                     MAJOR
                                 </th>
                                 <th className="border p-2 bg-gray-100 text-left">
+                                    Capacity
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
                                     Actions
                                 </th>
                             </tr>
@@ -391,6 +406,9 @@ export default function CoursesView() {
                                     </td>
                                     <td className="border p-2">
                                         {course.major}
+                                    </td>
+                                    <td className="border p-2">
+                                        {course.capacity}
                                     </td>
                                     <td className="border p-2">
                                         <div className="flex gap-2">
@@ -856,18 +874,32 @@ export default function CoursesView() {
                             </Popover>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-duration">
-                                Duration (hours)
-                            </Label>
-                            <Input
-                                id="edit-duration"
-                                name="duration"
-                                type="number"
-                                min="1"
-                                value={formData.duration}
-                                onChange={handleInputChange}
-                            />
+                        <div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-duration">
+                                    Duration (hours)
+                                </Label>
+                                <Input
+                                    id="edit-duration"
+                                    name="duration"
+                                    type="number"
+                                    min="1"
+                                    value={formData.duration}
+                                    onChange={handleInputChange}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="capacity">Capacity</Label>
+                                <Input
+                                    id="capacity"
+                                    name="capacity"
+                                    type="number"
+                                    min="1"
+                                    value={formData.capacity}
+                                    onChange={handleInputChange}
+                                />
+                            </div>
                         </div>
 
                         {/* Section and Classroom pairs */}
