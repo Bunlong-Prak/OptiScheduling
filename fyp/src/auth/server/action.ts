@@ -1,6 +1,6 @@
 "use server";
 
-import { cache } from "react";
+// import { cache } from "react";
 
 import { users } from "@/drizzle/schema";
 import { createScopedLogger } from "@/utils/logger";
@@ -11,6 +11,7 @@ import {
     invalidateSession,
     validateSession,
 } from "./session";
+import { cache } from "react";
 
 const logger = createScopedLogger("src:auth:action");
 

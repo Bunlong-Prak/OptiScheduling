@@ -28,6 +28,7 @@ const days = [
     "Friday",
     "Saturday",
 ];
+
 const timeSlots = [
     "8:00",
     "9:00",
@@ -114,7 +115,7 @@ const courses = [
         id: "ENGL101",
         name: "English 101",
         color: "bg-blue-200",
-        duration: 1,
+        duration: 3,
         instructor: "Dr. Smith",
         room: "A101",
     },

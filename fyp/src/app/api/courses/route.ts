@@ -150,7 +150,7 @@ export async function POST(request: Request) {
         } = validationResult.data;
 
         const nameParts = instructor.split(" ");
-        let firstName = "";
+        // let firstName = "";
         let lastName = "";
         // Look up the major ID
         const majorResult = await db
@@ -168,7 +168,7 @@ export async function POST(request: Request) {
         if (nameParts.length >= 2) {
             lastName = nameParts[nameParts.length - 1];
 
-            firstName = nameParts.slice(0, nameParts.length - 1).join(" ");
+            // firstName = nameParts.slice(0, nameParts.length - 1).join(" ");
         } else {
             lastName = instructor;
         }
@@ -423,16 +423,16 @@ export async function PATCH(request: Request) {
 
         // Handle instructor update if provided
         if (instructor !== undefined) {
-            const nameParts = instructor.split(" ");
-            let firstName = "";
-            let lastName = "";
+            // const nameParts = instructor.split(" ");
+            // let firstName = "";
+            const lastName = "";
 
-            if (nameParts.length >= 2) {
-                lastName = nameParts[nameParts.length - 1];
-                firstName = nameParts.slice(0, nameParts.length - 1).join(" ");
-            } else {
-                lastName = instructor;
-            }
+            // if (nameParts.length >= 2) {
+            //     lastName = nameParts[nameParts.length - 1];
+            //     firstName = nameParts.slice(0, nameParts.length - 1).join(" ");
+            // } else {
+            //     lastName = instructor;
+            // }
 
             const instructorResult = await db
                 .select({ id: instructors.id })
