@@ -20,112 +20,146 @@ const days = [
     "Saturday",
 ];
 
-import { CourseHour, Classroom } from "@/app/types";
-import { TimetableCourse } from "@/app/types";
-import { CellToDelete } from "@/app/types";
-import { Schedule } from "@/app/types";
+// Define CourseHour type to match your database schema
+type CourseHour = {
+    id: number;
+    time_slot: string;
+};
+
+// Major groups with years
+const majorGroups = [
+    { id: "ARC1", name: "Architecture Year 1", color: "bg-gray-100" },
+    { id: "CE1", name: "Civil Engineering Year 1", color: "bg-gray-100" },
+    { id: "IE1", name: "Industrial Engineering Year 1", color: "bg-gray-100" },
+    { id: "CS1", name: "Computer Science Year 1", color: "bg-gray-100" },
+    {
+        id: "MIS1",
+        name: "Management Information Systems Year 1",
+        color: "bg-gray-100",
+    },
+    { id: "DAD1", name: "Digital Art & Design Year 1", color: "bg-gray-100" },
+    { id: "ECON1", name: "Economics Year 1", color: "bg-gray-100" },
+    { id: "BAF1", name: "Banking & Finance Year 1", color: "bg-gray-100" },
+    {
+        id: "BUS1",
+        name: "Business Administration Year 1",
+        color: "bg-gray-100",
+    },
+    {
+        id: "ITL1",
+        name: "International Tourism & Hospitality Year 1",
+        color: "bg-gray-100",
+    },
+    { id: "IR1", name: "International Relations Year 1", color: "bg-gray-100" },
+    // ... rest of the major groups remain the same
+];
+
+// Define our course type for the timetable
+type TimetableCourse = {
+    id: string;
+    name: string;
+    color: string;
+    duration: number;
+    instructor: string;
+    room: string;
+    isStart?: boolean;
+    isMiddle?: boolean;
+    isEnd?: boolean;
+    colspan?: number;
+    day?: string;                // Day assigned in timetable
+    startTime?: string;          // Start time display value
+    endTime?: string;            // End time display value
+    courseHoursId?: number;      // ID from course_hours table
+    major?: string;              // Major assigned to
+};
+
+type Schedule = Record<string, TimetableCourse>;
+
+type CellToDelete = {
+    day: string;
+    majorId: string;
+    timeSlot: string;
+    timeSlotId: number;
+};
+
 // Initial schedule data (empty object)
 const initialSchedule: Schedule = {};
 
 // Map of color classes to use for courses
 const colorMap: Record<string, string> = {
-    blue: "bg-blue-200",
-    green: "bg-green-200",
-    red: "bg-red-200",
-    yellow: "bg-yellow-200",
-    purple: "bg-purple-200",
-    orange: "bg-orange-200",
-    pink: "bg-pink-200",
-    indigo: "bg-indigo-200",
+    "blue": "bg-blue-200",
+    "green": "bg-green-200",
+    "red": "bg-red-200",
+    "yellow": "bg-yellow-200",
+    "purple": "bg-purple-200",
+    "orange": "bg-orange-200",
+    "pink": "bg-pink-200",
+    "indigo": "bg-indigo-200",
 };
 
 export default function TimetableView() {
     const [schedule, setSchedule] = useState<Schedule>(initialSchedule);
-    const [draggedCourse, setDraggedCourse] = useState<TimetableCourse | null>(
-        null
-    );
-    const [selectedCourse, setSelectedCourse] =
-        useState<TimetableCourse | null>(null);
+    const [draggedCourse, setDraggedCourse] = useState<TimetableCourse | null>(null);
+    const [selectedCourse, setSelectedCourse] = useState<TimetableCourse | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [cellToDelete, setCellToDelete] = useState<CellToDelete>({
         day: "",
-        classroomId: "",
+        majorId: "",
         timeSlot: "",
-        timeSlotId: 0, // Related to course hour
+        timeSlotId: 0
     });
-
+    
     // State for holding real courses from API
-    const [availableCourses, setAvailableCourses] = useState<TimetableCourse[]>(
-        []
-    );
-    const [assignedCourses, setAssignedCourses] = useState<TimetableCourse[]>(
-        []
-    );
+    const [availableCourses, setAvailableCourses] = useState<TimetableCourse[]>([]);
+    const [assignedCourses, setAssignedCourses] = useState<TimetableCourse[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-
-    // New state for time slots from database - course hours related
+    
+    // New state for time slots from database
     const [timeSlots, setTimeSlots] = useState<CourseHour[]>([]);
 
-    // State for classrooms from database
-    const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-
-    // Default time slots for fallback - course hours related
-    const defaultTimeSlots = [
-        { id: 1, time_slot: "8:00" },
-        { id: 2, time_slot: "9:00" },
-        { id: 3, time_slot: "10:00" },
-        { id: 4, time_slot: "11:00" },
-        { id: 5, time_slot: "12:00" },
-        { id: 6, time_slot: "13:00" },
-        { id: 7, time_slot: "14:00" },
-        { id: 8, time_slot: "15:00" },
-        { id: 9, time_slot: "16:00" },
-        { id: 10, time_slot: "17:00" },
-    ];
-
-    // Fetch time slots and classrooms from API
+    // Fetch time slots from API
     useEffect(() => {
-        // Fetch course hours - commented out
-        /*
         const fetchTimeSlots = async () => {
             try {
-                const response = await fetch("/api/course-hours");
+                const response = await fetch('/api/course-hours');
                 if (response.ok) {
                     const data: CourseHour[] = await response.json();
                     setTimeSlots(data);
                 } else {
-                    console.error("Failed to fetch course hours");
-                    setTimeSlots(defaultTimeSlots);
+                    console.error('Failed to fetch course hours');
+                    // Fallback to default time slots if API fails
+                    setTimeSlots([
+                        { id: 1, time_slot: "8:00" },
+                        { id: 2, time_slot: "9:00" },
+                        { id: 3, time_slot: "10:00" },
+                        { id: 4, time_slot: "11:00" },
+                        { id: 5, time_slot: "12:00" },
+                        { id: 6, time_slot: "13:00" },
+                        { id: 7, time_slot: "14:00" },
+                        { id: 8, time_slot: "15:00" },
+                        { id: 9, time_slot: "16:00" },
+                        { id: 10, time_slot: "17:00" },
+                    ]);
                 }
             } catch (error) {
-                console.error("Error fetching course hours:", error);
-                setTimeSlots(defaultTimeSlots);
-            }
-        };
-        */
-
-        // Use default time slots directly instead of fetching
-        setTimeSlots(defaultTimeSlots);
-
-        const fetchClassrooms = async () => {
-            try {
-                const response = await fetch("/api/classrooms");
-                if (response.ok) {
-                    const data = await response.json();
-                    // Use classrooms directly without adding extra fields
-                    setClassrooms(data);
-                } else {
-                    console.error("Failed to fetch classrooms");
-                    setClassrooms([]);
-                }
-            } catch (error) {
-                console.error("Error fetching classrooms:", error);
-                setClassrooms([]);
+                console.error('Error fetching course hours:', error);
+                // Fallback to default time slots
+                setTimeSlots([
+                    { id: 1, time_slot: "8:00" },
+                    { id: 2, time_slot: "9:00" },
+                    { id: 3, time_slot: "10:00" },
+                    { id: 4, time_slot: "11:00" },
+                    { id: 5, time_slot: "12:00" },
+                    { id: 6, time_slot: "13:00" },
+                    { id: 7, time_slot: "14:00" },
+                    { id: 8, time_slot: "15:00" },
+                    { id: 9, time_slot: "16:00" },
+                    { id: 10, time_slot: "17:00" },
+                ]);
             }
         };
 
-        // fetchTimeSlots(); - commented out, not fetching course hours
-        fetchClassrooms();
+        fetchTimeSlots();
     }, []);
 
     // Fetch real courses from API
@@ -133,40 +167,33 @@ export default function TimetableView() {
         const fetchCourses = async () => {
             setIsLoading(true);
             try {
-                const response = await fetch("/api/courses");
+                const response = await fetch('/api/courses');
                 if (response.ok) {
                     const coursesData: ApiCourse[] = await response.json();
-
+                    
                     // Transform API courses to the format needed for the timetable
-                    const transformedCourses = coursesData.map((course) => ({
+                    const transformedCourses = coursesData.map(course => ({
                         id: course.code,
                         name: course.title,
                         color: colorMap[course.color] || "bg-gray-200", // Use color mapping or fallback
                         duration: course.duration,
-                        instructor: `${course.firstName || ""} ${
-                            course.lastName || ""
-                        }`.trim(),
-                        room: course.classroom || "TBA",
+                        instructor: `${course.firstName || ''} ${course.lastName || ''}`.trim(),
+                        room: course.classroom || 'TBA',
                     }));
-
+                    
                     // Remove duplicates (courses with same code)
                     const uniqueCourses = Array.from(
-                        new Map(
-                            transformedCourses.map((course) => [
-                                course.id,
-                                course,
-                            ])
-                        ).values()
+                        new Map(transformedCourses.map(course => [course.id, course])).values()
                     );
-
+                    
                     setAvailableCourses(uniqueCourses);
                 } else {
-                    console.error("Failed to fetch courses");
+                    console.error('Failed to fetch courses');
                     // Fallback to empty array if API fails
                     setAvailableCourses([]);
                 }
             } catch (error) {
-                console.error("Error fetching courses:", error);
+                console.error('Error fetching courses:', error);
                 setAvailableCourses([]);
             } finally {
                 setIsLoading(false);
@@ -186,25 +213,17 @@ export default function TimetableView() {
         e.preventDefault();
     };
 
-    // Helper function to get time slot ID from time string - course hours related
-    /*
+    // Helper function to get time slot ID from time string
     const getTimeSlotId = (timeSlotStr: string): number => {
-        const timeSlot = timeSlots.find((ts) => ts.time_slot === timeSlotStr);
+        const timeSlot = timeSlots.find(ts => ts.time_slot === timeSlotStr);
         return timeSlot ? timeSlot.id : 0; // Return 0 if not found
     };
-    */
 
-    // Simplified function that just returns the index + 1 as ID
-    const getTimeSlotId = (timeSlotStr: string): number => {
-        const index = timeSlots.findIndex(ts => ts.time_slot === timeSlotStr);
-        return index !== -1 ? index + 1 : 0;
-    };
-
-    // Handle drop - updated to use classroom instead of major
-    const handleDrop = (day: string, classroomId: string, timeSlot: string) => {
+    // Handle drop - modified to remove course from available courses and assign time slot ID
+    const handleDrop = (day: string, majorId: string, timeSlot: string) => {
         if (!draggedCourse || timeSlots.length === 0) return;
 
-        // Get time slot ID - course hours related
+        // Get time slot ID
         const timeSlotId = getTimeSlotId(timeSlot);
         if (timeSlotId === 0) {
             console.error(`Time slot ${timeSlot} not found in database`);
@@ -212,7 +231,7 @@ export default function TimetableView() {
         }
 
         // Check if the time slot is already occupied
-        const key = `${day}-${classroomId}-${timeSlot}`;
+        const key = `${day}-${majorId}-${timeSlot}`;
         const existingCourse = schedule[key];
 
         // If dropping on the same course, do nothing
@@ -229,9 +248,7 @@ export default function TimetableView() {
         }
 
         // Check if there's enough space for the course duration
-        const timeSlotIndex = timeSlots.findIndex(
-            (ts) => ts.time_slot === timeSlot
-        );
+        const timeSlotIndex = timeSlots.findIndex(ts => ts.time_slot === timeSlot);
         if (timeSlotIndex + draggedCourse.duration > timeSlots.length) {
             alert("Not enough time slots available for this course duration.");
             return;
@@ -241,7 +258,7 @@ export default function TimetableView() {
         for (let i = 1; i < draggedCourse.duration; i++) {
             if (timeSlotIndex + i >= timeSlots.length) break;
             const nextTimeSlot = timeSlots[timeSlotIndex + i].time_slot;
-            const nextKey = `${day}-${classroomId}-${nextTimeSlot}`;
+            const nextKey = `${day}-${majorId}-${nextTimeSlot}`;
             if (schedule[nextKey]) {
                 alert(
                     "There's a conflict with another course in subsequent time slots."
@@ -264,10 +281,7 @@ export default function TimetableView() {
 
         // Calculate end time
         const endTimeIndex = timeSlotIndex + draggedCourse.duration - 1;
-        const endTimeSlot =
-            endTimeIndex < timeSlots.length
-                ? timeSlots[endTimeIndex].time_slot
-                : timeSlots[timeSlots.length - 1].time_slot;
+        const endTimeSlot = endTimeIndex < timeSlots.length ? timeSlots[endTimeIndex].time_slot : timeSlots[timeSlots.length - 1].time_slot;
 
         // Create course with assignment data
         const assignedCourse = {
@@ -275,15 +289,15 @@ export default function TimetableView() {
             day: day,
             startTime: timeSlot,
             endTime: endTimeSlot,
-            courseHoursId: timeSlotId, // Store the database ID - course hours related
-            classroom: classroomId,
+            courseHoursId: timeSlotId, // Store the database ID
+            major: majorId
         };
 
         // Add the course to all its new time slots
         for (let i = 0; i < draggedCourse.duration; i++) {
             if (timeSlotIndex + i >= timeSlots.length) break;
             const currentTimeSlot = timeSlots[timeSlotIndex + i].time_slot;
-            const currentKey = `${day}-${classroomId}-${currentTimeSlot}`;
+            const currentKey = `${day}-${majorId}-${currentTimeSlot}`;
 
             newSchedule[currentKey] = {
                 ...assignedCourse,
@@ -299,58 +313,54 @@ export default function TimetableView() {
         // If the course was dragged from the available courses section, remove it from there
         if (!draggedCourse.day) {
             // Remove from available courses
-            setAvailableCourses((prev) =>
-                prev.filter((course) => course.id !== draggedCourse!.id)
-            );
-
+            setAvailableCourses(prev => prev.filter(course => course.id !== draggedCourse!.id));
+            
             // Add to assigned courses
-            setAssignedCourses((prev) => [...prev, assignedCourse]);
+            setAssignedCourses(prev => [...prev, assignedCourse]);
         }
 
         // Log the course assignment for debugging
         console.log("Course assigned:", {
             courseId: assignedCourse.id,
             day: day,
-            classroomId: classroomId,
+            majorId: majorId,
             startTime: timeSlot,
             endTime: endTimeSlot,
-            courseHoursId: timeSlotId, // Course hours related
+            courseHoursId: timeSlotId
         });
     };
 
-    // Handle course click - updated to use classroom instead of major
+    // Handle course click
     const handleCourseClick = (
         day: string,
-        classroomId: string,
+        majorId: string,
         timeSlot: string,
         course: TimetableCourse
     ) => {
         setSelectedCourse(course);
-        const timeSlotId = getTimeSlotId(timeSlot); // Course hours related
-        setCellToDelete({ day, classroomId, timeSlot, timeSlotId });
+        const timeSlotId = getTimeSlotId(timeSlot);
+        setCellToDelete({ day, majorId, timeSlot, timeSlotId });
         setIsDialogOpen(true);
     };
 
-    // Handle course delete - updated to use classroom instead of major
+    // Handle course delete - modified to return course to available courses
     const handleDeleteCourse = () => {
-        const { day, classroomId, timeSlot } = cellToDelete;
-        const key = `${day}-${classroomId}-${timeSlot}`;
+        const { day, majorId, timeSlot } = cellToDelete;
+        const key = `${day}-${majorId}-${timeSlot}`;
         const course = schedule[key];
 
         if (!course) return;
 
         // Find all keys for this course
         const keysToDelete = [];
-        const timeSlotIndex = timeSlots.findIndex(
-            (ts) => ts.time_slot === timeSlot
-        );
+        const timeSlotIndex = timeSlots.findIndex(ts => ts.time_slot === timeSlot);
 
         // If it's the start of a course, delete all subsequent slots
         if (course.isStart) {
             for (let i = 0; i < course.duration; i++) {
                 if (timeSlotIndex + i >= timeSlots.length) break;
                 const currentTimeSlot = timeSlots[timeSlotIndex + i].time_slot;
-                keysToDelete.push(`${day}-${classroomId}-${currentTimeSlot}`);
+                keysToDelete.push(`${day}-${majorId}-${currentTimeSlot}`);
             }
         }
         // If it's in the middle or end, find the start and delete from there
@@ -359,7 +369,7 @@ export default function TimetableView() {
             let startIndex = timeSlotIndex;
             while (startIndex > 0) {
                 const prevTimeSlot = timeSlots[startIndex - 1].time_slot;
-                const prevKey = `${day}-${classroomId}-${prevTimeSlot}`;
+                const prevKey = `${day}-${majorId}-${prevTimeSlot}`;
                 if (!schedule[prevKey] || schedule[prevKey].isStart) {
                     break;
                 }
@@ -368,7 +378,7 @@ export default function TimetableView() {
 
             // Get the course at the start position
             const startTimeSlot = timeSlots[startIndex].time_slot;
-            const startKey = `${day}-${classroomId}-${startTimeSlot}`;
+            const startKey = `${day}-${majorId}-${startTimeSlot}`;
             const startCourse = schedule[startKey];
 
             // Delete all slots for this course
@@ -376,9 +386,7 @@ export default function TimetableView() {
                 for (let i = 0; i < startCourse.duration; i++) {
                     if (startIndex + i >= timeSlots.length) break;
                     const currentTimeSlot = timeSlots[startIndex + i].time_slot;
-                    keysToDelete.push(
-                        `${day}-${classroomId}-${currentTimeSlot}`
-                    );
+                    keysToDelete.push(`${day}-${majorId}-${currentTimeSlot}`);
                 }
             }
         }
@@ -399,49 +407,49 @@ export default function TimetableView() {
             color: course.color,
             duration: course.duration,
             instructor: course.instructor,
-            room: course.room,
+            room: course.room
         };
 
         // Only add back to available courses if it's not already there
-        if (!availableCourses.some((c) => c.id === course.id)) {
-            setAvailableCourses((prev) => [...prev, cleanCourse]);
+        if (!availableCourses.some(c => c.id === course.id)) {
+            setAvailableCourses(prev => [...prev, cleanCourse]);
         }
 
         // Remove from assigned courses
-        setAssignedCourses((prev) => prev.filter((c) => c.id !== course.id));
+        setAssignedCourses(prev => prev.filter(c => c.id !== course.id));
 
         setIsDialogOpen(false);
     };
 
-    // Function to save the timetable to the database - updated for classroom
+    // Function to save the timetable to the database
     const saveTimetable = async () => {
         // Extract all assigned courses from the schedule
-        const assignmentsToSave = assignedCourses.map((course) => ({
+        const assignmentsToSave = assignedCourses.map(course => ({
             courseId: course.id,
             day: course.day,
-            classroomId: course.classroom,
-            courseHoursId: course.courseHoursId, // Course hours related
+            majorId: course.major,
+            courseHoursId: course.courseHoursId,
             // Add any other fields needed for your API
         }));
 
         try {
             // Send to your API endpoint
-            const response = await fetch("/api/save-timetable", {
-                method: "POST",
+            const response = await fetch('/api/save-timetable', {
+                method: 'POST',
                 headers: {
-                    "Content-Type": "application/json",
+                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ assignments: assignmentsToSave }),
             });
 
             if (response.ok) {
-                alert("Timetable saved successfully!");
+                alert('Timetable saved successfully!');
             } else {
-                alert("Failed to save timetable");
+                alert('Failed to save timetable');
             }
         } catch (error) {
-            console.error("Error saving timetable:", error);
-            alert("Error saving timetable");
+            console.error('Error saving timetable:', error);
+            alert('Error saving timetable');
         }
     };
 
@@ -463,7 +471,7 @@ export default function TimetableView() {
                             <thead className="bg-gray-50">
                                 <tr>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 border">
-                                        Classroom
+                                        Major
                                     </th>
                                     {days.map((day) => (
                                         <th
@@ -479,7 +487,6 @@ export default function TimetableView() {
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 border">
                                         Time
                                     </th>
-                                    {/* Course hours related - time slot headers */}
                                     {days.map((day) =>
                                         timeSlots.map((slot) => (
                                             <th
@@ -493,14 +500,16 @@ export default function TimetableView() {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {classrooms.map((classroom) => (
-                                    <tr key={classroom.id}>
-                                        <td className="px-4 py-2 whitespace-nowrap text-sm font-medium bg-gray-100 border">
-                                            {classroom.code}
+                                {majorGroups.map((group) => (
+                                    <tr key={group.id}>
+                                        <td
+                                            className={`px-4 py-2 whitespace-nowrap text-sm font-medium ${group.color} border`}
+                                        >
+                                            {group.id}
                                         </td>
                                         {days.map((day) =>
                                             timeSlots.map((slot) => {
-                                                const key = `${day}-${classroom.id}-${slot.time_slot}`;
+                                                const key = `${day}-${group.id}-${slot.time_slot}`;
                                                 const course = schedule[key];
 
                                                 // Skip cells that are part of a multi-hour course but not the start
@@ -510,7 +519,7 @@ export default function TimetableView() {
 
                                                 return (
                                                     <td
-                                                        key={`${day}-${classroom.id}-${slot.time_slot}`}
+                                                        key={`${day}-${group.id}-${slot.time_slot}`}
                                                         className="px-1 py-1 whitespace-nowrap text-xs border"
                                                         colSpan={
                                                             course?.colspan || 1
@@ -521,7 +530,7 @@ export default function TimetableView() {
                                                         onDrop={() =>
                                                             handleDrop(
                                                                 day,
-                                                                classroom.id.toString(),
+                                                                group.id,
                                                                 slot.time_slot
                                                             )
                                                         }
@@ -532,7 +541,7 @@ export default function TimetableView() {
                                                                 onClick={() =>
                                                                     handleCourseClick(
                                                                         day,
-                                                                        classroom.id.toString(),
+                                                                        group.id,
                                                                         slot.time_slot,
                                                                         course
                                                                     )
@@ -568,13 +577,9 @@ export default function TimetableView() {
                         Available Courses
                     </h3>
                     {isLoading ? (
-                        <div className="text-center py-4">
-                            Loading courses...
-                        </div>
+                        <div className="text-center py-4">Loading courses...</div>
                     ) : availableCourses.length === 0 ? (
-                        <div className="text-center py-4">
-                            All courses have been assigned to the timetable
-                        </div>
+                        <div className="text-center py-4">All courses have been assigned to the timetable</div>
                     ) : (
                         <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto">
                             {availableCourses.map((course) => (
@@ -623,20 +628,14 @@ export default function TimetableView() {
                                     Room: {selectedCourse.room}
                                 </p>
                                 <p className="text-sm text-gray-600">
-                                    Time: {selectedCourse.day},{" "}
-                                    {selectedCourse.startTime} -{" "}
-                                    {selectedCourse.endTime}
+                                    Time: {selectedCourse.day}, {selectedCourse.startTime} - {selectedCourse.endTime}
                                 </p>
                                 <p className="text-sm text-gray-600">
-                                    Classroom: {selectedCourse.classroom}
+                                    Major: {selectedCourse.major}
                                 </p>
-                                {/* Course hours related - commented out */}
-                                {/*
                                 <p className="text-sm text-gray-600">
-                                    Course Hours ID:{" "}
-                                    {selectedCourse.courseHoursId}
+                                    Course Hours ID: {selectedCourse.courseHoursId}
                                 </p>
-                                */}
                             </div>
 
                             <div className="flex justify-end gap-2">

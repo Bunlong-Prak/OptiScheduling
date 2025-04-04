@@ -56,12 +56,12 @@ export type Course = {
     classroom: string;
 };
 
-export type Schedule = {
-    id: number;
-    name: string;
-    academic_year: number;
-    time_period: string[]; // Array to represent time periods
-};
+// export type Schedule = {
+//     id: number;
+//     name: string;
+//     academic_year: number;
+//     time_period: string[]; // Array to represent time periods
+// };
 
 // Helper types for form handling
 export type CourseFormData = {
@@ -102,8 +102,40 @@ export type TimeConstraintFormData = {
     instructor_id: number;
 };
 
-export type ScheduleFormData = {
+// export type ScheduleFormData = {
+//     name: string;
+//     academic_year: string; // String for form input, will be converted to number
+//     time_period: string[];
+// };
+
+export type CourseHour = {
+    id: number;
+    time_slot: string;
+};
+
+export type TimetableCourse = {
+    id: string;
     name: string;
-    academic_year: string; // String for form input, will be converted to number
-    time_period: string[];
+    color: string;
+    duration: number;
+    instructor: string;
+    room: string;
+    isStart?: boolean;
+    isMiddle?: boolean;
+    isEnd?: boolean;
+    colspan?: number;
+    day?: string; // Day assigned in timetable
+    startTime?: string; // Start time display value
+    endTime?: string; // End time display value
+    courseHoursId?: number; // ID from course_hours table
+    classroom?: string; // Classroom assigned to
+};
+
+export type Schedule = Record<string, TimetableCourse>;
+
+export type CellToDelete = {
+    day: string;
+    classroomId: string;
+    timeSlot: string;
+    timeSlotId: number;
 };
