@@ -35,8 +35,8 @@ const courseSchema = z.object({
     major: z.string().min(1, { message: "Major is required" }),
     // Color: Required
     color: z.string().min(1, { message: "Color is required" }),
-    // Instructor: Required
-    instructor: z.string().min(1, { message: "Instructor is required" }),
+    // Instructor: Required - now clearly defined as ID
+    instructor: z.string().min(1, { message: "Instructor ID is required" }),
     // Duration: Required
     duration: z.number().min(1, { message: "Duration is required" }),
     // Capacity: Required
@@ -69,8 +69,8 @@ const editCourseSchema = z.object({
     major: z.string().min(1, { message: "Major is required" }),
     // Color: Required
     color: z.string().min(1, { message: "Color is required" }),
-    // Instructor: Required
-    instructor: z.string().min(1, { message: "Instructor is required" }),
+    // Instructor: Required - now clearly defined as ID
+    instructor: z.string().min(1, { message: "Instructor ID is required" }),
     // Duration: Required
     duration: z.number().min(1, { message: "Duration is required" }),
     // Capacity: Required
@@ -99,6 +99,7 @@ export async function GET() {
                 color: courses.color,
                 firstName: instructors.firstName,
                 lastName: instructors.lastName,
+                instructorId: instructors.id, // Include instructor ID
                 duration: courses.duration,
                 capacity: courses.capacity,
                 sectionId: sections.id,
@@ -120,7 +121,6 @@ export async function GET() {
     }
 }
 
-// POST new course
 // POST - Create a new course
 export async function POST(request: Request) {
     try {
@@ -149,9 +149,6 @@ export async function POST(request: Request) {
             sectionClassroom,
         } = validationResult.data;
 
-        const nameParts = instructor.split(" ");
-        // let firstName = "";
-        let lastName = "";
         // Look up the major ID
         const majorResult = await db
             .select({ id: majors.id })
@@ -165,19 +162,12 @@ export async function POST(request: Request) {
                 { status: 404 }
             );
         }
-        if (nameParts.length >= 2) {
-            lastName = nameParts[nameParts.length - 1];
 
-            // firstName = nameParts.slice(0, nameParts.length - 1).join(" ");
-        } else {
-            lastName = instructor;
-        }
-
-        // Look up the instructor ID
+        // Use instructor directly as the ID (since frontend now sends ID)
         const instructorResult = await db
             .select({ id: instructors.id })
             .from(instructors)
-            .where(eq(instructors.lastName, lastName))
+            .where(eq(instructors.id, parseInt(instructor))) // Convert string ID to number
             .limit(1);
 
         if (instructorResult.length === 0) {
@@ -186,6 +176,7 @@ export async function POST(request: Request) {
                 { status: 404 }
             );
         }
+
         const scheduleResult = await db
             .select({ id: schedules.id })
             .from(schedules)
@@ -294,6 +285,7 @@ export async function POST(request: Request) {
                 color: courses.color,
                 firstName: instructors.firstName,
                 lastName: instructors.lastName,
+                instructorId: instructors.id, // Include instructor ID
                 duration: courses.duration,
                 capacity: courses.capacity,
             })
@@ -423,21 +415,11 @@ export async function PATCH(request: Request) {
 
         // Handle instructor update if provided
         if (instructor !== undefined) {
-            // const nameParts = instructor.split(" ");
-            // let firstName = "";
-            const lastName = "";
-
-            // if (nameParts.length >= 2) {
-            //     lastName = nameParts[nameParts.length - 1];
-            //     firstName = nameParts.slice(0, nameParts.length - 1).join(" ");
-            // } else {
-            //     lastName = instructor;
-            // }
-
+            // Use instructor directly as the ID (since frontend now sends ID)
             const instructorResult = await db
                 .select({ id: instructors.id })
                 .from(instructors)
-                .where(eq(instructors.lastName, lastName))
+                .where(eq(instructors.id, parseInt(instructor))) // Convert string ID to number
                 .limit(1);
 
             if (instructorResult.length === 0) {
@@ -537,6 +519,7 @@ export async function PATCH(request: Request) {
                 color: courses.color,
                 firstName: instructors.firstName,
                 lastName: instructors.lastName,
+                instructorId: instructors.id, // Include instructor ID
                 duration: courses.duration,
                 capacity: courses.capacity,
             })

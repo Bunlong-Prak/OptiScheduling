@@ -55,12 +55,14 @@ export default function CoursesView() {
         code: "",
         major: "",
         color: "",
-        instructor: "",
+        instructorId: "", // Store ID instead of name
+        instructorName: "", // Keep name for display purposes
         duration: 0,
         capacity: 0,
         section: "",
         classroom: "",
     });
+
     const [instructorOpen, setInstructorOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -148,7 +150,7 @@ export default function CoursesView() {
                 title: formData.title,
                 major: formData.major,
                 color: formData.color,
-                instructor: formData.instructor,
+                instructor: formData.instructorId, // Send ID instead of name
                 duration: Number(formData.duration),
                 capacity: Number(formData.capacity),
                 sectionClassroom: sections,
@@ -196,17 +198,17 @@ export default function CoursesView() {
 
             // Create API payload with the base course data and the sectionId from the selectedCourse
             const apiData = {
-                sectionId: selectedCourse?.sectionId, // The section ID from the course being edited
+                sectionId: selectedCourse?.sectionId,
                 code: formData.code,
                 title: formData.title,
                 major: formData.major,
                 color: formData.color,
-                instructor: formData.instructor,
+                instructor: formData.instructorId, // FIXED: Using instructor ID
                 duration: Number(formData.duration),
                 capacity: Number(formData.capacity),
                 sectionClassroom: sections,
             };
-
+            console.log("Sending to API:", apiData);
             const response = await fetch("/api/courses", {
                 method: "PATCH",
                 headers: {
@@ -274,7 +276,8 @@ export default function CoursesView() {
             code: "",
             major: "",
             color: "",
-            instructor: "",
+            instructorId: "", // FIXED: New structure
+            instructorName: "", // FIXED: New structure
             duration: 0,
             capacity: 0,
             section: "",
@@ -315,7 +318,10 @@ export default function CoursesView() {
             code: course.code,
             major: course.major,
             color: course.color,
-            instructor: course.lastName || "",
+            instructorId: course.instructorId || "", // Use instructor ID
+            instructorName: `${course.firstName || ""} ${
+                course.lastName || ""
+            }`.trim(), // Use full name for display
             duration: course.duration,
             capacity: course.capacity,
             section: course.section,
@@ -537,8 +543,8 @@ export default function CoursesView() {
                                         aria-expanded={instructorOpen}
                                         className="w-full justify-between"
                                     >
-                                        {formData.instructor
-                                            ? formData.instructor
+                                        {formData.instructorName
+                                            ? formData.instructorName
                                             : "Select instructor..."}
                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                     </Button>
@@ -553,14 +559,14 @@ export default function CoursesView() {
                                             {instructors.map((instructor) => (
                                                 <CommandItem
                                                     key={instructor.id}
-                                                    value={`${instructor.first_name} ${instructor.last_name}`}
+                                                    value={`${instructor.first_name} ${instructor.last_name} (ID: ${instructor.id})`}
                                                     onSelect={() => {
-                                                        handleSelectChange(
-                                                            "instructor",
-                                                            instructor.first_name +
-                                                                " " +
-                                                                instructor.last_name
-                                                        );
+                                                        setFormData({
+                                                            ...formData,
+                                                            instructorId:
+                                                                instructor.id.toString(),
+                                                            instructorName: `${instructor.first_name} ${instructor.last_name}`,
+                                                        });
                                                         setInstructorOpen(
                                                             false
                                                         );
@@ -568,14 +574,17 @@ export default function CoursesView() {
                                                 >
                                                     <Check
                                                         className={`mr-2 h-4 w-4 ${
-                                                            formData.instructor ===
-                                                            instructor.last_name
+                                                            formData.instructorId ===
+                                                            instructor.id.toString()
                                                                 ? "opacity-100"
                                                                 : "opacity-0"
                                                         }`}
                                                     />
                                                     {instructor.first_name}{" "}
                                                     {instructor.last_name}
+                                                    <span className="ml-2 text-xs text-gray-500">
+                                                        (ID: {instructor.id})
+                                                    </span>
                                                 </CommandItem>
                                             ))}
                                         </CommandGroup>
@@ -719,7 +728,7 @@ export default function CoursesView() {
                                 !formData.title ||
                                 !formData.code ||
                                 !formData.major ||
-                                !formData.instructor ||
+                                !formData.instructorId || // FIXED: Checking instructor ID
                                 sectionClassrooms.length === 0
                             }
                         >
@@ -827,8 +836,8 @@ export default function CoursesView() {
                                         aria-expanded={instructorOpen}
                                         className="w-full justify-between"
                                     >
-                                        {formData.instructor
-                                            ? formData.instructor
+                                        {formData.instructorName
+                                            ? formData.instructorName
                                             : "Select instructor..."}
                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                     </Button>
@@ -843,14 +852,14 @@ export default function CoursesView() {
                                             {instructors.map((instructor) => (
                                                 <CommandItem
                                                     key={instructor.id}
-                                                    value={`${instructor.first_name} ${instructor.last_name}`}
+                                                    value={`${instructor.first_name} ${instructor.last_name} (ID: ${instructor.id})`}
                                                     onSelect={() => {
-                                                        handleSelectChange(
-                                                            "instructor",
-                                                            instructor.first_name +
-                                                                " " +
-                                                                instructor.last_name
-                                                        );
+                                                        setFormData({
+                                                            ...formData,
+                                                            instructorId:
+                                                                instructor.id.toString(),
+                                                            instructorName: `${instructor.first_name} ${instructor.last_name}`,
+                                                        });
                                                         setInstructorOpen(
                                                             false
                                                         );
@@ -858,14 +867,17 @@ export default function CoursesView() {
                                                 >
                                                     <Check
                                                         className={`mr-2 h-4 w-4 ${
-                                                            formData.instructor ===
-                                                            instructor.last_name
+                                                            formData.instructorId ===
+                                                            instructor.id.toString()
                                                                 ? "opacity-100"
                                                                 : "opacity-0"
                                                         }`}
                                                     />
                                                     {instructor.first_name}{" "}
                                                     {instructor.last_name}
+                                                    <span className="ml-2 text-xs text-gray-500">
+                                                        (ID: {instructor.id})
+                                                    </span>
                                                 </CommandItem>
                                             ))}
                                         </CommandGroup>

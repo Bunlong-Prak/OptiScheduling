@@ -48,7 +48,7 @@ export type Course = {
     color: string;
     firstName?: string;
     lastName?: string;
-    instructor: string;
+    instructorId?: string;
     duration: number;
     capacity: number;
     sectionId: number;
