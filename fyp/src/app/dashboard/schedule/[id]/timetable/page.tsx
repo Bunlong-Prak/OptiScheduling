@@ -73,6 +73,10 @@ type TimetableCourse = {
     isMiddle?: boolean;
     isEnd?: boolean;
     colspan?: number;
+    day?: string;       // Day assigned in timetable
+    startTime?: string; // Start time in timetable
+    endTime?: string;   // End time in timetable
+    major?: string;     // Major assigned to
 };
 
 type Schedule = Record<string, TimetableCourse>;
@@ -83,7 +87,7 @@ type CellToDelete = {
     timeSlot: string;
 };
 
-// Initial schedule data (empty object instead of dummy data)
+// Initial schedule data (empty object)
 const initialSchedule: Schedule = {};
 
 // Map of color classes to use for courses
@@ -110,7 +114,8 @@ export default function TimetableView() {
     });
     
     // State for holding real courses from API
-    const [courses, setCourses] = useState<TimetableCourse[]>([]);
+    const [availableCourses, setAvailableCourses] = useState<TimetableCourse[]>([]);
+    const [assignedCourses, setAssignedCourses] = useState<TimetableCourse[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Fetch real courses from API
@@ -137,15 +142,15 @@ export default function TimetableView() {
                         new Map(transformedCourses.map(course => [course.id, course])).values()
                     );
                     
-                    setCourses(uniqueCourses);
+                    setAvailableCourses(uniqueCourses);
                 } else {
                     console.error('Failed to fetch courses');
                     // Fallback to empty array if API fails
-                    setCourses([]);
+                    setAvailableCourses([]);
                 }
             } catch (error) {
                 console.error('Error fetching courses:', error);
-                setCourses([]);
+                setAvailableCourses([]);
             } finally {
                 setIsLoading(false);
             }
@@ -164,7 +169,7 @@ export default function TimetableView() {
         e.preventDefault();
     };
 
-    // Handle drop
+    // Handle drop - modified to remove course from available courses
     const handleDrop = (day: string, majorId: string, timeSlot: string) => {
         if (!draggedCourse) return;
 
@@ -204,7 +209,7 @@ export default function TimetableView() {
             }
         }
 
-        // Find and remove the old course slots
+        // Find and remove the old course slots if it was already on the timetable
         const newSchedule = { ...schedule };
         const oldKeys = Object.keys(newSchedule).filter((key) => {
             const oldCourse = newSchedule[key];
@@ -216,13 +221,26 @@ export default function TimetableView() {
             delete newSchedule[key];
         });
 
+        // Calculate end time
+        const endTimeIndex = timeSlotIndex + draggedCourse.duration - 1;
+        const endTime = endTimeIndex < timeSlots.length ? timeSlots[endTimeIndex] : timeSlots[timeSlots.length - 1];
+
+        // Create course with assignment data
+        const assignedCourse = {
+            ...draggedCourse,
+            day: day,
+            startTime: timeSlot,
+            endTime: endTime,
+            major: majorId
+        };
+
         // Add the course to all its new time slots
         for (let i = 0; i < draggedCourse.duration; i++) {
             const currentTimeSlot = timeSlots[timeSlotIndex + i];
             const currentKey = `${day}-${majorId}-${currentTimeSlot}`;
 
             newSchedule[currentKey] = {
-                ...draggedCourse,
+                ...assignedCourse,
                 isStart: i === 0,
                 isMiddle: i > 0 && i < draggedCourse.duration - 1,
                 isEnd: i === draggedCourse.duration - 1,
@@ -231,6 +249,15 @@ export default function TimetableView() {
         }
 
         setSchedule(newSchedule);
+
+        // If the course was dragged from the available courses section, remove it from there
+        if (!draggedCourse.day) {
+            // Remove from available courses
+            setAvailableCourses(prev => prev.filter(course => course.id !== draggedCourse!.id));
+            
+            // Add to assigned courses
+            setAssignedCourses(prev => [...prev, assignedCourse]);
+        }
     };
 
     // Handle course click
@@ -245,7 +272,7 @@ export default function TimetableView() {
         setIsDialogOpen(true);
     };
 
-    // Handle course delete - removed confirmation dialog
+    // Handle course delete - modified to return course to available courses
     const handleDeleteCourse = () => {
         const { day, majorId, timeSlot } = cellToDelete;
         const key = `${day}-${majorId}-${timeSlot}`;
@@ -298,6 +325,26 @@ export default function TimetableView() {
         });
 
         setSchedule(newSchedule);
+
+        // Return the course to available courses list
+        // Create a clean version without timetable-specific properties
+        const cleanCourse = {
+            id: course.id,
+            name: course.name,
+            color: course.color,
+            duration: course.duration,
+            instructor: course.instructor,
+            room: course.room
+        };
+
+        // Only add back to available courses if it's not already there
+        if (!availableCourses.some(c => c.id === course.id)) {
+            setAvailableCourses(prev => [...prev, cleanCourse]);
+        }
+
+        // Remove from assigned courses
+        setAssignedCourses(prev => prev.filter(c => c.id !== course.id));
+
         setIsDialogOpen(false);
     };
 
@@ -415,7 +462,7 @@ export default function TimetableView() {
                 </div>
             </div>
 
-            {/* Draggable courses section with real data from API */}
+            {/* Draggable courses section with real data from API - only showing available courses */}
             <div className="fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-lg shadow-lg z-50 border-t">
                 <div className="max-w-9xl mx-auto">
                     <h3 className="text-lg font-semibold mb-4">
@@ -423,11 +470,11 @@ export default function TimetableView() {
                     </h3>
                     {isLoading ? (
                         <div className="text-center py-4">Loading courses...</div>
-                    ) : courses.length === 0 ? (
-                        <div className="text-center py-4">No courses available</div>
+                    ) : availableCourses.length === 0 ? (
+                        <div className="text-center py-4">All courses have been assigned to the timetable</div>
                     ) : (
                         <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto">
-                            {courses.map((course) => (
+                            {availableCourses.map((course) => (
                                 <div
                                     key={course.id}
                                     className={`${course.color} p-3 rounded-lg shadow cursor-move hover:shadow-md transition-shadow`}
@@ -471,6 +518,12 @@ export default function TimetableView() {
                                 </p>
                                 <p className="text-sm text-gray-600">
                                     Room: {selectedCourse.room}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                    Time: {selectedCourse.day}, {selectedCourse.startTime} - {selectedCourse.endTime}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                    Major: {selectedCourse.major}
                                 </p>
                             </div>
 
