@@ -1,20 +1,5 @@
 "use client";
 
-import type React from "react";
-
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { BookOpen, Pencil, Plus, Trash, Users } from "lucide-react";
-import Link from "next/link";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -25,32 +10,34 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { BookOpen, Pencil, Plus, Trash, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 
-// Mock data for schedules
-const initialSchedules = [
-    {
-        id: "1",
-        name: "Schedules 1 2023-2024",
-        createdOn: "05/03/2023",
-        courses: 24,
-        instructors: 15,
-        startDate: "Jan 5, 2024",
-        endDate: "May 15, 2024",
-    },
-    {
-        id: "2",
-        name: "Schedules 1 2024-2025",
-        createdOn: "05/03/2024",
-        courses: 24,
-        instructors: 16,
-        startDate: "Jan 5, 2025",
-        endDate: "May 15, 2025",
-    },
-];
+// Type definitions
+type Schedule = {
+    id: string;
+    name: string;
+    createdOn: string;
+    courses: number;
+    instructors: number;
+    startDate: string;
+    endDate: string;
+};
 
 export default function Dashboard() {
-    const [schedules, setSchedules] = useState(initialSchedules);
+    const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(
         null
@@ -60,6 +47,41 @@ export default function Dashboard() {
         startDate: "",
         endDate: "",
     });
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Fetch schedules when component mounts
+    useEffect(() => {
+        fetchSchedules();
+    }, []);
+
+    const fetchSchedules = async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch("/api/schedules");
+            if (!response.ok) {
+                throw new Error("Failed to fetch schedules");
+            }
+            const data = await response.json();
+            setSchedules(
+                data.map((schedule) => {
+                    // Split the academic_year string into start and end dates
+                    const [startDateStr, endDateStr] =
+                        schedule.academic_year.split(" - ");
+
+                    return {
+                        id: schedule.id.toString(),
+                        name: schedule.name,
+                        startDate: startDateStr, // Already formatted as "15 Jan, 2025"
+                        endDate: endDateStr, // Already formatted as "25 May, 2026"
+                    };
+                })
+            );
+        } catch (error) {
+            console.error("Error fetching schedules:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -67,35 +89,6 @@ export default function Dashboard() {
             ...formData,
             [name]: value,
         });
-    };
-
-    const handleCreateSchedule = () => {
-        // Create new schedule
-        const newSchedule = {
-            id: (
-                Math.max(...schedules.map((s) => Number.parseInt(s.id))) + 1
-            ).toString(),
-            name: formData.name,
-            createdOn: new Date().toLocaleDateString(),
-            courses: 0,
-            instructors: 0,
-            startDate: formData.startDate,
-            endDate: formData.endDate,
-        };
-
-        setSchedules([...schedules, newSchedule]);
-        setIsCreateDialogOpen(false);
-        resetForm();
-    };
-
-    const handleDeleteSchedule = () => {
-        if (!selectedScheduleId) return;
-
-        setSchedules(
-            schedules.filter((schedule) => schedule.id !== selectedScheduleId)
-        );
-        setIsDeleteDialogOpen(false);
-        setSelectedScheduleId(null);
     };
 
     const resetForm = () => {
@@ -106,9 +99,132 @@ export default function Dashboard() {
         });
     };
 
+    const openEditDialog = (scheduleId: string) => {
+        const schedule = schedules.find((s) => s.id === scheduleId);
+        if (schedule) {
+            setSelectedScheduleId(scheduleId);
+            setFormData({
+                name: schedule.name,
+                startDate: schedule.startDate,
+                endDate: schedule.endDate,
+            });
+            setIsEditDialogOpen(true);
+        }
+    };
+
     const openDeleteDialog = (scheduleId: string) => {
         setSelectedScheduleId(scheduleId);
         setIsDeleteDialogOpen(true);
+    };
+
+    const handleCreateSchedule = async () => {
+        try {
+            // Prepare data for API
+            const apiData = {
+                name: formData.name,
+                startDate: formData.startDate,
+                endDate: formData.endDate,
+                userId: "1", // Replace with actual user ID
+            };
+
+            const response = await fetch("/api/schedules", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to create schedule");
+            }
+
+            // Refresh the schedules list
+            await fetchSchedules();
+
+            // Close dialog and reset form
+            setIsCreateDialogOpen(false);
+            resetForm();
+        } catch (error) {
+            console.error("Error creating schedule:", error);
+        }
+    };
+
+    const handleEditSchedule = async () => {
+        if (!selectedScheduleId) return;
+
+        try {
+            const selectedSchedule = schedules.find(
+                (s) => s.id === selectedScheduleId
+            );
+            if (!selectedSchedule) return;
+
+            const apiData = {
+                id: Number(selectedSchedule.id),
+                name: formData.name,
+                startDate: formData.startDate,
+                endDate: formData.endDate,
+                userId: "1", // Replace with actual user ID
+            };
+
+            console.log("Sending update data:", apiData);
+
+            const response = await fetch("/api/schedules", {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
+
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                console.error("Update failed:", responseData);
+                throw new Error(
+                    responseData.error || "Failed to update schedule"
+                );
+            }
+
+            console.log("Update successful:", responseData);
+
+            await fetchSchedules();
+            setIsEditDialogOpen(false);
+            resetForm();
+        } catch (error) {
+            console.error("Error updating schedule:", error);
+        }
+    };
+
+    const handleDeleteSchedule = async () => {
+        if (!selectedScheduleId) return;
+
+        try {
+            const apiData = {
+                id: Number(selectedScheduleId),
+            };
+
+            const response = await fetch("/api/schedules", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to delete schedule");
+            }
+
+            // Refresh the schedule list
+            await fetchSchedules();
+
+            // Close dialog
+            setIsDeleteDialogOpen(false);
+            setSelectedScheduleId(null);
+        } catch (error) {
+            console.error("Error deleting schedule:", error);
+        }
     };
 
     return (
@@ -117,72 +233,81 @@ export default function Dashboard() {
                 <h1 className="text-xl font-semibold">Schedules</h1>
                 <Button
                     className=""
-                    onClick={() => setIsCreateDialogOpen(true)}
+                    onClick={() => {
+                        resetForm();
+                        setIsCreateDialogOpen(true);
+                    }}
                 >
                     <Plus className="mr-2 h-4 w-4" /> New Schedule
                 </Button>
             </div>
 
-            <div className="space-y-4">
-                {schedules.map((schedule) => (
-                    <div key={schedule.id} className="border rounded-md p-4 ">
-                        <div className="flex items-start justify-between ">
-                            <div>
-                                <h2 className="text-lg font-medium">
-                                    {schedule.name}
-                                </h2>
-                                <p className="text-sm text-gray-500">
-                                    Created On {schedule.createdOn}
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                    {schedule.startDate} - {schedule.endDate}
-                                </p>
-                            </div>
-                            <div className="flex gap-2">
-                                <Link
-                                    href={`/dashboard/schedule/${schedule.id}`}
-                                >
+            {isLoading ? (
+                <div className="text-center p-8">Loading schedules...</div>
+            ) : (
+                <div className="space-y-4">
+                    {schedules.map((schedule) => (
+                        <div
+                            key={schedule.id}
+                            className="border rounded-md p-4 "
+                        >
+                            <div className="flex items-start justify-between ">
+                                <div>
+                                    <h2 className="text-lg font-medium">
+                                        {schedule.name}
+                                    </h2>
+                                    <p className="text-sm text-gray-500">
+                                        {schedule.startDate} -{" "}
+                                        {schedule.endDate}
+                                    </p>
+                                </div>
+                                <div className="flex gap-2">
                                     <Button
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8"
+                                        onClick={() =>
+                                            openEditDialog(schedule.id)
+                                        }
                                     >
                                         <Pencil className="h-4 w-4" />
                                     </Button>
-                                </Link>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() =>
-                                        openDeleteDialog(schedule.id)
-                                    }
-                                >
-                                    <Trash className="h-4 w-4" />
-                                </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() =>
+                                            openDeleteDialog(schedule.id)
+                                        }
+                                    >
+                                        <Trash className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 flex items-center gap-6">
+                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                    <BookOpen className="h-4 w-4" />
+                                    <span>{schedule.courses} Courses</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                    <Users className="h-4 w-4" />
+                                    <span>
+                                        {schedule.instructors} Instructors
+                                    </span>
+                                </div>
                             </div>
                         </div>
+                    ))}
 
-                        <div className="mt-4 flex items-center gap-6">
-                            <div className="flex items-center gap-2 text-sm text-gray-500">
-                                <BookOpen className="h-4 w-4" />
-                                <span>{schedule.courses} Courses</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm text-gray-500">
-                                <Users className="h-4 w-4" />
-                                <span>{schedule.instructors} Instructors</span>
-                            </div>
+                    {schedules.length === 0 && (
+                        <div className="text-center p-8 text-gray-500">
+                            No schedules found. Create a new schedule to get
+                            started.
                         </div>
-                    </div>
-                ))}
-
-                {schedules.length === 0 && (
-                    <div className="text-center p-8 text-gray-500">
-                        No schedules found. Create a new schedule to get
-                        started.
-                    </div>
-                )}
-            </div>
+                    )}
+                </div>
+            )}
 
             {/* Create Schedule Dialog */}
             <Dialog
@@ -240,6 +365,66 @@ export default function Dashboard() {
                         </Button>
                         <Button onClick={handleCreateSchedule}>
                             Create Schedule
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Schedule Dialog */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit Schedule</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-name">Schedule Name</Label>
+                            <Input
+                                id="edit-name"
+                                name="name"
+                                placeholder="e.g., Schedule 1 2025-2026"
+                                value={formData.name}
+                                onChange={handleInputChange}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-startDate">
+                                    Start Date
+                                </Label>
+                                <Input
+                                    id="edit-startDate"
+                                    name="startDate"
+                                    placeholder="e.g., Jan 5, 2025"
+                                    value={formData.startDate}
+                                    onChange={handleInputChange}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-endDate">End Date</Label>
+                                <Input
+                                    id="edit-endDate"
+                                    name="endDate"
+                                    placeholder="e.g., May 15, 2025"
+                                    value={formData.endDate}
+                                    onChange={handleInputChange}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsEditDialogOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button onClick={handleEditSchedule}>
+                            Save Changes
                         </Button>
                     </DialogFooter>
                 </DialogContent>
