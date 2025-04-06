@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Pencil, Plus, Trash, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 // Type definitions
@@ -35,6 +36,7 @@ type Schedule = {
 };
 
 export default function Dashboard() {
+    const router = useRouter();
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -99,7 +101,8 @@ export default function Dashboard() {
         });
     };
 
-    const openEditDialog = (scheduleId: string) => {
+    const openEditDialog = (scheduleId: string, e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent navigating to schedule detail
         const schedule = schedules.find((s) => s.id === scheduleId);
         if (schedule) {
             setSelectedScheduleId(scheduleId);
@@ -112,9 +115,14 @@ export default function Dashboard() {
         }
     };
 
-    const openDeleteDialog = (scheduleId: string) => {
+    const openDeleteDialog = (scheduleId: string, e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent navigating to schedule detail
         setSelectedScheduleId(scheduleId);
         setIsDeleteDialogOpen(true);
+    };
+
+    const navigateToSchedule = (scheduleId: string) => {
+        router.push(`/dashboard/schedule/${scheduleId}`);
     };
 
     const handleCreateSchedule = async () => {
@@ -249,7 +257,8 @@ export default function Dashboard() {
                     {schedules.map((schedule) => (
                         <div
                             key={schedule.id}
-                            className="border rounded-md p-4 "
+                            className="border rounded-md p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                            onClick={() => navigateToSchedule(schedule.id)}
                         >
                             <div className="flex items-start justify-between ">
                                 <div>
@@ -266,8 +275,8 @@ export default function Dashboard() {
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8"
-                                        onClick={() =>
-                                            openEditDialog(schedule.id)
+                                        onClick={(e) =>
+                                            openEditDialog(schedule.id, e)
                                         }
                                     >
                                         <Pencil className="h-4 w-4" />
@@ -276,8 +285,8 @@ export default function Dashboard() {
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8"
-                                        onClick={() =>
-                                            openDeleteDialog(schedule.id)
+                                        onClick={(e) =>
+                                            openDeleteDialog(schedule.id, e)
                                         }
                                     >
                                         <Trash className="h-4 w-4" />

@@ -31,6 +31,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Check, ChevronsUpDown, Pencil, Plus, Trash } from "lucide-react";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 // Define types based on API structure
@@ -72,11 +73,27 @@ export default function CoursesView() {
             setIsLoading(true);
             try {
                 // Fetch courses
-                const coursesRes = await fetch("/api/courses");
-                if (coursesRes.ok) {
-                    const coursesData = await coursesRes.json();
-                    setCourses(coursesData);
+                const scheduleId = params.id;
+                const response = await fetch(
+                    `/api/courses?scheduleId=${scheduleId}`,
+                    {
+                        method: "GET",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                    }
+                );
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error("API error:", errorData);
+                    throw new Error(
+                        errorData.error || "Failed to fetch courses"
+                    );
                 }
+
+                const coursesData = await response.json();
+                setCourses(coursesData);
 
                 // Fetch majors
                 const majorsRes = await fetch("/api/majors");
@@ -131,20 +148,23 @@ export default function CoursesView() {
             });
         }
     };
+    const params = useParams();
+
     const handleAddCourse = async () => {
         // Make sure we have at least one section/classroom pair
         if (sectionClassrooms.length === 0) {
             return;
         }
-
         try {
+            const scheduleId = params.id;
+
             // Create an array of section/classroom pairs
             const sections = sectionClassrooms.map((pair) => ({
                 section: pair.section_id,
                 classroom: pair.classroom_id,
             }));
 
-            // Create API payload with the base course data and all sections
+            // Create API payload with the base course data, all sections, and schedule ID
             const apiData = {
                 code: formData.code,
                 title: formData.title,
@@ -154,6 +174,7 @@ export default function CoursesView() {
                 duration: Number(formData.duration),
                 capacity: Number(formData.capacity),
                 sectionClassroom: sections,
+                scheduleId: Number(scheduleId), // Add schedule ID from URL
             };
 
             const response = await fetch("/api/courses", {
@@ -166,12 +187,13 @@ export default function CoursesView() {
 
             if (response.ok) {
                 // Refresh course list after adding
-                const refreshResponse = await fetch("/api/courses");
+                const refreshResponse = await fetch(
+                    `/api/courses?scheduleId=${scheduleId}`
+                );
                 if (refreshResponse.ok) {
                     const refreshedCourses = await refreshResponse.json();
                     setCourses(refreshedCourses);
                 }
-
                 setIsAddDialogOpen(false);
                 resetForm();
             } else {

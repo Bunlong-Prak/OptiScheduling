@@ -45,6 +45,9 @@ const courseSchema = z.object({
     sectionClassroom: z
         .array(sectionSchema)
         .min(1, { message: "At least one section/classroom is required" }),
+    scheduleId: z.number({
+        required_error: "Schedule ID is required",
+    }),
 });
 
 const editCourseSchema = z.object({
@@ -88,9 +91,13 @@ const deleteCourseSchema = z.object({
 });
 
 // GET all courses
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        const allCourses = await db
+        const { searchParams } = new URL(request.url);
+        const scheduleId = searchParams.get("scheduleId");
+
+        // Base query
+        let query = db
             .select({
                 id: courses.id,
                 title: courses.title,
@@ -110,7 +117,15 @@ export async function GET() {
             .innerJoin(majors, eq(courses.majorId, majors.id))
             .innerJoin(instructors, eq(courses.instructorId, instructors.id))
             .innerJoin(sections, eq(courses.id, sections.courseId))
-            .innerJoin(classrooms, eq(sections.classroomId, classrooms.id));
+            .innerJoin(classrooms, eq(sections.classroomId, classrooms.id))
+            .innerJoin(schedules, eq(courses.scheduleId, schedules.id)) as any; // Explicitly cast to any to allow mutation
+
+        // Add filter for scheduleId if provided
+        if (scheduleId) {
+            query = query.where(eq(courses.scheduleId, parseInt(scheduleId)));
+        }
+
+        const allCourses = await query;
         return NextResponse.json(allCourses);
     } catch (error: unknown) {
         console.error("Error fetching courses:", error);
@@ -147,6 +162,7 @@ export async function POST(request: Request) {
             duration,
             capacity,
             sectionClassroom,
+            scheduleId,
         } = validationResult.data;
 
         // Look up the major ID
@@ -180,26 +196,16 @@ export async function POST(request: Request) {
         const scheduleResult = await db
             .select({ id: schedules.id })
             .from(schedules)
-            .where(eq(schedules.id, 1))
+            .where(eq(schedules.id, scheduleId))
             .limit(1);
 
-        if (scheduleResult.length === 0) {
-            // Create a default schedule
-            await db.insert(schedules).values({
-                id: 1,
-                name: "Default Schedule",
-                academicYear: "2023-2024",
-                userId: "1",
-                // Add other required fields
-            });
-        }
         // Insert the course without using returning()
         const coursess = await db.insert(courses).values({
             code: code,
             title: title,
             majorId: majorResult[0].id,
             color: color,
-            scheduleId: 1,
+            scheduleId: scheduleResult[0].id,
             instructorId: instructorResult[0].id,
             duration: duration,
             capacity: capacity,
