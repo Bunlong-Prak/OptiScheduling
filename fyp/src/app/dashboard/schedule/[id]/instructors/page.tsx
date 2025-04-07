@@ -1,5 +1,7 @@
 "use client";
 
+import type { Instructor, InstructorFormData } from "@/app/types";
+import CustomPagination from "@/components/custom/pagination"; // Importing the Pagination component
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -18,16 +20,15 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Pencil, Plus, Trash } from "lucide-react";
+import { useParams } from "next/navigation";
 import type React from "react";
 import { useEffect, useState } from "react";
-import type { Instructor, InstructorFormData } from "@/app/types";
-import CustomPagination from "@/components/custom/pagination"; // Importing the Pagination component
 
 const ITEMS_PER_PAGE = 10; // Define how many items to show per page
 
 export default function InstructorsView() {
     const [instructors, setInstructors] = useState<Instructor[]>([]);
-    
+
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -48,9 +49,11 @@ export default function InstructorsView() {
 
     // Fetch instructors from API
     const fetchInstructors = async () => {
-       
         try {
-            const response = await fetch("/api/instructors");
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/instructors/?scheduleId=${scheduleId}`
+            );
             if (!response.ok) {
                 throw new Error("Failed to fetch instructors");
             }
@@ -86,16 +89,19 @@ export default function InstructorsView() {
             [name]: value,
         });
     };
+    const params = useParams();
 
     const handleAddInstructor = async () => {
         try {
             // Prepare data for API
+            const scheduleId = params.id;
             const apiData = {
                 firstName: formData.first_name,
                 lastName: formData.last_name,
                 gender: formData.gender,
                 email: formData.email,
                 phoneNumber: formData.phone_number,
+                scheduleId: Number(scheduleId),
             };
 
             const response = await fetch("/api/instructors", {
@@ -296,98 +302,93 @@ export default function InstructorsView() {
                 </Button>
             </div>
 
-          
-                <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                        <thead>
+            <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                    <thead>
+                        <tr>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                ID
+                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                FIRST NAME
+                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                LAST NAME
+                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                GENDER
+                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                EMAIL
+                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                PHONE
+                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {instructors.length === 0 ? (
                             <tr>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    ID
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    FIRST NAME
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    LAST NAME
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    GENDER
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    EMAIL
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    PHONE
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    Actions
-                                </th>
+                                <td
+                                    colSpan={7}
+                                    className="border p-4 text-center"
+                                >
+                                    No instructors found. Add a new instructor
+                                    to get started.
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {instructors.length === 0 ? (
-                                <tr>
-                                    <td
-                                        colSpan={7}
-                                        className="border p-4 text-center"
-                                    >
-                                        No instructors found. Add a new
-                                        instructor to get started.
+                        ) : (
+                            paginatedInstructors.map((instructor) => (
+                                <tr key={instructor.id}>
+                                    <td className="border p-2">
+                                        {instructor.id}
+                                    </td>
+                                    <td className="border p-2">
+                                        {instructor.first_name}
+                                    </td>
+                                    <td className="border p-2">
+                                        {instructor.last_name}
+                                    </td>
+                                    <td className="border p-2">
+                                        {instructor.gender}
+                                    </td>
+                                    <td className="border p-2">
+                                        {instructor.email}
+                                    </td>
+                                    <td className="border p-2">
+                                        {instructor.phone_number}
+                                    </td>
+                                    <td className="border p-2">
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    openEditDialog(instructor)
+                                                }
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    openDeleteDialog(instructor)
+                                                }
+                                            >
+                                                <Trash className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                     </td>
                                 </tr>
-                            ) : (
-                                paginatedInstructors.map((instructor) => (
-                                    <tr key={instructor.id}>
-                                        <td className="border p-2">
-                                            {instructor.id}
-                                        </td>
-                                        <td className="border p-2">
-                                            {instructor.first_name}
-                                        </td>
-                                        <td className="border p-2">
-                                            {instructor.last_name}
-                                        </td>
-                                        <td className="border p-2">
-                                            {instructor.gender}
-                                        </td>
-                                        <td className="border p-2">
-                                            {instructor.email}
-                                        </td>
-                                        <td className="border p-2">
-                                            {instructor.phone_number}
-                                        </td>
-                                        <td className="border p-2">
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        openEditDialog(
-                                                            instructor
-                                                        )
-                                                    }
-                                                >
-                                                    <Pencil className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        openDeleteDialog(
-                                                            instructor
-                                                        )
-                                                    }
-                                                >
-                                                    <Trash className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
 
             {/* Add pagination if we have instructors */}
             {instructors.length > 0 && (

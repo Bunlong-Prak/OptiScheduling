@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "7fc36cbc-c95f-474f-8a30-fad1531760b0",
+  "id": "31047841-1591-4fef-8664-c92bb4a4bbcc",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -438,10 +438,31 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "schedule_id": {
+          "name": "schedule_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "instructors_schedule_id_schedules_id_fk": {
+          "name": "instructors_schedule_id_schedules_id_fk",
+          "tableFrom": "instructors",
+          "tableTo": "schedules",
+          "columnsFrom": [
+            "schedule_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {
         "instructors_id": {
           "name": "instructors_id",

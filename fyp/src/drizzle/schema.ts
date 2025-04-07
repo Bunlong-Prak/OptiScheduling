@@ -183,6 +183,11 @@ export const instructors = mysqlTable("instructors", {
     gender: varchar("gender", { length: 50 }).notNull(),
     email: varchar("email", { length: 255 }).notNull(),
     phoneNumber: varchar("phone_number", { length: 50 }).notNull(),
+    scheduleId: int("schedule_id")
+        .notNull()
+        .references(() => schedules.id, {
+            onDelete: "cascade",
+        }),
 });
 
 export const instructorRelations = relations(instructors, ({ many, one }) => ({

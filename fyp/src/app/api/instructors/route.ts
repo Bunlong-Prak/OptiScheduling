@@ -1,4 +1,4 @@
-import { instructors } from "@/drizzle/schema";
+import { instructors, schedules } from "@/drizzle/schema";
 import { db } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -27,6 +27,9 @@ const createInstructorSchema = z.object({
         .email("Invalid email format"),
     phoneNumber: z.string({
         required_error: "Phone Number is required",
+    }),
+    scheduleId: z.number({
+        required_error: "Schedule ID is required",
     }),
 });
 const editInstructorSchema = z.object({
@@ -65,12 +68,34 @@ const deleteInstructorSchema = z.object({
 });
 
 // GET all instructors
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        const allInstructors = await db.select().from(instructors);
+        const { searchParams } = new URL(request.url);
+        const scheduleId = searchParams.get("scheduleId");
+
+        let instructorQuery;
+
+        if (scheduleId) {
+            // Join instructors with courses where the schedule_id matches
+            instructorQuery = await db
+                .select({
+                    id: instructors.id,
+                    firstName: instructors.firstName,
+                    lastName: instructors.lastName,
+                    gender: instructors.gender,
+                    email: instructors.email,
+                    phoneNumber: instructors.phoneNumber,
+                })
+                .from(instructors)
+                .innerJoin(schedules, eq(instructors.scheduleId, schedules.id))
+                .where(eq(instructors.scheduleId, parseInt(scheduleId)));
+        } else {
+            // If no scheduleId provided, return all instructors
+            instructorQuery = await db.select().from(instructors);
+        }
 
         // Transform the data to match UI expectations
-        const formattedInstructors = allInstructors.map((instructor) => ({
+        const formattedInstructors = instructorQuery.map((instructor) => ({
             id: instructor.id,
             first_name: instructor.firstName,
             last_name: instructor.lastName,
@@ -97,8 +122,14 @@ export async function POST(request: Request) {
         try {
             const validatedData = createInstructorSchema.parse(body);
 
-            const { firstName, lastName, gender, email, phoneNumber } =
-                validatedData;
+            const {
+                firstName,
+                lastName,
+                gender,
+                email,
+                phoneNumber,
+                scheduleId,
+            } = validatedData;
 
             // Insert the instructor
             const result = await db
@@ -109,6 +140,7 @@ export async function POST(request: Request) {
                     gender,
                     email,
                     phoneNumber,
+                    scheduleId,
                 })
                 .$returningId(); // Get the inserted record's ID
 
