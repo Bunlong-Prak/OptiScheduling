@@ -38,6 +38,9 @@ export const createInstructorConstraintSchema = z.object({
     timeSlots: z
         .array(z.string().min(1, { message: "Time slot cannot be empty" }))
         .min(1, { message: "At least one time slot is required" }),
+    scheduleId: z.number({
+        required_error: "Schedule ID is required",
+    }),
 });
 
 export const editInstructorConstraintSchema = z.object({
@@ -79,42 +82,53 @@ export const deleteInstructorConstraintSchema = z.object({
 });
 
 // GET all instructor constraints
-export async function GET() {
+export async function GET(request: Request) {
     try {
+        const { searchParams } = new URL(request.url);
+        const scheduleId = searchParams.get("scheduleId");
         // First, fetch all the raw data from the database with IDs
-        const instructorTimeConstraints = await db
-            .select({
-                instructorId: instructors.id,
-                firstName: instructors.firstName,
-                lastName: instructors.lastName,
-                dayId: instructorTimeConstraintDay.id,
-                day: instructorTimeConstraintDay.day,
-                timeSlot: instructorTimeConstraintTimeSlot.timeSlot,
-            })
-            .from(instructors)
-            .innerJoin(
-                instructorTimeConstraint,
-                eq(instructors.id, instructorTimeConstraint.instructorId)
-            )
-            .innerJoin(
-                instructorTimeConstraintDay,
-                eq(
-                    instructorTimeConstraint.id,
-                    instructorTimeConstraintDay.instructorTimeConstraintId
+        let instructorTimeConstraintsQuery;
+        if (scheduleId) {
+            instructorTimeConstraintsQuery = await db
+                .select({
+                    instructorId: instructors.id,
+                    firstName: instructors.firstName,
+                    lastName: instructors.lastName,
+                    dayId: instructorTimeConstraintDay.id,
+                    day: instructorTimeConstraintDay.day,
+                    timeSlot: instructorTimeConstraintTimeSlot.timeSlot,
+                })
+                .from(instructors)
+                .innerJoin(
+                    instructorTimeConstraint,
+                    eq(instructors.id, instructorTimeConstraint.instructorId)
                 )
-            )
-            .innerJoin(
-                instructorTimeConstraintTimeSlot,
-                eq(
-                    instructorTimeConstraintDay.id,
-                    instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId
+                .innerJoin(
+                    instructorTimeConstraintDay,
+                    eq(
+                        instructorTimeConstraint.id,
+                        instructorTimeConstraintDay.instructorTimeConstraintId
+                    )
                 )
-            );
+                .innerJoin(
+                    instructorTimeConstraintTimeSlot,
+                    eq(
+                        instructorTimeConstraintDay.id,
+                        instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId
+                    )
+                )
+                .where(
+                    eq(
+                        instructorTimeConstraint.scheduleId,
+                        parseInt(scheduleId)
+                    )
+                );
+        }
 
         // Group the data by day ID to collect all time slots per day
         const constraintMap = new Map();
 
-        instructorTimeConstraints.forEach((item) => {
+        instructorTimeConstraintsQuery?.forEach((item) => {
             const key = `${item.dayId}`; // Use dayId as the unique key
 
             if (!constraintMap.has(key)) {
@@ -166,11 +180,13 @@ export async function POST(request: Request) {
             );
         }
 
-        const { instructorId, day, timeSlots } = validationResult.data;
+        const { instructorId, day, timeSlots, scheduleId } =
+            validationResult.data;
 
         // First create the time constraint
         await db.insert(instructorTimeConstraint).values({
             instructorId,
+            scheduleId,
         });
 
         // Get the inserted constraint ID

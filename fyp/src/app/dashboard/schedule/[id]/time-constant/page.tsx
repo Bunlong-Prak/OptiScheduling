@@ -162,12 +162,14 @@ export default function TimeConstraintView() {
     useEffect(() => {
         updateFormTimeSlots();
     }, [selectedTimeSlots]);
-
     // Fetch constraints from the API
     const fetchConstraints = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch("/api/time-constraints");
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/time-constraints?scheduleId=${scheduleId}`
+            );
 
             if (!response.ok) {
                 throw new Error("Failed to fetch constraints");
@@ -229,11 +231,13 @@ export default function TimeConstraintView() {
 
         setIsLoading(true);
         try {
+            const scheduleId = params.id;
             // Prepare data for API
             const apiData = {
                 instructorId: formData.instructor_id,
                 day: formData.day,
                 timeSlots: formData.time_slots,
+                scheduleId: Number(scheduleId),
             };
 
             const response = await fetch("/api/time-constraints", {
