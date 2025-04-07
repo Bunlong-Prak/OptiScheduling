@@ -223,26 +223,18 @@ export default function TimetableView() {
         }
     };
     
-    // Function to remove a course from the timetable
+    // Function to remove a course from the timetable and return it to available courses
     const removeCourseFromTimetable = (course: TimetableCourse) => {
         if (!course.day || !course.classroom || !course.startTime) return;
         
         // Find all keys for this course in the schedule
-        const keysToDelete = [];
-        const timeSlotIndex = timeSlots.findIndex(
-            (ts) => ts.time_slot === course.startTime
-        );
-        
-        for (let i = 0; i < course.duration; i++) {
-            if (timeSlotIndex + i >= timeSlots.length) break;
-            const currentTimeSlot = timeSlots[timeSlotIndex + i].time_slot;
-            keysToDelete.push(`${course.day}-${course.classroom}-${currentTimeSlot}`);
-        }
-        
-        // Remove all keys from the schedule
         const newSchedule = { ...schedule };
-        keysToDelete.forEach((key) => {
-            delete newSchedule[key];
+        
+        // Remove all occurrences of this course ID from schedule
+        Object.keys(newSchedule).forEach(key => {
+            if (newSchedule[key].id === course.id) {
+                delete newSchedule[key];
+            }
         });
         
         setSchedule(newSchedule);
@@ -272,7 +264,7 @@ export default function TimetableView() {
         return index !== -1 ? index + 1 : 0;
     };
 
-    // Handle drop - updated to use classroom instead of major
+    // Handle drop - completely rewritten to prevent duplication
     const handleDrop = (day: string, classroomId: string, timeSlot: string) => {
         if (!draggedCourse || timeSlots.length === 0) return;
 
@@ -314,7 +306,7 @@ export default function TimetableView() {
             if (timeSlotIndex + i >= timeSlots.length) break;
             const nextTimeSlot = timeSlots[timeSlotIndex + i].time_slot;
             const nextKey = `${day}-${classroomId}-${nextTimeSlot}`;
-            if (schedule[nextKey]) {
+            if (schedule[nextKey] && schedule[nextKey].id !== draggedCourse.id) {
                 alert(
                     "There's a conflict with another course in subsequent time slots."
                 );
@@ -322,11 +314,14 @@ export default function TimetableView() {
             }
         }
 
-        // If the course is already on the timetable, first remove it
-        if (draggedCourse.day) {
-            removeCourseFromTimetable(draggedCourse);
-        }
-
+        // Create a new schedule and remove all instances of the dragged course
+        const newSchedule = { ...schedule };
+        Object.keys(newSchedule).forEach(scheduleKey => {
+            if (newSchedule[scheduleKey].id === draggedCourse.id) {
+                delete newSchedule[scheduleKey];
+            }
+        });
+        
         // Calculate end time
         const endTimeIndex = timeSlotIndex + draggedCourse.duration - 1;
         const endTimeSlot =
@@ -340,12 +335,11 @@ export default function TimetableView() {
             day: day,
             startTime: timeSlot,
             endTime: endTimeSlot,
-            courseHoursId: timeSlotId, // Store the database ID - course hours related
+            courseHoursId: timeSlotId,
             classroom: classroomId,
         };
 
         // Add the course to all its new time slots
-        const newSchedule = { ...schedule };
         for (let i = 0; i < draggedCourse.duration; i++) {
             if (timeSlotIndex + i >= timeSlots.length) break;
             const currentTimeSlot = timeSlots[timeSlotIndex + i].time_slot;
@@ -360,27 +354,36 @@ export default function TimetableView() {
             };
         }
 
+        // Update schedule state
         setSchedule(newSchedule);
 
-        // If the course was dragged from the available courses section, remove it from there
-        if (!draggedCourse.day) {
+        // Handle assignment lists based on where the course came from
+        const isFromAvailable = !draggedCourse.day;
+        
+        if (isFromAvailable) {
             // Remove from available courses
-            setAvailableCourses((prev) =>
-                prev.filter((course) => course.id !== draggedCourse!.id)
+            setAvailableCourses(prev => 
+                prev.filter(course => course.id !== draggedCourse.id)
             );
-
+            
             // Add to assigned courses
-            setAssignedCourses((prev) => [...prev, assignedCourse]);
+            setAssignedCourses(prev => [...prev.filter(c => c.id !== draggedCourse.id), assignedCourse]);
+        } else {
+            // Just update the position in assigned courses
+            setAssignedCourses(prev => {
+                const filtered = prev.filter(c => c.id !== draggedCourse.id);
+                return [...filtered, assignedCourse];
+            });
         }
 
-        // Log the course assignment for debugging
         console.log("Course assigned:", {
             courseId: assignedCourse.id,
             day: day,
             classroomId: classroomId,
             startTime: timeSlot,
             endTime: endTimeSlot,
-            courseHoursId: timeSlotId, // Course hours related
+            courseHoursId: timeSlotId,
+            fromAvailable: isFromAvailable
         });
     };
 
@@ -397,7 +400,7 @@ export default function TimetableView() {
         setIsDialogOpen(true);
     };
 
-    // Handle course delete - updated to use classroom instead of major
+    // Handle course delete - simplified to use course ID approach
     const handleDeleteCourse = () => {
         const { day, classroomId, timeSlot } = cellToDelete;
         const key = `${day}-${classroomId}-${timeSlot}`;
@@ -405,54 +408,15 @@ export default function TimetableView() {
 
         if (!course) return;
 
-        // Find all keys for this course
-        const keysToDelete = [];
-        const timeSlotIndex = timeSlots.findIndex(
-            (ts) => ts.time_slot === timeSlot
-        );
-
-        // If it's the start of a course, delete all subsequent slots
-        if (course.isStart) {
-            for (let i = 0; i < course.duration; i++) {
-                if (timeSlotIndex + i >= timeSlots.length) break;
-                const currentTimeSlot = timeSlots[timeSlotIndex + i].time_slot;
-                keysToDelete.push(`${day}-${classroomId}-${currentTimeSlot}`);
-            }
-        }
-        // If it's in the middle or end, find the start and delete from there
-        else {
-            // Find the start time slot
-            let startIndex = timeSlotIndex;
-            while (startIndex > 0) {
-                const prevTimeSlot = timeSlots[startIndex - 1].time_slot;
-                const prevKey = `${day}-${classroomId}-${prevTimeSlot}`;
-                if (!schedule[prevKey] || schedule[prevKey].isStart) {
-                    break;
-                }
-                startIndex--;
-            }
-
-            // Get the course at the start position
-            const startTimeSlot = timeSlots[startIndex].time_slot;
-            const startKey = `${day}-${classroomId}-${startTimeSlot}`;
-            const startCourse = schedule[startKey];
-
-            // Delete all slots for this course
-            if (startCourse) {
-                for (let i = 0; i < startCourse.duration; i++) {
-                    if (startIndex + i >= timeSlots.length) break;
-                    const currentTimeSlot = timeSlots[startIndex + i].time_slot;
-                    keysToDelete.push(
-                        `${day}-${classroomId}-${currentTimeSlot}`
-                    );
-                }
-            }
-        }
-
-        // Remove all keys from the schedule
+        // Get the course ID to remove
+        const courseId = course.id;
+        
+        // Create a new schedule without this course
         const newSchedule = { ...schedule };
-        keysToDelete.forEach((key) => {
-            delete newSchedule[key];
+        Object.keys(newSchedule).forEach(scheduleKey => {
+            if (newSchedule[scheduleKey].id === courseId) {
+                delete newSchedule[scheduleKey];
+            }
         });
 
         setSchedule(newSchedule);
