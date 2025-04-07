@@ -39,6 +39,46 @@ import { useEffect, useState } from "react";
 const ITEMS_PER_PAGE = 10;
 
 export default function CoursesView() {
+    const colors = [
+        "blue",
+        "green",
+        "yellow",
+        "red",
+        "purple",
+        "orange",
+        "pink",
+        "indigo",
+        "turquoise",
+        "teal",
+        "maroon",
+        "lavender",
+        "ivory",
+        "mustard",
+        "black",
+        "white",
+        "grey",
+        "coral",
+        "navy",
+        "amber",
+        "mint",
+        "emerald",
+        "periwinkle",
+        "cyan",
+        "magenta",
+        "beige",
+        "olive",
+        "gold",
+        "silver",
+        "peach",
+        "rose",
+        "crimson",
+        "lilac",
+        "salmon",
+        "burgundy",
+        "tan",
+        "khaki",
+        "slate",
+    ];
     const [courses, setCourses] = useState<Course[]>([]);
     const [majors, setMajors] = useState<Major[]>([]);
     const [instructors, setInstructors] = useState<Instructor[]>([]);
@@ -104,7 +144,6 @@ export default function CoursesView() {
     const params = useParams();
 
     const fetchData = async () => {
-      
         try {
             // Fetch courses
             const scheduleId = params.id;
@@ -548,129 +587,123 @@ export default function CoursesView() {
                 </Button>
             </div>
 
-         
-                <>
-                    <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
-                            <thead>
+            <>
+                <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    CODE
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    TITLE
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    SECTION
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    INSTRUCTOR
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    CLASSROOM
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    MAJOR
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    Capacity
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {courses.length === 0 ? (
                                 <tr>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        CODE
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        TITLE
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        SECTION
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        INSTRUCTOR
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        CLASSROOM
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        MAJOR
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        Capacity
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        Actions
-                                    </th>
+                                    <td
+                                        colSpan={8}
+                                        className="border p-4 text-center text-gray-500"
+                                    >
+                                        No courses found. Add a new course to
+                                        get started.
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {courses.length === 0 ? (
-                                    <tr>
-                                        <td
-                                            colSpan={8}
-                                            className="border p-4 text-center text-gray-500"
-                                        >
-                                            No courses found. Add a new course
-                                            to get started.
+                            ) : paginatedCourses.length === 0 ? (
+                                <tr>
+                                    <td
+                                        colSpan={8}
+                                        className="border p-4 text-center text-gray-500"
+                                    >
+                                        No courses found on this page.
+                                    </td>
+                                </tr>
+                            ) : (
+                                paginatedCourses.map((course) => (
+                                    <tr key={course.sectionId}>
+                                        <td className="border p-2">
+                                            {course.code}
+                                        </td>
+                                        <td className="border p-2">
+                                            {course.title}
+                                        </td>
+                                        <td className="border p-2">
+                                            {course.section}
+                                        </td>
+                                        <td className="border p-2">
+                                            {`${course.firstName || ""} ${
+                                                course.lastName || ""
+                                            }`.trim() || "—"}
+                                        </td>
+                                        <td className="border p-2">
+                                            {course.classroom}
+                                        </td>
+                                        <td className="border p-2">
+                                            {course.major}
+                                        </td>
+                                        <td className="border p-2">
+                                            {course.capacity}
+                                        </td>
+                                        <td className="border p-2">
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        openEditDialog(course)
+                                                    }
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        openDeleteDialog(course)
+                                                    }
+                                                >
+                                                    <Trash className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </td>
                                     </tr>
-                                ) : paginatedCourses.length === 0 ? (
-                                    <tr>
-                                        <td
-                                            colSpan={8}
-                                            className="border p-4 text-center text-gray-500"
-                                        >
-                                            No courses found on this page.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    paginatedCourses.map((course) => (
-                                        <tr key={course.sectionId}>
-                                            <td className="border p-2">
-                                                {course.code}
-                                            </td>
-                                            <td className="border p-2">
-                                                {course.title}
-                                            </td>
-                                            <td className="border p-2">
-                                                {course.section}
-                                            </td>
-                                            <td className="border p-2">
-                                                {`${course.firstName || ""} ${
-                                                    course.lastName || ""
-                                                }`.trim() || "—"}
-                                            </td>
-                                            <td className="border p-2">
-                                                {course.classroom}
-                                            </td>
-                                            <td className="border p-2">
-                                                {course.major}
-                                            </td>
-                                            <td className="border p-2">
-                                                {course.capacity}
-                                            </td>
-                                            <td className="border p-2">
-                                                <div className="flex gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            openEditDialog(
-                                                                course
-                                                            )
-                                                        }
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            openDeleteDialog(
-                                                                course
-                                                            )
-                                                        }
-                                                    >
-                                                        <Trash className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
 
-                    {/* Add pagination if we have courses */}
-                    {courses.length > 0 && (
-                        <div className="mt-4">
-                            <CustomPagination
-                                currentPage={currentPage}
-                                totalPages={totalPages}
-                                onPageChange={setCurrentPage}
-                            />
-                        </div>
-                    )}
-                </>
-            
+                {/* Add pagination if we have courses */}
+                {courses.length > 0 && (
+                    <div className="mt-4">
+                        <CustomPagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={setCurrentPage}
+                        />
+                    </div>
+                )}
+            </>
 
             {/* Add Course Dialog */}
             <Dialog
@@ -736,7 +769,7 @@ export default function CoursesView() {
                             <div className="space-y-2">
                                 <Label htmlFor="color">Color</Label>
                                 <Select
-                                    value={formData.color}
+                                    value={formData?.color || ""}
                                     onValueChange={(value) =>
                                         handleSelectChange("color", value)
                                     }
@@ -745,19 +778,15 @@ export default function CoursesView() {
                                         <SelectValue placeholder="Select color" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="blue">
-                                            Blue
-                                        </SelectItem>
-                                        <SelectItem value="green">
-                                            Green
-                                        </SelectItem>
-                                        <SelectItem value="yellow">
-                                            Yellow
-                                        </SelectItem>
-                                        <SelectItem value="red">Red</SelectItem>
-                                        <SelectItem value="purple">
-                                            Purple
-                                        </SelectItem>
+                                        {colors.map((color) => (
+                                            <SelectItem
+                                                key={color}
+                                                value={color}
+                                            >
+                                                {color.charAt(0).toUpperCase() +
+                                                    color.slice(1)}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -1036,9 +1065,9 @@ export default function CoursesView() {
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="edit-color">Color</Label>
+                                <Label htmlFor="color">Color</Label>
                                 <Select
-                                    value={formData.color}
+                                    value={formData?.color || ""}
                                     onValueChange={(value) =>
                                         handleSelectChange("color", value)
                                     }
@@ -1047,19 +1076,15 @@ export default function CoursesView() {
                                         <SelectValue placeholder="Select color" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="blue">
-                                            Blue
-                                        </SelectItem>
-                                        <SelectItem value="green">
-                                            Green
-                                        </SelectItem>
-                                        <SelectItem value="yellow">
-                                            Yellow
-                                        </SelectItem>
-                                        <SelectItem value="red">Red</SelectItem>
-                                        <SelectItem value="purple">
-                                            Purple
-                                        </SelectItem>
+                                        {colors.map((color) => (
+                                            <SelectItem
+                                                key={color}
+                                                value={color}
+                                            >
+                                                {color.charAt(0).toUpperCase() +
+                                                    color.slice(1)}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>

@@ -32,15 +32,47 @@ import { useParams } from "next/navigation";
 const initialSchedule: Schedule = {};
 
 // Map of color classes to use for courses
+
 const colorMap: Record<string, string> = {
-    blue: "bg-blue-200",
-    green: "bg-green-200",
-    red: "bg-red-200",
-    yellow: "bg-yellow-200",
-    purple: "bg-purple-200",
-    orange: "bg-orange-200",
-    pink: "bg-pink-200",
-    indigo: "bg-indigo-200",
+    // Basic colors
+    blue: "bg-blue-200 hover:bg-blue-300 border-blue-400",
+    green: "bg-green-200 hover:bg-green-300 border-green-400",
+    red: "bg-red-200 hover:bg-red-300 border-red-400",
+    yellow: "bg-yellow-200 hover:bg-yellow-300 border-yellow-400",
+    purple: "bg-purple-200 hover:bg-purple-300 border-purple-400",
+    orange: "bg-orange-200 hover:bg-orange-300 border-orange-400",
+    pink: "bg-pink-200 hover:bg-pink-300 border-pink-400",
+    indigo: "bg-indigo-200 hover:bg-indigo-300 border-indigo-400",
+    turquoise: "bg-teal-200 hover:bg-teal-300 border-teal-400",
+    teal: "bg-teal-600 hover:bg-teal-700 border-teal-800",
+    maroon: "bg-red-900 hover:bg-red-950 border-red-950",
+    lavender: "bg-purple-200 hover:bg-purple-300 border-purple-400",
+    ivory: "bg-neutral-100 hover:bg-neutral-200 border-neutral-300",
+    mustard: "bg-yellow-600 hover:bg-yellow-700 border-yellow-800",
+    black: "bg-black hover:bg-neutral-900 border-neutral-800",
+    white: "bg-white hover:bg-neutral-100 border-neutral-300",
+    grey: "bg-neutral-400 hover:bg-neutral-500 border-neutral-600",
+    coral: "bg-orange-300 hover:bg-orange-400 border-orange-500",
+    navy: "bg-blue-900 hover:bg-blue-950 border-blue-950",
+    amber: "bg-amber-500 hover:bg-amber-600 border-amber-700",
+    mint: "bg-emerald-200 hover:bg-emerald-300 border-emerald-400",
+    emerald: "bg-emerald-500 hover:bg-emerald-600 border-emerald-700",
+    periwinkle: "bg-blue-300 hover:bg-blue-400 border-blue-500",
+    cyan: "bg-cyan-300 hover:bg-cyan-400 border-cyan-500",
+    magenta: "bg-pink-500 hover:bg-pink-600 border-pink-700",
+    beige: "bg-neutral-200 hover:bg-neutral-300 border-neutral-400",
+    olive: "bg-lime-700 hover:bg-lime-800 border-lime-900",
+    gold: "bg-yellow-500 hover:bg-yellow-600 border-yellow-700",
+    silver: "bg-neutral-300 hover:bg-neutral-400 border-neutral-500",
+    peach: "bg-orange-200 hover:bg-orange-300 border-orange-400",
+    rose: "bg-rose-300 hover:bg-rose-400 border-rose-500",
+    crimson: "bg-red-600 hover:bg-red-700 border-red-800",
+    lilac: "bg-purple-300 hover:bg-purple-400 border-purple-500",
+    salmon: "bg-red-300 hover:bg-red-400 border-red-500",
+    burgundy: "bg-red-800 hover:bg-red-900 border-red-950",
+    tan: "bg-amber-300 hover:bg-amber-400 border-amber-500",
+    khaki: "bg-yellow-800 hover:bg-yellow-900 border-yellow-950",
+    slate: "bg-slate-600 hover:bg-slate-700 border-slate-800",
 };
 
 export default function TimetableView() {
@@ -66,7 +98,7 @@ export default function TimetableView() {
         []
     );
     const [isLoading, setIsLoading] = useState(true);
-    
+
     // Add state to track if dragging to available courses area
     const [isDraggingToAvailable, setIsDraggingToAvailable] = useState(false);
 
@@ -193,52 +225,54 @@ export default function TimetableView() {
     };
 
     // Handle drag over
-    const handleDragOver = (e: React.DragEvent<HTMLTableCellElement | HTMLDivElement>) => {
+    const handleDragOver = (
+        e: React.DragEvent<HTMLTableCellElement | HTMLDivElement>
+    ) => {
         e.preventDefault();
     };
-    
+
     // Handle drag over for available courses section
     const handleAvailableDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsDraggingToAvailable(true);
     };
-    
+
     // Handle drag leave for available courses section
     const handleAvailableDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsDraggingToAvailable(false);
     };
-    
+
     // Handle drop for available courses
     const handleAvailableDrop = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsDraggingToAvailable(false);
-        
+
         if (!draggedCourse) return;
-        
+
         // Only process if the course is from the timetable (has day property)
         if (draggedCourse.day) {
             // Remove course from the timetable
             removeCourseFromTimetable(draggedCourse);
         }
     };
-    
+
     // Function to remove a course from the timetable and return it to available courses
     const removeCourseFromTimetable = (course: TimetableCourse) => {
         if (!course.day || !course.classroom || !course.startTime) return;
-        
+
         // Find all keys for this course in the schedule
         const newSchedule = { ...schedule };
-        
+
         // Remove all occurrences of this course ID from schedule
-        Object.keys(newSchedule).forEach(key => {
+        Object.keys(newSchedule).forEach((key) => {
             if (newSchedule[key].id === course.id) {
                 delete newSchedule[key];
             }
         });
-        
+
         setSchedule(newSchedule);
-        
+
         // Return the course to available courses list
         // Create a clean version without timetable-specific properties
         const cleanCourse = {
@@ -249,12 +283,12 @@ export default function TimetableView() {
             instructor: course.instructor,
             room: course.room,
         };
-        
+
         // Only add back to available courses if it's not already there
         if (!availableCourses.some((c) => c.id === course.id)) {
             setAvailableCourses((prev) => [...prev, cleanCourse]);
         }
-        
+
         // Remove from assigned courses
         setAssignedCourses((prev) => prev.filter((c) => c.id !== course.id));
     };
@@ -306,7 +340,10 @@ export default function TimetableView() {
             if (timeSlotIndex + i >= timeSlots.length) break;
             const nextTimeSlot = timeSlots[timeSlotIndex + i].time_slot;
             const nextKey = `${day}-${classroomId}-${nextTimeSlot}`;
-            if (schedule[nextKey] && schedule[nextKey].id !== draggedCourse.id) {
+            if (
+                schedule[nextKey] &&
+                schedule[nextKey].id !== draggedCourse.id
+            ) {
                 alert(
                     "There's a conflict with another course in subsequent time slots."
                 );
@@ -316,12 +353,12 @@ export default function TimetableView() {
 
         // Create a new schedule and remove all instances of the dragged course
         const newSchedule = { ...schedule };
-        Object.keys(newSchedule).forEach(scheduleKey => {
+        Object.keys(newSchedule).forEach((scheduleKey) => {
             if (newSchedule[scheduleKey].id === draggedCourse.id) {
                 delete newSchedule[scheduleKey];
             }
         });
-        
+
         // Calculate end time
         const endTimeIndex = timeSlotIndex + draggedCourse.duration - 1;
         const endTimeSlot =
@@ -359,19 +396,22 @@ export default function TimetableView() {
 
         // Handle assignment lists based on where the course came from
         const isFromAvailable = !draggedCourse.day;
-        
+
         if (isFromAvailable) {
             // Remove from available courses
-            setAvailableCourses(prev => 
-                prev.filter(course => course.id !== draggedCourse.id)
+            setAvailableCourses((prev) =>
+                prev.filter((course) => course.id !== draggedCourse.id)
             );
-            
+
             // Add to assigned courses
-            setAssignedCourses(prev => [...prev.filter(c => c.id !== draggedCourse.id), assignedCourse]);
+            setAssignedCourses((prev) => [
+                ...prev.filter((c) => c.id !== draggedCourse.id),
+                assignedCourse,
+            ]);
         } else {
             // Just update the position in assigned courses
-            setAssignedCourses(prev => {
-                const filtered = prev.filter(c => c.id !== draggedCourse.id);
+            setAssignedCourses((prev) => {
+                const filtered = prev.filter((c) => c.id !== draggedCourse.id);
                 return [...filtered, assignedCourse];
             });
         }
@@ -383,7 +423,7 @@ export default function TimetableView() {
             startTime: timeSlot,
             endTime: endTimeSlot,
             courseHoursId: timeSlotId,
-            fromAvailable: isFromAvailable
+            fromAvailable: isFromAvailable,
         });
     };
 
@@ -410,10 +450,10 @@ export default function TimetableView() {
 
         // Get the course ID to remove
         const courseId = course.id;
-        
+
         // Create a new schedule without this course
         const newSchedule = { ...schedule };
-        Object.keys(newSchedule).forEach(scheduleKey => {
+        Object.keys(newSchedule).forEach((scheduleKey) => {
             if (newSchedule[scheduleKey].id === courseId) {
                 delete newSchedule[scheduleKey];
             }
@@ -489,24 +529,24 @@ export default function TimetableView() {
             <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] mb-40">
                 <div className="inline-block min-w-full">
                     <div className="border rounded-lg overflow-hidden">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+                        <table className="min-w-full divide-y divide-blue-200">
+                            <thead>
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 border">
+                                    <th className="px-4 py-3 text-left text-xs font-medium  text-gray-700 uppercase tracking-wider w-24 border">
                                         Classroom
                                     </th>
                                     {days.map((day) => (
                                         <th
                                             key={day}
                                             colSpan={timeSlots.length}
-                                            className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border"
+                                            className="px-2 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border "
                                         >
                                             {day}
                                         </th>
                                     ))}
                                 </tr>
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 border">
+                                    <th className="px-4 py-3 text-left text-xs font-medium  text-gray-500 uppercase tracking-wider w-24 border">
                                         Time
                                     </th>
                                     {/* Course hours related - time slot headers */}
@@ -514,7 +554,7 @@ export default function TimetableView() {
                                         timeSlots.map((slot) => (
                                             <th
                                                 key={`${day}-${slot.time_slot}`}
-                                                className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border"
+                                                className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border "
                                             >
                                                 {slot.time_slot}
                                             </th>
@@ -523,9 +563,16 @@ export default function TimetableView() {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {classrooms.map((classroom) => (
-                                    <tr key={classroom.id}>
-                                        <td className="px-4 py-2 whitespace-nowrap text-sm font-medium bg-gray-100 border">
+                                {classrooms.map((classroom, index) => (
+                                    <tr
+                                        key={classroom.id}
+                                        className={
+                                            index % 2 === 0
+                                                ? "bg-white"
+                                                : "bg-white"
+                                        }
+                                    >
+                                        <td className="px-4 py-2 whitespace-nowrap text-sm font-medium border font-semibold text-gray-700">
                                             {classroom.code}
                                         </td>
                                         {days.map((day) =>
@@ -558,7 +605,7 @@ export default function TimetableView() {
                                                     >
                                                         {course ? (
                                                             <div
-                                                                className={`${course.color} p-1 rounded cursor-pointer text-center`}
+                                                                className={`${course.color} p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium`}
                                                                 onClick={() =>
                                                                     handleCourseClick(
                                                                         day,
@@ -592,40 +639,51 @@ export default function TimetableView() {
             </div>
 
             {/* Draggable courses section with real data from API - only showing available courses */}
-            <div 
-                className={`fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-lg shadow-lg z-50 border-t ${isDraggingToAvailable ? 'bg-blue-50' : ''}`}
+            <div
+                className={`fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-lg shadow-lg z-50 border-t ${
+                    isDraggingToAvailable ? "bg-blue-100" : ""
+                }`}
                 onDragOver={handleAvailableDragOver}
                 onDragLeave={handleAvailableDragLeave}
                 onDrop={handleAvailableDrop}
             >
                 <div className="max-w-9xl mx-auto">
-                    <h3 className="text-lg font-semibold mb-4">
-                        Available Courses {isDraggingToAvailable && <span className="text-blue-500">(Drop Here to Return Course)</span>}
+                    <h3 className="text-lg font-semibold mb-4 flex items-center">
+                        <span className="">Available Courses</span>
+                        {isDraggingToAvailable && (
+                            <span className="ml-2 text-blue-500 animate-pulse">
+                                (Drop Here to Return Course)
+                            </span>
+                        )}
                     </h3>
                     {isLoading ? (
                         <div className="text-center py-4">
                             Loading courses...
                         </div>
                     ) : availableCourses.length === 0 ? (
-                        <div className="text-center py-4">
+                        <div className="text-center py-4 text-gray-500">
                             All courses have been assigned to the timetable
                         </div>
                     ) : (
-                        <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto">
+                        <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto p-2">
                             {availableCourses.map((course) => (
                                 <div
                                     key={course.id}
-                                    className={`${course.color} p-3 rounded-lg shadow cursor-move hover:shadow-md transition-shadow`}
+                                    className={`${course.color} p-3 rounded-lg shadow cursor-move hover:shadow-md transition-all border`}
                                     draggable
                                     onDragStart={() => handleDragStart(course)}
                                 >
-                                    <h4 className="font-bold">{course.id}</h4>
-                                    <p className="text-sm">{course.name}</p>
-                                    <p className="text-xs mt-1">
+                                    <h4 className="font-bold text-gray-800">
+                                        {course.id}
+                                    </h4>
+                                    <p className="text-sm font-medium">
+                                        {course.name}
+                                    </p>
+                                    <p className="text-xs mt-1 text-gray-700">
                                         Duration: {course.duration} hour
                                         {course.duration > 1 ? "s" : ""}
                                     </p>
-                                    <p className="text-xs mt-1 truncate">
+                                    <p className="text-xs mt-1 truncate text-gray-700">
                                         Instructor: {course.instructor}
                                     </p>
                                 </div>
@@ -637,41 +695,68 @@ export default function TimetableView() {
 
             {/* Course details dialog */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent>
+                <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Course Details</DialogTitle>
+                        <DialogTitle className="text-xl font-bold">
+                            Course Details
+                        </DialogTitle>
                     </DialogHeader>
 
                     {selectedCourse && (
                         <div className="space-y-4">
-                            <div>
+                            <div className="space-y-3">
+                                <div
+                                    className={`w-full h-1 ${selectedCourse.color
+                                        .replace("hover:", "")
+                                        .replace("border-", "")}`}
+                                ></div>
                                 <h3 className="font-bold text-lg">
                                     {selectedCourse.id}: {selectedCourse.name}
                                 </h3>
-                                <p className="text-sm text-gray-600">
-                                    Duration: {selectedCourse.duration} hour(s)
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                    Instructor: {selectedCourse.instructor}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                    Room: {selectedCourse.room}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                    Time: {selectedCourse.day},{" "}
-                                    {selectedCourse.startTime} -{" "}
-                                    {selectedCourse.endTime}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                    Classroom: {selectedCourse.classroom}
-                                </p>
-                                {/* Course hours related - commented out */}
-                                {/*
-                                <p className="text-sm text-gray-600">
-                                    Course Hours ID:{" "}
-                                    {selectedCourse.courseHoursId}
-                                </p>
-                                */}
+                                <div className="space-y-2">
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-muted-foreground">
+                                            Duration:
+                                        </span>
+                                        <span className="text-sm font-medium">
+                                            {selectedCourse.duration} hour(s)
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-muted-foreground">
+                                            Instructor:
+                                        </span>
+                                        <span className="text-sm font-medium">
+                                            {selectedCourse.instructor}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-muted-foreground">
+                                            Room:
+                                        </span>
+                                        <span className="text-sm font-medium">
+                                            {selectedCourse.room}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-muted-foreground">
+                                            Time:
+                                        </span>
+                                        <span className="text-sm font-medium">
+                                            {selectedCourse.day},{" "}
+                                            {selectedCourse.startTime} -{" "}
+                                            {selectedCourse.endTime}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-muted-foreground">
+                                            Classroom:
+                                        </span>
+                                        <span className="text-sm font-medium">
+                                            {selectedCourse.classroom}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="flex justify-end gap-2">
