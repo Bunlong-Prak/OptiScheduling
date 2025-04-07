@@ -38,7 +38,7 @@ export default function ClassroomTypeView() {
         name: "",
     });
     const [currentPage, setCurrentPage] = useState(1);
-    const [isLoading, setIsLoading] = useState(false);
+    // const [isLoading, setIsLoading] = useState(false);
 
     // Load classroom types on component mount
     useEffect(() => {
@@ -66,7 +66,7 @@ export default function ClassroomTypeView() {
 
     const fetchClassroomTypes = async () => {
         try {
-            setIsLoading(true);
+          
             const scheduleId = params.id;
             const response = await fetch(
                 `/api/classroom-types?scheduleId=${scheduleId}`,
@@ -92,9 +92,7 @@ export default function ClassroomTypeView() {
                 text: "Failed to load classroom types. Please try again.",
                 type: "error",
             });
-        } finally {
-            setIsLoading(false);
-        }
+        } 
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

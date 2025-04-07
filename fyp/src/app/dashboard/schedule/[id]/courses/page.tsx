@@ -1,6 +1,7 @@
 "use client";
 
 import { Classroom, Course, Instructor, Major } from "@/app/types";
+import CustomPagination from "@/components/custom/pagination";
 import { Button } from "@/components/ui/button";
 import {
     Command,
@@ -34,13 +35,20 @@ import { Check, ChevronsUpDown, Pencil, Plus, Trash } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Define types based on API structure
+// Number of courses to show per page
+const ITEMS_PER_PAGE = 10;
 
 export default function CoursesView() {
     const [courses, setCourses] = useState<Course[]>([]);
     const [majors, setMajors] = useState<Major[]>([]);
     const [instructors, setInstructors] = useState<Instructor[]>([]);
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [statusMessage, setStatusMessage] = useState<{
+        text: string;
+        type: "success" | "error";
+    } | null>(null);
 
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -67,69 +75,100 @@ export default function CoursesView() {
     const [instructorOpen, setInstructorOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
+    // Clear status message after 5 seconds
+    useEffect(() => {
+        if (statusMessage) {
+            const timer = setTimeout(() => {
+                setStatusMessage(null);
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [statusMessage]);
+
     // Fetch all data on component mount
     useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                // Fetch courses
-                const scheduleId = params.id;
-                const response = await fetch(
-                    `/api/courses?scheduleId=${scheduleId}`,
-                    {
-                        method: "GET",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                    }
-                );
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    console.error("API error:", errorData);
-                    throw new Error(
-                        errorData.error || "Failed to fetch courses"
-                    );
-                }
-
-                const coursesData = await response.json();
-                setCourses(coursesData);
-
-                // Fetch majors
-                const majorsRes = await fetch(
-                    `/api/majors?scheduleId=${scheduleId}`
-                );
-                if (majorsRes.ok) {
-                    const majorsData = await majorsRes.json();
-                    setMajors(majorsData);
-                }
-
-                // Fetch instructors
-                const instructorsRes = await fetch(
-                    `/api/instructors?scheduleId=${scheduleId}`
-                );
-                if (instructorsRes.ok) {
-                    const instructorsData = await instructorsRes.json();
-                    setInstructors(instructorsData);
-                }
-
-                // Fetch classrooms
-                const classroomsRes = await fetch(
-                    `/api/classrooms?scheduleId=${scheduleId}`
-                );
-                if (classroomsRes.ok) {
-                    const classroomsData = await classroomsRes.json();
-                    setClassrooms(classroomsData);
-                }
-            } catch (error) {
-                console.error("Error fetching data:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         fetchData();
     }, []);
+
+    // Update total pages when courses or items per page changes
+    useEffect(() => {
+        setTotalPages(Math.ceil(courses.length / ITEMS_PER_PAGE));
+    }, [courses]);
+
+    // Get current courses
+    const paginatedCourses = courses.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    const params = useParams();
+
+    const fetchData = async () => {
+        setIsLoading(true);
+        try {
+            // Fetch courses
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/courses?scheduleId=${scheduleId}`,
+                {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("API error:", errorData);
+                throw new Error(errorData.error || "Failed to fetch courses");
+            }
+
+            const coursesData = await response.json();
+            setCourses(coursesData);
+
+            // Reset to first page when data changes
+            setCurrentPage(1);
+
+            // Calculate total pages
+            setTotalPages(Math.ceil(coursesData.length / ITEMS_PER_PAGE));
+
+            // Fetch majors
+            const majorsRes = await fetch(
+                `/api/majors?scheduleId=${scheduleId}`
+            );
+            if (majorsRes.ok) {
+                const majorsData = await majorsRes.json();
+                setMajors(majorsData);
+            }
+
+            // Fetch instructors
+            const instructorsRes = await fetch(
+                `/api/instructors?scheduleId=${scheduleId}`
+            );
+            if (instructorsRes.ok) {
+                const instructorsData = await instructorsRes.json();
+                setInstructors(instructorsData);
+            }
+
+            // Fetch classrooms
+            const classroomsRes = await fetch(
+                `/api/classrooms?scheduleId=${scheduleId}`
+            );
+            if (classroomsRes.ok) {
+                const classroomsData = await classroomsRes.json();
+                setClassrooms(classroomsData);
+            }
+        } catch (error) {
+            console.error("Error fetching data:", error);
+            setStatusMessage({
+                text: "Failed to load courses. Please try again.",
+                type: "error",
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -154,7 +193,6 @@ export default function CoursesView() {
             });
         }
     };
-    const params = useParams();
 
     const handleAddCourse = async () => {
         // Make sure we have at least one section/classroom pair
@@ -193,50 +231,120 @@ export default function CoursesView() {
 
             if (response.ok) {
                 // Refresh course list after adding
-                const refreshResponse = await fetch(
-                    `/api/courses?scheduleId=${scheduleId}`
-                );
-                if (refreshResponse.ok) {
-                    const refreshedCourses = await refreshResponse.json();
-                    setCourses(refreshedCourses);
-                }
+                await fetchData();
                 setIsAddDialogOpen(false);
                 resetForm();
+                setStatusMessage({
+                    text: "Course added successfully",
+                    type: "success",
+                });
             } else {
                 const error = await response.json();
                 console.error("Error adding courses:", error);
+                setStatusMessage({
+                    text: "Failed to add course. Please try again.",
+                    type: "error",
+                });
             }
         } catch (error) {
             console.error("Error adding courses:", error);
+            setStatusMessage({
+                text: "Failed to add course. Please try again.",
+                type: "error",
+            });
         }
     };
+
+    // Improved handleEditCourse function with better error handling
+
+    // Enhanced handleEditCourse function with better validation error handling
+
+    // Fixed handleEditCourse function with proper instructorId handling
 
     const handleEditCourse = async () => {
         // Make sure we have at least one section/classroom pair
         if (sectionClassrooms.length === 0) {
+            setStatusMessage({
+                text: "At least one section and classroom is required",
+                type: "error",
+            });
             return;
         }
 
         try {
+            // Ensure all required fields have values and proper types
+            if (!selectedCourse?.sectionId) {
+                setStatusMessage({
+                    text: "Missing section ID",
+                    type: "error",
+                });
+                return;
+            }
+
+            // Ensure sectionId is a number (API expects number)
+            const sectionId =
+                typeof selectedCourse.sectionId === "number"
+                    ? selectedCourse.sectionId
+                    : Number(selectedCourse.sectionId);
+
+            if (isNaN(sectionId)) {
+                setStatusMessage({
+                    text: "Invalid section ID format",
+                    type: "error",
+                });
+                return;
+            }
+
             // Create an array of section/classroom pairs
             const sections = sectionClassrooms.map((pair) => ({
                 section: pair.section_id,
                 classroom: pair.classroom_id,
             }));
 
+            // Convert instructorId to string safely, without using trim()
+            const instructorId =
+                formData.instructorId !== null &&
+                formData.instructorId !== undefined
+                    ? String(formData.instructorId)
+                    : "";
+
+            if (!instructorId) {
+                setStatusMessage({
+                    text: "Instructor ID is required",
+                    type: "error",
+                });
+                return;
+            }
+
+            // Pre-validate all required fields
+            if (
+                !formData.title ||
+                !formData.code ||
+                !formData.major ||
+                !formData.color
+            ) {
+                setStatusMessage({
+                    text: "All course fields are required",
+                    type: "error",
+                });
+                return;
+            }
+
             // Create API payload with the base course data and the sectionId from the selectedCourse
             const apiData = {
-                sectionId: selectedCourse?.sectionId,
+                sectionId: sectionId,
                 code: formData.code,
                 title: formData.title,
                 major: formData.major,
                 color: formData.color,
-                instructor: formData.instructorId, // FIXED: Using instructor ID
-                duration: Number(formData.duration),
-                capacity: Number(formData.capacity),
+                instructor: instructorId,
+                duration: Number(formData.duration) || 1,
+                capacity: Number(formData.capacity) || 1,
                 sectionClassroom: sections,
             };
+
             console.log("Sending to API:", apiData);
+
             const response = await fetch("/api/courses", {
                 method: "PATCH",
                 headers: {
@@ -245,25 +353,59 @@ export default function CoursesView() {
                 body: JSON.stringify(apiData),
             });
 
-            if (response.ok) {
-                // Refresh course list after editing
-                const refreshResponse = await fetch("/api/courses");
-                if (refreshResponse.ok) {
-                    const refreshedCourses = await refreshResponse.json();
-                    setCourses(refreshedCourses);
-                }
-                setIsEditDialogOpen(false);
-                resetForm();
-            } else {
-                const error = await response.json();
-                console.error("Error editing course:", error);
-                // Optional: Display error to user
+            // Handle the response
+            let responseData;
+            const responseText = await response.text();
+
+            try {
+                responseData = responseText ? JSON.parse(responseText) : {};
+            } catch (e) {
+                console.error("Error parsing response:", e);
+                responseData = { error: "Invalid response format" };
             }
+
+            if (!response.ok) {
+                console.error("API Error Response:", responseData);
+
+                // Handle validation errors specifically
+                if (
+                    responseData.error === "Validation failed" &&
+                    responseData.details
+                ) {
+                    // Format validation errors into a readable message
+                    const errorMessages = Array.isArray(responseData.details)
+                        ? responseData.details
+                              .map((err) => err.message)
+                              .join(", ")
+                        : JSON.stringify(responseData.details);
+
+                    throw new Error(`Validation failed: ${errorMessages}`);
+                }
+
+                throw new Error(
+                    responseData.error || "Failed to update course"
+                );
+            }
+
+            // Refresh course list after editing
+            await fetchData();
+            setIsEditDialogOpen(false);
+            resetForm();
+            setStatusMessage({
+                text: "Course updated successfully",
+                type: "success",
+            });
         } catch (error) {
             console.error("Error editing course:", error);
+            setStatusMessage({
+                text:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to update course. Please try again.",
+                type: "error",
+            });
         }
     };
-
     const handleDeleteCourse = async () => {
         if (!selectedCourse?.sectionId) return;
 
@@ -288,13 +430,24 @@ export default function CoursesView() {
                 );
                 setIsDeleteDialogOpen(false);
                 resetForm();
+                setStatusMessage({
+                    text: "Course deleted successfully",
+                    type: "success",
+                });
             } else {
                 const error = await response.json();
                 console.error("Error deleting course:", error);
-                // Handle error feedback to user
+                setStatusMessage({
+                    text: "Failed to delete course. Please try again.",
+                    type: "error",
+                });
             }
         } catch (error) {
             console.error("Error deleting course:", error);
+            setStatusMessage({
+                text: "Failed to delete course. Please try again.",
+                type: "error",
+            });
         }
     };
 
@@ -304,8 +457,8 @@ export default function CoursesView() {
             code: "",
             major: "",
             color: "",
-            instructorId: "", // FIXED: New structure
-            instructorName: "", // FIXED: New structure
+            instructorId: "",
+            instructorName: "",
             duration: 0,
             capacity: 0,
             section: "",
@@ -375,6 +528,18 @@ export default function CoursesView() {
 
     return (
         <div>
+            {statusMessage && (
+                <div
+                    className={`mb-4 p-3 rounded ${
+                        statusMessage.type === "success"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                    }`}
+                >
+                    {statusMessage.text}
+                </div>
+            )}
+
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold">Courses</h2>
                 <Button
@@ -388,93 +553,137 @@ export default function CoursesView() {
             {isLoading ? (
                 <div>Loading courses...</div>
             ) : (
-                <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                        <thead>
-                            <tr>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    CODE
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    TITLE
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    SECTION
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    INSTRUCTOR
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    CLASSROOM
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    MAJOR
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    Capacity
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {courses.map((course) => (
-                                <tr key={course.sectionId}>
-                                    <td className="border p-2">
-                                        {course.code}
-                                    </td>
-                                    <td className="border p-2">
-                                        {course.title}
-                                    </td>
-                                    <td className="border p-2">
-                                        {course.section}
-                                    </td>
-                                    <td className="border p-2">
-                                        {`${course.firstName || ""} ${
-                                            course.lastName || ""
-                                        }`}
-                                    </td>
-                                    <td className="border p-2">
-                                        {course.classroom}
-                                    </td>
-                                    <td className="border p-2">
-                                        {course.major}
-                                    </td>
-                                    <td className="border p-2">
-                                        {course.capacity}
-                                    </td>
-                                    <td className="border p-2">
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    openEditDialog(course)
-                                                }
-                                            >
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    openDeleteDialog(course)
-                                                }
-                                            >
-                                                <Trash className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </td>
+                <>
+                    <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                            <thead>
+                                <tr>
+                                    <th className="border p-2 bg-gray-100 text-left">
+                                        CODE
+                                    </th>
+                                    <th className="border p-2 bg-gray-100 text-left">
+                                        TITLE
+                                    </th>
+                                    <th className="border p-2 bg-gray-100 text-left">
+                                        SECTION
+                                    </th>
+                                    <th className="border p-2 bg-gray-100 text-left">
+                                        INSTRUCTOR
+                                    </th>
+                                    <th className="border p-2 bg-gray-100 text-left">
+                                        CLASSROOM
+                                    </th>
+                                    <th className="border p-2 bg-gray-100 text-left">
+                                        MAJOR
+                                    </th>
+                                    <th className="border p-2 bg-gray-100 text-left">
+                                        Capacity
+                                    </th>
+                                    <th className="border p-2 bg-gray-100 text-left">
+                                        Actions
+                                    </th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                {courses.length === 0 ? (
+                                    <tr>
+                                        <td
+                                            colSpan={8}
+                                            className="border p-4 text-center text-gray-500"
+                                        >
+                                            No courses found. Add a new course
+                                            to get started.
+                                        </td>
+                                    </tr>
+                                ) : paginatedCourses.length === 0 ? (
+                                    <tr>
+                                        <td
+                                            colSpan={8}
+                                            className="border p-4 text-center text-gray-500"
+                                        >
+                                            No courses found on this page.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    paginatedCourses.map((course) => (
+                                        <tr key={course.sectionId}>
+                                            <td className="border p-2">
+                                                {course.code}
+                                            </td>
+                                            <td className="border p-2">
+                                                {course.title}
+                                            </td>
+                                            <td className="border p-2">
+                                                {course.section}
+                                            </td>
+                                            <td className="border p-2">
+                                                {`${course.firstName || ""} ${
+                                                    course.lastName || ""
+                                                }`.trim() || "—"}
+                                            </td>
+                                            <td className="border p-2">
+                                                {course.classroom}
+                                            </td>
+                                            <td className="border p-2">
+                                                {course.major}
+                                            </td>
+                                            <td className="border p-2">
+                                                {course.capacity}
+                                            </td>
+                                            <td className="border p-2">
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() =>
+                                                            openEditDialog(
+                                                                course
+                                                            )
+                                                        }
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() =>
+                                                            openDeleteDialog(
+                                                                course
+                                                            )
+                                                        }
+                                                    >
+                                                        <Trash className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Add pagination if we have courses */}
+                    {courses.length > 0 && (
+                        <div className="mt-4">
+                            <CustomPagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                onPageChange={setCurrentPage}
+                            />
+                        </div>
+                    )}
+                </>
             )}
 
             {/* Add Course Dialog */}
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <Dialog
+                open={isAddDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) resetForm();
+                    setIsAddDialogOpen(open);
+                }}
+            >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Add New Course</DialogTitle>
@@ -746,7 +955,10 @@ export default function CoursesView() {
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsAddDialogOpen(false)}
+                            onClick={() => {
+                                resetForm();
+                                setIsAddDialogOpen(false);
+                            }}
                         >
                             Cancel
                         </Button>
@@ -756,7 +968,7 @@ export default function CoursesView() {
                                 !formData.title ||
                                 !formData.code ||
                                 !formData.major ||
-                                !formData.instructorId || // FIXED: Checking instructor ID
+                                !formData.instructorId ||
                                 sectionClassrooms.length === 0
                             }
                         >
@@ -767,7 +979,13 @@ export default function CoursesView() {
             </Dialog>
 
             {/* Edit Course Dialog */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <Dialog
+                open={isEditDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) resetForm();
+                    setIsEditDialogOpen(open);
+                }}
+            >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Edit Course</DialogTitle>
@@ -914,7 +1132,7 @@ export default function CoursesView() {
                             </Popover>
                         </div>
 
-                        <div>
+                        <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="edit-duration">
                                     Duration (hours)
@@ -930,9 +1148,9 @@ export default function CoursesView() {
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="capacity">Capacity</Label>
+                                <Label htmlFor="edit-capacity">Capacity</Label>
                                 <Input
-                                    id="capacity"
+                                    id="edit-capacity"
                                     name="capacity"
                                     type="number"
                                     min="1"
@@ -1043,11 +1261,25 @@ export default function CoursesView() {
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsEditDialogOpen(false)}
+                            onClick={() => {
+                                resetForm();
+                                setIsEditDialogOpen(false);
+                            }}
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleEditCourse}>Save Changes</Button>
+                        <Button
+                            onClick={handleEditCourse}
+                            disabled={
+                                !formData.title ||
+                                !formData.code ||
+                                !formData.major ||
+                                !formData.instructorId ||
+                                sectionClassrooms.length === 0
+                            }
+                        >
+                            Save Changes
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -1055,7 +1287,10 @@ export default function CoursesView() {
             {/* Delete Course Dialog */}
             <Dialog
                 open={isDeleteDialogOpen}
-                onOpenChange={setIsDeleteDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) setSelectedCourse(null);
+                    setIsDeleteDialogOpen(open);
+                }}
             >
                 <DialogContent>
                     <DialogHeader>
@@ -1072,7 +1307,10 @@ export default function CoursesView() {
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsDeleteDialogOpen(false)}
+                            onClick={() => {
+                                setSelectedCourse(null);
+                                setIsDeleteDialogOpen(false);
+                            }}
                         >
                             Cancel
                         </Button>
