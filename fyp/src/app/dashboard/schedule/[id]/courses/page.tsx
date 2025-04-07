@@ -73,7 +73,7 @@ export default function CoursesView() {
     });
 
     const [instructorOpen, setInstructorOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
+    // const [isLoading, setIsLoading] = useState(true);
 
     // Clear status message after 5 seconds
     useEffect(() => {
@@ -104,7 +104,7 @@ export default function CoursesView() {
     const params = useParams();
 
     const fetchData = async () => {
-        setIsLoading(true);
+      
         try {
             // Fetch courses
             const scheduleId = params.id;
@@ -165,8 +165,6 @@ export default function CoursesView() {
                 text: "Failed to load courses. Please try again.",
                 type: "error",
             });
-        } finally {
-            setIsLoading(false);
         }
     };
 
@@ -550,9 +548,7 @@ export default function CoursesView() {
                 </Button>
             </div>
 
-            {isLoading ? (
-                <div>Loading courses...</div>
-            ) : (
+         
                 <>
                     <div className="overflow-x-auto">
                         <table className="w-full border-collapse">
@@ -674,7 +670,7 @@ export default function CoursesView() {
                         </div>
                     )}
                 </>
-            )}
+            
 
             {/* Add Course Dialog */}
             <Dialog
