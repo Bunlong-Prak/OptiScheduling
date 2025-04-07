@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pencil, Plus, Trash } from "lucide-react";
+import { useParams } from "next/navigation";
 import type React from "react";
 import { useEffect, useState } from "react";
 
@@ -61,10 +62,21 @@ export default function ClassroomTypeView() {
         currentPage * ITEMS_PER_PAGE
     );
 
+    const params = useParams();
+
     const fetchClassroomTypes = async () => {
         try {
             setIsLoading(true);
-            const response = await fetch("/api/classroom-types");
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/classroom-types?scheduleId=${scheduleId}`,
+                {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
 
             if (!response.ok) {
                 throw new Error("Failed to fetch classroom types");
@@ -102,8 +114,10 @@ export default function ClassroomTypeView() {
     const handleAddClassroomType = async () => {
         try {
             // Prepare data for API
+            const scheduleId = params.id;
             const apiData = {
                 name: formData.name,
+                scheduleId: Number(scheduleId),
             };
 
             const response = await fetch("/api/classroom-types", {
@@ -249,112 +263,102 @@ export default function ClassroomTypeView() {
 
     return (
         <div>
-            {isLoading ? (
-                <div className="flex justify-center my-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            {statusMessage && (
+                <div
+                    className={`mb-4 p-3 rounded ${
+                        statusMessage.type === "success"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                    }`}
+                >
+                    {statusMessage.text}
                 </div>
-            ) : (
-                <>
-                    {statusMessage && (
-                        <div
-                            className={`mb-4 p-3 rounded ${
-                                statusMessage.type === "success"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-red-100 text-red-800"
-                            }`}
-                        >
-                            {statusMessage.text}
-                        </div>
-                    )}
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-xl font-bold">Classroom Types</h2>
-                        <Button
-                            onClick={openAddDialog}
-                            className="bg-green-600 hover:bg-green-700"
-                        >
-                            <Plus className="mr-2 h-4 w-4" /> New Classroom Type
-                        </Button>
-                    </div>
+            )}
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold">Classroom Types</h2>
+                <Button
+                    onClick={openAddDialog}
+                    className="bg-green-600 hover:bg-green-700"
+                >
+                    <Plus className="mr-2 h-4 w-4" /> New Classroom Type
+                </Button>
+            </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
-                            <thead>
-                                <tr>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        ID
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        NAME
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        Actions
-                                    </th>
+            <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                    <thead>
+                        <tr>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                ID
+                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                NAME
+                            </th>
+                            <th className="border p-2 bg-gray-100 text-left">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {classroomTypes.length === 0 ? (
+                            <tr>
+                                <td
+                                    colSpan={3}
+                                    className="border p-4 text-center"
+                                >
+                                    No classroom types found. Add a new
+                                    classroom type to get started.
+                                </td>
+                            </tr>
+                        ) : (
+                            paginatedClassroomTypes.map((classroomType) => (
+                                <tr key={classroomType.id}>
+                                    <td className="border p-2">
+                                        {classroomType.id}
+                                    </td>
+                                    <td className="border p-2">
+                                        {classroomType.name}
+                                    </td>
+                                    <td className="border p-2">
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    openEditDialog(
+                                                        classroomType
+                                                    )
+                                                }
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    openDeleteDialog(
+                                                        classroomType
+                                                    )
+                                                }
+                                            >
+                                                <Trash className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {classroomTypes.length === 0 ? (
-                                    <tr>
-                                        <td
-                                            colSpan={3}
-                                            className="border p-4 text-center"
-                                        >
-                                            No classroom types found. Add a new
-                                            classroom type to get started.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    paginatedClassroomTypes.map(
-                                        (classroomType) => (
-                                            <tr key={classroomType.id}>
-                                                <td className="border p-2">
-                                                    {classroomType.id}
-                                                </td>
-                                                <td className="border p-2">
-                                                    {classroomType.name}
-                                                </td>
-                                                <td className="border p-2">
-                                                    <div className="flex gap-2">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() =>
-                                                                openEditDialog(
-                                                                    classroomType
-                                                                )
-                                                            }
-                                                        >
-                                                            <Pencil className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() =>
-                                                                openDeleteDialog(
-                                                                    classroomType
-                                                                )
-                                                            }
-                                                        >
-                                                            <Trash className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )
-                                    )
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
 
-                    {/* Add pagination if we have classroom types */}
-                    {classroomTypes.length > 0 && (
-                        <CustomPagination
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            onPageChange={setCurrentPage}
-                        />
-                    )}
-                </>
+            {/* Add pagination if we have classroom types */}
+            {classroomTypes.length > 0 && (
+                <CustomPagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                />
             )}
 
             {/* Add Classroom Type Dialog */}

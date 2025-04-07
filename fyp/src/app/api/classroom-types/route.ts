@@ -1,4 +1,4 @@
-import { classroomTypes } from "@/drizzle/schema";
+import { classroomTypes, schedules } from "@/drizzle/schema";
 import { db } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -14,6 +14,9 @@ export const createClassroomTypeSchema = z.object({
         .max(100, {
             message: "Classroom type name cannot exceed 100 characters",
         }),
+    scheduleId: z.number({
+        required_error: "Schedule ID is required",
+    }),
 });
 
 export const editClassroomTypeSchema = z.object({
@@ -38,14 +41,26 @@ export const deleteClassroomTypeSchema = z.object({
 });
 
 // GET all classroom types
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        const allClassroomTypes = await db.select().from(classroomTypes);
-        const formattedClassroomTypes = allClassroomTypes.map((type) => ({
-            id: type.id,
-            name: type.name,
-        }));
-        return NextResponse.json(formattedClassroomTypes);
+        const { searchParams } = new URL(request.url);
+        const scheduleId = searchParams.get("scheduleId");
+
+        let classroomTypeQuery;
+        if (scheduleId) {
+            classroomTypeQuery = await db
+                .select({
+                    id: classroomTypes.id,
+                    name: classroomTypes.name,
+                })
+                .from(classroomTypes)
+                .innerJoin(
+                    schedules,
+                    eq(classroomTypes.scheduleId, schedules.id)
+                )
+                .where(eq(classroomTypes.scheduleId, parseInt(scheduleId)));
+        }
+        return NextResponse.json(classroomTypeQuery);
     } catch (error: unknown) {
         console.error("Error fetching classroom types:", error);
         return NextResponse.json(
@@ -60,9 +75,10 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const validatedData = createClassroomTypeSchema.parse(body);
-        const { name } = validatedData;
+        const { name, scheduleId } = validatedData;
         const newClassroomType = await db.insert(classroomTypes).values({
             name,
+            scheduleId,
         });
         return NextResponse.json(newClassroomType);
     } catch (error: unknown) {

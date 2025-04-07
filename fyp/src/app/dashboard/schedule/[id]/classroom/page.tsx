@@ -24,6 +24,7 @@ import type React from "react";
 import { useEffect, useState } from "react";
 // import type { Classroom, ClassroomFormData } from "../../../types;
 import { ClassroomFormData } from "@/app/types";
+import { useParams } from "next/navigation";
 
 interface ClassroomType {
     id: number;
@@ -52,12 +53,15 @@ export default function ClassroomView() {
         text: string;
         type: "success" | "error" | "info";
     } | null>(null);
-
+    const params = useParams();
     // Fetch classroom types from API
     const fetchClassroomTypes = async () => {
         try {
             setIsTypesLoading(true);
-            const response = await fetch("/api/classroom-types");
+            const scheduleId = params.id; // Assuming scheduleId is passed as a URL parameter
+            const response = await fetch(
+                `/api/classroom-types?scheduleId=${scheduleId}`
+            );
             if (!response.ok) {
                 throw new Error("Failed to fetch classroom types");
             }
@@ -65,10 +69,7 @@ export default function ClassroomView() {
             setClassroomTypes(data);
         } catch (error) {
             console.error("Error fetching classroom types:", error);
-            setStatusMessage({
-                text: "Failed to load classroom types. Please try again.",
-                type: "error",
-            });
+            // Removed error status message for initial load
         } finally {
             setIsTypesLoading(false);
         }
@@ -84,10 +85,6 @@ export default function ClassroomView() {
             }
             const data = await response.json();
             setClassrooms(data);
-            setStatusMessage({
-                text: "Classrooms loaded successfully",
-                type: "success",
-            });
         } catch (error) {
             console.error("Error fetching classrooms:", error);
             setStatusMessage({

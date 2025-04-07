@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "31047841-1591-4fef-8664-c92bb4a4bbcc",
+  "id": "96995391-36d4-444b-8406-f3dcc5d1623a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -20,10 +20,31 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "schedule_id": {
+          "name": "schedule_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "classroom_types_schedule_id_schedules_id_fk": {
+          "name": "classroom_types_schedule_id_schedules_id_fk",
+          "tableFrom": "classroom_types",
+          "tableTo": "schedules",
+          "columnsFrom": [
+            "schedule_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {
         "classroom_types_id": {
           "name": "classroom_types_id",
@@ -497,10 +518,31 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "schedule_id": {
+          "name": "schedule_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "majors_schedule_id_schedules_id_fk": {
+          "name": "majors_schedule_id_schedules_id_fk",
+          "tableFrom": "majors",
+          "tableTo": "schedules",
+          "columnsFrom": [
+            "schedule_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {
         "majors_id": {
           "name": "majors_id",

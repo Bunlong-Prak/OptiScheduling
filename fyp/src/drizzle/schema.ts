@@ -149,6 +149,11 @@ export const majors = mysqlTable("majors", {
     id: int("id").primaryKey().autoincrement(),
     name: varchar("name", { length: 255 }).notNull(),
     shortTag: varchar("short_tag", { length: 50 }).notNull(),
+    scheduleId: int("schedule_id")
+        .notNull()
+        .references(() => schedules.id, {
+            onDelete: "cascade",
+        }),
 });
 
 export const classrooms = mysqlTable("classrooms", {
@@ -163,6 +168,11 @@ export const classrooms = mysqlTable("classrooms", {
 export const classroomTypes = mysqlTable("classroom_types", {
     id: int("id").primaryKey().autoincrement(),
     name: varchar("name", { length: 255 }).notNull(),
+    scheduleId: int("schedule_id")
+        .notNull()
+        .references(() => schedules.id, {
+            onDelete: "cascade",
+        }),
 });
 
 export const classroomTypeRelations = relations(classroomTypes, ({ many }) => ({

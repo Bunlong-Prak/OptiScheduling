@@ -74,9 +74,7 @@ export async function GET(request: Request) {
         const scheduleId = searchParams.get("scheduleId");
 
         let instructorQuery;
-
         if (scheduleId) {
-            // Join instructors with courses where the schedule_id matches
             instructorQuery = await db
                 .select({
                     id: instructors.id,
@@ -89,13 +87,10 @@ export async function GET(request: Request) {
                 .from(instructors)
                 .innerJoin(schedules, eq(instructors.scheduleId, schedules.id))
                 .where(eq(instructors.scheduleId, parseInt(scheduleId)));
-        } else {
-            // If no scheduleId provided, return all instructors
-            instructorQuery = await db.select().from(instructors);
         }
 
         // Transform the data to match UI expectations
-        const formattedInstructors = instructorQuery.map((instructor) => ({
+        const formattedInstructors = instructorQuery?.map((instructor) => ({
             id: instructor.id,
             first_name: instructor.firstName,
             last_name: instructor.lastName,
