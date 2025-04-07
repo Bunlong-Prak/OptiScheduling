@@ -66,6 +66,9 @@ export default function TimetableView() {
         []
     );
     const [isLoading, setIsLoading] = useState(true);
+    
+    // Add state to track if dragging to available courses area
+    const [isDraggingToAvailable, setIsDraggingToAvailable] = useState(false);
 
     // New state for time slots from database - course hours related
     const [timeSlots, setTimeSlots] = useState<CourseHour[]>([]);
@@ -190,8 +193,78 @@ export default function TimetableView() {
     };
 
     // Handle drag over
-    const handleDragOver = (e: React.DragEvent<HTMLTableCellElement>) => {
+    const handleDragOver = (e: React.DragEvent<HTMLTableCellElement | HTMLDivElement>) => {
         e.preventDefault();
+    };
+    
+    // Handle drag over for available courses section
+    const handleAvailableDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsDraggingToAvailable(true);
+    };
+    
+    // Handle drag leave for available courses section
+    const handleAvailableDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsDraggingToAvailable(false);
+    };
+    
+    // Handle drop for available courses
+    const handleAvailableDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsDraggingToAvailable(false);
+        
+        if (!draggedCourse) return;
+        
+        // Only process if the course is from the timetable (has day property)
+        if (draggedCourse.day) {
+            // Remove course from the timetable
+            removeCourseFromTimetable(draggedCourse);
+        }
+    };
+    
+    // Function to remove a course from the timetable
+    const removeCourseFromTimetable = (course: TimetableCourse) => {
+        if (!course.day || !course.classroom || !course.startTime) return;
+        
+        // Find all keys for this course in the schedule
+        const keysToDelete = [];
+        const timeSlotIndex = timeSlots.findIndex(
+            (ts) => ts.time_slot === course.startTime
+        );
+        
+        for (let i = 0; i < course.duration; i++) {
+            if (timeSlotIndex + i >= timeSlots.length) break;
+            const currentTimeSlot = timeSlots[timeSlotIndex + i].time_slot;
+            keysToDelete.push(`${course.day}-${course.classroom}-${currentTimeSlot}`);
+        }
+        
+        // Remove all keys from the schedule
+        const newSchedule = { ...schedule };
+        keysToDelete.forEach((key) => {
+            delete newSchedule[key];
+        });
+        
+        setSchedule(newSchedule);
+        
+        // Return the course to available courses list
+        // Create a clean version without timetable-specific properties
+        const cleanCourse = {
+            id: course.id,
+            name: course.name,
+            color: course.color,
+            duration: course.duration,
+            instructor: course.instructor,
+            room: course.room,
+        };
+        
+        // Only add back to available courses if it's not already there
+        if (!availableCourses.some((c) => c.id === course.id)) {
+            setAvailableCourses((prev) => [...prev, cleanCourse]);
+        }
+        
+        // Remove from assigned courses
+        setAssignedCourses((prev) => prev.filter((c) => c.id !== course.id));
     };
 
     const getTimeSlotId = (timeSlotStr: string): number => {
@@ -249,17 +322,10 @@ export default function TimetableView() {
             }
         }
 
-        // Find and remove the old course slots if it was already on the timetable
-        const newSchedule = { ...schedule };
-        const oldKeys = Object.keys(newSchedule).filter((key) => {
-            const oldCourse = newSchedule[key];
-            return oldCourse.id === draggedCourse.id;
-        });
-
-        // Remove old slots
-        oldKeys.forEach((key) => {
-            delete newSchedule[key];
-        });
+        // If the course is already on the timetable, first remove it
+        if (draggedCourse.day) {
+            removeCourseFromTimetable(draggedCourse);
+        }
 
         // Calculate end time
         const endTimeIndex = timeSlotIndex + draggedCourse.duration - 1;
@@ -279,6 +345,7 @@ export default function TimetableView() {
         };
 
         // Add the course to all its new time slots
+        const newSchedule = { ...schedule };
         for (let i = 0; i < draggedCourse.duration; i++) {
             if (timeSlotIndex + i >= timeSlots.length) break;
             const currentTimeSlot = timeSlots[timeSlotIndex + i].time_slot;
@@ -561,10 +628,15 @@ export default function TimetableView() {
             </div>
 
             {/* Draggable courses section with real data from API - only showing available courses */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-lg shadow-lg z-50 border-t">
+            <div 
+                className={`fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-lg shadow-lg z-50 border-t ${isDraggingToAvailable ? 'bg-blue-50' : ''}`}
+                onDragOver={handleAvailableDragOver}
+                onDragLeave={handleAvailableDragLeave}
+                onDrop={handleAvailableDrop}
+            >
                 <div className="max-w-9xl mx-auto">
                     <h3 className="text-lg font-semibold mb-4">
-                        Available Courses
+                        Available Courses {isDraggingToAvailable && <span className="text-blue-500">(Drop Here to Return Course)</span>}
                     </h3>
                     {isLoading ? (
                         <div className="text-center py-4">
