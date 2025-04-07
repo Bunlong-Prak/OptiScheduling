@@ -35,6 +35,7 @@ CREATE TABLE `courses` (
 CREATE TABLE `instructor_time_constraints` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`instructor_id` int NOT NULL,
+	`schedule_id` int NOT NULL,
 	CONSTRAINT `instructor_time_constraints_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -127,6 +128,7 @@ ALTER TABLE `courses` ADD CONSTRAINT `courses_schedule_id_schedules_id_fk` FOREI
 ALTER TABLE `courses` ADD CONSTRAINT `courses_major_id_majors_id_fk` FOREIGN KEY (`major_id`) REFERENCES `majors`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `courses` ADD CONSTRAINT `courses_instructor_id_instructors_id_fk` FOREIGN KEY (`instructor_id`) REFERENCES `instructors`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `instructor_time_constraints` ADD CONSTRAINT `instructor_time_constraints_instructor_id_instructors_id_fk` FOREIGN KEY (`instructor_id`) REFERENCES `instructors`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `instructor_time_constraints` ADD CONSTRAINT `instructor_time_constraints_schedule_id_schedules_id_fk` FOREIGN KEY (`schedule_id`) REFERENCES `schedules`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `instructor_time_constraint_days` ADD CONSTRAINT `instructor_time_constraint_days_instructor_time_constraint_id_instructor_time_constraints_id_fk` FOREIGN KEY (`instructor_time_constraint_id`) REFERENCES `instructor_time_constraints`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `instructor_time_constraint_time_slots` ADD CONSTRAINT `instructor_time_constraint_time_slots_instructor_time_constraint_day_id_instructor_time_constraint_days_id_fk` FOREIGN KEY (`instructor_time_constraint_day_id`) REFERENCES `instructor_time_constraint_days`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `instructors` ADD CONSTRAINT `instructors_schedule_id_schedules_id_fk` FOREIGN KEY (`schedule_id`) REFERENCES `schedules`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

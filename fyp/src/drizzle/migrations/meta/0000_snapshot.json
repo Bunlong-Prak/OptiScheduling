@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "96995391-36d4-444b-8406-f3dcc5d1623a",
+  "id": "956faa1c-59bf-4395-af16-72696168910e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -282,6 +282,13 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "schedule_id": {
+          "name": "schedule_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {},
@@ -297,6 +304,19 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "instructor_time_constraints_schedule_id_schedules_id_fk": {
+          "name": "instructor_time_constraints_schedule_id_schedules_id_fk",
+          "tableFrom": "instructor_time_constraints",
+          "tableTo": "schedules",
+          "columnsFrom": [
+            "schedule_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

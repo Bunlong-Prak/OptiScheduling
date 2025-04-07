@@ -211,7 +211,12 @@ export const instructorTimeConstraint = mysqlTable(
         id: int("id").primaryKey().autoincrement(),
         instructorId: int("instructor_id")
             .notNull()
-            .references(() => instructors.id), // Foreign key to Instructor
+            .references(() => instructors.id),
+        scheduleId: int("schedule_id")
+            .notNull()
+            .references(() => schedules.id, {
+                onDelete: "cascade",
+            }), // Foreign key to Instructor
     }
 );
 

@@ -19,6 +19,9 @@ export const createMajorSchema = z.object({
         .string()
         .min(1, { message: "Short tag is required" })
         .max(10, { message: "Short tag cannot exceed 10 characters" }),
+    scheduleId: z.number({
+        required_error: "Schedule ID is required",
+    }),
 });
 
 export const editMajorSchema = z.object({
@@ -47,11 +50,23 @@ export const deleteMajorSchema = z.object({
     }),
 });
 // GET all majors
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        const allMajors = await db.select().from(majors);
+        const { searchParams } = new URL(request.url);
+        const scheduleId = searchParams.get("scheduleId");
+        let majorsQuery;
+        if (scheduleId) {
+            majorsQuery = await db
+                .select({
+                    id: majors.id,
+                    name: majors.name,
+                    shortTag: majors.shortTag,
+                })
+                .from(majors)
+                .where(eq(majors.scheduleId, parseInt(scheduleId)));
+        }
 
-        const formattedMajors = allMajors.map((major) => ({
+        const formattedMajors = majorsQuery?.map((major) => ({
             id: major.id,
             name: major.name,
             short_tag: major.shortTag,
@@ -71,11 +86,12 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const validatedData = createMajorSchema.parse(body);
-        const { name, shortTag } = validatedData;
+        const { name, shortTag, scheduleId } = validatedData;
 
         const newMajor = await db.insert(majors).values({
             name,
             shortTag,
+            scheduleId,
         });
 
         return NextResponse.json(newMajor);

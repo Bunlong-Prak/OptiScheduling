@@ -59,24 +59,28 @@ export const deleteClassroomSchema = z.object({
 // GET all classrooms
 import { classroomTypes } from "@/drizzle/schema";
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        // Join classrooms with classroomTypes to get the type name
-        const classroomsWithTypes = await db
-            .select({
-                id: classrooms.id,
-                code: classrooms.code,
-                typeName: classroomTypes.name,
-                capacity: classrooms.capacity,
-            })
-            .from(classrooms)
-            .leftJoin(
-                classroomTypes,
-                eq(classrooms.classroomTypeId, classroomTypes.id)
-            );
-
+        const { searchParams } = new URL(request.url);
+        const scheduleId = searchParams.get("scheduleId");
+        let classroomTypesQuery;
+        if (scheduleId) {
+            classroomTypesQuery = await db
+                .select({
+                    id: classrooms.id,
+                    code: classrooms.code,
+                    typeName: classroomTypes.name,
+                    capacity: classrooms.capacity,
+                })
+                .from(classrooms)
+                .innerJoin(
+                    classroomTypes,
+                    eq(classrooms.classroomTypeId, classroomTypes.id)
+                )
+                .where(eq(classroomTypes.scheduleId, parseInt(scheduleId)));
+        }
         // Format the response to include type name
-        const formattedClassrooms = classroomsWithTypes.map((classroom) => ({
+        const formattedClassrooms = classroomTypesQuery?.map((classroom) => ({
             id: classroom.id,
             code: classroom.code,
             type: classroom.typeName || "Unknown Type",

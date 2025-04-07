@@ -26,6 +26,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Clock, Pencil, Plus, Trash, X } from "lucide-react";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 // Define how many items to show per page
@@ -91,11 +92,14 @@ export default function TimeConstraintView() {
             setSelectedTimeSlots(selectedConstraint.time_period);
         }
     }, [selectedConstraint]);
-
+    const params = useParams();
     // Fetch instructors from API
     const fetchInstructors = async () => {
         try {
-            const response = await fetch("/api/instructors");
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/instructors?scheduleId=${scheduleId}`
+            );
             if (!response.ok) {
                 throw new Error("Failed to fetch instructors");
             }

@@ -78,8 +78,11 @@ export default function ClassroomView() {
     // Fetch classrooms from API
     const fetchClassrooms = async () => {
         setIsLoading(true);
+        const scheduleId = params.id; // Assuming scheduleId is passed as a URL parameter
         try {
-            const response = await fetch("/api/classrooms");
+            const response = await fetch(
+                `/api/classrooms?scheduleId=${scheduleId}`
+            );
             if (!response.ok) {
                 throw new Error("Failed to fetch classrooms");
             }

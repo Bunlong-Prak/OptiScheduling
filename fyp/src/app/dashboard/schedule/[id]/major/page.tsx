@@ -2,6 +2,7 @@
 
 import type React from "react";
 
+import type { Major, MajorFormData } from "@/app/types";
 import CustomPagination from "@/components/custom/pagination";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,8 +15,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pencil, Plus, Trash } from "lucide-react";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { Major, MajorFormData } from "@/app/types";
 
 const ITEMS_PER_PAGE = 5;
 
@@ -61,7 +62,10 @@ export default function MajorView() {
     const fetchMajors = async () => {
         try {
             setIsLoading(true);
-            const response = await fetch("/api/majors");
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/majors?scheduleId=${scheduleId}`
+            );
 
             if (!response.ok) {
                 throw new Error("Failed to fetch majors");
@@ -95,13 +99,14 @@ export default function MajorView() {
         resetForm(); // Ensure form is clean before opening
         setIsAddDialogOpen(true);
     };
-
+    const params = useParams();
     const handleAddMajor = async () => {
         try {
-            // Prepare data for API
+            const scheduleId = params.id;
             const apiData = {
                 name: formData.name,
                 shortTag: formData.short_tag,
+                scheduleId: Number(scheduleId),
             };
 
             const response = await fetch("/api/majors", {
