@@ -35,7 +35,7 @@ export default function MajorView() {
         short_tag: "",
     });
     const [currentPage, setCurrentPage] = useState(1);
-    const [isLoading, setIsLoading] = useState(false);
+    // const [isLoading, setIsLoading] = useState(false);
 
     // Load majors on component mount
     useEffect(() => {
@@ -61,7 +61,7 @@ export default function MajorView() {
 
     const fetchMajors = async () => {
         try {
-            setIsLoading(true);
+
             const scheduleId = params.id;
             const response = await fetch(
                 `/api/majors?scheduleId=${scheduleId}`
@@ -81,9 +81,7 @@ export default function MajorView() {
                 text: "Failed to load majors. Please try again.",
                 type: "error",
             });
-        } finally {
-            setIsLoading(false);
-        }
+        } 
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -253,11 +251,7 @@ export default function MajorView() {
 
     return (
         <div>
-            {isLoading ? (
-                <div className="flex justify-center my-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                </div>
-            ) : (
+          
                 <>
                     {statusMessage && (
                         <div
@@ -363,7 +357,7 @@ export default function MajorView() {
                         />
                     )}
                 </>
-            )}
+         
 
             {/* Add Major Dialog */}
             <Dialog

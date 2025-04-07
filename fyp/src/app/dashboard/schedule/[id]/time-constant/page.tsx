@@ -62,7 +62,7 @@ export default function TimeConstraintView() {
     });
     const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
-    const [isLoading, setIsLoading] = useState(false);
+   
     const [statusMessage, setStatusMessage] = useState({
         text: "",
         type: "", // "success", "error", "info"
@@ -164,7 +164,7 @@ export default function TimeConstraintView() {
     }, [selectedTimeSlots]);
     // Fetch constraints from the API
     const fetchConstraints = async () => {
-        setIsLoading(true);
+       
         try {
             const scheduleId = params.id;
             const response = await fetch(
@@ -190,9 +190,7 @@ export default function TimeConstraintView() {
                 text: "Failed to load constraints. Please refresh the page.",
                 type: "error",
             });
-        } finally {
-            setIsLoading(false);
-        }
+        } 
     };
 
     // Status message component
@@ -229,7 +227,7 @@ export default function TimeConstraintView() {
             return;
         }
 
-        setIsLoading(true);
+        
         try {
             const scheduleId = params.id;
             // Prepare data for API
@@ -269,15 +267,13 @@ export default function TimeConstraintView() {
                 text: "Failed to add constraint. Please try again.",
                 type: "error",
             });
-        } finally {
-            setIsLoading(false);
-        }
+        } 
     };
 
     const handleEditConstraint = async () => {
         if (!selectedConstraint) return;
 
-        setIsLoading(true);
+       
         try {
             const apiData = {
                 instructorId: formData.instructor_id,
@@ -322,15 +318,12 @@ export default function TimeConstraintView() {
                         : "Failed to update constraint. Please try again.",
                 type: "error",
             });
-        } finally {
-            setIsLoading(false);
         }
     };
 
     const handleDeleteConstraint = async () => {
         if (!selectedConstraint) return;
 
-        setIsLoading(true);
         try {
             const apiData = {
                 instructorId: selectedConstraint.instructor_id,
@@ -365,9 +358,7 @@ export default function TimeConstraintView() {
                 text: "Failed to delete constraint. Please try again.",
                 type: "error",
             });
-        } finally {
-            setIsLoading(false);
-        }
+        } 
     };
 
     const resetForm = () => {
@@ -451,18 +442,7 @@ export default function TimeConstraintView() {
             {/* Display status message */}
             <StatusMessageDisplay />
 
-            {/* Display loading state */}
-            {isLoading && (
-                <div className="text-center p-4">
-                    <p>Loading...</p>
-                </div>
-            )}
-
-            {!isLoading && timeConstraints.length === 0 ? (
-                <div className="text-center p-8 text-gray-500">
-                    No time constraints added yet
-                </div>
-            ) : (
+        
                 <>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {paginatedConstraints.map((constraint) => (
@@ -530,7 +510,7 @@ export default function TimeConstraintView() {
                         </div>
                     )}
                 </>
-            )}
+     
 
             {/* Add Constraint Dialog */}
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
