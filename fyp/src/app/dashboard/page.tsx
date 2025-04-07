@@ -28,7 +28,7 @@ import { useEffect, useState } from "react";
 type Schedule = {
     id: string;
     name: string;
-    createdOn: string;
+    academic_year: string;
     courses: number;
     instructors: number;
     startDate: string;
@@ -105,7 +105,7 @@ export default function Dashboard() {
 
             // Create a new array to hold the processed schedules with counts
             const processedSchedules = await Promise.all(
-                data.map(async (schedule) => {
+                data.map(async (schedule: Schedule) => {
                     // Split the academic_year string into start and end dates
                     const [startDateStr, endDateStr] =
                         schedule.academic_year.split(" - ");

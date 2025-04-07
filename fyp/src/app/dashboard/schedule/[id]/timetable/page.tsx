@@ -181,28 +181,23 @@ export default function TimetableView() {
                     const coursesData: ApiCourse[] = await response.json();
 
                     // Transform API courses to the format needed for the timetable
+                    // Keep all sections instead of filtering out duplicates
                     const transformedCourses = coursesData.map((course) => ({
-                        id: course.code,
+                        code: course.code,
+                        sectionId: course.sectionId, // Add sectionId for uniqueness
                         name: course.title,
                         color: colorMap[course.color] || "bg-gray-200", // Use color mapping or fallback
                         duration: course.duration,
                         instructor: `${course.firstName || ""} ${
                             course.lastName || ""
                         }`.trim(),
+                        section: course.section,
                         room: course.classroom || "TBA",
+                        uniqueId: `${course.code}-${course.section}`, // Create a uniqueId combining code and section
                     }));
 
-                    // Remove duplicates (courses with same code)
-                    const uniqueCourses = Array.from(
-                        new Map(
-                            transformedCourses.map((course) => [
-                                course.id,
-                                course,
-                            ])
-                        ).values()
-                    );
-
-                    setAvailableCourses(uniqueCourses);
+                    // No more filtering out duplicates by course code
+                    setAvailableCourses(transformedCourses);
                 } else {
                     console.error("Failed to fetch courses");
                     // Fallback to empty array if API fails
@@ -266,7 +261,7 @@ export default function TimetableView() {
 
         // Remove all occurrences of this course ID from schedule
         Object.keys(newSchedule).forEach((key) => {
-            if (newSchedule[key].id === course.id) {
+            if (newSchedule[key].sectionId === course.sectionId) {
                 delete newSchedule[key];
             }
         });
@@ -276,21 +271,25 @@ export default function TimetableView() {
         // Return the course to available courses list
         // Create a clean version without timetable-specific properties
         const cleanCourse = {
-            id: course.id,
+            code: course.code,
             name: course.name,
             color: course.color,
             duration: course.duration,
             instructor: course.instructor,
+            sectionId: course.sectionId,
+            section: course.section,
             room: course.room,
         };
 
         // Only add back to available courses if it's not already there
-        if (!availableCourses.some((c) => c.id === course.id)) {
+        if (!availableCourses.some((c) => c.sectionId === course.sectionId)) {
             setAvailableCourses((prev) => [...prev, cleanCourse]);
         }
 
         // Remove from assigned courses
-        setAssignedCourses((prev) => prev.filter((c) => c.id !== course.id));
+        setAssignedCourses((prev) =>
+            prev.filter((c) => c.sectionId !== course.sectionId)
+        );
     };
 
     const getTimeSlotId = (timeSlotStr: string): number => {
@@ -314,12 +313,18 @@ export default function TimetableView() {
         const existingCourse = schedule[key];
 
         // If dropping on the same course, do nothing
-        if (existingCourse && existingCourse.id === draggedCourse.id) {
+        if (
+            existingCourse &&
+            existingCourse.sectionId === draggedCourse.sectionId
+        ) {
             return;
         }
 
         // If dropping on a different course, show conflict message
-        if (existingCourse && existingCourse.id !== draggedCourse.id) {
+        if (
+            existingCourse &&
+            existingCourse.sectionId !== draggedCourse.sectionId
+        ) {
             alert(
                 "This time slot is already occupied. Please choose another slot."
             );
@@ -342,7 +347,7 @@ export default function TimetableView() {
             const nextKey = `${day}-${classroomId}-${nextTimeSlot}`;
             if (
                 schedule[nextKey] &&
-                schedule[nextKey].id !== draggedCourse.id
+                schedule[nextKey].sectionId !== draggedCourse.sectionId
             ) {
                 alert(
                     "There's a conflict with another course in subsequent time slots."
@@ -354,7 +359,9 @@ export default function TimetableView() {
         // Create a new schedule and remove all instances of the dragged course
         const newSchedule = { ...schedule };
         Object.keys(newSchedule).forEach((scheduleKey) => {
-            if (newSchedule[scheduleKey].id === draggedCourse.id) {
+            if (
+                newSchedule[scheduleKey].sectionId === draggedCourse.sectionId
+            ) {
                 delete newSchedule[scheduleKey];
             }
         });
@@ -400,31 +407,25 @@ export default function TimetableView() {
         if (isFromAvailable) {
             // Remove from available courses
             setAvailableCourses((prev) =>
-                prev.filter((course) => course.id !== draggedCourse.id)
+                prev.filter(
+                    (course) => course.sectionId !== draggedCourse.sectionId
+                )
             );
 
             // Add to assigned courses
             setAssignedCourses((prev) => [
-                ...prev.filter((c) => c.id !== draggedCourse.id),
+                ...prev.filter((c) => c.sectionId !== draggedCourse.sectionId),
                 assignedCourse,
             ]);
         } else {
             // Just update the position in assigned courses
             setAssignedCourses((prev) => {
-                const filtered = prev.filter((c) => c.id !== draggedCourse.id);
+                const filtered = prev.filter(
+                    (c) => c.sectionId !== draggedCourse.sectionId
+                );
                 return [...filtered, assignedCourse];
             });
         }
-
-        console.log("Course assigned:", {
-            courseId: assignedCourse.id,
-            day: day,
-            classroomId: classroomId,
-            startTime: timeSlot,
-            endTime: endTimeSlot,
-            courseHoursId: timeSlotId,
-            fromAvailable: isFromAvailable,
-        });
     };
 
     // Handle course click - updated to use classroom instead of major
@@ -441,86 +442,86 @@ export default function TimetableView() {
     };
 
     // Handle course delete - simplified to use course ID approach
-    const handleDeleteCourse = () => {
-        const { day, classroomId, timeSlot } = cellToDelete;
-        const key = `${day}-${classroomId}-${timeSlot}`;
-        const course = schedule[key];
+    // const handleDeleteCourse = () => {
+    //     const { day, classroomId, timeSlot } = cellToDelete;
+    //     const key = `${day}-${classroomId}-${timeSlot}`;
+    //     const course = schedule[key];
 
-        if (!course) return;
+    //     if (!course) return;
 
-        // Get the course ID to remove
-        const courseId = course.id;
+    //     // Get the course ID to remove
+    //     const courseId = course.id;
 
-        // Create a new schedule without this course
-        const newSchedule = { ...schedule };
-        Object.keys(newSchedule).forEach((scheduleKey) => {
-            if (newSchedule[scheduleKey].id === courseId) {
-                delete newSchedule[scheduleKey];
-            }
-        });
+    //     // Create a new schedule without this course
+    //     const newSchedule = { ...schedule };
+    //     Object.keys(newSchedule).forEach((scheduleKey) => {
+    //         if (newSchedule[scheduleKey].id === courseId) {
+    //             delete newSchedule[scheduleKey];
+    //         }
+    //     });
 
-        setSchedule(newSchedule);
+    //     setSchedule(newSchedule);
 
-        // Return the course to available courses list
-        // Create a clean version without timetable-specific properties
-        const cleanCourse = {
-            id: course.id,
-            name: course.name,
-            color: course.color,
-            duration: course.duration,
-            instructor: course.instructor,
-            room: course.room,
-        };
+    //     // Return the course to available courses list
+    //     // Create a clean version without timetable-specific properties
+    //     const cleanCourse = {
+    //         id: course.id,
+    //         name: course.name,
+    //         color: course.color,
+    //         duration: course.duration,
+    //         instructor: course.instructor,
+    //         section: course.section,
+    //         room: course.room,
+    //     };
 
-        // Only add back to available courses if it's not already there
-        if (!availableCourses.some((c) => c.id === course.id)) {
-            setAvailableCourses((prev) => [...prev, cleanCourse]);
-        }
+    //     // Only add back to available courses if it's not already there
+    //     if (!availableCourses.some((c) => c.id === course.id)) {
+    //         setAvailableCourses((prev) => [...prev, cleanCourse]);
+    //     }
 
-        // Remove from assigned courses
-        setAssignedCourses((prev) => prev.filter((c) => c.id !== course.id));
+    //     // Remove from assigned courses
+    //     setAssignedCourses((prev) => prev.filter((c) => c.id !== course.id));
 
-        setIsDialogOpen(false);
-    };
+    //     setIsDialogOpen(false);
+    // };
 
     // Function to save the timetable to the database - updated for classroom
-    const saveTimetable = async () => {
-        // Extract all assigned courses from the schedule
-        const assignmentsToSave = assignedCourses.map((course) => ({
-            courseId: course.id,
-            day: course.day,
-            classroomId: course.classroom,
-            courseHoursId: course.courseHoursId, // Course hours related
-            // Add any other fields needed for your API
-        }));
+    // const saveTimetable = async () => {
+    //     // Extract all assigned courses from the schedule
+    //     const assignmentsToSave = assignedCourses.map((course) => ({
+    //         courseId: course.id,
+    //         day: course.day,
+    //         classroomId: course.classroom,
+    //         courseHoursId: course.courseHoursId, // Course hours related
+    //         // Add any other fields needed for your API
+    //     }));
 
-        try {
-            // Send to your API endpoint
-            const response = await fetch("/api/save-timetable", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ assignments: assignmentsToSave }),
-            });
+    //     try {
+    //         // Send to your API endpoint
+    //         const response = await fetch("/api/save-timetable", {
+    //             method: "POST",
+    //             headers: {
+    //                 "Content-Type": "application/json",
+    //             },
+    //             body: JSON.stringify({ assignments: assignmentsToSave }),
+    //         });
 
-            if (response.ok) {
-                alert("Timetable saved successfully!");
-            } else {
-                alert("Failed to save timetable");
-            }
-        } catch (error) {
-            console.error("Error saving timetable:", error);
-            alert("Error saving timetable");
-        }
-    };
+    //         if (response.ok) {
+    //             alert("Timetable saved successfully!");
+    //         } else {
+    //             alert("Failed to save timetable");
+    //         }
+    //     } catch (error) {
+    //         console.error("Error saving timetable:", error);
+    //         alert("Error saving timetable");
+    //     }
+    // };
 
     return (
         <div className="relative min-h-screen">
             <div className="flex justify-between items-center mb-8">
                 <h2 className="text-2xl font-bold">Timetable</h2>
                 <div className="space-x-2">
-                    <Button onClick={saveTimetable}>Save Timetable</Button>
                     <Button>Export Timetable</Button>
                 </div>
             </div>
@@ -572,7 +573,7 @@ export default function TimetableView() {
                                                 : "bg-white"
                                         }
                                     >
-                                        <td className="px-4 py-2 whitespace-nowrap text-sm font-medium border font-semibold text-gray-700">
+                                        <td className="px-4 py-2 whitespace-nowrap text-sm font-medium border text-gray-700">
                                             {classroom.code}
                                         </td>
                                         {days.map((day) =>
@@ -621,7 +622,11 @@ export default function TimetableView() {
                                                                     )
                                                                 }
                                                             >
-                                                                {course.id}
+                                                                {course.code}
+                                                                {" Section: "}
+                                                                {
+                                                                    course.sectionId
+                                                                }
                                                             </div>
                                                         ) : (
                                                             <div className="h-6 w-full" />
@@ -668,13 +673,13 @@ export default function TimetableView() {
                         <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto p-2">
                             {availableCourses.map((course) => (
                                 <div
-                                    key={course.id}
+                                    key={course.sectionId}
                                     className={`${course.color} p-3 rounded-lg shadow cursor-move hover:shadow-md transition-all border`}
                                     draggable
                                     onDragStart={() => handleDragStart(course)}
                                 >
                                     <h4 className="font-bold text-gray-800">
-                                        {course.id}
+                                        {course.code}
                                     </h4>
                                     <p className="text-sm font-medium">
                                         {course.name}
@@ -685,6 +690,9 @@ export default function TimetableView() {
                                     </p>
                                     <p className="text-xs mt-1 truncate text-gray-700">
                                         Instructor: {course.instructor}
+                                    </p>
+                                    <p className="text-xs mt-1 truncate text-gray-700">
+                                        Section: {course.section || "N/A"}
                                     </p>
                                 </div>
                             ))}
@@ -711,7 +719,7 @@ export default function TimetableView() {
                                         .replace("border-", "")}`}
                                 ></div>
                                 <h3 className="font-bold text-lg">
-                                    {selectedCourse.id}: {selectedCourse.name}
+                                    {selectedCourse.code}: {selectedCourse.name}
                                 </h3>
                                 <div className="space-y-2">
                                     <div className="flex justify-between">
@@ -768,7 +776,7 @@ export default function TimetableView() {
                                 </Button>
                                 <Button
                                     variant="destructive"
-                                    onClick={handleDeleteCourse}
+                                    // onClick={handleDeleteCourse}
                                 >
                                     Remove
                                 </Button>

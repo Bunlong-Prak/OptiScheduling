@@ -412,7 +412,7 @@ export default function CoursesView() {
                     // Format validation errors into a readable message
                     const errorMessages = Array.isArray(responseData.details)
                         ? responseData.details
-                              .map((err) => err.message)
+                              .map((err: { message: string }) => err.message)
                               .join(", ")
                         : JSON.stringify(responseData.details);
 

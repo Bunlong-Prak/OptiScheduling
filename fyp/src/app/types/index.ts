@@ -114,8 +114,9 @@ export type CourseHour = {
 };
 
 export type TimetableCourse = {
-    id: string;
+    code: string;
     name: string;
+    sectionId: number;
     color: string;
     duration: number;
     instructor: string;
@@ -128,7 +129,8 @@ export type TimetableCourse = {
     startTime?: string; // Start time display value
     endTime?: string; // End time display value
     courseHoursId?: number; // ID from course_hours table
-    classroom?: string; // Classroom assigned to
+    classroom?: string;
+    section: string; // Classroom assigned to
 };
 
 export type Schedule = Record<string, TimetableCourse>;
