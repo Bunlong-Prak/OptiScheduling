@@ -1,7 +1,7 @@
 "use client";
 
 import { Classroom, Course, Instructor, Major } from "@/app/types";
-import CustomPagination from "@/components/custom/pagination";
+import CustomPagination  from "@/components/custom/pagination";
 import { Button } from "@/components/ui/button";
 import {
     Command,
@@ -35,50 +35,11 @@ import { Check, ChevronsUpDown, Pencil, Plus, Trash } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { colors,getColorName } from "@/components/custom/colors";
 // Number of courses to show per page
 const ITEMS_PER_PAGE = 10;
 
 export default function CoursesView() {
-    const colors = [
-        "blue",
-        "green",
-        "yellow",
-        "red",
-        "purple",
-        "orange",
-        "pink",
-        "indigo",
-        "turquoise",
-        "teal",
-        "maroon",
-        "lavender",
-        "ivory",
-        "mustard",
-        "black",
-        "white",
-        "grey",
-        "coral",
-        "navy",
-        "amber",
-        "mint",
-        "emerald",
-        "periwinkle",
-        "cyan",
-        "magenta",
-        "beige",
-        "olive",
-        "gold",
-        "silver",
-        "peach",
-        "rose",
-        "crimson",
-        "lilac",
-        "salmon",
-        "burgundy",
-        "tan",
-        "khaki",
-        "slate",
-    ];
     const [courses, setCourses] = useState<Course[]>([]);
     const [majors, setMajors] = useState<Major[]>([]);
     const [instructors, setInstructors] = useState<Instructor[]>([]);
@@ -291,10 +252,6 @@ export default function CoursesView() {
             });
         }
     };
-
-    // Improved handleEditCourse function with better error handling
-
-    // Enhanced handleEditCourse function with better validation error handling
 
     // Fixed handleEditCourse function with proper instructorId handling
 
@@ -783,8 +740,7 @@ export default function CoursesView() {
                                                 key={color}
                                                 value={color}
                                             >
-                                                {color.charAt(0).toUpperCase() +
-                                                    color.slice(1)}
+                                                {getColorName(color)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -1052,12 +1008,12 @@ export default function CoursesView() {
                                         <SelectValue placeholder="Select major" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {majors.map((major) => (
+                                        {colors.map((color) => (
                                             <SelectItem
-                                                key={major.id}
-                                                value={major.name}
+                                                key={color}
+                                                value={color}
                                             >
-                                                {major.name}
+                                                {getColorName(color)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
