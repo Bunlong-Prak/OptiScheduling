@@ -96,21 +96,27 @@ export default function CoursesView() {
                 setCourses(coursesData);
 
                 // Fetch majors
-                const majorsRes = await fetch("/api/majors");
+                const majorsRes = await fetch(
+                    `/api/majors?scheduleId=${scheduleId}`
+                );
                 if (majorsRes.ok) {
                     const majorsData = await majorsRes.json();
                     setMajors(majorsData);
                 }
 
                 // Fetch instructors
-                const instructorsRes = await fetch("/api/instructors");
+                const instructorsRes = await fetch(
+                    `/api/instructors?scheduleId=${scheduleId}`
+                );
                 if (instructorsRes.ok) {
                     const instructorsData = await instructorsRes.json();
                     setInstructors(instructorsData);
                 }
 
                 // Fetch classrooms
-                const classroomsRes = await fetch("/api/classrooms");
+                const classroomsRes = await fetch(
+                    `/api/classrooms?scheduleId=${scheduleId}`
+                );
                 if (classroomsRes.ok) {
                     const classroomsData = await classroomsRes.json();
                     setClassrooms(classroomsData);

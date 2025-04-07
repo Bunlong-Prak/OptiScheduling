@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Course as ApiCourse } from "@/app/types";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -8,7 +8,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Course as ApiCourse } from "@/app/types";
+import { useEffect, useState } from "react";
 
 // Mock data for the timetable
 const days = [
@@ -20,10 +20,14 @@ const days = [
     "Saturday",
 ];
 
-import { CourseHour, Classroom } from "@/app/types";
-import { TimetableCourse } from "@/app/types";
-import { CellToDelete } from "@/app/types";
-import { Schedule } from "@/app/types";
+import {
+    CellToDelete,
+    Classroom,
+    CourseHour,
+    Schedule,
+    TimetableCourse,
+} from "@/app/types";
+import { useParams } from "next/navigation";
 // Initial schedule data (empty object)
 const initialSchedule: Schedule = {};
 
@@ -82,6 +86,7 @@ export default function TimetableView() {
         { id: 9, time_slot: "16:00" },
         { id: 10, time_slot: "17:00" },
     ];
+    const params = useParams();
 
     // Fetch time slots and classrooms from API
     useEffect(() => {
@@ -109,7 +114,10 @@ export default function TimetableView() {
 
         const fetchClassrooms = async () => {
             try {
-                const response = await fetch("/api/classrooms");
+                const scheduleId = params.id;
+                const response = await fetch(
+                    `/api/classrooms?scheduleId=${scheduleId}`
+                );
                 if (response.ok) {
                     const data = await response.json();
                     // Use classrooms directly without adding extra fields
@@ -196,7 +204,7 @@ export default function TimetableView() {
 
     // Simplified function that just returns the index + 1 as ID
     const getTimeSlotId = (timeSlotStr: string): number => {
-        const index = timeSlots.findIndex(ts => ts.time_slot === timeSlotStr);
+        const index = timeSlots.findIndex((ts) => ts.time_slot === timeSlotStr);
         return index !== -1 ? index + 1 : 0;
     };
 
