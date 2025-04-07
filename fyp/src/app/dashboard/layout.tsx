@@ -8,9 +8,6 @@ export default async function DashboardLayout({
 }: {
     children: React.ReactNode;
 }) {
-
-
-
     const authUser = await getAuthUser();
     console.log(authUser);
     if (!authUser) {
@@ -22,9 +19,14 @@ export default async function DashboardLayout({
             <header className="bg-white shadow-sm">
                 <div className="px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16 items-center">
-                        <h1 className="text-xl font-bold">
-                            OptiScheduling System
-                        </h1>
+                        <a
+                            href="/dashboard"
+                            className="flex items-center space-x-2"
+                        >
+                            <h1 className="text-xl font-bold">
+                                OptiScheduling System
+                            </h1>
+                        </a>
                         <nav className="flex space-x-4">
                             <a
                                 href="/dashboard"

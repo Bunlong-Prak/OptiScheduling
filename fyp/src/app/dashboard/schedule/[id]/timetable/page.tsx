@@ -194,15 +194,6 @@ export default function TimetableView() {
         e.preventDefault();
     };
 
-    // Helper function to get time slot ID from time string - course hours related
-    /*
-    const getTimeSlotId = (timeSlotStr: string): number => {
-        const timeSlot = timeSlots.find((ts) => ts.time_slot === timeSlotStr);
-        return timeSlot ? timeSlot.id : 0; // Return 0 if not found
-    };
-    */
-
-    // Simplified function that just returns the index + 1 as ID
     const getTimeSlotId = (timeSlotStr: string): number => {
         const index = timeSlots.findIndex((ts) => ts.time_slot === timeSlotStr);
         return index !== -1 ? index + 1 : 0;

@@ -56,6 +56,44 @@ export default function Dashboard() {
         fetchSchedules();
     }, []);
 
+    const fetchCourseCount = async (scheduleId: string) => {
+        try {
+            const response = await fetch(
+                `/api/courses?scheduleId=${scheduleId}`
+            );
+            if (!response.ok) {
+                throw new Error("Failed to fetch courses");
+            }
+            const data = await response.json();
+            return data.length;
+        } catch (error) {
+            console.error(
+                `Error fetching courses for schedule ${scheduleId}:`,
+                error
+            );
+            return 0;
+        }
+    };
+
+    const fetchInstructorCount = async (scheduleId: string) => {
+        try {
+            const response = await fetch(
+                `/api/instructors?scheduleId=${scheduleId}`
+            );
+            if (!response.ok) {
+                throw new Error("Failed to fetch instructors");
+            }
+            const data = await response.json();
+            return data.length;
+        } catch (error) {
+            console.error(
+                `Error fetching instructors for schedule ${scheduleId}:`,
+                error
+            );
+            return 0;
+        }
+    };
+
     const fetchSchedules = async () => {
         setIsLoading(true);
         try {
@@ -64,20 +102,34 @@ export default function Dashboard() {
                 throw new Error("Failed to fetch schedules");
             }
             const data = await response.json();
-            setSchedules(
-                data.map((schedule) => {
+
+            // Create a new array to hold the processed schedules with counts
+            const processedSchedules = await Promise.all(
+                data.map(async (schedule) => {
                     // Split the academic_year string into start and end dates
                     const [startDateStr, endDateStr] =
                         schedule.academic_year.split(" - ");
+
+                    // Fetch course and instructor counts for this schedule
+                    const courseCount = await fetchCourseCount(
+                        schedule.id.toString()
+                    );
+                    const instructorCount = await fetchInstructorCount(
+                        schedule.id.toString()
+                    );
 
                     return {
                         id: schedule.id.toString(),
                         name: schedule.name,
                         startDate: startDateStr, // Already formatted as "15 Jan, 2025"
-                        endDate: endDateStr, // Already formatted as "25 May, 2026"
+                        endDate: endDateStr || startDateStr, // Use endDateStr if available, otherwise use startDateStr
+                        courses: courseCount,
+                        instructors: instructorCount,
                     };
                 })
             );
+
+            setSchedules(processedSchedules);
         } catch (error) {
             console.error("Error fetching schedules:", error);
         } finally {
@@ -266,8 +318,10 @@ export default function Dashboard() {
                                         {schedule.name}
                                     </h2>
                                     <p className="text-sm text-gray-500">
-                                        {schedule.startDate} -{" "}
-                                        {schedule.endDate}
+                                        {schedule.startDate}{" "}
+                                        {schedule.endDate
+                                            ? `- ${schedule.endDate}`
+                                            : ""}
                                     </p>
                                 </div>
                                 <div className="flex gap-2">
