@@ -1007,13 +1007,13 @@ export default function CoursesView() {
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select major" />
                                     </SelectTrigger>
-                                    <SelectContent>
-                                        {colors.map((color) => (
+                                      <SelectContent>
+                                        {majors.map((major) => (
                                             <SelectItem
-                                                key={color}
-                                                value={color}
+                                                key={major.id}
+                                                value={major.name}
                                             >
-                                                {getColorName(color)}
+                                                {major.name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
