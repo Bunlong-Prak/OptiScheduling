@@ -114,7 +114,6 @@ export type CourseHour = {
 };
 
 export type TimetableCourse = {
-    uniqueId: any;
     code: string;
     name: string;
     sectionId: number;

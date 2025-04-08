@@ -1,110 +1,14 @@
 import { schedules } from "@/drizzle/schema";
 import { db } from "@/lib/db";
+import { generateAcademicYear } from "@/lib/utils";
+import {
+    createScheduleSchema,
+    editScheduleSchema,
+    deleteScheduleSchema,
+} from "@/lib/validations/schedules";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-
-function formatDate(date: Date): string {
-    const months = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-    ];
-
-    const month = months[date.getMonth()];
-    const day = date.getDate();
-    const year = date.getFullYear();
-
-    return `${month} ${day}, ${year}`;
-}
-
-// Function to generate academic year as "Jan 5, 2025 - May 15, 2026" format
-function generateAcademicYear(startDate: Date, endDate: Date): string {
-    return `${formatDate(startDate)} - ${formatDate(endDate)}`;
-}
-
-export const createScheduleSchema = z
-    .object({
-        id: z.number().int().positive().optional(),
-
-        name: z
-            .string()
-            .min(1, { message: "Schedule name is required" })
-            .max(100, {
-                message: "Schedule name cannot exceed 100 characters",
-            }),
-
-        startDate: z.coerce.date({
-            required_error: "Start date is required",
-            invalid_type_error: "Start date must be a valid date",
-        }),
-
-        // End Date: Required and must be after start date
-        endDate: z.coerce.date({
-            required_error: "End date is required",
-            invalid_type_error: "End date must be a valid date",
-        }),
-
-        // User ID: Optional, to associate schedule with a user
-        userId: z.string().min(1).max(100),
-    })
-    .refine((data) => data.endDate > data.startDate, {
-        message: "End date must be after start date",
-        path: ["endDate"],
-    });
-
-// Schema for editing an existing schedule
-export const editScheduleSchema = z
-    .object({
-        // ID: Required for updates
-        id: z.number({
-            required_error: "ID is required",
-        }),
-
-        // Name: Required, string
-        name: z
-            .string()
-            .min(1, { message: "Schedule name is required" })
-            .max(100, {
-                message: "Schedule name cannot exceed 100 characters",
-            }),
-
-        // Start Date: Required
-        startDate: z.coerce.date({
-            required_error: "Start date is required",
-            invalid_type_error: "Start date must be a valid date",
-        }),
-
-        // End Date: Required and must be after start date
-        endDate: z.coerce.date({
-            required_error: "End date is required",
-            invalid_type_error: "End date must be a valid date",
-        }),
-
-        // User ID: Optional, to associate schedule with a user
-        userId: z.string().min(1).max(100),
-    })
-    .refine((data) => data.endDate > data.startDate, {
-        message: "End date must be after start date",
-        path: ["endDate"],
-    });
-
-// Schema for deleting a schedule
-export const deleteScheduleSchema = z.object({
-    // ID: Required for deletion
-    id: z.number({
-        required_error: "ID is required",
-    }),
-});
 
 // GET all schedules
 export async function GET() {

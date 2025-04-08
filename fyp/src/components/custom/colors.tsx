@@ -39,8 +39,9 @@ export const colors = [
     "slate",
 ];
 
-export const colors_class = {
-    blue: "bg-blue-200 hover:bg-blue-300 border-blue-400",
+// Define color map with string keys
+export const colors_class: Record<string, string> = {
+   blue: "bg-blue-200 hover:bg-blue-300 border-blue-400",
     green: "bg-green-200 hover:bg-green-300 border-green-400",
     red: "bg-red-200 hover:bg-red-300 border-red-400",
     yellow: "bg-yellow-200 hover:bg-yellow-300 border-yellow-400",

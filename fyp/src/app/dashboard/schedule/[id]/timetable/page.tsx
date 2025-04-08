@@ -147,7 +147,7 @@ export default function TimetableView() {
                         code: course.code,
                         sectionId: course.sectionId, // Add sectionId for uniqueness
                         name: course.title,
-                        color: colors_class[course.color] || "bg-gray-200", // Use color mapping or fallback
+                        color: colors_class[course.color],
                         duration: course.duration,
                         instructor: `${course.firstName || ""} ${
                             course.lastName || ""
@@ -509,7 +509,6 @@ const handleRemoveCourse = () => {
         sectionId: course.sectionId,
         section: course.section,
         room: course.room,
-        uniqueId: course.uniqueId,
     };
 
     // Only add back to available courses if it's not already there
