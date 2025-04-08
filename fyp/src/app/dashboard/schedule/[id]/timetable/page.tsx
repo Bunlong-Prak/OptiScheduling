@@ -478,7 +478,7 @@ export default function TimetableView() {
     //     }
     // };
 // Handle course delete - updated to use sectionId approach
-const handleDeleteCourse = () => {
+const handleRemoveCourse = () => {
     const { day, classroomId, timeSlot } = cellToDelete;
     const key = `${day}-${classroomId}-${timeSlot}`;
     const course = schedule[key];
@@ -777,7 +777,7 @@ const handleDeleteCourse = () => {
                                 </Button>
                                 <Button
                                     variant="destructive"
-                                    onClick={handleDeleteCourse}
+                                    onClick={handleRemoveCourse}
                                 >
                                     Remove
                                 </Button>
