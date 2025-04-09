@@ -35,9 +35,11 @@ export type Section = {
 
 export type TimeConstraint = {
     id: number;
-    day_of_the_week: string;
-    time_period: string[]; // Array to represent time periods
     instructor_id: number;
+    day_of_the_week: string;
+    time_period: string[];
+    firstName?: string;
+    lastName?: string;
 };
 
 export type Course = {
@@ -97,11 +99,11 @@ export type MajorFormData = {
 };
 
 export type TimeConstraintFormData = {
-    day: string;
-    time_slots: string[];
     instructor_id: number;
+    day: string;
+    timeSlots: string[];
+    scheduleId: number;
 };
-
 // export type ScheduleFormData = {
 //     name: string;
 //     academic_year: string; // String for form input, will be converted to number

@@ -3,7 +3,6 @@
 import type {
     Instructor,
     TimeConstraint,
-    TimeConstraintFormData,
 } from "@/app/types";
 import CustomPagination from "@/components/custom/pagination";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +32,7 @@ import { useEffect, useState } from "react";
 // Define how many items to show per page
 const ITEMS_PER_PAGE = 12;
 
-// Define default time slots if the API call fails
+// Define default time slots
 const DEFAULT_TIME_SLOTS = [
     "8:00 AM - 9:00 AM",
     "9:00 AM - 10:00 AM",
@@ -57,15 +56,28 @@ const DAYS_OF_WEEK = [
     "Saturday",
 ];
 
+// Interface for grouped constraints
+interface GroupedConstraint {
+    instructor_id: number;
+    firstName?: string;
+    lastName?: string;
+    dayConstraints: {
+        id: number;
+        day: string;
+        timeSlots: string[];
+    }[];
+}
+
+
 export default function TimeConstraintView() {
-    const [timeConstraints, setTimeConstraints] = useState<TimeConstraint[]>(
-        []
-    );
+    const [timeConstraints, setTimeConstraints] = useState<TimeConstraint[]>([]);
+    const [groupedConstraints, setGroupedConstraints] = useState<GroupedConstraint[]>([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [selectedConstraint, setSelectedConstraint] =
-        useState<TimeConstraint | null>(null);
+    const [selectedConstraint, setSelectedConstraint] = useState<TimeConstraint | null>(null);
+    const [selectedGroupedConstraint, setSelectedGroupedConstraint] = useState<GroupedConstraint | null>(null);
+    const [selectedDay, setSelectedDay] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState({
@@ -75,8 +87,22 @@ export default function TimeConstraintView() {
     const [instructors, setInstructors] = useState<Instructor[]>([]);
     const [timeSlots, setTimeSlots] = useState(DEFAULT_TIME_SLOTS);
     const params = useParams();
+// Ensure days are always sorted in correct order
+// const sortDayConstraints = (dayConstraints: { day: string; selected: boolean; timeSlots: string[] }[]) => {
 
-    // New state for enhanced form with multiple days
+//   const dayOrder = {
+//     Monday: 0,
+//     Tuesday: 1,
+//     Wednesday: 2,
+//     Thursday: 3, 
+//     Friday: 4,
+//     Saturday: 5
+//   };
+  
+//   return dayConstraints.sort((a, b) => dayOrder[a.day] - dayOrder[b.day]
+//   );
+// };
+    // State for enhanced form with multiple days
     const [enhancedFormData, setEnhancedFormData] = useState({
         instructor_id: 0,
         dayConstraints: DAYS_OF_WEEK.map((day) => ({
@@ -86,9 +112,50 @@ export default function TimeConstraintView() {
         })),
     });
 
-    // Calculate pagination values
-    const totalPages = Math.ceil(timeConstraints.length / ITEMS_PER_PAGE);
-    const paginatedConstraints = timeConstraints.slice(
+    // Group time constraints by instructor
+useEffect(() => {
+  if (timeConstraints.length > 0) {
+    const grouped: Record<number, GroupedConstraint> = {};
+    
+    timeConstraints.forEach(constraint => {
+      const instructorId = constraint.instructor_id;
+      
+      if (!grouped[instructorId]) {
+        grouped[instructorId] = {
+          instructor_id: instructorId,
+          firstName: constraint.firstName,
+          lastName: constraint.lastName,
+          dayConstraints: []
+        };
+      }
+      
+      grouped[instructorId].dayConstraints.push({
+        id: constraint.id,
+        day: constraint.day_of_the_week,
+        timeSlots: constraint.time_period
+      });
+    });
+    
+    // Replace this line:
+    // setGroupedConstraints(Object.values(grouped));
+    
+    // With these lines:
+    const groupedArray = Object.values(grouped).map(group => ({
+      ...group,
+      dayConstraints: group.dayConstraints.sort((a, b) => 
+        DAYS_OF_WEEK.indexOf(a.day) - DAYS_OF_WEEK.indexOf(b.day)
+      )
+    }));
+    
+    setGroupedConstraints(groupedArray);
+  } else {
+    setGroupedConstraints([]);
+  }
+}, [timeConstraints]);
+
+    // Calculate pagination values for grouped constraints
+    const totalPages = Math.ceil(groupedConstraints.length / ITEMS_PER_PAGE);
+    const paginatedGroupedConstraints = groupedConstraints.slice(
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
@@ -99,6 +166,16 @@ export default function TimeConstraintView() {
             resetForm();
         }
     }, [isAddDialogOpen, isEditDialogOpen]);
+
+    // Effect to clear status message after a delay
+    useEffect(() => {
+        if (statusMessage.text) {
+            const timer = setTimeout(() => {
+                setStatusMessage({ text: "", type: "" });
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [statusMessage]);
 
     // Effect to fetch all necessary data on component mount
     useEffect(() => {
@@ -142,13 +219,6 @@ export default function TimeConstraintView() {
 
             const data = await response.json();
             setTimeConstraints(data);
-
-            // Clear any status messages after successful fetch
-            if (statusMessage.text) {
-                setTimeout(() => {
-                    setStatusMessage({ text: "", type: "" });
-                }, 3000); // Clear message after 3 seconds
-            }
         } catch (error) {
             console.error("Error fetching constraints:", error);
             setStatusMessage({
@@ -214,24 +284,31 @@ export default function TimeConstraintView() {
         });
     };
 
-    const loadConstraintForEdit = (constraint: TimeConstraint) => {
+    // Load constraint for edit (single day)
+    const loadConstraintForEdit = (instructorId: number, day: string, timeSlots: string[]) => {
         // Keep the existing day constraints but update the selected one
         const updatedDayConstraints = [...enhancedFormData.dayConstraints];
         const dayIndex = updatedDayConstraints.findIndex(
-            (day) => day.day === constraint.day_of_the_week
+            (d) => d.day === day
         );
 
         if (dayIndex !== -1) {
+            // Reset all days first
+            updatedDayConstraints.forEach(day => {
+                day.selected = false;
+                day.timeSlots = [];
+            });
+            
             // Update the selected day's info
             updatedDayConstraints[dayIndex] = {
                 ...updatedDayConstraints[dayIndex],
                 selected: true,
-                timeSlots: [...constraint.time_period],
+                timeSlots: [...timeSlots],
             };
         }
 
         setEnhancedFormData({
-            instructor_id: constraint.instructor_id,
+            instructor_id: instructorId,
             dayConstraints: updatedDayConstraints,
         });
     };
@@ -296,7 +373,8 @@ export default function TimeConstraintView() {
             // Check for errors
             for (const response of responses) {
                 if (!response.ok) {
-                    throw new Error("Failed to create constraint");
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || "Failed to create constraint");
                 }
             }
 
@@ -317,7 +395,7 @@ export default function TimeConstraintView() {
         } catch (error) {
             console.error("Error adding constraints:", error);
             setStatusMessage({
-                text: "Failed to add constraints. Please try again.",
+                text: error instanceof Error ? error.message : "Failed to add constraints. Please try again.",
                 type: "error",
             });
         } finally {
@@ -326,7 +404,7 @@ export default function TimeConstraintView() {
     };
 
     const handleEditConstraint = async () => {
-        if (!selectedConstraint) return;
+        if (!selectedDay) return;
 
         const { instructor_id, dayConstraints } = enhancedFormData;
 
@@ -358,8 +436,8 @@ export default function TimeConstraintView() {
 
             // First, delete the original constraint
             const deleteData = {
-                instructorId: selectedConstraint.instructor_id,
-                day: selectedConstraint.day_of_the_week,
+                instructorId: instructor_id,
+                day: selectedDay,
                 scheduleId: Number(scheduleId),
             };
 
@@ -372,9 +450,8 @@ export default function TimeConstraintView() {
             });
 
             if (!deleteResponse.ok) {
-                throw new Error(
-                    "Failed to update constraint: could not remove old constraint"
-                );
+                const errorData = await deleteResponse.json();
+                throw new Error(errorData.error || "Failed to update constraint: could not remove old constraint");
             }
 
             // Then create new constraints for all selected days
@@ -401,15 +478,15 @@ export default function TimeConstraintView() {
             // Check for errors
             for (const response of responses) {
                 if (!response.ok) {
-                    throw new Error(
-                        "Failed to update constraint: could not create new constraints"
-                    );
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || "Failed to update constraint: could not create new constraints");
                 }
             }
 
             await fetchConstraints();
             setIsEditDialogOpen(false);
             resetForm();
+            setSelectedDay(null);
 
             setStatusMessage({
                 text:
@@ -431,16 +508,17 @@ export default function TimeConstraintView() {
             setIsLoading(false);
         }
     };
+    
     // Delete constraint
     const handleDeleteConstraint = async () => {
-        if (!selectedConstraint) return;
+        if (!selectedGroupedConstraint || !selectedDay) return;
 
         setIsLoading(true);
         try {
             const scheduleId = params.id;
             const apiData = {
-                instructorId: selectedConstraint.instructor_id,
-                day: selectedConstraint.day_of_the_week,
+                instructorId: selectedGroupedConstraint.instructor_id,
+                day: selectedDay,
                 scheduleId: Number(scheduleId),
             };
 
@@ -453,12 +531,14 @@ export default function TimeConstraintView() {
             });
 
             if (!response.ok) {
-                throw new Error("Failed to delete constraint");
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to delete constraint");
             }
 
             await fetchConstraints();
             setIsDeleteDialogOpen(false);
-            setSelectedConstraint(null);
+            setSelectedGroupedConstraint(null);
+            setSelectedDay(null);
 
             setStatusMessage({
                 text: "Constraint deleted successfully",
@@ -467,7 +547,7 @@ export default function TimeConstraintView() {
         } catch (error) {
             console.error("Error deleting constraint:", error);
             setStatusMessage({
-                text: "Failed to delete constraint. Please try again.",
+                text: error instanceof Error ? error.message : "Failed to delete constraint. Please try again.",
                 type: "error",
             });
         } finally {
@@ -486,28 +566,24 @@ export default function TimeConstraintView() {
             })),
         });
         setSelectedConstraint(null);
+        setSelectedGroupedConstraint(null);
+        setSelectedDay(null);
     };
 
     // Open edit dialog
-    const openEditDialog = (constraint: TimeConstraint) => {
-        setSelectedConstraint(constraint);
-        loadConstraintForEdit(constraint);
+    const openEditDialog = (instructorId: number, day: string, timeSlots: string[]) => {
+        setSelectedDay(day);
+        loadConstraintForEdit(instructorId, day, timeSlots);
         setIsEditDialogOpen(true);
     };
 
     // Open delete dialog
-    const openDeleteDialog = (constraint: TimeConstraint) => {
-        setSelectedConstraint(constraint);
+    const openDeleteDialog = (groupedConstraint: GroupedConstraint, day: string) => {
+        setSelectedGroupedConstraint(groupedConstraint);
+        setSelectedDay(day);
         setIsDeleteDialogOpen(true);
     };
 
-    // Get instructor name by ID
-    const getInstructorName = (instructorId: number) => {
-        const instructor = instructors.find((i) => i.id === instructorId);
-        return instructor
-            ? `${instructor.first_name} ${instructor.last_name}`
-            : "Unknown";
-    };
 
     // Check if a time slot is available for a given instructor and day
     const isTimeSlotAvailable = (timeSlot: string, dayName: string) => {
@@ -515,11 +591,14 @@ export default function TimeConstraintView() {
             return true;
         }
 
-        // For edit mode, exclude the current constraint from checking
+        // For edit mode, exclude the current constraint 
         const existingConstraints = timeConstraints.filter((constraint) => {
-            if (selectedConstraint && constraint.id === selectedConstraint.id) {
+            // If we're editing a day, exclude that day's constraints
+            if (selectedDay === constraint.day_of_the_week && 
+                constraint.instructor_id === enhancedFormData.instructor_id) {
                 return false;
             }
+            
             return (
                 constraint.instructor_id === enhancedFormData.instructor_id &&
                 constraint.day_of_the_week === dayName
@@ -539,9 +618,7 @@ export default function TimeConstraintView() {
 
         return (
             <div
-                className={`status-message ${
-                    statusMessage.type
-                } p-3 mb-4 rounded-md ${
+                className={`status-message p-3 mb-4 rounded-md ${
                     statusMessage.type === "success"
                         ? "bg-green-100 text-green-700"
                         : statusMessage.type === "error"
@@ -576,76 +653,91 @@ export default function TimeConstraintView() {
             {/* Display status message */}
             <StatusMessageDisplay />
 
-            {/* Display loading state */}
-            {isLoading && (
-                <div className="text-center p-4">
-                    <p>Loading...</p>
-                </div>
-            )}
 
-            {!isLoading && timeConstraints.length === 0 ? (
-                <div className="text-center p-8 text-gray-500">
-                    No time constraints added yet
-                </div>
-            ) : (
-                <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {paginatedConstraints.map((constraint) => (
-                            <Card key={constraint.id}>
-                                <CardContent className="p-4">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <h3 className="font-semibold">
-                                                {getInstructorName(
-                                                    constraint.instructor_id
-                                                )}
-                                            </h3>
-                                            <p className="text-sm text-gray-600 font-medium mt-1">
-                                                {constraint.day_of_the_week}
-                                            </p>
-                                            <div className="flex flex-wrap gap-1 mt-2">
-                                                {constraint.time_period?.map(
-                                                    (time, index) => (
-                                                        <Badge
-                                                            key={index}
-                                                            variant="outline"
-                                                            className="text-xs flex items-center"
-                                                        >
-                                                            <Clock className="h-3 w-3 mr-1" />
-                                                            {time}
-                                                        </Badge>
-                                                    )
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    openEditDialog(constraint)
-                                                }
-                                            >
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    openDeleteDialog(constraint)
-                                                }
-                                            >
-                                                <Trash className="h-4 w-4" />
-                                            </Button>
+
+            {!isLoading && groupedConstraints.length === 0 ? (
+    <div className="text-center p-8 text-gray-500">
+        No time constraints added yet
+    </div>
+) : (
+    <>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {paginatedGroupedConstraints.map((groupedConstraint) => (
+                <Card key={groupedConstraint.instructor_id} className="overflow-hidden hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                        {/* Instructor header */}
+                        <div className="mb-3 pb-2 border-b">
+                            <h3 className="font-bold text-lg">
+                                {groupedConstraint.firstName} {groupedConstraint.lastName}
+                            </h3>
+                        </div>
+                        
+                        {/* Day constraints */}
+                        <div className="space-y-4">
+                        {groupedConstraint.dayConstraints
+  .slice() // Create a copy to avoid mutating the original array
+  .sort((a, b) => DAYS_OF_WEEK.indexOf(a.day) - DAYS_OF_WEEK.indexOf(b.day))
+  .map((dayConstraint) => (
+    <div key={`${groupedConstraint.instructor_id}-${dayConstraint.day}`} 
+         className="flex justify-between items-start p-2 bg-slate-50 rounded-md">
+                                    <div>
+                                        <p className="text-sm font-semibold text-slate-700 mb-2">
+                                            {dayConstraint.day}
+                                        </p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {dayConstraint.timeSlots.map(
+                                                (time, index) => (
+                                                    <Badge
+                                                        key={index}
+                                                        variant="outline"
+                                                        className="text-xs flex items-center bg-white"
+                                                    >
+                                                        <Clock className="h-3 w-3 mr-1" />
+                                                        {time}
+                                                    </Badge>
+                                                )
+                                            )}
                                         </div>
                                     </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
+                                    <div className="flex gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 rounded-full"
+                                            onClick={() => 
+                                                openEditDialog(
+                                                    groupedConstraint.instructor_id,
+                                                    dayConstraint.day,
+                                                    dayConstraint.timeSlots
+                                                )
+                                            }
+                                        >
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 rounded-full text-red-500 hover:text-red-700"
+                                            onClick={() => 
+                                                openDeleteDialog(
+                                                    groupedConstraint,
+                                                    dayConstraint.day
+                                                )
+                                            }
+                                        >
+                                            <Trash className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            ))}
+        </div>
 
                     {/* Add pagination if there are items to display */}
-                    {timeConstraints.length > 0 && (
+                    {groupedConstraints.length > 0 && (
                         <div className="mt-6">
                             <CustomPagination
                                 currentPage={currentPage}
@@ -765,7 +857,7 @@ export default function TimeConstraintView() {
 
                                     {enhancedFormData.dayConstraints
                                         .filter((day) => day.selected)
-                                        .map((day, dayIndex) => {
+                                        .map((day) => {
                                             const actualDayIndex =
                                                 enhancedFormData.dayConstraints.findIndex(
                                                     (d) => d.day === day.day
@@ -814,7 +906,7 @@ export default function TimeConstraintView() {
                                                                                 checked={
                                                                                     isSelected
                                                                                 }
-                                                                                disabled={
+                                                                               disabled={
                                                                                     !!isDisabled
                                                                                 }
                                                                                 onCheckedChange={() =>
@@ -932,6 +1024,7 @@ export default function TimeConstraintView() {
                             <Select
                                 value={enhancedFormData.instructor_id.toString()}
                                 onValueChange={handleInstructorChange}
+                                disabled={true}  // Disable changing instructor in edit mode
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select instructor" />
@@ -1023,7 +1116,7 @@ export default function TimeConstraintView() {
 
                                     {enhancedFormData.dayConstraints
                                         .filter((day) => day.selected)
-                                        .map((day, dayIndex) => {
+                                        .map((day) => {
                                             const actualDayIndex =
                                                 enhancedFormData.dayConstraints.findIndex(
                                                     (d) => d.day === day.day
@@ -1163,7 +1256,6 @@ export default function TimeConstraintView() {
                             disabled={
                                 isLoading ||
                                 !enhancedFormData.instructor_id ||
-                                !selectedConstraint ||
                                 getSelectedDaysCount() === 0
                             }
                         >
@@ -1172,6 +1264,7 @@ export default function TimeConstraintView() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            
             {/* Delete Constraint Dialog */}
             <Dialog
                 open={isDeleteDialogOpen}
@@ -1187,25 +1280,23 @@ export default function TimeConstraintView() {
                             Are you sure you want to delete this time
                             constraint?
                         </p>
-                        {selectedConstraint && (
+                        {selectedGroupedConstraint && selectedDay && (
                             <div>
                                 <p className="font-medium mt-2">
-                                    {getInstructorName(
-                                        selectedConstraint.instructor_id
-                                    )}{" "}
-                                    - {selectedConstraint.day_of_the_week}
+                                    {selectedGroupedConstraint.firstName} {selectedGroupedConstraint.lastName}{" "}
+                                    - {selectedDay}
                                 </p>
                                 <div className="flex flex-wrap gap-1 mt-2">
-                                    {selectedConstraint.time_period.map(
-                                        (time, index) => (
+                                    {selectedGroupedConstraint.dayConstraints
+                                        .find(dc => dc.day === selectedDay)?.timeSlots
+                                        .map((time, index) => (
                                             <Badge
                                                 key={index}
                                                 variant="outline"
                                             >
                                                 {time}
                                             </Badge>
-                                        )
-                                    )}
+                                        ))}
                                 </div>
                             </div>
                         )}
@@ -1214,7 +1305,11 @@ export default function TimeConstraintView() {
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsDeleteDialogOpen(false)}
+                            onClick={() => {
+                                setIsDeleteDialogOpen(false);
+                                setSelectedGroupedConstraint(null);
+                                setSelectedDay(null);
+                            }}
                             disabled={isLoading}
                         >
                             Cancel

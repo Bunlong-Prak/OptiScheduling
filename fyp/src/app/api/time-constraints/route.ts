@@ -1,3 +1,4 @@
+// File: app/api/time-constraints/route.ts
 import {
     instructors,
     instructorTimeConstraint,
@@ -18,49 +19,51 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const scheduleId = searchParams.get("scheduleId");
-        // First, fetch all the raw data from the database with IDs
-        let instructorTimeConstraintsQuery;
-        if (scheduleId) {
-            instructorTimeConstraintsQuery = await db
-                .select({
-                    instructorId: instructors.id,
-                    firstName: instructors.firstName,
-                    lastName: instructors.lastName,
-                    dayId: instructorTimeConstraintDay.id,
-                    day: instructorTimeConstraintDay.day,
-                    timeSlot: instructorTimeConstraintTimeSlot.timeSlot,
-                })
-                .from(instructors)
-                .innerJoin(
-                    instructorTimeConstraint,
-                    eq(instructors.id, instructorTimeConstraint.instructorId)
-                )
-                .innerJoin(
-                    instructorTimeConstraintDay,
-                    eq(
-                        instructorTimeConstraint.id,
-                        instructorTimeConstraintDay.instructorTimeConstraintId
-                    )
-                )
-                .innerJoin(
-                    instructorTimeConstraintTimeSlot,
-                    eq(
-                        instructorTimeConstraintDay.id,
-                        instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId
-                    )
-                )
-                .where(
-                    eq(
-                        instructorTimeConstraint.scheduleId,
-                        parseInt(scheduleId)
-                    )
-                );
+
+        if (!scheduleId) {
+            return NextResponse.json(
+                { error: "Schedule ID is required" },
+                { status: 400 }
+            );
         }
+
+        // First, fetch all the raw data from the database with IDs
+        const instructorTimeConstraintsQuery = await db
+            .select({
+                instructorId: instructors.id,
+                firstName: instructors.firstName,
+                lastName: instructors.lastName,
+                dayId: instructorTimeConstraintDay.id,
+                day: instructorTimeConstraintDay.day,
+                timeSlot: instructorTimeConstraintTimeSlot.timeSlot,
+            })
+            .from(instructors)
+            .innerJoin(
+                instructorTimeConstraint,
+                eq(instructors.id, instructorTimeConstraint.instructorId)
+            )
+            .innerJoin(
+                instructorTimeConstraintDay,
+                eq(
+                    instructorTimeConstraint.id,
+                    instructorTimeConstraintDay.instructorTimeConstraintId
+                )
+            )
+            .innerJoin(
+                instructorTimeConstraintTimeSlot,
+                eq(
+                    instructorTimeConstraintDay.id,
+                    instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId
+                )
+            )
+            .where(
+                eq(instructorTimeConstraint.scheduleId, parseInt(scheduleId))
+            );
 
         // Group the data by day ID to collect all time slots per day
         const constraintMap = new Map();
 
-        instructorTimeConstraintsQuery?.forEach((item) => {
+        instructorTimeConstraintsQuery.forEach((item) => {
             const key = `${item.dayId}`; // Use dayId as the unique key
 
             if (!constraintMap.has(key)) {
@@ -70,6 +73,8 @@ export async function GET(request: Request) {
                     instructor_id: item.instructorId,
                     day_of_the_week: item.day,
                     time_period: [item.timeSlot],
+                    firstName: item.firstName,
+                    lastName: item.lastName,
                 });
             } else {
                 // Add time slot to existing constraint
@@ -115,44 +120,102 @@ export async function POST(request: Request) {
         const { instructorId, day, timeSlots, scheduleId } =
             validationResult.data;
 
-        // First create the time constraint
-        await db.insert(instructorTimeConstraint).values({
-            instructorId,
-            scheduleId,
-        });
+        // Check if a constraint already exists for this instructor
+        const existingConstraint =
+            await db.query.instructorTimeConstraint.findFirst({
+                where: and(
+                    eq(instructorTimeConstraint.instructorId, instructorId),
+                    eq(instructorTimeConstraint.scheduleId, scheduleId)
+                ),
+            });
 
-        // Get the inserted constraint ID
-        const constraint = await db.query.instructorTimeConstraint.findFirst({
-            where: eq(instructorTimeConstraint.instructorId, instructorId),
-        });
-        if (!constraint) {
-            return NextResponse.json(
-                { error: "Instructor not found" },
-                { status: 404 }
-            );
+        let constraintId;
+        if (existingConstraint) {
+            constraintId = existingConstraint.id;
+        } else {
+            // Create a new constraint
+            await db.insert(instructorTimeConstraint).values({
+                instructorId,
+                scheduleId,
+            });
+
+            // Get the newly created constraint
+            const newConstraint =
+                await db.query.instructorTimeConstraint.findFirst({
+                    where: and(
+                        eq(instructorTimeConstraint.instructorId, instructorId),
+                        eq(instructorTimeConstraint.scheduleId, scheduleId)
+                    ),
+                });
+
+            if (!newConstraint) {
+                return NextResponse.json(
+                    { error: "Failed to create constraint" },
+                    { status: 500 }
+                );
+            }
+
+            constraintId = newConstraint.id;
         }
 
-        // Create day entry
-        await db.insert(instructorTimeConstraintDay).values({
-            instructorTimeConstraintId: constraint.id,
-            day: day,
-        });
-
-        // Get the inserted day ID
-        const constraintDay =
+        // Check if a day entry already exists for this constraint
+        const existingDay =
             await db.query.instructorTimeConstraintDay.findFirst({
-                where: eq(instructorTimeConstraintDay.day, day),
+                where: and(
+                    eq(
+                        instructorTimeConstraintDay.instructorTimeConstraintId,
+                        constraintId
+                    ),
+                    eq(instructorTimeConstraintDay.day, day)
+                ),
             });
-        if (!constraintDay) {
-            return NextResponse.json(
-                { error: "Day not found" },
-                { status: 404 }
+
+        let dayId;
+        if (existingDay) {
+            dayId = existingDay.id;
+
+            // Delete existing time slots for this day
+            await db
+                .delete(instructorTimeConstraintTimeSlot)
+                .where(
+                    eq(
+                        instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId,
+                        dayId
+                    )
+                );
+        } else {
+            // Create a new day entry
+            await db.insert(instructorTimeConstraintDay).values({
+                instructorTimeConstraintId: constraintId,
+                day: day,
+            });
+
+            // Get the newly created day
+            const newDay = await db.query.instructorTimeConstraintDay.findFirst(
+                {
+                    where: and(
+                        eq(
+                            instructorTimeConstraintDay.instructorTimeConstraintId,
+                            constraintId
+                        ),
+                        eq(instructorTimeConstraintDay.day, day)
+                    ),
+                }
             );
+
+            if (!newDay) {
+                return NextResponse.json(
+                    { error: "Failed to create day constraint" },
+                    { status: 500 }
+                );
+            }
+
+            dayId = newDay.id;
         }
 
         // Create time slots for this day
         const timeSlotValues = timeSlots.map((slot: string) => ({
-            instructorTimeConstraintDayId: constraintDay.id,
+            instructorTimeConstraintDayId: dayId,
             timeSlot: slot,
         }));
 
@@ -162,6 +225,13 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
             message: "Instructor time constraint created successfully",
+            data: {
+                instructorId,
+                day,
+                timeSlots,
+                constraintId,
+                dayId,
+            },
         });
     } catch (error: unknown) {
         console.error("Error creating instructor constraint:", error);
@@ -289,11 +359,22 @@ export async function DELETE(request: Request) {
             );
         }
 
-        const { instructorId } = validationResult.data;
+        const { instructorId, day, scheduleId } = validationResult.data;
+
+        // Type safety check: ensure day is not undefined
+        if (!day) {
+            return NextResponse.json(
+                { error: "Day is required" },
+                { status: 400 }
+            );
+        }
 
         // Get the constraint ID first
         const constraint = await db.query.instructorTimeConstraint.findFirst({
-            where: eq(instructorTimeConstraint.instructorId, instructorId),
+            where: and(
+                eq(instructorTimeConstraint.instructorId, instructorId),
+                eq(instructorTimeConstraint.scheduleId, scheduleId)
+            ),
         });
 
         if (!constraint) {
@@ -305,46 +386,59 @@ export async function DELETE(request: Request) {
 
         const constraintId = constraint.id;
 
-        // Use a transaction to ensure all deletions succeed or fail together
-        return await db.transaction(async (tx) => {
-            // Get all days for this constraint
-            const days = await tx
-                .select({ id: instructorTimeConstraintDay.id })
-                .from(instructorTimeConstraintDay)
-                .where(
+        // Get the day entry
+        const constraintDay =
+            await db.query.instructorTimeConstraintDay.findFirst({
+                where: and(
                     eq(
                         instructorTimeConstraintDay.instructorTimeConstraintId,
                         constraintId
+                    ),
+                    eq(instructorTimeConstraintDay.day, day) // Now we know day is not undefined
+                ),
+            });
+
+        if (!constraintDay) {
+            return NextResponse.json(
+                { error: "Day constraint not found" },
+                { status: 404 }
+            );
+        }
+
+        const dayId = constraintDay.id;
+
+        // Use a transaction to delete just the specified day and its time slots
+        return await db.transaction(async (tx) => {
+            // Delete all time slots for the specified day
+            await tx
+                .delete(instructorTimeConstraintTimeSlot)
+                .where(
+                    eq(
+                        instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId,
+                        dayId
                     )
                 );
 
-            // Delete all time slots for all days in one query
-            if (days.length > 0) {
-                const dayIds = days.map((day) => day.id);
-                await tx
-                    .delete(instructorTimeConstraintTimeSlot)
-                    .where(
-                        inArray(
-                            instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId,
-                            dayIds
-                        )
-                    );
-            }
-
-            // Delete all days
+            // Delete the day entry
             await tx
                 .delete(instructorTimeConstraintDay)
-                .where(
-                    eq(
+                .where(eq(instructorTimeConstraintDay.id, dayId));
+
+            // Check if there are any remaining days for this constraint
+            const remainingDays =
+                await tx.query.instructorTimeConstraintDay.findMany({
+                    where: eq(
                         instructorTimeConstraintDay.instructorTimeConstraintId,
                         constraintId
-                    )
-                );
+                    ),
+                });
 
-            // Finally, delete the constraint itself
-            await tx
-                .delete(instructorTimeConstraint)
-                .where(eq(instructorTimeConstraint.id, constraintId));
+            // If no days are left, delete the constraint itself
+            if (remainingDays.length === 0) {
+                await tx
+                    .delete(instructorTimeConstraint)
+                    .where(eq(instructorTimeConstraint.id, constraintId));
+            }
 
             return NextResponse.json({
                 message: "Instructor time constraint deleted successfully",

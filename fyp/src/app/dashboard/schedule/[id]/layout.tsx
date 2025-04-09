@@ -29,7 +29,7 @@ export default function ScheduleLayout({
         { name: "Instructors", href: "instructors" },
         { name: "Classroom", href: "classroom" },
         { name: "Major", href: "major" },
-        { name: "Time Constant", href: "time-constant" },
+        { name: "Time Constraints", href: "time-constraints" },
         { name: "Classroom Type", href: "classroom-type" },
     ];
 
