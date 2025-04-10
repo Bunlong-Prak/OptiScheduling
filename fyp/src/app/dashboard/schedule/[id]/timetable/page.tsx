@@ -27,14 +27,10 @@ import {
     Schedule,
     TimetableCourse,
 } from "@/app/types";
-import { useParams } from "next/navigation";
 import { colors_class } from "@/components/custom/colors";
+import { useParams } from "next/navigation";
 // Initial schedule data (empty object)
 const initialSchedule: Schedule = {};
-
-
-
-
 
 export default function TimetableView() {
     const [schedule, setSchedule] = useState<Schedule>(initialSchedule);
@@ -137,7 +133,10 @@ export default function TimetableView() {
         const fetchCourses = async () => {
             setIsLoading(true);
             try {
-                const response = await fetch("/api/courses");
+                const scheduleId = params.id;
+                const response = await fetch(
+                    `/api/courses?scheduleId=${scheduleId}`
+                );
                 if (response.ok) {
                     const coursesData: ApiCourse[] = await response.json();
 
@@ -477,50 +476,52 @@ export default function TimetableView() {
     //         alert("Error saving timetable");
     //     }
     // };
-// Handle course delete - updated to use sectionId approach
-const handleRemoveCourse = () => {
-    const { day, classroomId, timeSlot } = cellToDelete;
-    const key = `${day}-${classroomId}-${timeSlot}`;
-    const course = schedule[key];
+    // Handle course delete - updated to use sectionId approach
+    const handleRemoveCourse = () => {
+        const { day, classroomId, timeSlot } = cellToDelete;
+        const key = `${day}-${classroomId}-${timeSlot}`;
+        const course = schedule[key];
 
-    if (!course) return;
+        if (!course) return;
 
-    // Get the course sectionId to remove
-    const courseId = course.sectionId;
+        // Get the course sectionId to remove
+        const courseId = course.sectionId;
 
-    // Create a new schedule without this course
-    const newSchedule = { ...schedule };
-    Object.keys(newSchedule).forEach((scheduleKey) => {
-        if (newSchedule[scheduleKey].sectionId === courseId) {
-            delete newSchedule[scheduleKey];
+        // Create a new schedule without this course
+        const newSchedule = { ...schedule };
+        Object.keys(newSchedule).forEach((scheduleKey) => {
+            if (newSchedule[scheduleKey].sectionId === courseId) {
+                delete newSchedule[scheduleKey];
+            }
+        });
+
+        setSchedule(newSchedule);
+
+        // Return the course to available courses list
+        // Create a clean version without timetable-specific properties
+        const cleanCourse = {
+            code: course.code,
+            name: course.name,
+            color: course.color,
+            duration: course.duration,
+            instructor: course.instructor,
+            sectionId: course.sectionId,
+            section: course.section,
+            room: course.room,
+        };
+
+        // Only add back to available courses if it's not already there
+        if (!availableCourses.some((c) => c.sectionId === courseId)) {
+            setAvailableCourses((prev) => [...prev, cleanCourse]);
         }
-    });
 
-    setSchedule(newSchedule);
+        // Remove from assigned courses
+        setAssignedCourses((prev) =>
+            prev.filter((c) => c.sectionId !== courseId)
+        );
 
-    // Return the course to available courses list
-    // Create a clean version without timetable-specific properties
-    const cleanCourse = {
-        code: course.code,
-        name: course.name,
-        color: course.color,
-        duration: course.duration,
-        instructor: course.instructor,
-        sectionId: course.sectionId,
-        section: course.section,
-        room: course.room,
+        setIsDialogOpen(false);
     };
-
-    // Only add back to available courses if it's not already there
-    if (!availableCourses.some((c) => c.sectionId === courseId)) {
-        setAvailableCourses((prev) => [...prev, cleanCourse]);
-    }
-
-    // Remove from assigned courses
-    setAssignedCourses((prev) => prev.filter((c) => c.sectionId !== courseId));
-
-    setIsDialogOpen(false);
-};
     return (
         <div className="relative min-h-screen">
             <div className="flex justify-between items-center mb-8">
