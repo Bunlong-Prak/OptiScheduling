@@ -1,0 +1,198 @@
+import { courseHours, sections } from "@/drizzle/schema";
+import { db } from "@/lib/db";
+import { and, eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
+// Validation schema for timetable assignments
+const timetableAssignmentSchema = z.object({
+    sectionId: z.number(),
+    courseHoursId: z.number(),
+    classroomId: z.number(),
+    day: z.string(),
+    duration: z.number().optional(),
+});
+
+const saveTimetableSchema = z.object({
+    sectionId: z.number(),
+    day: z.string(),
+    startTime: z.string(),
+    endTime: z.string(),
+});
+
+const removeTimetableAssignmentSchema = z.object({
+    sectionId: z.number(),
+});
+
+// GET timetable assignments
+export async function GET(request: Request) {
+    try {
+        const { searchParams } = new URL(request.url);
+        const scheduleId = searchParams.get("scheduleId");
+
+        if (!scheduleId) {
+            return NextResponse.json(
+                { error: "Schedule ID is required" },
+                { status: 400 }
+            );
+        }
+
+        // Join sections with courseHours to get all assignments
+        const assignments = await db
+            .select({
+                sectionId: sections.id,
+                courseHoursId: sections.courseHoursId,
+                classroomId: sections.classroomId,
+                day: sections.day,
+                code: sections.code,
+                title: sections.title,
+                instructor: sections.instructorId,
+                timeSlot: courseHours.timeSlot,
+                duration: sections.duration,
+            })
+            .from(sections)
+            .leftJoin(courseHours, eq(sections.courseHoursId, courseHours.id))
+            .where(
+                and(
+                    eq(sections.scheduleId, parseInt(scheduleId)),
+                    eq(sections.courseHoursId, null).not() // Only get assigned sections
+                )
+            );
+
+        return NextResponse.json(assignments);
+    } catch (error: unknown) {
+        console.error("Error fetching timetable assignments:", error);
+        return NextResponse.json(
+            { error: "Failed to fetch timetable assignments" },
+            { status: 500 }
+        );
+    }
+}
+
+// POST new assignment (when dragging a course onto the timetable)
+export async function POST(request: Request) {
+    try {
+        const body = await request.json();
+        const validationResult = saveTimetableSchema.safeParse(body);
+
+        if (!validationResult.success) {
+            return NextResponse.json(
+                { error: validationResult.error.errors },
+                { status: 400 }
+            );
+        }
+
+        const { sectionId, day, startTime, endTime } = validationResult.data;
+
+        // First, create the course hour
+        await db.insert(courseHours).values({
+            day: day,
+            timeSlot: `${startTime} - ${endTime}`,
+        });
+
+        // Get the ID of the newly created course hour (using a separate query)
+        const createdCourseHour = await db
+            .select({ id: courseHours.id })
+            .from(courseHours)
+            .where(eq(courseHours.timeSlot, `${startTime} - ${endTime}`))
+            .limit(1);
+
+        if (createdCourseHour.length === 0) {
+            return NextResponse.json(
+                { error: "Failed to create course hour" },
+                { status: 500 }
+            );
+        }
+
+        const courseHourId = createdCourseHour[0].id;
+        console.log("Course hour created with ID:", courseHourId);
+
+        // Now update the section with the reference to the new course hour
+        await db
+            .update(sections)
+            .set({
+                courseHoursId: courseHourId,
+            })
+            .where(eq(sections.id, sectionId));
+
+        // Get the updated section (using a separate query)
+        const updatedSection = await db
+            .select()
+            .from(sections)
+            .where(eq(sections.id, sectionId))
+            .limit(1);
+
+        return NextResponse.json({
+            message: "Timetable assignment saved successfully",
+            data: {
+                courseHour: { id: courseHourId },
+                section: updatedSection[0],
+            },
+        });
+    } catch (error: unknown) {
+        console.error("Error saving timetable assignment:", error);
+        return NextResponse.json(
+            { error: "Failed to save timetable assignment" },
+            { status: 500 }
+        );
+    }
+}
+
+// PATCH to update assignment (when moving a course to a different time slot)
+export async function PATCH(request: Request) {
+    try {
+        const body = await request.json();
+        const validatedData = timetableAssignmentSchema.parse(body);
+        const { sectionId, courseHoursId, classroomId, day } = validatedData;
+
+        // Update the section with new assignment data
+        const updatedSection = await db
+            .update(sections)
+            .set({
+                courseHoursId,
+                classroomId,
+                day,
+            })
+            .where(eq(sections.id, sectionId))
+            .returning();
+
+        return NextResponse.json(updatedSection[0]);
+    } catch (error: unknown) {
+        console.error("Error updating timetable assignment:", error);
+        return NextResponse.json(
+            { error: "Failed to update timetable assignment" },
+            { status: 500 }
+        );
+    }
+}
+
+// DELETE to remove assignment (when dragging a course out of the timetable)
+export async function DELETE(request: Request) {
+    try {
+        const body = await request.json();
+        const validatedData = removeTimetableAssignmentSchema.parse(body);
+        const { sectionId } = validatedData;
+
+        // Remove the assignment by setting courseHoursId, classroomId and day to null
+        const updatedSection = await db
+            .update(sections)
+            .set({
+                courseHoursId: null,
+                classroomId: null,
+                day: null,
+            })
+            .where(eq(sections.id, sectionId))
+            .returning();
+
+        return NextResponse.json({
+            message: "Assignment removed successfully",
+            section: updatedSection[0],
+        });
+    } catch (error: unknown) {
+        console.error("Error removing timetable assignment:", error);
+        return NextResponse.json(
+            { error: "Failed to remove timetable assignment" },
+            { status: 500 }
+        );
+    }
+}

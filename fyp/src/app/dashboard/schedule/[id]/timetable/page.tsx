@@ -198,6 +198,53 @@ export default function TimetableView() {
         setIsDraggingToAvailable(false);
     };
 
+    // Function to save a single assignment to the database
+    const saveAssignmentToDatabase = async (course: TimetableCourse) => {
+        try {
+            const assignmentData = {
+                sectionId: course.sectionId,
+                day: course.day,
+                startTime: course.startTime,
+                endTime: course.endTime,
+            };
+
+            const response = await fetch("/api/assign-time-slots", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(assignmentData), // Send as array since API expects array
+            });
+
+            if (!response.ok) {
+                console.error("Failed to save assignment to database");
+                // Optionally show a toast or notification
+            }
+        } catch (error) {
+            console.error("Error saving assignment:", error);
+        }
+    };
+
+    // Function to remove a course assignment from the database
+    const removeAssignmentFromDatabase = async (sectionId: number) => {
+        try {
+            const response = await fetch("/api/assign-time-slots", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ sectionId }),
+            });
+
+            if (!response.ok) {
+                console.error("Failed to remove assignment from database");
+                // Optionally show a toast or notification
+            }
+        } catch (error) {
+            console.error("Error removing assignment:", error);
+        }
+    };
+
     // Handle drop for available courses
     const handleAvailableDrop = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -209,6 +256,9 @@ export default function TimetableView() {
         if (draggedCourse.day) {
             // Remove course from the timetable
             removeCourseFromTimetable(draggedCourse);
+
+            // Remove the assignment from the database
+            removeAssignmentFromDatabase(draggedCourse.sectionId);
         }
     };
 
@@ -386,6 +436,9 @@ export default function TimetableView() {
                 return [...filtered, assignedCourse];
             });
         }
+
+        // Save the assignment to the database immediately when dropped
+        saveAssignmentToDatabase(assignedCourse);
     };
 
     // Handle course click - updated to use classroom instead of major
@@ -401,69 +454,25 @@ export default function TimetableView() {
         setIsDialogOpen(true);
     };
 
-    // Handle course delete - simplified to use course ID approach
-    // const handleDeleteCourse = () => {
-    //     const { day, classroomId, timeSlot } = cellToDelete;
-    //     const key = `${day}-${classroomId}-${timeSlot}`;
-    //     const course = schedule[key];
-
-    //     if (!course) return;
-
-    //     // Get the course ID to remove
-    //     const courseId = course.id;
-
-    //     // Create a new schedule without this course
-    //     const newSchedule = { ...schedule };
-    //     Object.keys(newSchedule).forEach((scheduleKey) => {
-    //         if (newSchedule[scheduleKey].id === courseId) {
-    //             delete newSchedule[scheduleKey];
-    //         }
-    //     });
-
-    //     setSchedule(newSchedule);
-
-    //     // Return the course to available courses list
-    //     // Create a clean version without timetable-specific properties
-    //     const cleanCourse = {
-    //         id: course.id,
-    //         name: course.name,
-    //         color: course.color,
-    //         duration: course.duration,
-    //         instructor: course.instructor,
-    //         section: course.section,
-    //         room: course.room,
-    //     };
-
-    //     // Only add back to available courses if it's not already there
-    //     if (!availableCourses.some((c) => c.id === course.id)) {
-    //         setAvailableCourses((prev) => [...prev, cleanCourse]);
-    //     }
-
-    //     // Remove from assigned courses
-    //     setAssignedCourses((prev) => prev.filter((c) => c.id !== course.id));
-
-    //     setIsDialogOpen(false);
-    // };
-
-    // Function to save the timetable to the database - updated for classroom
-    // const saveTimetable = async () => {
+    // Function to save all timetable assignments in a batch
+    // const assignTimeSlot = async () => {
     //     // Extract all assigned courses from the schedule
-    //     const assignmentsToSave = assignedCourses.map((course) => ({
-    //         courseId: course.id,
+    //     const apiData = assignedCourses.map((course) => ({
+    //         sectionId: course.sectionId,
     //         day: course.day,
-    //         classroomId: course.classroom,
-    //         courseHoursId: course.courseHoursId, // Course hours related
-    //         // Add any other fields needed for your API
+    //         courseHoursId: course.courseHoursId,
+    //         startTime: course.startTime,
+    //         endTime: course.endTime,
     //     }));
 
     //     try {
     //         // Send to your API endpoint
-    //         const response = await fetch("/api/save-timetable", {
+    //         const response = await fetch("/api/assign-time-slots", {
     //             method: "POST",
     //             headers: {
     //                 "Content-Type": "application/json",
     //             },
-    //             body: JSON.stringify({ assignments: assignmentsToSave }),
+    //             body: JSON.stringify(apiData),
     //         });
 
     //         if (response.ok) {
@@ -476,6 +485,7 @@ export default function TimetableView() {
     //         alert("Error saving timetable");
     //     }
     // };
+
     // Handle course delete - updated to use sectionId approach
     const handleRemoveCourse = () => {
         const { day, classroomId, timeSlot } = cellToDelete;
@@ -520,8 +530,12 @@ export default function TimetableView() {
             prev.filter((c) => c.sectionId !== courseId)
         );
 
+        // Remove the assignment from the database
+        removeAssignmentFromDatabase(courseId);
+
         setIsDialogOpen(false);
     };
+
     return (
         <div className="relative min-h-screen">
             <div className="flex justify-between items-center mb-8">

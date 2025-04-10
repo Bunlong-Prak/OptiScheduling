@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "956faa1c-59bf-4395-af16-72696168910e",
+  "id": "6feb5600-cf5a-47d6-b9a8-f8a22043625d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -124,6 +124,13 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": true
+        },
+        "day": {
+          "name": "day",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "time_slot": {
           "name": "time_slot",
@@ -758,7 +765,7 @@
           "name": "course_hours_id",
           "type": "int",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "course_id": {
