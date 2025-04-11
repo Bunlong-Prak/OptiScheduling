@@ -538,12 +538,13 @@ export default function TimetableView() {
 
     return (
         <div className="relative min-h-screen">
-            <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-bold">Timetable</h2>
-                <div className="space-x-2">
-                    <Button>Export Timetable</Button>
-                </div>
-            </div>
+          <div className="flex justify-between items-center mb-8">
+    <h2 className="text-2xl font-bold">Timetable</h2>
+    <div className="space-x-2">
+        <Button >Save All</Button>
+        <Button>Export Timetable</Button>
+    </div>
+</div>
 
             {/* Full week timetable */}
             <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] mb-40">
