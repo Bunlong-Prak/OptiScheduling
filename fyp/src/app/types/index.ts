@@ -143,3 +143,25 @@ export type CellToDelete = {
     timeSlot: string;
     timeSlotId: number;
 };
+// New types for the API response
+export type ScheduleAssignment = {
+    sectionId: number;
+    courseCode: string;
+    courseTitle: string;
+    instructorName: string;
+    day: string;
+    startTime: string;
+    endTime: string;
+    classroomCode: string;
+};
+
+export type ScheduleResponse = {
+    message: string;
+    schedule: ScheduleAssignment[];
+    stats: {
+        totalCourses: number;
+        totalSections: number;
+        scheduledAssignments: number;
+        constraintsApplied: number;
+    };
+};

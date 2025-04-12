@@ -1,7 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -43,31 +41,8 @@ export default function ScheduleLayout({
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    <Button>
-                        <Plus className="mr-2 h-4 w-4" /> Generate Schedule
-                    </Button>
-                    <Button
-                        variant="outline"
-                        className="bg-blue-500 text-white hover:bg-blue-600"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="mr-2"
-                        >
-                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                            <polyline points="17 21 17 13 7 13 7 21" />
-                            <polyline points="7 3 7 8 15 8" />
-                        </svg>
-                        Save Changes
-                    </Button>
+                  
+                  
                 </div>
             </div>
 

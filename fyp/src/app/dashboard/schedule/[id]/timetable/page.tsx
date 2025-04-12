@@ -26,6 +26,8 @@ import {
     CourseHour,
     Schedule,
     TimetableCourse,
+    ScheduleAssignment,
+    ScheduleResponse,
 } from "@/app/types";
 import { colors_class } from "@/components/custom/colors";
 import { useParams } from "next/navigation";
@@ -51,6 +53,7 @@ export default function TimetableView() {
     const [availableCourses, setAvailableCourses] = useState<TimetableCourse[]>(
         []
     );
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [assignedCourses, setAssignedCourses] = useState<TimetableCourse[]>(
         []
     );
@@ -64,7 +67,17 @@ export default function TimetableView() {
 
     // State for classrooms from database
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-
+    // Add these new state variables to your existing useState declarations
+    // Add these new state variables to your existing useState declarations
+    const [isGeneratingSchedule, setIsGeneratingSchedule] =
+        useState<boolean>(false);
+    const [scheduleGenerated, setScheduleGenerated] = useState<boolean>(false);
+    const [generationStats, setGenerationStats] = useState<{
+        totalCourses: number;
+        totalSections: number;
+        scheduledAssignments: number;
+        constraintsApplied: number;
+    } | null>(null);
     // Default time slots for fallback - course hours related
     const defaultTimeSlots = [
         { id: 1, time_slot: "8:00" },
@@ -82,25 +95,6 @@ export default function TimetableView() {
 
     // Fetch time slots and classrooms from API
     useEffect(() => {
-        // Fetch course hours - commented out
-        /*
-        const fetchTimeSlots = async () => {
-            try {
-                const response = await fetch("/api/course-hours");
-                if (response.ok) {
-                    const data: CourseHour[] = await response.json();
-                    setTimeSlots(data);
-                } else {
-                    console.error("Failed to fetch course hours");
-                    setTimeSlots(defaultTimeSlots);
-                }
-            } catch (error) {
-                console.error("Error fetching course hours:", error);
-                setTimeSlots(defaultTimeSlots);
-            }
-        };
-        */
-
         // Use default time slots directly instead of fetching
         setTimeSlots(defaultTimeSlots);
 
@@ -242,6 +236,170 @@ export default function TimetableView() {
             }
         } catch (error) {
             console.error("Error removing assignment:", error);
+        }
+    };
+    // Add this function to fetch and generate the schedule
+    // Add this function to fetch and generate the schedule
+    // Add this function to fetch and generate the schedule
+    const generateSchedule = async () => {
+        if (!params.id) {
+            alert("Schedule ID is missing");
+            return;
+        }
+
+        setIsGeneratingSchedule(true);
+
+        try {
+            const scheduleId = params.id.toString();
+
+            // Call the generate-schedule API endpoint with POST method
+            const response = await fetch(
+                `/api/generate-schedule?scheduleId=${scheduleId}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    `Failed to generate schedule: ${response.status} ${response.statusText}`
+                );
+            }
+
+            const data: ScheduleResponse = await response.json();
+
+            // Save stats for potential display
+            if (data.stats) {
+                setGenerationStats(data.stats);
+            }
+
+            // Process the generated schedule and update the timetable
+            if (data.schedule && Array.isArray(data.schedule)) {
+                // Clear the current schedule
+                setSchedule({});
+
+                // Create new schedule data structures
+                const newSchedule: Schedule = {};
+                const newAssignedCourses: TimetableCourse[] = [];
+
+                // Process each assignment from the API
+                data.schedule.forEach((assignment: ScheduleAssignment) => {
+                    const {
+                        sectionId,
+                        courseCode,
+                        courseTitle,
+                        instructorName,
+                        day,
+                        startTime,
+                        endTime,
+                        classroomCode,
+                    } = assignment;
+
+                    // Find the classroom ID by code
+                    const classroom = classrooms.find(
+                        (c) => c.code === classroomCode
+                    );
+                    if (!classroom) {
+                        console.warn(
+                            `Classroom with code ${classroomCode} not found`
+                        );
+                        return;
+                    }
+
+                    // Find the start time index
+                    const startIndex = timeSlots.findIndex(
+                        (ts) => ts.time_slot === startTime
+                    );
+                    if (startIndex === -1) {
+                        console.warn(`Time slot ${startTime} not found`);
+                        return;
+                    }
+
+                    // Find the end time index
+                    const endIndex = timeSlots.findIndex(
+                        (ts) => ts.time_slot === endTime
+                    );
+                    if (endIndex === -1) {
+                        console.warn(`End time slot ${endTime} not found`);
+                        return;
+                    }
+
+                    // Calculate duration based on start and end times
+                    const duration = endIndex - startIndex + 1;
+
+                    // Deterministic color based on course code to ensure consistency
+                    const colorKey =
+                        courseCode.charCodeAt(0) %
+                        Object.keys(colors_class).length;
+                    const colorClassName =
+                        Object.values(colors_class)[colorKey];
+
+                    // Create course object
+                    const course: TimetableCourse = {
+                        sectionId,
+                        code: courseCode,
+                        name: courseTitle,
+                        instructor: instructorName,
+                        duration,
+                        day,
+                        startTime,
+                        endTime,
+                        classroom: classroom.id.toString(),
+                        color: colorClassName,
+                        section: sectionId.toString(), // Using sectionId as section identifier
+                        room: classroomCode,
+                        // Remove uniqueId as it's not in the TimetableCourse type
+                    };
+
+                    // Add to assigned courses
+                    newAssignedCourses.push(course);
+
+                    // Add to schedule grid for display
+                    for (let i = 0; i < duration; i++) {
+                        if (startIndex + i >= timeSlots.length) break;
+
+                        const timeSlot = timeSlots[startIndex + i].time_slot;
+                        const key = `${day}-${classroom.id}-${timeSlot}`;
+
+                        newSchedule[key] = {
+                            ...course,
+                            isStart: i === 0,
+                            isMiddle: i > 0 && i < duration - 1,
+                            isEnd: i === duration - 1,
+                            colspan: i === 0 ? duration : 0,
+                        };
+                    }
+                });
+
+                // Update state with new schedule and assigned courses
+                setSchedule(newSchedule);
+                setAssignedCourses(newAssignedCourses);
+
+                // Update available courses (remove assigned courses)
+                const assignedIds = new Set(
+                    newAssignedCourses.map((c) => c.sectionId)
+                );
+                setAvailableCourses((prev) =>
+                    prev.filter((c) => !assignedIds.has(c.sectionId))
+                );
+
+                setScheduleGenerated(true);
+            } else {
+                console.error("Invalid schedule data format", data);
+                alert("Failed to process the generated schedule data.");
+            }
+        } catch (error) {
+            console.error("Error generating schedule:", error);
+            alert(
+                `Error generating schedule: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`
+            );
+        } finally {
+            setIsGeneratingSchedule(false);
         }
     };
 
@@ -538,13 +696,29 @@ export default function TimetableView() {
 
     return (
         <div className="relative min-h-screen">
-          <div className="flex justify-between items-center mb-8">
-    <h2 className="text-2xl font-bold">Timetable</h2>
-    <div className="space-x-2">
-        <Button >Save All</Button>
-        <Button>Export Timetable</Button>
-    </div>
+
+<div className="flex justify-between items-center mb-8">
+  <h2 className="text-2xl font-bold">Timetable</h2>
+  <div className="space-x-2">
+    <Button 
+      onClick={generateSchedule} 
+      disabled={isGeneratingSchedule || classrooms.length === 0}
+      variant="outline"
+    >
+      {isGeneratingSchedule ? 'Generating...' : 'Auto-Generate Schedule'}
+    </Button>
+    <Button>Save All</Button>
+    <Button>Export Timetable</Button>
+  </div>
 </div>
+
+{/* Optional: Show generation results */}
+{scheduleGenerated && generationStats && (
+  <div className="bg-green-50 border border-green-200 text-green-800 p-3 mb-4 rounded">
+    <p>Schedule generated successfully! {generationStats.scheduledAssignments} classes were scheduled out of {generationStats.totalSections} sections.</p>
+    <p className="text-sm mt-1">You can still make manual adjustments by dragging courses.</p>
+  </div>
+)}
 
             {/* Full week timetable */}
             <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] mb-40">
