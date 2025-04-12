@@ -25,9 +25,9 @@ import {
     Classroom,
     CourseHour,
     Schedule,
-    TimetableCourse,
     ScheduleAssignment,
     ScheduleResponse,
+    TimetableCourse,
 } from "@/app/types";
 import { colors_class } from "@/components/custom/colors";
 import { useParams } from "next/navigation";
@@ -58,6 +58,7 @@ export default function TimetableView() {
         []
     );
     const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Add state to track if dragging to available courses area
     const [isDraggingToAvailable, setIsDraggingToAvailable] = useState(false);
@@ -67,6 +68,7 @@ export default function TimetableView() {
 
     // State for classrooms from database
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+    // Add these new state variables to your existing useState declarations
     // Add these new state variables to your existing useState declarations
     // Add these new state variables to your existing useState declarations
     const [isGeneratingSchedule, setIsGeneratingSchedule] =
@@ -192,218 +194,62 @@ export default function TimetableView() {
         setIsDraggingToAvailable(false);
     };
 
-    // Function to save a single assignment to the database
-    const saveAssignmentToDatabase = async (course: TimetableCourse) => {
+    // Function to save all assignments to the database
+    const saveAllAssignments = async () => {
+        if (assignedCourses.length === 0) {
+            alert("No courses to save!");
+            return;
+        }
+
+        setIsSaving(true);
         try {
-            const assignmentData = {
+            // Prepare data for API
+            const assignmentsData = assignedCourses.map((course) => ({
                 sectionId: course.sectionId,
                 day: course.day,
                 startTime: course.startTime,
                 endTime: course.endTime,
-            };
+            }));
 
+            // Send all assignments to API
             const response = await fetch("/api/assign-time-slots", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify(assignmentData), // Send as array since API expects array
+                body: JSON.stringify(assignmentsData),
             });
 
-            if (!response.ok) {
-                console.error("Failed to save assignment to database");
-                // Optionally show a toast or notification
-            }
-        } catch (error) {
-            console.error("Error saving assignment:", error);
-        }
-    };
-
-    // Function to remove a course assignment from the database
-    const removeAssignmentFromDatabase = async (sectionId: number) => {
-        try {
-            const response = await fetch("/api/assign-time-slots", {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ sectionId }),
-            });
-
-            if (!response.ok) {
-                console.error("Failed to remove assignment from database");
-                // Optionally show a toast or notification
-            }
-        } catch (error) {
-            console.error("Error removing assignment:", error);
-        }
-    };
-    // Add this function to fetch and generate the schedule
-    // Add this function to fetch and generate the schedule
-    // Add this function to fetch and generate the schedule
-    const generateSchedule = async () => {
-        if (!params.id) {
-            alert("Schedule ID is missing");
-            return;
-        }
-
-        setIsGeneratingSchedule(true);
-
-        try {
-            const scheduleId = params.id.toString();
-
-            // Call the generate-schedule API endpoint with POST method
-            const response = await fetch(
-                `/api/generate-schedule?scheduleId=${scheduleId}`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error(
-                    `Failed to generate schedule: ${response.status} ${response.statusText}`
-                );
-            }
-
-            const data: ScheduleResponse = await response.json();
-
-            // Save stats for potential display
-            if (data.stats) {
-                setGenerationStats(data.stats);
-            }
-
-            // Process the generated schedule and update the timetable
-            if (data.schedule && Array.isArray(data.schedule)) {
-                // Clear the current schedule
-                setSchedule({});
-
-                // Create new schedule data structures
-                const newSchedule: Schedule = {};
-                const newAssignedCourses: TimetableCourse[] = [];
-
-                // Process each assignment from the API
-                data.schedule.forEach((assignment: ScheduleAssignment) => {
-                    const {
-                        sectionId,
-                        courseCode,
-                        courseTitle,
-                        instructorName,
-                        day,
-                        startTime,
-                        endTime,
-                        classroomCode,
-                    } = assignment;
-
-                    // Find the classroom ID by code
-                    const classroom = classrooms.find(
-                        (c) => c.code === classroomCode
-                    );
-                    if (!classroom) {
-                        console.warn(
-                            `Classroom with code ${classroomCode} not found`
-                        );
-                        return;
-                    }
-
-                    // Find the start time index
-                    const startIndex = timeSlots.findIndex(
-                        (ts) => ts.time_slot === startTime
-                    );
-                    if (startIndex === -1) {
-                        console.warn(`Time slot ${startTime} not found`);
-                        return;
-                    }
-
-                    // Find the end time index
-                    const endIndex = timeSlots.findIndex(
-                        (ts) => ts.time_slot === endTime
-                    );
-                    if (endIndex === -1) {
-                        console.warn(`End time slot ${endTime} not found`);
-                        return;
-                    }
-
-                    // Calculate duration based on start and end times
-                    const duration = endIndex - startIndex + 1;
-
-                    // Deterministic color based on course code to ensure consistency
-                    const colorKey =
-                        courseCode.charCodeAt(0) %
-                        Object.keys(colors_class).length;
-                    const colorClassName =
-                        Object.values(colors_class)[colorKey];
-
-                    // Create course object
-                    const course: TimetableCourse = {
-                        sectionId,
-                        code: courseCode,
-                        name: courseTitle,
-                        instructor: instructorName,
-                        duration,
-                        day,
-                        startTime,
-                        endTime,
-                        classroom: classroom.id.toString(),
-                        color: colorClassName,
-                        section: sectionId.toString(), // Using sectionId as section identifier
-                        room: classroomCode,
-                        // Remove uniqueId as it's not in the TimetableCourse type
-                    };
-
-                    // Add to assigned courses
-                    newAssignedCourses.push(course);
-
-                    // Add to schedule grid for display
-                    for (let i = 0; i < duration; i++) {
-                        if (startIndex + i >= timeSlots.length) break;
-
-                        const timeSlot = timeSlots[startIndex + i].time_slot;
-                        const key = `${day}-${classroom.id}-${timeSlot}`;
-
-                        newSchedule[key] = {
-                            ...course,
-                            isStart: i === 0,
-                            isMiddle: i > 0 && i < duration - 1,
-                            isEnd: i === duration - 1,
-                            colspan: i === 0 ? duration : 0,
-                        };
-                    }
-                });
-
-                // Update state with new schedule and assigned courses
-                setSchedule(newSchedule);
-                setAssignedCourses(newAssignedCourses);
-
-                // Update available courses (remove assigned courses)
-                const assignedIds = new Set(
-                    newAssignedCourses.map((c) => c.sectionId)
-                );
-                setAvailableCourses((prev) =>
-                    prev.filter((c) => !assignedIds.has(c.sectionId))
-                );
-
-                setScheduleGenerated(true);
+            if (response.ok) {
+                alert("All assignments saved successfully!");
             } else {
-                console.error("Invalid schedule data format", data);
-                alert("Failed to process the generated schedule data.");
+                const errorData = await response.json();
+                console.error("Failed to save assignments:", errorData);
+                alert(
+                    `Failed to save assignments: ${
+                        errorData.error || "Unknown error"
+                    }`
+                );
             }
         } catch (error) {
-            console.error("Error generating schedule:", error);
+            console.error("Error saving assignments:", error);
             alert(
-                `Error generating schedule: ${
+                `Error saving assignments: ${
                     error instanceof Error ? error.message : "Unknown error"
                 }`
             );
         } finally {
-            setIsGeneratingSchedule(false);
+            setIsSaving(false);
         }
     };
 
-    // Handle drop for available courses
+    // Function to export timetable
+    const exportTimetable = () => {
+        // Implement export functionality
+        alert("Export functionality to be implemented");
+    };
+
+    // Handle drag over for available courses section
     const handleAvailableDrop = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsDraggingToAvailable(false);
@@ -414,9 +260,6 @@ export default function TimetableView() {
         if (draggedCourse.day) {
             // Remove course from the timetable
             removeCourseFromTimetable(draggedCourse);
-
-            // Remove the assignment from the database
-            removeAssignmentFromDatabase(draggedCourse.sectionId);
         }
     };
 
@@ -595,8 +438,8 @@ export default function TimetableView() {
             });
         }
 
-        // Save the assignment to the database immediately when dropped
-        saveAssignmentToDatabase(assignedCourse);
+        // No longer saving to database immediately on drop
+        // The save happens when the user clicks "Save All"
     };
 
     // Handle course click - updated to use classroom instead of major
@@ -612,37 +455,168 @@ export default function TimetableView() {
         setIsDialogOpen(true);
     };
 
-    // Function to save all timetable assignments in a batch
-    // const assignTimeSlot = async () => {
-    //     // Extract all assigned courses from the schedule
-    //     const apiData = assignedCourses.map((course) => ({
-    //         sectionId: course.sectionId,
-    //         day: course.day,
-    //         courseHoursId: course.courseHoursId,
-    //         startTime: course.startTime,
-    //         endTime: course.endTime,
-    //     }));
+    // Add this function to fetch and generate the schedule
+    const generateSchedule = async () => {
+        if (!params.id) {
+            alert("Schedule ID is missing");
+            return;
+        }
 
-    //     try {
-    //         // Send to your API endpoint
-    //         const response = await fetch("/api/assign-time-slots", {
-    //             method: "POST",
-    //             headers: {
-    //                 "Content-Type": "application/json",
-    //             },
-    //             body: JSON.stringify(apiData),
-    //         });
+        setIsGeneratingSchedule(true);
 
-    //         if (response.ok) {
-    //             alert("Timetable saved successfully!");
-    //         } else {
-    //             alert("Failed to save timetable");
-    //         }
-    //     } catch (error) {
-    //         console.error("Error saving timetable:", error);
-    //         alert("Error saving timetable");
-    //     }
-    // };
+        try {
+            const scheduleId = params.id.toString();
+
+            // Call the generate-schedule API endpoint with POST method
+            const response = await fetch(
+                `/api/generate-schedule?scheduleId=${scheduleId}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    `Failed to generate schedule: ${response.status} ${response.statusText}`
+                );
+            }
+
+            const data: ScheduleResponse = await response.json();
+
+            // Save stats for potential display
+            if (data.stats) {
+                setGenerationStats(data.stats);
+            }
+
+            // Process the generated schedule and update the timetable
+            if (data.schedule && Array.isArray(data.schedule)) {
+                // Clear the current schedule
+                setSchedule({});
+
+                // Create new schedule data structures
+                const newSchedule: Schedule = {};
+                const newAssignedCourses: TimetableCourse[] = [];
+
+                // Process each assignment from the API
+                data.schedule.forEach((assignment: ScheduleAssignment) => {
+                    const {
+                        sectionId,
+                        courseCode,
+                        courseTitle,
+                        instructorName,
+                        day,
+                        startTime,
+                        endTime,
+                        classroomCode,
+                    } = assignment;
+
+                    // Find the classroom ID by code
+                    const classroom = classrooms.find(
+                        (c) => c.code === classroomCode
+                    );
+                    if (!classroom) {
+                        console.warn(
+                            `Classroom with code ${classroomCode} not found`
+                        );
+                        return;
+                    }
+
+                    // Find the start time index
+                    const startIndex = timeSlots.findIndex(
+                        (ts) => ts.time_slot === startTime
+                    );
+                    if (startIndex === -1) {
+                        console.warn(`Time slot ${startTime} not found`);
+                        return;
+                    }
+
+                    // Find the end time index
+                    const endIndex = timeSlots.findIndex(
+                        (ts) => ts.time_slot === endTime
+                    );
+                    if (endIndex === -1) {
+                        console.warn(`End time slot ${endTime} not found`);
+                        return;
+                    }
+
+                    // Calculate duration based on start and end times
+                    const duration = endIndex - startIndex + 1;
+
+                    // Deterministic color based on course code to ensure consistency
+                    const colorKey =
+                        courseCode.charCodeAt(0) %
+                        Object.keys(colors_class).length;
+                    const colorClassName =
+                        Object.values(colors_class)[colorKey];
+
+                    // Create course object
+                    const course: TimetableCourse = {
+                        sectionId,
+                        code: courseCode,
+                        name: courseTitle,
+                        instructor: instructorName,
+                        duration,
+                        day,
+                        startTime,
+                        endTime,
+                        classroom: classroom.id.toString(),
+                        color: colorClassName,
+                        section: sectionId.toString(), // Using sectionId as section identifier
+                        room: classroomCode,
+                        // Remove uniqueId as it's not in the TimetableCourse type
+                    };
+
+                    // Add to assigned courses
+                    newAssignedCourses.push(course);
+
+                    // Add to schedule grid for display
+                    for (let i = 0; i < duration; i++) {
+                        if (startIndex + i >= timeSlots.length) break;
+
+                        const timeSlot = timeSlots[startIndex + i].time_slot;
+                        const key = `${day}-${classroom.id}-${timeSlot}`;
+
+                        newSchedule[key] = {
+                            ...course,
+                            isStart: i === 0,
+                            isMiddle: i > 0 && i < duration - 1,
+                            isEnd: i === duration - 1,
+                            colspan: i === 0 ? duration : 0,
+                        };
+                    }
+                });
+
+                // Update state with new schedule and assigned courses
+                setSchedule(newSchedule);
+                setAssignedCourses(newAssignedCourses);
+
+                // Update available courses (remove assigned courses)
+                const assignedIds = new Set(
+                    newAssignedCourses.map((c) => c.sectionId)
+                );
+                setAvailableCourses((prev) =>
+                    prev.filter((c) => !assignedIds.has(c.sectionId))
+                );
+
+                setScheduleGenerated(true);
+            } else {
+                console.error("Invalid schedule data format", data);
+                alert("Failed to process the generated schedule data.");
+            }
+        } catch (error) {
+            console.error("Error generating schedule:", error);
+            alert(
+                `Error generating schedule: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`
+            );
+        } finally {
+            setIsGeneratingSchedule(false);
+        }
+    };
 
     // Handle course delete - updated to use sectionId approach
     const handleRemoveCourse = () => {
@@ -688,37 +662,45 @@ export default function TimetableView() {
             prev.filter((c) => c.sectionId !== courseId)
         );
 
-        // Remove the assignment from the database
-        removeAssignmentFromDatabase(courseId);
-
         setIsDialogOpen(false);
     };
 
     return (
         <div className="relative min-h-screen">
+            <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-bold">Timetable</h2>
+                <div className="space-x-2">
+                    <Button
+                        onClick={generateSchedule}
+                        disabled={
+                            isGeneratingSchedule || classrooms.length === 0
+                        }
+                        variant="outline"
+                    >
+                        {isGeneratingSchedule
+                            ? "Generating..."
+                            : "Auto-Generate Schedule"}
+                    </Button>
+                    <Button onClick={saveAllAssignments}>Save All</Button>
+                    <Button>Export Timetable</Button>
+                </div>
+            </div>
 
-<div className="flex justify-between items-center mb-8">
-  <h2 className="text-2xl font-bold">Timetable</h2>
-  <div className="space-x-2">
-    <Button 
-      onClick={generateSchedule} 
-      disabled={isGeneratingSchedule || classrooms.length === 0}
-      variant="outline"
-    >
-      {isGeneratingSchedule ? 'Generating...' : 'Auto-Generate Schedule'}
-    </Button>
-    <Button>Save All</Button>
-    <Button>Export Timetable</Button>
-  </div>
-</div>
-
-{/* Optional: Show generation results */}
-{scheduleGenerated && generationStats && (
-  <div className="bg-green-50 border border-green-200 text-green-800 p-3 mb-4 rounded">
-    <p>Schedule generated successfully! {generationStats.scheduledAssignments} classes were scheduled out of {generationStats.totalSections} sections.</p>
-    <p className="text-sm mt-1">You can still make manual adjustments by dragging courses.</p>
-  </div>
-)}
+            {/* Optional: Show generation results */}
+            {scheduleGenerated && generationStats && (
+                <div className="bg-green-50 border border-green-200 text-green-800 p-3 mb-4 rounded">
+                    <p>
+                        Schedule generated successfully!{" "}
+                        {generationStats.scheduledAssignments} classes were
+                        scheduled out of {generationStats.totalSections}{" "}
+                        sections.
+                    </p>
+                    <p className="text-sm mt-1">
+                        You can still make manual adjustments by dragging
+                        courses.
+                    </p>
+                </div>
+            )}
 
             {/* Full week timetable */}
             <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] mb-40">

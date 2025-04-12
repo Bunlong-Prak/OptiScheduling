@@ -73,66 +73,87 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const validationResult = saveTimetableSchema.safeParse(body);
 
-        if (!validationResult.success) {
+        // Check if body is an array
+        if (!Array.isArray(body)) {
             return NextResponse.json(
-                { error: validationResult.error.errors },
+                { error: "Expected an array of assignments" },
                 { status: 400 }
             );
         }
 
-        const { sectionId, day, startTime, endTime } = validationResult.data;
+        // Validate each item in the array
+        const results = [];
 
-        // First, create the course hour
-        await db.insert(courseHours).values({
-            day: day,
-            timeSlot: `${startTime} - ${endTime}`,
-        });
+        for (const assignment of body) {
+            const validationResult = saveTimetableSchema.safeParse(assignment);
+            if (!validationResult.success) {
+                // Log the error but continue processing other items
+                console.error(
+                    `Validation error for assignment: ${JSON.stringify(
+                        assignment
+                    )}`,
+                    validationResult.error.errors
+                );
+                continue;
+            }
 
-        // Get the ID of the newly created course hour (using a separate query)
-        const createdCourseHour = await db
-            .select({ id: courseHours.id })
-            .from(courseHours)
-            .where(eq(courseHours.timeSlot, `${startTime} - ${endTime}`))
-            .limit(1);
+            const { sectionId, day, startTime, endTime } =
+                validationResult.data;
 
-        if (createdCourseHour.length === 0) {
-            return NextResponse.json(
-                { error: "Failed to create course hour" },
-                { status: 500 }
-            );
-        }
+            // First, create the course hour
+            await db.insert(courseHours).values({
+                day: day,
+                timeSlot: `${startTime} - ${endTime}`,
+            });
 
-        const courseHourId = createdCourseHour[0].id;
-        console.log("Course hour created with ID:", courseHourId);
+            // Get the ID of the newly created course hour
+            const createdCourseHour = await db
+                .select({ id: courseHours.id })
+                .from(courseHours)
+                .where(eq(courseHours.timeSlot, `${startTime} - ${endTime}`))
+                .limit(1);
 
-        // Now update the section with the reference to the new course hour
-        await db
-            .update(sections)
-            .set({
-                courseHoursId: courseHourId,
-            })
-            .where(eq(sections.id, sectionId));
+            if (createdCourseHour.length === 0) {
+                console.error(
+                    `Failed to create course hour for section ${sectionId}`
+                );
+                continue; // Skip to next assignment
+            }
 
-        // Get the updated section (using a separate query)
-        const updatedSection = await db
-            .select()
-            .from(sections)
-            .where(eq(sections.id, sectionId))
-            .limit(1);
+            const courseHourId = createdCourseHour[0].id;
 
-        return NextResponse.json({
-            message: "Timetable assignment saved successfully",
-            data: {
+            // Update the section with the reference to the new course hour
+            await db
+                .update(sections)
+                .set({
+                    courseHoursId: courseHourId,
+                })
+                .where(eq(sections.id, sectionId));
+
+            // Get the updated section
+            const updatedSection = await db
+                .select()
+                .from(sections)
+                .where(eq(sections.id, sectionId))
+                .limit(1);
+
+            // Add this assignment's result to the results array
+            results.push({
+                sectionId,
                 courseHour: { id: courseHourId },
                 section: updatedSection[0],
-            },
+            });
+        }
+
+        return NextResponse.json({
+            message: `Successfully processed ${results.length} of ${body.length} assignments`,
+            data: results,
         });
     } catch (error: unknown) {
-        console.error("Error saving timetable assignment:", error);
+        console.error("Error saving timetable assignments:", error);
         return NextResponse.json(
-            { error: "Failed to save timetable assignment" },
+            { error: "Failed to save timetable assignments" },
             { status: 500 }
         );
     }
