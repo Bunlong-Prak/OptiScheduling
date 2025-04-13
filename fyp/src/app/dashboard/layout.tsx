@@ -34,12 +34,6 @@ export default async function DashboardLayout({
                             >
                                 Dashboard
                             </a>
-                            <a
-                                href="/dashboard/settings"
-                                className="text-gray-600 hover:text-gray-900"
-                            >
-                                Settings
-                            </a>
                             <Link
                                 href="/"
                                 className="text-red-600 hover:text-red-900"
