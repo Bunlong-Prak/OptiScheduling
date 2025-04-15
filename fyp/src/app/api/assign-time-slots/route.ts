@@ -1,4 +1,4 @@
-import { courseHours, sections } from "@/drizzle/schema";
+import { courseHours, courses, sections } from "@/drizzle/schema";
 import { db } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -44,14 +44,14 @@ export async function GET(request: Request) {
                 courseHoursId: sections.courseHoursId,
                 classroomId: sections.classroomId,
                 day: sections.day,
-                code: sections.code,
-                title: sections.title,
-                instructor: sections.instructorId,
+                code: courses.code,
+                title: courses.title,
+                instructor: courses.instructorId,
                 timeSlot: courseHours.timeSlot,
-                duration: sections.duration,
+                duration: courses.duration,
             })
-            .from(sections)
-            .leftJoin(courseHours, eq(sections.courseHoursId, courseHours.id))
+            .from(courses)
+            .innerJoin(sections, eq(sections.courseHoursId, courseHours.id))
             .where(
                 and(
                     eq(sections.scheduleId, parseInt(scheduleId)),
@@ -69,7 +69,7 @@ export async function GET(request: Request) {
     }
 }
 
-// POST new assignment (when dragging a course onto the timetable)
+// POST new course to timetable
 export async function POST(request: Request) {
     try {
         const body = await request.json();
