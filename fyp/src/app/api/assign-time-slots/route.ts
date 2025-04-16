@@ -43,21 +43,18 @@ export async function GET(request: Request) {
                 sectionId: sections.id,
                 courseHoursId: sections.courseHoursId,
                 classroomId: sections.classroomId,
-                day: sections.day,
+
                 code: courses.code,
                 title: courses.title,
                 instructor: courses.instructorId,
+                day: courseHours.day,
                 timeSlot: courseHours.timeSlot,
                 duration: courses.duration,
             })
             .from(courses)
-            .innerJoin(sections, eq(sections.courseHoursId, courseHours.id))
-            .where(
-                and(
-                    eq(sections.scheduleId, parseInt(scheduleId)),
-                    eq(sections.courseHoursId, null).not() // Only get assigned sections
-                )
-            );
+            .innerJoin(sections, eq(sections.courseId, courses.id))
+            .innerJoin(courseHours, eq(courseHours.id, sections.courseHoursId))
+            .where(and(eq(courses.scheduleId, parseInt(scheduleId))));
 
         return NextResponse.json(assignments);
     } catch (error: unknown) {

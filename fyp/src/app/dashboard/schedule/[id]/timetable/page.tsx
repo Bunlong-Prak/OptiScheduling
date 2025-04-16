@@ -170,6 +170,235 @@ export default function TimetableView() {
         fetchCourses();
     }, []);
 
+    // Fetch timetable assignments from API
+    useEffect(() => {
+        const fetchTimetableAssignments = async () => {
+            if (!params.id || !timeSlots.length || !classrooms.length) return;
+
+            setIsLoading(true);
+            try {
+                const scheduleId = params.id;
+                const response = await fetch(
+                    `/api/assign-time-slots?scheduleId=${scheduleId}`
+                );
+
+                if (!response.ok) {
+                    throw new Error(
+                        `Failed to fetch assignments: ${response.status} ${response.statusText}`
+                    );
+                }
+
+                const assignmentsData = await response.json();
+
+                // Process the assignments data to create schedule
+                const newSchedule = {};
+                const newAssignedCourses:
+                    | any[]
+                    | ((prevState: TimetableCourse[]) => TimetableCourse[]) =
+                    [];
+
+                // Group assignments by sectionId to get all time slots for each section
+                const sectionAssignments = {};
+                assignmentsData.forEach((assignment) => {
+                    if (!sectionAssignments[assignment.sectionId]) {
+                        sectionAssignments[assignment.sectionId] = [];
+                    }
+                    sectionAssignments[assignment.sectionId].push(assignment);
+                });
+
+                // Process each section's assignments
+                Object.values(sectionAssignments).forEach((assignments) => {
+                    if (!assignments.length) return;
+
+                    // Use the first assignment for basic course info
+                    const firstAssignment = assignments[0];
+                    const classroomId = firstAssignment.classroomId.toString();
+
+                    // Find classroom code
+                    const classroom = classrooms.find(
+                        (c) => c.id.toString() === classroomId
+                    );
+                    const classroomCode = classroom
+                        ? classroom.code
+                        : "Unknown";
+
+                    // Find instructor name (you may need to adjust this based on your data structure)
+                    const instructorName =
+                        firstAssignment.instructorId || "TBA";
+
+                    // Deterministic color based on course code
+                    const colorKey =
+                        firstAssignment.code.charCodeAt(0) %
+                        Object.keys(colors_class).length;
+                    const colorClassName =
+                        Object.values(colors_class)[colorKey];
+
+                    // Process each day's assignments for this section
+                    const dayGroups = {};
+                    assignments.forEach((assignment) => {
+                        if (!dayGroups[assignment.day]) {
+                            dayGroups[assignment.day] = [];
+                        }
+                        dayGroups[assignment.day].push(assignment);
+                    });
+
+                    // For each day, create continuous blocks
+                    Object.entries(dayGroups).forEach(
+                        ([day, dayAssignments]) => {
+                            // Sort by time slot
+                            dayAssignments.sort((a, b) => {
+                                const aIndex = timeSlots.findIndex(
+                                    (ts) => ts.time_slot === a.timeSlot
+                                );
+                                const bIndex = timeSlots.findIndex(
+                                    (ts) => ts.time_slot === b.timeSlot
+                                );
+                                return aIndex - bIndex;
+                            });
+
+                            // Find continuous blocks
+                            let currentBlock = [dayAssignments[0]];
+
+                            for (let i = 1; i < dayAssignments.length; i++) {
+                                const currentSlotIndex = timeSlots.findIndex(
+                                    (ts) =>
+                                        ts.time_slot ===
+                                        dayAssignments[i - 1].timeSlot
+                                );
+                                const nextSlotIndex = timeSlots.findIndex(
+                                    (ts) =>
+                                        ts.time_slot ===
+                                        dayAssignments[i].timeSlot
+                                );
+
+                                // If slots are consecutive, add to current block
+                                if (nextSlotIndex === currentSlotIndex + 1) {
+                                    currentBlock.push(dayAssignments[i]);
+                                } else {
+                                    // Process the completed block
+                                    processBlock(
+                                        currentBlock,
+                                        day,
+                                        classroomId,
+                                        classroomCode,
+                                        instructorName,
+                                        colorClassName,
+                                        newSchedule,
+                                        newAssignedCourses
+                                    );
+                                    // Start a new block
+                                    currentBlock = [dayAssignments[i]];
+                                }
+                            }
+
+                            // Process the last block
+                            processBlock(
+                                currentBlock,
+                                day,
+                                classroomId,
+                                classroomCode,
+                                instructorName,
+                                colorClassName,
+                                newSchedule,
+                                newAssignedCourses
+                            );
+                        }
+                    );
+                });
+
+                // Helper function to process a continuous block of assignments
+                function processBlock(
+                    block,
+                    day,
+                    classroomId,
+                    classroomCode,
+                    instructorName,
+                    colorClassName,
+                    newSchedule,
+                    newAssignedCourses
+                ) {
+                    if (!block.length) return;
+
+                    const startAssignment = block[0];
+                    const endAssignment = block[block.length - 1];
+
+                    const startSlot = startAssignment.timeSlot;
+                    const endSlot = endAssignment.timeSlot;
+                    const startIndex = timeSlots.findIndex(
+                        (ts) => ts.time_slot === startSlot
+                    );
+                    const duration = block.length;
+
+                    const course = {
+                        sectionId: startAssignment.sectionId,
+                        code: startAssignment.code,
+                        name: startAssignment.title,
+                        instructor: instructorName,
+                        duration: duration,
+                        day: day,
+                        startTime: startSlot,
+                        endTime: endSlot,
+                        classroom: classroomId,
+                        color: colorClassName,
+                        section: startAssignment.sectionId.toString(),
+                        room: classroomCode,
+                    };
+
+                    // Add to assigned courses if not already there
+                    if (
+                        !newAssignedCourses.some(
+                            (c) =>
+                                c.sectionId === course.sectionId &&
+                                c.day === day &&
+                                c.startTime === startSlot
+                        )
+                    ) {
+                        newAssignedCourses.push({ ...course });
+                    }
+
+                    // Add to schedule grid
+                    for (let i = 0; i < duration; i++) {
+                        if (startIndex + i >= timeSlots.length) break;
+
+                        const timeSlot = timeSlots[startIndex + i].time_slot;
+                        const key = `${day}-${classroomId}-${timeSlot}`;
+
+                        newSchedule[key] = {
+                            ...course,
+                            isStart: i === 0,
+                            isMiddle: i > 0 && i < duration - 1,
+                            isEnd: i === duration - 1,
+                            colspan: i === 0 ? duration : 0,
+                        };
+                    }
+                }
+
+                // Update state with assignments
+                setSchedule(newSchedule);
+                setAssignedCourses(newAssignedCourses);
+
+                // Update available courses (remove assigned courses)
+                const assignedIds = new Set(
+                    newAssignedCourses.map((c) => c.sectionId)
+                );
+                setAvailableCourses((prev) =>
+                    prev.filter((c) => !assignedIds.has(c.sectionId))
+                );
+            } catch (error) {
+                console.error("Error fetching timetable assignments:", error);
+                // Don't show alert for initial load errors to avoid annoying users
+                // Just log to console
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        // Only fetch if we have the necessary data
+        if (timeSlots.length > 0 && classrooms.length > 0) {
+            fetchTimetableAssignments();
+        }
+    }, [params.id, timeSlots, classrooms]); // Re-fetch if schedule ID, time slots or classrooms change
+
     // Handle drag start
     const handleDragStart = (course: TimetableCourse) => {
         setDraggedCourse(course);
