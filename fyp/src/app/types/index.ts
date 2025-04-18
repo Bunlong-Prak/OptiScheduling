@@ -116,18 +116,17 @@ export type CourseHour = {
 };
 
 export type TimetableCourse = {
+    [x: string]: any;
     code: string;
     name: string;
     sectionId: number;
     color: string;
     duration: number;
     instructor: string;
-    room: string;
     isStart?: boolean;
     isMiddle?: boolean;
     isEnd?: boolean;
     colspan?: number;
-    day?: string; // Day assigned in timetable
     startTime?: string; // Start time display value
     endTime?: string; // End time display value
     courseHoursId?: number; // ID from course_hours table

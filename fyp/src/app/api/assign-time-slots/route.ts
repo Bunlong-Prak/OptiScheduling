@@ -1,4 +1,10 @@
-import { courseHours, courses, sections } from "@/drizzle/schema";
+import {
+    classrooms,
+    courseHours,
+    courses,
+    instructors,
+    sections,
+} from "@/drizzle/schema";
 import { db } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -41,19 +47,22 @@ export async function GET(request: Request) {
         const assignments = await db
             .select({
                 sectionId: sections.id,
-                courseHoursId: sections.courseHoursId,
-                classroomId: sections.classroomId,
-
+                courseHours: courseHours.timeSlot,
+                classroom: classrooms.code,
                 code: courses.code,
                 title: courses.title,
-                instructor: courses.instructorId,
+                firstName: instructors.firstName,
+                lastName: instructors.lastName,
                 day: courseHours.day,
                 timeSlot: courseHours.timeSlot,
                 duration: courses.duration,
+                color: courses.color,
             })
             .from(courses)
             .innerJoin(sections, eq(sections.courseId, courses.id))
             .innerJoin(courseHours, eq(courseHours.id, sections.courseHoursId))
+            .innerJoin(instructors, eq(instructors.id, courses.instructorId))
+            .innerJoin(classrooms, eq(classrooms.id, sections.classroomId))
             .where(and(eq(courses.scheduleId, parseInt(scheduleId))));
 
         return NextResponse.json(assignments);

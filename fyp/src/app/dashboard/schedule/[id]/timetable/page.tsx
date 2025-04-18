@@ -189,189 +189,164 @@ export default function TimetableView() {
                 }
 
                 const assignmentsData = await response.json();
+                console.log("Raw assignments data:", assignmentsData);
 
                 // Process the assignments data to create schedule
-                const newSchedule = {};
-                const newAssignedCourses:
-                    | any[]
-                    | ((prevState: TimetableCourse[]) => TimetableCourse[]) =
-                    [];
+                const newSchedule: Record<string, any> = {};
+                const newAssignedCourses: TimetableCourse[] = [];
 
-                // Group assignments by sectionId to get all time slots for each section
-                const sectionAssignments = {};
-                assignmentsData.forEach((assignment) => {
-                    if (!sectionAssignments[assignment.sectionId]) {
-                        sectionAssignments[assignment.sectionId] = [];
+                assignmentsData.forEach((assignment: any) => {
+                    // Extract data from the API response
+                    const sectionId = assignment.sectionId?.toString() || "";
+                    const classroomCode = assignment.classroom; // This is classroom CODE not ID
+                    const code = assignment.code;
+                    const title = assignment.title || code; // Fallback to code if title is missing
+                    const firstName = assignment.firstName;
+                    const lastName = assignment.lastName;
+                    const day = assignment.day;
+
+                    // Parse the time slot - extract start time from formats like "13:00 - 15:00"
+                    let timeSlot = assignment.timeSlot;
+                    let endTimeFromRange = null;
+
+                    if (timeSlot && timeSlot.includes(" - ")) {
+                        const parts = timeSlot.split(" - ");
+                        timeSlot = parts[0].trim();
+                        endTimeFromRange = parts[1].trim(); // Store end time for later use
                     }
-                    sectionAssignments[assignment.sectionId].push(assignment);
-                });
 
-                // Process each section's assignments
-                Object.values(sectionAssignments).forEach((assignments) => {
-                    if (!assignments.length) return;
+                    // Use specified duration or calculate from range
+                    let duration = parseInt(assignment.duration || 3, 10);
 
-                    // Use the first assignment for basic course info
-                    const firstAssignment = assignments[0];
-                    const classroomId = firstAssignment.classroomId.toString();
+                    // Skip invalid assignments
+                    if (!sectionId || !day || !timeSlot) {
+                        console.warn(
+                            "Skipping invalid assignment:",
+                            assignment
+                        );
+                        return;
+                    }
 
-                    // Find classroom code
+                    // Find classroom by code
                     const classroom = classrooms.find(
-                        (c) => c.id.toString() === classroomId
+                        (c) => c.code === classroomCode
                     );
-                    const classroomCode = classroom
-                        ? classroom.code
-                        : "Unknown";
 
-                    // Find instructor name (you may need to adjust this based on your data structure)
+                    // If classroom not found, log error and continue
+                    if (!classroom) {
+                        console.warn(
+                            `Classroom with code ${classroomCode} not found. Available classrooms:`,
+                            classrooms.map((c) => `${c.id}: ${c.code}`)
+                        );
+                        return;
+                    }
+
+                    const classroomId = classroom.id.toString();
+
+                    // Instructor name from firstName and lastName
                     const instructorName =
-                        firstAssignment.instructorId || "TBA";
+                        firstName && lastName
+                            ? `${firstName} ${lastName}`
+                            : "TBA";
 
                     // Deterministic color based on course code
-                    const colorKey =
-                        firstAssignment.code.charCodeAt(0) %
-                        Object.keys(colors_class).length;
+                    const colorIndex =
+                        code.charCodeAt(0) % Object.keys(colors_class).length;
                     const colorClassName =
-                        Object.values(colors_class)[colorKey];
+                        Object.values(colors_class)[colorIndex];
 
-                    // Process each day's assignments for this section
-                    const dayGroups = {};
-                    assignments.forEach((assignment) => {
-                        if (!dayGroups[assignment.day]) {
-                            dayGroups[assignment.day] = [];
-                        }
-                        dayGroups[assignment.day].push(assignment);
-                    });
+                    // Find the time slot index
+                    const startIndex = timeSlots.findIndex(
+                        (ts) => ts.time_slot === timeSlot
+                    );
 
-                    // For each day, create continuous blocks
-                    Object.entries(dayGroups).forEach(
-                        ([day, dayAssignments]) => {
-                            // Sort by time slot
-                            dayAssignments.sort((a, b) => {
-                                const aIndex = timeSlots.findIndex(
-                                    (ts) => ts.time_slot === a.timeSlot
-                                );
-                                const bIndex = timeSlots.findIndex(
-                                    (ts) => ts.time_slot === b.timeSlot
-                                );
-                                return aIndex - bIndex;
-                            });
+                    // Debug the time slot matching
+                    if (startIndex === -1) {
+                        console.warn(
+                            `Time slot "${timeSlot}" not found for course ${code}. Available time slots:`,
+                            timeSlots.map((ts) => ts.time_slot)
+                        );
+                        return;
+                    }
 
-                            // Find continuous blocks
-                            let currentBlock = [dayAssignments[0]];
-
-                            for (let i = 1; i < dayAssignments.length; i++) {
-                                const currentSlotIndex = timeSlots.findIndex(
-                                    (ts) =>
-                                        ts.time_slot ===
-                                        dayAssignments[i - 1].timeSlot
-                                );
-                                const nextSlotIndex = timeSlots.findIndex(
-                                    (ts) =>
-                                        ts.time_slot ===
-                                        dayAssignments[i].timeSlot
-                                );
-
-                                // If slots are consecutive, add to current block
-                                if (nextSlotIndex === currentSlotIndex + 1) {
-                                    currentBlock.push(dayAssignments[i]);
-                                } else {
-                                    // Process the completed block
-                                    processBlock(
-                                        currentBlock,
-                                        day,
-                                        classroomId,
-                                        classroomCode,
-                                        instructorName,
-                                        colorClassName,
-                                        newSchedule,
-                                        newAssignedCourses
-                                    );
-                                    // Start a new block
-                                    currentBlock = [dayAssignments[i]];
-                                }
-                            }
-
-                            // Process the last block
-                            processBlock(
-                                currentBlock,
-                                day,
-                                classroomId,
-                                classroomCode,
-                                instructorName,
-                                colorClassName,
-                                newSchedule,
-                                newAssignedCourses
+                    // If we have an end time from the range, try to use it for more accurate duration
+                    if (endTimeFromRange) {
+                        const endIndex = timeSlots.findIndex(
+                            (ts) => ts.time_slot === endTimeFromRange
+                        );
+                        if (endIndex !== -1) {
+                            // Calculate duration from start to end time slot
+                            duration = endIndex - startIndex + 1;
+                            console.log(
+                                `Calculated duration for ${code}: ${duration} hours (${timeSlot} to ${endTimeFromRange})`
                             );
                         }
+                    }
+
+                    // Calculate endTime safely
+                    const actualDuration = Math.min(
+                        duration,
+                        timeSlots.length - startIndex
                     );
-                });
-
-                // Helper function to process a continuous block of assignments
-                function processBlock(
-                    block,
-                    day,
-                    classroomId,
-                    classroomCode,
-                    instructorName,
-                    colorClassName,
-                    newSchedule,
-                    newAssignedCourses
-                ) {
-                    if (!block.length) return;
-
-                    const startAssignment = block[0];
-                    const endAssignment = block[block.length - 1];
-
-                    const startSlot = startAssignment.timeSlot;
-                    const endSlot = endAssignment.timeSlot;
-                    const startIndex = timeSlots.findIndex(
-                        (ts) => ts.time_slot === startSlot
+                    const endTimeIndex = Math.min(
+                        startIndex + actualDuration - 1,
+                        timeSlots.length - 1
                     );
-                    const duration = block.length;
+                    const endTime = timeSlots[endTimeIndex].time_slot;
 
+                    // Create the course object
                     const course = {
-                        sectionId: startAssignment.sectionId,
-                        code: startAssignment.code,
-                        name: startAssignment.title,
+                        sectionId: sectionId,
+                        code: code,
+                        name: title,
                         instructor: instructorName,
-                        duration: duration,
+                        duration: actualDuration,
                         day: day,
-                        startTime: startSlot,
-                        endTime: endSlot,
+                        startTime: timeSlot,
+                        endTime: endTime,
                         classroom: classroomId,
                         color: colorClassName,
-                        section: startAssignment.sectionId.toString(),
+                        section: sectionId.toString(),
                         room: classroomCode,
+                        courseHours: timeSlot,
                     };
+
+                    console.log("Processing course for schedule:", course);
 
                     // Add to assigned courses if not already there
                     if (
                         !newAssignedCourses.some(
                             (c) =>
-                                c.sectionId === course.sectionId &&
+                                c.sectionId === sectionId &&
                                 c.day === day &&
-                                c.startTime === startSlot
+                                c.startTime === timeSlot
                         )
                     ) {
                         newAssignedCourses.push({ ...course });
                     }
 
                     // Add to schedule grid
-                    for (let i = 0; i < duration; i++) {
+                    for (let i = 0; i < actualDuration; i++) {
                         if (startIndex + i >= timeSlots.length) break;
 
-                        const timeSlot = timeSlots[startIndex + i].time_slot;
-                        const key = `${day}-${classroomId}-${timeSlot}`;
+                        const currentTimeSlot =
+                            timeSlots[startIndex + i].time_slot;
+                        const key = `${day}-${classroomId}-${currentTimeSlot}`;
+
+                        console.log(`Adding to schedule with key: ${key}`);
 
                         newSchedule[key] = {
                             ...course,
                             isStart: i === 0,
-                            isMiddle: i > 0 && i < duration - 1,
-                            isEnd: i === duration - 1,
-                            colspan: i === 0 ? duration : 0,
+                            isMiddle: i > 0 && i < actualDuration - 1,
+                            isEnd: i === actualDuration - 1,
+                            colspan: i === 0 ? actualDuration : 0,
                         };
                     }
-                }
+                });
+
+                console.log("Final processed schedule:", newSchedule);
+                console.log("Final assigned courses:", newAssignedCourses);
 
                 // Update state with assignments
                 setSchedule(newSchedule);
@@ -386,8 +361,6 @@ export default function TimetableView() {
                 );
             } catch (error) {
                 console.error("Error fetching timetable assignments:", error);
-                // Don't show alert for initial load errors to avoid annoying users
-                // Just log to console
             } finally {
                 setIsLoading(false);
             }
@@ -893,6 +866,8 @@ export default function TimetableView() {
 
         setIsDialogOpen(false);
     };
+
+    console.log("Schedule at render time:", schedule);
 
     return (
         <div className="relative min-h-screen">
