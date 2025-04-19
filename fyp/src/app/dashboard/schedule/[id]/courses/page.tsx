@@ -212,7 +212,7 @@ export default function CoursesView() {
                 instructor: formData.instructorId, // Send ID instead of name
                 duration: Number(formData.duration),
                 capacity: Number(formData.capacity),
-                sections: sectionsList,
+                sectionsList: sectionsList,
                 scheduleId: Number(scheduleId), // Add schedule ID from URL
             };
 
@@ -328,7 +328,7 @@ export default function CoursesView() {
                 instructor: instructorId,
                 duration: Number(formData.duration) || 1,
                 capacity: Number(formData.capacity) || 1,
-                sections: sectionsList,
+                sectionsList: sectionsList,
             };
 
             console.log("Sending to API:", apiData);

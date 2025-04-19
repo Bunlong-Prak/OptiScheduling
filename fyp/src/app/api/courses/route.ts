@@ -13,7 +13,6 @@ import { z } from "zod";
 
 const sectionSchema = z.object({
     section: z.string().min(1, { message: "Section number is required" }),
-    classroom: z.string().min(1, { message: "Classroom is required" }),
 });
 
 const courseSchema = z.object({
@@ -42,9 +41,9 @@ const courseSchema = z.object({
     // Capacity: Required
     capacity: z.number().min(1, { message: "Capacity is required" }),
     // Sections array: Required, at least one section
-    sectionClassroom: z
+    sectionsList: z
         .array(sectionSchema)
-        .min(1, { message: "At least one section/classroom is required" }),
+        .min(1, { message: "At least one section is required" }),
     scheduleId: z.number({
         required_error: "Schedule ID is required",
     }),
@@ -79,9 +78,9 @@ const editCourseSchema = z.object({
     // Capacity: Required
     capacity: z.number().min(1, { message: "Capacity is required" }),
     // Sections array: Required, at least one section
-    sectionClassroom: z
+    sectionsList: z
         .array(sectionSchema)
-        .min(1, { message: "At least one section/classroom is required" }),
+        .min(1, { message: "At least one section is required" }),
 });
 
 const deleteCourseSchema = z.object({
@@ -111,13 +110,13 @@ export async function GET(request: Request) {
                 capacity: courses.capacity,
                 sectionId: sections.id,
                 section: sections.number,
-                classroom: classrooms.code,
+                classroom: classrooms.code, // Keep this for backward compatibility
             })
             .from(courses)
             .innerJoin(majors, eq(courses.majorId, majors.id))
             .innerJoin(instructors, eq(courses.instructorId, instructors.id))
             .innerJoin(sections, eq(courses.id, sections.courseId))
-            .innerJoin(classrooms, eq(sections.classroomId, classrooms.id))
+            .leftJoin(classrooms, eq(sections.classroomId, classrooms.id)) // Changed to leftJoin for compatibility
             .innerJoin(schedules, eq(courses.scheduleId, schedules.id)) as any; // Explicitly cast to any to allow mutation
 
         // Add filter for scheduleId if provided
@@ -161,7 +160,7 @@ export async function POST(request: Request) {
             instructor,
             duration,
             capacity,
-            sectionClassroom,
+            sectionsList,
             scheduleId,
         } = validationResult.data;
 
@@ -232,30 +231,14 @@ export async function POST(request: Request) {
         // Array to collect created course sections
         const createdSections = [];
 
-        // Process each section and classroom
-        for (const sectionData of sectionClassroom) {
-            const { section, classroom } = sectionData;
-
-            // Look up the classroom ID for this section
-            const classroomResult = await db
-                .select({ id: classrooms.id })
-                .from(classrooms)
-                .where(eq(classrooms.code, classroom))
-                .limit(1);
-
-            if (classroomResult.length === 0) {
-                // Log error but continue with other sections
-                console.error(
-                    `Classroom ${classroom} not found for section ${section}`
-                );
-                continue;
-            }
+        // Process each section
+        for (const sectionData of sectionsList) {
+            const { section } = sectionData;
 
             // Insert the section
             await db.insert(sections).values({
                 number: section,
                 courseId: newCourse.id,
-                classroomId: classroomResult[0].id,
             });
 
             // Fetch the created section data for response
@@ -263,10 +246,8 @@ export async function POST(request: Request) {
                 .select({
                     id: sections.id,
                     number: sections.number,
-                    classroom: classrooms.code,
                 })
                 .from(sections)
-                .innerJoin(classrooms, eq(sections.classroomId, classrooms.id))
                 .where(
                     and(
                         eq(sections.courseId, newCourse.id),
@@ -345,9 +326,9 @@ export async function PATCH(request: Request) {
             instructor,
             duration,
             capacity,
-            sectionClassroom,
+            sectionsList,
         } = validationResult.data;
-
+        console.log("Ah ach: ", sectionsList);
         if (!sectionId) {
             return NextResponse.json(
                 { error: "Section ID is required" },
@@ -445,63 +426,41 @@ export async function PATCH(request: Request) {
                 .where(eq(courses.id, courseId));
         }
 
+        console.log("Here are the sectionsList:", sectionsList);
+
         // Handle section updates if provided
-        if (sectionClassroom && sectionClassroom.length > 0) {
+        if (sectionsList && sectionsList.length > 0) {
+            // Get all existing sections for this course
+            const existingSections = await db
+                .select({ id: sections.id, number: sections.number })
+                .from(sections)
+                .where(eq(sections.courseId, courseId));
+
+            // Create a map of existing section numbers for quick lookup
+            const existingSectionMap = new Map();
+            existingSections.forEach((section) => {
+                existingSectionMap.set(section.number, section.id);
+            });
+
             // Process each section in the request
-            for (const sectionData of sectionClassroom) {
-                const { section, classroom } = sectionData;
+            for (const sectionData of sectionsList) {
+                const { section } = sectionData;
 
-                // Look up the classroom ID for this section
-                const classroomResult = await db
-                    .select({ id: classrooms.id })
-                    .from(classrooms)
-                    .where(eq(classrooms.code, classroom))
-                    .limit(1);
-
-                if (classroomResult.length === 0) {
-                    console.error(
-                        `Classroom ${classroom} not found for section ${section}`
+                // Check if section already exists
+                if (existingSectionMap.has(section)) {
+                    // If the section exists but has a different ID than our primary section ID,
+                    // we don't need to do anything as it's already in the database
+                    console.log(
+                        `Section ${section} already exists, skipping creation`
                     );
-                    continue;
-                }
-
-                // Update the section that was specified in the request
-                await db
-                    .update(sections)
-                    .set({
+                } else {
+                    // Section doesn't exist, so create it
+                    console.log(`Creating new section ${section}`);
+                    await db.insert(sections).values({
                         number: section,
-                        classroomId: classroomResult[0].id,
-                    })
-                    .where(eq(sections.id, sectionId));
-            }
-        }
-
-        // If any additional sections need to be created
-        if (body.additionalSections && Array.isArray(body.additionalSections)) {
-            for (const sectionData of body.additionalSections) {
-                const { section, classroom } = sectionData;
-
-                // Look up the classroom ID
-                const classroomResult = await db
-                    .select({ id: classrooms.id })
-                    .from(classrooms)
-                    .where(eq(classrooms.code, classroom))
-                    .limit(1);
-
-                if (classroomResult.length === 0) {
-                    console.error(
-                        `Classroom ${classroom} not found for new section ${section}`
-                    );
-                    continue;
+                        courseId: courseId,
+                    });
                 }
-
-                // Create new section
-                await db.insert(sections).values({
-                    number: section,
-                    courseHoursId: 1, // Using 1 as requested
-                    courseId: courseId,
-                    classroomId: classroomResult[0].id,
-                });
             }
         }
 
@@ -538,10 +497,8 @@ export async function PATCH(request: Request) {
             .select({
                 id: sections.id,
                 number: sections.number,
-                classroom: classrooms.code,
             })
             .from(sections)
-            .innerJoin(classrooms, eq(sections.classroomId, classrooms.id))
             .where(eq(sections.courseId, courseId));
 
         return NextResponse.json({
