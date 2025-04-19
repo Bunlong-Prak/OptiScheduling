@@ -128,9 +128,7 @@ export const sections = mysqlTable("sections", {
     courseId: int("course_id")
         .notNull()
         .references(() => courses.id, { onDelete: "cascade" }), // Foreign key to Course
-    classroomId: int("classroom_id")
-        .notNull()
-        .references(() => classrooms.id), // Foreign key to Classroom
+    classroomId: int("classroom_id").references(() => classrooms.id), // Foreign key to Classroom
 });
 
 export const sectionRelations = relations(sections, ({ many, one }) => ({

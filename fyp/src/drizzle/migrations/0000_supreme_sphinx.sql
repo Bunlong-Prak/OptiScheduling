@@ -100,7 +100,7 @@ CREATE TABLE `sections` (
 	`number` varchar(50) NOT NULL,
 	`course_hours_id` int,
 	`course_id` int NOT NULL,
-	`classroom_id` int NOT NULL,
+	`classroom_id` int,
 	CONSTRAINT `sections_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint

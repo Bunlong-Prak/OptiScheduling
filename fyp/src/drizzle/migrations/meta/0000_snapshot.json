@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "6feb5600-cf5a-47d6-b9a8-f8a22043625d",
+  "id": "ff1806b9-0f97-4a7b-b754-7cce8f3b0166",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -779,7 +779,7 @@
           "name": "classroom_id",
           "type": "int",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },

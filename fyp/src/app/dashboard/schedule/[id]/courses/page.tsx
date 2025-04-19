@@ -1,7 +1,7 @@
 "use client";
 
 import { Classroom, Course, Instructor, Major } from "@/app/types";
-import CustomPagination  from "@/components/custom/pagination";
+import CustomPagination from "@/components/custom/pagination";
 import { Button } from "@/components/ui/button";
 import {
     Command,
@@ -35,7 +35,7 @@ import { Check, ChevronsUpDown, Pencil, Plus, Trash } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { colors,getColorName } from "@/components/custom/colors";
+import { colors, getColorName } from "@/components/custom/colors";
 // Number of courses to show per page
 const ITEMS_PER_PAGE = 10;
 
@@ -55,11 +55,10 @@ export default function CoursesView() {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-    const [sectionClassrooms, setSectionClassrooms] = useState<
-        { id: number; section_id: string; classroom_id: string }[]
+    const [sections, setSections] = useState<
+        { id: number; section_id: string }[]
     >([]);
     const [currentSection, setCurrentSection] = useState("");
-    const [currentClassroom, setCurrentClassroom] = useState("");
     const [formData, setFormData] = useState({
         title: "",
         code: "",
@@ -70,7 +69,6 @@ export default function CoursesView() {
         duration: 0,
         capacity: 0,
         section: "",
-        classroom: "",
     });
 
     const [instructorOpen, setInstructorOpen] = useState(false);
@@ -193,17 +191,16 @@ export default function CoursesView() {
     };
 
     const handleAddCourse = async () => {
-        // Make sure we have at least one section/classroom pair
-        if (sectionClassrooms.length === 0) {
+        // Make sure we have at least one section
+        if (sections.length === 0) {
             return;
         }
         try {
             const scheduleId = params.id;
 
-            // Create an array of section/classroom pairs
-            const sections = sectionClassrooms.map((pair) => ({
-                section: pair.section_id,
-                classroom: pair.classroom_id,
+            // Create an array of sections
+            const sectionsList = sections.map((item) => ({
+                section: item.section_id,
             }));
 
             // Create API payload with the base course data, all sections, and schedule ID
@@ -215,7 +212,7 @@ export default function CoursesView() {
                 instructor: formData.instructorId, // Send ID instead of name
                 duration: Number(formData.duration),
                 capacity: Number(formData.capacity),
-                sectionClassroom: sections,
+                sections: sectionsList,
                 scheduleId: Number(scheduleId), // Add schedule ID from URL
             };
 
@@ -253,13 +250,11 @@ export default function CoursesView() {
         }
     };
 
-    // Fixed handleEditCourse function with proper instructorId handling
-
     const handleEditCourse = async () => {
-        // Make sure we have at least one section/classroom pair
-        if (sectionClassrooms.length === 0) {
+        // Make sure we have at least one section
+        if (sections.length === 0) {
             setStatusMessage({
-                text: "At least one section and classroom is required",
+                text: "At least one section is required",
                 type: "error",
             });
             return;
@@ -289,10 +284,9 @@ export default function CoursesView() {
                 return;
             }
 
-            // Create an array of section/classroom pairs
-            const sections = sectionClassrooms.map((pair) => ({
-                section: pair.section_id,
-                classroom: pair.classroom_id,
+            // Create an array of sections
+            const sectionsList = sections.map((item) => ({
+                section: item.section_id,
             }));
 
             // Convert instructorId to string safely, without using trim()
@@ -334,7 +328,7 @@ export default function CoursesView() {
                 instructor: instructorId,
                 duration: Number(formData.duration) || 1,
                 capacity: Number(formData.capacity) || 1,
-                sectionClassroom: sections,
+                sections: sectionsList,
             };
 
             console.log("Sending to API:", apiData);
@@ -400,6 +394,7 @@ export default function CoursesView() {
             });
         }
     };
+
     const handleDeleteCourse = async () => {
         if (!selectedCourse?.sectionId) return;
 
@@ -456,34 +451,28 @@ export default function CoursesView() {
             duration: 0,
             capacity: 0,
             section: "",
-            classroom: "",
         });
         setSelectedCourse(null);
-        setSectionClassrooms([]);
+        setSections([]);
         setCurrentSection("");
-        setCurrentClassroom("");
     };
 
-    const addSectionClassroom = () => {
-        if (currentSection && currentClassroom) {
-            const newPair = {
-                id: sectionClassrooms.length + 1,
+    const addSection = () => {
+        if (currentSection) {
+            const newSection = {
+                id: sections.length + 1,
                 section_id: currentSection,
-                classroom_id: currentClassroom,
             };
 
-            setSectionClassrooms([...sectionClassrooms, newPair]);
+            setSections([...sections, newSection]);
 
-            // Reset section and classroom inputs
+            // Reset section input
             setCurrentSection("");
-            setCurrentClassroom("");
         }
     };
 
-    const removeSectionClassroom = (id: number) => {
-        setSectionClassrooms(
-            sectionClassrooms.filter((pair) => pair.id !== id)
-        );
+    const removeSection = (id: number) => {
+        setSections(sections.filter((section) => section.id !== id));
     };
 
     const openEditDialog = (course: Course) => {
@@ -500,15 +489,13 @@ export default function CoursesView() {
             duration: course.duration,
             capacity: course.capacity,
             section: course.section,
-            classroom: course.classroom,
         });
 
-        // Initialize with the current section/classroom
-        setSectionClassrooms([
+        // Initialize with the current section
+        setSections([
             {
                 id: 1,
                 section_id: course.section,
-                classroom_id: course.classroom,
             },
         ]);
 
@@ -562,9 +549,6 @@ export default function CoursesView() {
                                     INSTRUCTOR
                                 </th>
                                 <th className="border p-2 bg-gray-100 text-left">
-                                    CLASSROOM
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
                                     MAJOR
                                 </th>
                                 <th className="border p-2 bg-gray-100 text-left">
@@ -579,7 +563,7 @@ export default function CoursesView() {
                             {courses.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={8}
+                                        colSpan={7}
                                         className="border p-4 text-center text-gray-500"
                                     >
                                         No courses found. Add a new course to
@@ -589,7 +573,7 @@ export default function CoursesView() {
                             ) : paginatedCourses.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={8}
+                                        colSpan={7}
                                         className="border p-4 text-center text-gray-500"
                                     >
                                         No courses found on this page.
@@ -611,9 +595,6 @@ export default function CoursesView() {
                                             {`${course.firstName || ""} ${
                                                 course.lastName || ""
                                             }`.trim() || "—"}
-                                        </td>
-                                        <td className="border p-2">
-                                            {course.classroom}
                                         </td>
                                         <td className="border p-2">
                                             {course.major}
@@ -839,42 +820,34 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        {/* Section and Classroom pairs */}
+                        {/* Section list */}
                         <div className="space-y-6">
                             <div>
                                 <Label className="text-base font-medium">
-                                    Sections and Classrooms
+                                    Sections
                                 </Label>
                                 <p className="text-sm text-gray-500 mt-1">
-                                    Assign classrooms to course sections
+                                    Add course sections
                                 </p>
                             </div>
 
-                            {sectionClassrooms.length > 0 && (
+                            {sections.length > 0 && (
                                 <div className="space-y-2 mb-2">
-                                    {sectionClassrooms.map((pair) => (
+                                    {sections.map((section) => (
                                         <div
-                                            key={pair.id}
+                                            key={section.id}
                                             className="p-3 border rounded-md flex justify-between items-center"
                                         >
                                             <div className="flex items-center space-x-3">
                                                 <span className="bg-blue-50 px-2 py-1 rounded-md text-sm">
-                                                    Section {pair.section_id}
-                                                </span>
-                                                <span className="text-gray-400">
-                                                    →
-                                                </span>
-                                                <span className="bg-gray-50 px-2 py-1 rounded-md text-sm">
-                                                    Room {pair.classroom_id}
+                                                    Section {section.section_id}
                                                 </span>
                                             </div>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() =>
-                                                    removeSectionClassroom(
-                                                        pair.id
-                                                    )
+                                                    removeSection(section.id)
                                                 }
                                                 className="h-8 w-8"
                                             >
@@ -898,33 +871,9 @@ export default function CoursesView() {
                                     />
                                 </div>
 
-                                <div className="flex-1 space-y-2">
-                                    <Label htmlFor="classroom">Classroom</Label>
-                                    <Select
-                                        value={currentClassroom}
-                                        onValueChange={setCurrentClassroom}
-                                    >
-                                        <SelectTrigger id="classroom">
-                                            <SelectValue placeholder="Select classroom" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {classrooms.map((classroom) => (
-                                                <SelectItem
-                                                    key={classroom.id}
-                                                    value={classroom.code}
-                                                >
-                                                    {classroom.code}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
                                 <Button
-                                    onClick={addSectionClassroom}
-                                    disabled={
-                                        !currentSection || !currentClassroom
-                                    }
+                                    onClick={addSection}
+                                    disabled={!currentSection}
                                     className="flex-shrink-0"
                                 >
                                     <Plus className="h-4 w-4 mr-2" /> Add
@@ -950,7 +899,7 @@ export default function CoursesView() {
                                 !formData.code ||
                                 !formData.major ||
                                 !formData.instructorId ||
-                                sectionClassrooms.length === 0
+                                sections.length === 0
                             }
                         >
                             Add Course
@@ -1007,7 +956,7 @@ export default function CoursesView() {
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select major" />
                                     </SelectTrigger>
-                                      <SelectContent>
+                                    <SelectContent>
                                         {majors.map((major) => (
                                             <SelectItem
                                                 key={major.id}
@@ -1137,42 +1086,34 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        {/* Section and Classroom pairs */}
+                        {/* Section list */}
                         <div className="space-y-6">
                             <div>
                                 <Label className="text-base font-medium">
-                                    Sections and Classrooms
+                                    Sections
                                 </Label>
                                 <p className="text-sm text-gray-500 mt-1">
-                                    Assign classrooms to course sections
+                                    Add course sections
                                 </p>
                             </div>
 
-                            {sectionClassrooms.length > 0 && (
+                            {sections.length > 0 && (
                                 <div className="space-y-2 mb-2">
-                                    {sectionClassrooms.map((pair) => (
+                                    {sections.map((section) => (
                                         <div
-                                            key={pair.id}
+                                            key={section.id}
                                             className="p-3 border rounded-md flex justify-between items-center"
                                         >
                                             <div className="flex items-center space-x-3">
                                                 <span className="bg-blue-50 px-2 py-1 rounded-md text-sm">
-                                                    Section {pair.section_id}
-                                                </span>
-                                                <span className="text-gray-400">
-                                                    →
-                                                </span>
-                                                <span className="bg-gray-50 px-2 py-1 rounded-md text-sm">
-                                                    Room {pair.classroom_id}
+                                                    Section {section.section_id}
                                                 </span>
                                             </div>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() =>
-                                                    removeSectionClassroom(
-                                                        pair.id
-                                                    )
+                                                    removeSection(section.id)
                                                 }
                                                 className="h-8 w-8"
                                             >
@@ -1198,35 +1139,9 @@ export default function CoursesView() {
                                     />
                                 </div>
 
-                                <div className="flex-1 space-y-2">
-                                    <Label htmlFor="edit-classroom">
-                                        Classroom
-                                    </Label>
-                                    <Select
-                                        value={currentClassroom}
-                                        onValueChange={setCurrentClassroom}
-                                    >
-                                        <SelectTrigger id="edit-classroom">
-                                            <SelectValue placeholder="Select classroom" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {classrooms.map((classroom) => (
-                                                <SelectItem
-                                                    key={classroom.id}
-                                                    value={classroom.code}
-                                                >
-                                                    {classroom.code}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
                                 <Button
-                                    onClick={addSectionClassroom}
-                                    disabled={
-                                        !currentSection || !currentClassroom
-                                    }
+                                    onClick={addSection}
+                                    disabled={!currentSection}
                                     className="flex-shrink-0"
                                 >
                                     <Plus className="h-4 w-4 mr-2" /> Add
@@ -1252,7 +1167,7 @@ export default function CoursesView() {
                                 !formData.code ||
                                 !formData.major ||
                                 !formData.instructorId ||
-                                sectionClassrooms.length === 0
+                                sections.length === 0
                             }
                         >
                             Save Changes

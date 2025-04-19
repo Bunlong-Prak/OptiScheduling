@@ -254,7 +254,6 @@ export async function POST(request: Request) {
             // Insert the section
             await db.insert(sections).values({
                 number: section,
-
                 courseId: newCourse.id,
                 classroomId: classroomResult[0].id,
             });
