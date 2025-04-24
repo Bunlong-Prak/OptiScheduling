@@ -61,7 +61,6 @@ export default function MajorView() {
 
     const fetchMajors = async () => {
         try {
-
             const scheduleId = params.id;
             const response = await fetch(
                 `/api/majors?scheduleId=${scheduleId}`
@@ -81,7 +80,7 @@ export default function MajorView() {
                 text: "Failed to load majors. Please try again.",
                 type: "error",
             });
-        } 
+        }
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -251,113 +250,107 @@ export default function MajorView() {
 
     return (
         <div>
-          
-                <>
-                    {statusMessage && (
-                        <div
-                            className={`mb-4 p-3 rounded ${
-                                statusMessage.type === "success"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-red-100 text-red-800"
-                            }`}
-                        >
-                            {statusMessage.text}
-                        </div>
-                    )}
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-xl font-bold">Majors</h2>
-                        <Button
-                            onClick={openAddDialog}
-                            className="bg-green-600 hover:bg-green-700"
-                        >
-                            <Plus className="mr-2 h-4 w-4" /> New Major
-                        </Button>
+            <>
+                {statusMessage && (
+                    <div
+                        className={`mb-4 p-3 rounded ${
+                            statusMessage.type === "success"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                        }`}
+                    >
+                        {statusMessage.text}
                     </div>
+                )}
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold">Majors</h2>
+                    <Button
+                        onClick={openAddDialog}
+                        className="bg-green-600 hover:bg-green-700"
+                    >
+                        <Plus className="mr-2 h-4 w-4" /> New Major
+                    </Button>
+                </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
-                            <thead>
+                <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    ID
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    NAME
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    SHORT TAG
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {majors.length === 0 ? (
                                 <tr>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        ID
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        NAME
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        SHORT TAG
-                                    </th>
-                                    <th className="border p-2 bg-gray-100 text-left">
-                                        Actions
-                                    </th>
+                                    <td
+                                        colSpan={4}
+                                        className="border p-4 text-center"
+                                    >
+                                        No majors found. Add a new major to get
+                                        started.
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {majors.length === 0 ? (
-                                    <tr>
-                                        <td
-                                            colSpan={4}
-                                            className="border p-4 text-center"
-                                        >
-                                            No majors found. Add a new major to
-                                            get started.
+                            ) : (
+                                paginatedMajors.map((major) => (
+                                    <tr key={major.id}>
+                                        <td className="border p-2">
+                                            {major.id}
+                                        </td>
+                                        <td className="border p-2">
+                                            {major.name}
+                                        </td>
+                                        <td className="border p-2">
+                                            {major.short_tag}
+                                        </td>
+                                        <td className="border p-2">
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        openEditDialog(major)
+                                                    }
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        openDeleteDialog(major)
+                                                    }
+                                                >
+                                                    <Trash className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </td>
                                     </tr>
-                                ) : (
-                                    paginatedMajors.map((major) => (
-                                        <tr key={major.id}>
-                                            <td className="border p-2">
-                                                {major.id}
-                                            </td>
-                                            <td className="border p-2">
-                                                {major.name}
-                                            </td>
-                                            <td className="border p-2">
-                                                {major.short_tag}
-                                            </td>
-                                            <td className="border p-2">
-                                                <div className="flex gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            openEditDialog(
-                                                                major
-                                                            )
-                                                        }
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            openDeleteDialog(
-                                                                major
-                                                            )
-                                                        }
-                                                    >
-                                                        <Trash className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
 
-                    {/* Add pagination if we have majors */}
-                    {majors.length > 0 && (
-                        <CustomPagination
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            onPageChange={setCurrentPage}
-                        />
-                    )}
-                </>
-         
+                {/* Add pagination if we have majors */}
+                {majors.length > 0 && (
+                    <CustomPagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                    />
+                )}
+            </>
 
             {/* Add Major Dialog */}
             <Dialog

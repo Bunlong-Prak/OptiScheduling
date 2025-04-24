@@ -59,6 +59,13 @@ export default function CoursesView() {
         { id: number; section_id: string }[]
     >([]);
     const [currentSection, setCurrentSection] = useState("");
+
+    // Add state for managing majors like sections
+    const [courseMajors, setCourseMajors] = useState<
+        { id: number; major_name: string }[]
+    >([]);
+    const [currentMajor, setCurrentMajor] = useState("");
+
     const [formData, setFormData] = useState({
         title: "",
         code: "",
@@ -190,11 +197,39 @@ export default function CoursesView() {
         }
     };
 
+    // Add major handler
+    const addMajor = () => {
+        if (currentMajor) {
+            const newMajor = {
+                id: courseMajors.length + 1,
+                major_name: currentMajor,
+            };
+
+            setCourseMajors([...courseMajors, newMajor]);
+
+            // Reset major input
+            setCurrentMajor("");
+        }
+    };
+
+    // Remove major handler
+    const removeMajor = (id: number) => {
+        setCourseMajors(courseMajors.filter((major) => major.id !== id));
+    };
+
     const handleAddCourse = async () => {
-        // Make sure we have at least one section
-        if (sections.length === 0) {
+        // Make sure we have at least one section and one major
+        if (sections.length === 0 || courseMajors.length === 0) {
+            setStatusMessage({
+                text:
+                    sections.length === 0
+                        ? "At least one section is required"
+                        : "At least one major is required",
+                type: "error",
+            });
             return;
         }
+
         try {
             const scheduleId = params.id;
 
@@ -203,11 +238,14 @@ export default function CoursesView() {
                 section: item.section_id,
             }));
 
+            // Get the major from the courseMajors array
+            const majorName = courseMajors[0].major_name;
+
             // Create API payload with the base course data, all sections, and schedule ID
             const apiData = {
                 code: formData.code,
                 title: formData.title,
-                major: formData.major,
+                major: majorName,
                 color: formData.color,
                 instructor: formData.instructorId, // Send ID instead of name
                 duration: Number(formData.duration),
@@ -251,10 +289,13 @@ export default function CoursesView() {
     };
 
     const handleEditCourse = async () => {
-        // Make sure we have at least one section
-        if (sections.length === 0) {
+        // Make sure we have at least one section and one major
+        if (sections.length === 0 || courseMajors.length === 0) {
             setStatusMessage({
-                text: "At least one section is required",
+                text:
+                    sections.length === 0
+                        ? "At least one section is required"
+                        : "At least one major is required",
                 type: "error",
             });
             return;
@@ -304,11 +345,14 @@ export default function CoursesView() {
                 return;
             }
 
+            // Get the major from the courseMajors array
+            const majorName = courseMajors[0].major_name;
+
             // Pre-validate all required fields
             if (
                 !formData.title ||
                 !formData.code ||
-                !formData.major ||
+                !majorName ||
                 !formData.color
             ) {
                 setStatusMessage({
@@ -323,7 +367,7 @@ export default function CoursesView() {
                 sectionId: sectionId,
                 code: formData.code,
                 title: formData.title,
-                major: formData.major,
+                major: majorName,
                 color: formData.color,
                 instructor: instructorId,
                 duration: Number(formData.duration) || 1,
@@ -455,6 +499,9 @@ export default function CoursesView() {
         setSelectedCourse(null);
         setSections([]);
         setCurrentSection("");
+        // Reset majors state
+        setCourseMajors([]);
+        setCurrentMajor("");
     };
 
     const addSection = () => {
@@ -496,6 +543,14 @@ export default function CoursesView() {
             {
                 id: 1,
                 section_id: course.section,
+            },
+        ]);
+
+        // Initialize with the current major
+        setCourseMajors([
+            {
+                id: 1,
+                major_name: course.major,
             },
         ]);
 
@@ -679,54 +734,98 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="major">Major</Label>
-                                <Select
-                                    value={formData.major}
-                                    onValueChange={(value) =>
-                                        handleSelectChange("major", value)
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select major" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {majors.map((major) => (
-                                            <SelectItem
-                                                key={major.id}
-                                                value={major.name}
-                                            >
-                                                {major.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                        {/* Major List UI - Like Section */}
+                        <div className="space-y-6">
+                            <div>
+                                <Label className="text-base font-medium">
+                                    Suggestion Majors
+                                </Label>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Add course majors
+                                </p>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="color">Color</Label>
-                                <Select
-                                    value={formData?.color || ""}
-                                    onValueChange={(value) =>
-                                        handleSelectChange("color", value)
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select color" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {colors.map((color) => (
-                                            <SelectItem
-                                                key={color}
-                                                value={color}
+                            {courseMajors.length > 0 && (
+                                <div className="space-y-2 mb-2">
+                                    {courseMajors.map((major) => (
+                                        <div
+                                            key={major.id}
+                                            className="p-3 border rounded-md flex justify-between items-center"
+                                        >
+                                            <div className="flex items-center space-x-3">
+                                                <span className="bg-purple-50 px-2 py-1 rounded-md text-sm">
+                                                    Major: {major.major_name}
+                                                </span>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    removeMajor(major.id)
+                                                }
+                                                className="h-8 w-8"
                                             >
-                                                {getColorName(color)}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                                <Trash className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="flex items-end gap-3">
+                                <div className="flex-1 space-y-2">
+                                    <Label htmlFor="major">Major</Label>
+                                    <Select
+                                        value={currentMajor}
+                                        onValueChange={(value) =>
+                                            setCurrentMajor(value)
+                                        }
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select major" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {majors.map((major) => (
+                                                <SelectItem
+                                                    key={major.id}
+                                                    value={major.name}
+                                                >
+                                                    {major.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <Button
+                                    onClick={addMajor}
+                                    disabled={!currentMajor}
+                                    className="flex-shrink-0"
+                                >
+                                    <Plus className="h-4 w-4 mr-2" /> Add
+                                </Button>
                             </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="color">Color</Label>
+                            <Select
+                                value={formData?.color || ""}
+                                onValueChange={(value) =>
+                                    handleSelectChange("color", value)
+                                }
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select color" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {colors.map((color) => (
+                                        <SelectItem key={color} value={color}>
+                                            {getColorName(color)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         <div className="space-y-2">
