@@ -734,7 +734,7 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        {/* Major List UI - Like Section */}
+                        {/* Major List UI  */}
                         <div className="space-y-6">
                             <div>
                                 <Label className="text-base font-medium">

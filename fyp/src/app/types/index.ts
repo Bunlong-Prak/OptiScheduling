@@ -46,6 +46,7 @@ export type Course = {
     id: number;
     title: string;
     code: string;
+    year: number;
     major: string;
     color: string;
     firstName?: string;
