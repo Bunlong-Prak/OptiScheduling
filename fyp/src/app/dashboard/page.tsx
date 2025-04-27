@@ -33,6 +33,10 @@ type Schedule = {
     instructors: number;
     startDate: string;
     endDate: string;
+    timeslots?: {
+        startTime: string;
+        endTime: string;
+    }[];
 };
 
 export default function Dashboard() {
@@ -48,6 +52,8 @@ export default function Dashboard() {
         name: "",
         startDate: "",
         endDate: "",
+        numTimeslots: 0,
+        timeslots: [] as { startTime: string; endTime: string }[],
     });
     const [isLoading, setIsLoading] = useState(true);
 
@@ -55,6 +61,27 @@ export default function Dashboard() {
     useEffect(() => {
         fetchSchedules();
     }, []);
+
+    // Update timeslots array when numTimeslots changes
+    useEffect(() => {
+        if (formData.numTimeslots > formData.timeslots.length) {
+            // Add more timeslot pairs
+            const newTimeslots = [...formData.timeslots];
+            for (let i = formData.timeslots.length; i < formData.numTimeslots; i++) {
+                newTimeslots.push({ startTime: "", endTime: "" });
+            }
+            setFormData({
+                ...formData,
+                timeslots: newTimeslots
+            });
+        } else if (formData.numTimeslots < formData.timeslots.length) {
+            // Remove excess timeslot pairs
+            setFormData({
+                ...formData,
+                timeslots: formData.timeslots.slice(0, formData.numTimeslots)
+            });
+        }
+    }, [formData.numTimeslots]);
 
     const fetchCourseCount = async (scheduleId: string) => {
         try {
@@ -125,6 +152,7 @@ export default function Dashboard() {
                         endDate: endDateStr || startDateStr, // Use endDateStr if available, otherwise use startDateStr
                         courses: courseCount,
                         instructors: instructorCount,
+                        timeslots: schedule.timeslots || [],
                     };
                 })
             );
@@ -139,9 +167,30 @@ export default function Dashboard() {
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
+        
+        if (name === "numTimeslots") {
+            // Parse the number and ensure it's a valid positive integer
+            const numValue = parseInt(value);
+            if (!isNaN(numValue) && numValue >= 0) {
+                setFormData({
+                    ...formData,
+                    [name]: numValue,
+                });
+            }
+        } else {
+            setFormData({
+                ...formData,
+                [name]: value,
+            });
+        }
+    };
+
+    const handleTimeslotChange = (index: number, field: 'startTime' | 'endTime', value: string) => {
+        const updatedTimeslots = [...formData.timeslots];
+        updatedTimeslots[index][field] = value;
         setFormData({
             ...formData,
-            [name]: value,
+            timeslots: updatedTimeslots
         });
     };
 
@@ -150,6 +199,8 @@ export default function Dashboard() {
             name: "",
             startDate: "",
             endDate: "",
+            numTimeslots: 0,
+            timeslots: [],
         });
     };
 
@@ -162,6 +213,8 @@ export default function Dashboard() {
                 name: schedule.name,
                 startDate: schedule.startDate,
                 endDate: schedule.endDate,
+                numTimeslots: schedule.timeslots?.length || 0,
+                timeslots: schedule.timeslots || [],
             });
             setIsEditDialogOpen(true);
         }
@@ -184,6 +237,7 @@ export default function Dashboard() {
                 name: formData.name,
                 startDate: formData.startDate,
                 endDate: formData.endDate,
+                timeslots: formData.timeslots,
                 userId: "1", // Replace with actual user ID
             };
 
@@ -224,6 +278,7 @@ export default function Dashboard() {
                 name: formData.name,
                 startDate: formData.startDate,
                 endDate: formData.endDate,
+                timeslots: formData.timeslots,
                 userId: "1", // Replace with actual user ID
             };
 
@@ -359,6 +414,11 @@ export default function Dashboard() {
                                         {schedule.instructors} Instructors
                                     </span>
                                 </div>
+                                {schedule.timeslots && schedule.timeslots.length > 0 && (
+                                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                                        <span>{schedule.timeslots.length} Timeslots</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -377,7 +437,7 @@ export default function Dashboard() {
                 open={isCreateDialogOpen}
                 onOpenChange={setIsCreateDialogOpen}
             >
-                <DialogContent>
+                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Create New Schedule</DialogTitle>
                     </DialogHeader>
@@ -417,6 +477,49 @@ export default function Dashboard() {
                                 />
                             </div>
                         </div>
+                        
+                        {/* Timeslot input */}
+                        <div className="space-y-2">
+                            <Label htmlFor="numTimeslots">Number of Timeslots</Label>
+                            <Input
+                                id="numTimeslots"
+                                name="numTimeslots"
+                                type="number"
+                                min="0"
+                                placeholder="Enter number of timeslots needed"
+                                value={formData.numTimeslots}
+                                onChange={handleInputChange}
+                            />
+                        </div>
+                        
+                        {/* Dynamic timeslot inputs */}
+                        {formData.timeslots.length > 0 && (
+                            <div className="space-y-4">
+                                <h3 className="font-medium text-sm">Timeslots</h3>
+                                {formData.timeslots.map((timeslot, index) => (
+                                    <div key={index} className="grid grid-cols-2 gap-4 p-3 border rounded-md">
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`startTime-${index}`}>Start Time #{index + 1}</Label>
+                                            <Input
+                                                id={`startTime-${index}`}
+                                                placeholder="e.g., 9:00 AM"
+                                                value={timeslot.startTime}
+                                                onChange={(e) => handleTimeslotChange(index, 'startTime', e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`endTime-${index}`}>End Time #{index + 1}</Label>
+                                            <Input
+                                                id={`endTime-${index}`}
+                                                placeholder="e.g., 10:30 AM"
+                                                value={timeslot.endTime}
+                                                onChange={(e) => handleTimeslotChange(index, 'endTime', e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <DialogFooter>
@@ -435,7 +538,7 @@ export default function Dashboard() {
 
             {/* Edit Schedule Dialog */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogContent>
+                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Edit Schedule</DialogTitle>
                     </DialogHeader>
@@ -477,6 +580,49 @@ export default function Dashboard() {
                                 />
                             </div>
                         </div>
+                        
+                        {/* Timeslot input */}
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-numTimeslots">Number of Timeslots</Label>
+                            <Input
+                                id="edit-numTimeslots"
+                                name="numTimeslots"
+                                type="number"
+                                min="0"
+                                placeholder="Enter number of timeslots needed"
+                                value={formData.numTimeslots}
+                                onChange={handleInputChange}
+                            />
+                        </div>
+                        
+                        {/* Dynamic timeslot inputs */}
+                        {formData.timeslots.length > 0 && (
+                            <div className="space-y-4">
+                                <h3 className="font-medium text-sm">Timeslots</h3>
+                                {formData.timeslots.map((timeslot, index) => (
+                                    <div key={index} className="grid grid-cols-2 gap-4 p-3 border rounded-md">
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`edit-startTime-${index}`}>Start Time #{index + 1}</Label>
+                                            <Input
+                                                id={`edit-startTime-${index}`}
+                                                placeholder="e.g., 9:00 AM"
+                                                value={timeslot.startTime}
+                                                onChange={(e) => handleTimeslotChange(index, 'startTime', e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`edit-endTime-${index}`}>End Time #{index + 1}</Label>
+                                            <Input
+                                                id={`edit-endTime-${index}`}
+                                                placeholder="e.g., 10:30 AM"
+                                                value={timeslot.endTime}
+                                                onChange={(e) => handleTimeslotChange(index, 'endTime', e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <DialogFooter>
