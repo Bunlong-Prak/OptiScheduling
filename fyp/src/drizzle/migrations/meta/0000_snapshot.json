@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "ff1806b9-0f97-4a7b-b754-7cce8f3b0166",
+  "id": "c632fc4a-9e51-4bfe-84f1-d4cf1c193a0b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -581,8 +581,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "schedule_days": {
-      "name": "schedule_days",
+    "schedule_time_slots": {
+      "name": "schedule_time_slots",
       "columns": {
         "id": {
           "name": "id",
@@ -591,8 +591,15 @@
           "notNull": true,
           "autoincrement": true
         },
-        "days_of_week": {
-          "name": "days_of_week",
+        "start_time": {
+          "name": "start_time",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "end_time": {
+          "name": "end_time",
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true,
@@ -608,9 +615,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "schedule_days_schedule_id_schedules_id_fk": {
-          "name": "schedule_days_schedule_id_schedules_id_fk",
-          "tableFrom": "schedule_days",
+        "schedule_time_slots_schedule_id_schedules_id_fk": {
+          "name": "schedule_time_slots_schedule_id_schedules_id_fk",
+          "tableFrom": "schedule_time_slots",
           "tableTo": "schedules",
           "columnsFrom": [
             "schedule_id"
@@ -623,60 +630,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "schedule_days_id": {
-          "name": "schedule_days_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraint": {}
-    },
-    "schedule_time_periods": {
-      "name": "schedule_time_periods",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": true
-        },
-        "time_period": {
-          "name": "time_period",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "schedule_id": {
-          "name": "schedule_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "schedule_time_periods_schedule_id_schedules_id_fk": {
-          "name": "schedule_time_periods_schedule_id_schedules_id_fk",
-          "tableFrom": "schedule_time_periods",
-          "tableTo": "schedules",
-          "columnsFrom": [
-            "schedule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "schedule_time_periods_id": {
-          "name": "schedule_time_periods_id",
+        "schedule_time_slots_id": {
+          "name": "schedule_time_slots_id",
           "columns": [
             "id"
           ]
@@ -705,6 +660,13 @@
         "academic_year": {
           "name": "academic_year",
           "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "number_of_time_slots": {
+          "name": "number_of_time_slots",
+          "type": "int",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false

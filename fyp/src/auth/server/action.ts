@@ -4,6 +4,7 @@
 
 import { users } from "@/drizzle/schema";
 import { createScopedLogger } from "@/utils/logger";
+import { cache } from "react";
 import { AuthUserResult } from "..";
 import { getSessionIdFromCookie } from "./cookie";
 import {
@@ -11,7 +12,6 @@ import {
     invalidateSession,
     validateSession,
 } from "./session";
-import { cache } from "react";
 
 const logger = createScopedLogger("src:auth:action");
 

@@ -1,5 +1,25 @@
 import { z } from "zod";
 
+const timeSlotSchema = z.object({
+    startTime: z
+        .string()
+        .min(1, {
+            message: "Start time is required",
+        })
+        .max(100, {
+            message: "Start time cannot exceed 100 characters",
+        }),
+
+    endTime: z
+        .string()
+        .min(1, {
+            message: "End time is required",
+        })
+        .max(100, {
+            message: "End time cannot exceed 100 characters",
+        }),
+});
+
 export const createScheduleSchema = z
     .object({
         id: z.number().int().positive().optional(),
@@ -22,6 +42,10 @@ export const createScheduleSchema = z
             invalid_type_error: "End date must be a valid date",
         }),
 
+        numberOfTimeSlots: z.number().int().positive(),
+        timeSlots: z
+            .array(timeSlotSchema)
+            .min(1, { message: "At least one time slot is required" }),
         // User ID: Optional, to associate schedule with a user
         userId: z.string().min(1).max(100),
     })

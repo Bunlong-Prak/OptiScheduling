@@ -7,6 +7,7 @@ import {
     timestamp,
     varchar,
 } from "drizzle-orm/mysql-core";
+import { start } from "repl";
 
 export const users = mysqlTable("users", {
     id: varchar("id", {
@@ -60,6 +61,7 @@ export const schedules = mysqlTable("schedules", {
     id: int("id").primaryKey().autoincrement(),
     name: varchar("name", { length: 255 }).notNull(),
     academicYear: varchar("academic_year", { length: 255 }).notNull(),
+    numberOfTimeSlots: int("number_of_time_slots").notNull(),
     userId: varchar("user_id", { length: 255 })
         .notNull()
         .references(() => users.id, {
@@ -69,25 +71,14 @@ export const schedules = mysqlTable("schedules", {
 
 export const scheduleRelations = relations(schedules, ({ many, one }) => ({
     courses: many(courses),
-    scheduleDays: many(scheduleDays),
-    scheduleTimePeriods: many(scheduleTimePeriods),
+    scheduleTimePeriods: many(scheduleTimeSlots),
 }));
 
-// Schedule Days Table
-export const scheduleDays = mysqlTable("schedule_days", {
-    id: int("id").primaryKey().autoincrement(),
-    daysOfWeek: varchar("days_of_week", { length: 50 }).notNull(),
-    scheduleId: int("schedule_id")
-        .notNull()
-        .references(() => schedules.id, {
-            onDelete: "cascade",
-        }), // Foreign key to the Schedule table
-});
-
 // Schedule Time Period Table
-export const scheduleTimePeriods = mysqlTable("schedule_time_periods", {
+export const scheduleTimeSlots = mysqlTable("schedule_time_slots", {
     id: int("id").primaryKey().autoincrement(),
-    timePeriod: varchar("time_period", { length: 50 }).notNull(),
+    startTime: varchar("start_time", { length: 50 }).notNull(),
+    endTime: varchar("end_time", { length: 50 }).notNull(),
     scheduleId: int("schedule_id")
         .notNull()
         .references(() => schedules.id, {

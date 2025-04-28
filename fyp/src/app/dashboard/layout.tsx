@@ -1,5 +1,5 @@
 import { getAuthUser } from "@/auth/server/action";
-import { Link } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import type React from "react";
 
@@ -28,14 +28,14 @@ export default async function DashboardLayout({
                             </h1>
                         </a>
                         <nav className="flex space-x-4">
-                            <a
+                            <Link
                                 href="/dashboard"
                                 className="text-gray-600 hover:text-gray-900"
                             >
                                 Dashboard
-                            </a>
+                            </Link>
                             <Link
-                                href="/"
+                                href="/logout"
                                 className="text-red-600 hover:text-red-900"
                             >
                                 Logout
