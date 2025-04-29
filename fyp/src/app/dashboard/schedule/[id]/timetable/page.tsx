@@ -69,8 +69,6 @@ export default function TimetableView() {
     // State for classrooms from database
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
     // Add these new state variables to your existing useState declarations
-    // Add these new state variables to your existing useState declarations
-    // Add these new state variables to your existing useState declarations
     const [isGeneratingSchedule, setIsGeneratingSchedule] =
         useState<boolean>(false);
     const [scheduleGenerated, setScheduleGenerated] = useState<boolean>(false);
@@ -80,25 +78,45 @@ export default function TimetableView() {
         scheduledAssignments: number;
         constraintsApplied: number;
     } | null>(null);
-    // Default time slots for fallback - course hours related
-    const defaultTimeSlots = [
-        { id: 1, time_slot: "8:00" },
-        { id: 2, time_slot: "9:00" },
-        { id: 3, time_slot: "10:00" },
-        { id: 4, time_slot: "11:00" },
-        { id: 5, time_slot: "12:00" },
-        { id: 6, time_slot: "13:00" },
-        { id: 7, time_slot: "14:00" },
-        { id: 8, time_slot: "15:00" },
-        { id: 9, time_slot: "16:00" },
-        { id: 10, time_slot: "17:00" },
-    ];
+
     const params = useParams();
 
     // Fetch time slots and classrooms from API
     useEffect(() => {
-        // Use default time slots directly instead of fetching
-        setTimeSlots(defaultTimeSlots);
+        const fetchTimeSlots = async () => {
+            try {
+                const scheduleId = params.id;
+                const response = await fetch(`/api/schedules`);
+
+                if (response.ok) {
+                    const schedulesData = await response.json();
+                    // Find the current schedule by ID
+                    const currentSchedule = schedulesData.find(
+                        (s: any) => s.id.toString() === scheduleId
+                    );
+
+                    if (currentSchedule && currentSchedule.timeSlots) {
+                        // Transform API time slots to match expected format
+                        const formattedTimeSlots =
+                            currentSchedule.timeSlots.map((slot: any) => ({
+                                id: slot.id,
+                                time_slot: slot.startTime, // Using startTime as the time_slot value
+                            }));
+                        setTimeSlots(formattedTimeSlots);
+                        console.log("Fetched time slots:", formattedTimeSlots);
+                    } else {
+                        console.error(
+                            "No time slots found for schedule",
+                            scheduleId
+                        );
+                    }
+                } else {
+                    console.error("Failed to fetch schedules");
+                }
+            } catch (error) {
+                console.error("Error fetching time slots:", error);
+            }
+        };
 
         const fetchClassrooms = async () => {
             try {
@@ -120,9 +138,9 @@ export default function TimetableView() {
             }
         };
 
-        // fetchTimeSlots(); - commented out, not fetching course hours
+        fetchTimeSlots(); // Now we're fetching time slots from API
         fetchClassrooms();
-    }, []);
+    }, [params.id]);
 
     // Fetch real courses from API
     useEffect(() => {
@@ -168,7 +186,7 @@ export default function TimetableView() {
         };
 
         fetchCourses();
-    }, []);
+    }, [params.id]);
 
     // Fetch timetable assignments from API
     useEffect(() => {
@@ -866,9 +884,6 @@ export default function TimetableView() {
 
         setIsDialogOpen(false);
     };
-
-    console.log("Schedule at render time:", schedule);
-
     return (
         <div className="relative min-h-screen">
             <div className="flex justify-between items-center mb-8">

@@ -13,49 +13,62 @@ import { z } from "zod";
 // GET all schedules
 export async function GET(request: Request) {
     try {
-        const allScheduleData = await db
-            .select({
-                id: schedules.id,
-                name: schedules.name,
-                academicYear: schedules.academicYear,
-                timeSlotId: scheduleTimeSlots.id,
-                startTime: scheduleTimeSlots.startTime,
-                endTime: scheduleTimeSlots.endTime,
-                scheduleId: scheduleTimeSlots.scheduleId,
-            })
-            .from(schedules)
-            .innerJoin(
-                scheduleTimeSlots,
-                eq(scheduleTimeSlots.scheduleId, schedules.id)
-            );
+        const { searchParams } = new URL(request.url);
+        const scheduleId = searchParams.get("scheduleId");
+        if (!scheduleId) {
+            const allScheduleData = await db
+                .select({
+                    id: schedules.id,
+                    name: schedules.name,
+                    academicYear: schedules.academicYear,
+                    timeSlotId: scheduleTimeSlots.id,
+                    startTime: scheduleTimeSlots.startTime,
+                    endTime: scheduleTimeSlots.endTime,
+                    scheduleId: scheduleTimeSlots.scheduleId,
+                })
+                .from(schedules)
+                .innerJoin(
+                    scheduleTimeSlots,
+                    eq(scheduleTimeSlots.scheduleId, schedules.id)
+                );
 
-        console.log("Raw schedule data:", allScheduleData);
+            const scheduleMap = new Map();
 
-        const scheduleMap = new Map();
+            allScheduleData.forEach((item) => {
+                if (!scheduleMap.has(item.id)) {
+                    scheduleMap.set(item.id, {
+                        id: item.id,
+                        name: item.name,
+                        academic_year: item.academicYear,
+                        timeSlots: [],
+                    });
+                }
 
-        allScheduleData.forEach((item) => {
-            if (!scheduleMap.has(item.id)) {
-                scheduleMap.set(item.id, {
-                    id: item.id,
-                    name: item.name,
-                    academic_year: item.academicYear,
-                    timeSlots: [],
+                // Add this time slot to the schedule
+                const schedule = scheduleMap.get(item.id);
+                schedule.timeSlots.push({
+                    id: item.timeSlotId,
+                    startTime: item.startTime,
+                    endTime: item.endTime,
                 });
-            }
-
-            // Add this time slot to the schedule
-            const schedule = scheduleMap.get(item.id);
-            schedule.timeSlots.push({
-                id: item.timeSlotId,
-                startTime: item.startTime,
-                endTime: item.endTime,
             });
-        });
 
-        const formattedSchedules = Array.from(scheduleMap.values());
+            const formattedSchedules = Array.from(scheduleMap.values());
 
-        console.log("Formatted schedules:", formattedSchedules);
-        return NextResponse.json(formattedSchedules);
+            console.log("Formatted schedules:", formattedSchedules);
+            return NextResponse.json(formattedSchedules);
+        } else {
+            const allScheduleData = await db
+                .select({
+                    id: scheduleTimeSlots.id,
+                    startTime: scheduleTimeSlots.startTime,
+                    endTime: scheduleTimeSlots.endTime,
+                })
+                .from(scheduleTimeSlots)
+                .where(eq(scheduleTimeSlots.scheduleId, parseInt(scheduleId)));
+
+            return NextResponse.json(allScheduleData);
+        }
     } catch (error: unknown) {
         console.error("Error fetching schedules:", error);
         return NextResponse.json(
