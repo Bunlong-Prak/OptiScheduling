@@ -1,9 +1,6 @@
 "use client";
 
-import type {
-    Instructor,
-    TimeConstraint,
-} from "@/app/types";
+import type { Instructor, TimeConstraint } from "@/app/types";
 import CustomPagination from "@/components/custom/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,20 +29,6 @@ import { useEffect, useState } from "react";
 // Define how many items to show per page
 const ITEMS_PER_PAGE = 12;
 
-// Define default time slots
-const DEFAULT_TIME_SLOTS = [
-    "8:00 AM - 9:00 AM",
-    "9:00 AM - 10:00 AM",
-    "10:00 AM - 11:00 AM",
-    "11:00 AM - 12:00 PM",
-    "12:00 PM - 1:00 PM",
-    "1:00 PM - 2:00 PM",
-    "2:00 PM - 3:00 PM",
-    "3:00 PM - 4:00 PM",
-    "4:00 PM - 5:00 PM",
-    "5:00 PM - 6:00 PM",
-];
-
 // Days of the week
 const DAYS_OF_WEEK = [
     "Monday",
@@ -68,15 +51,27 @@ interface GroupedConstraint {
     }[];
 }
 
+// Interface for time slots
+interface TimeSlot {
+    id: number;
+    startTime: string;
+    endTime: string;
+}
 
 export default function TimeConstraintView() {
-    const [timeConstraints, setTimeConstraints] = useState<TimeConstraint[]>([]);
-    const [groupedConstraints, setGroupedConstraints] = useState<GroupedConstraint[]>([]);
+    const [timeConstraints, setTimeConstraints] = useState<TimeConstraint[]>(
+        []
+    );
+    const [groupedConstraints, setGroupedConstraints] = useState<
+        GroupedConstraint[]
+    >([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [selectedConstraint, setSelectedConstraint] = useState<TimeConstraint | null>(null);
-    const [selectedGroupedConstraint, setSelectedGroupedConstraint] = useState<GroupedConstraint | null>(null);
+    const [selectedConstraint, setSelectedConstraint] =
+        useState<TimeConstraint | null>(null);
+    const [selectedGroupedConstraint, setSelectedGroupedConstraint] =
+        useState<GroupedConstraint | null>(null);
     const [selectedDay, setSelectedDay] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
@@ -85,23 +80,10 @@ export default function TimeConstraintView() {
         type: "", // "success", "error", "info"
     });
     const [instructors, setInstructors] = useState<Instructor[]>([]);
-    const [timeSlots, setTimeSlots] = useState(DEFAULT_TIME_SLOTS);
+    const [timeSlots, setTimeSlots] = useState<string[]>([]);
+    const [apiTimeSlots, setApiTimeSlots] = useState<TimeSlot[]>([]);
     const params = useParams();
-// Ensure days are always sorted in correct order
-// const sortDayConstraints = (dayConstraints: { day: string; selected: boolean; timeSlots: string[] }[]) => {
 
-//   const dayOrder = {
-//     Monday: 0,
-//     Tuesday: 1,
-//     Wednesday: 2,
-//     Thursday: 3, 
-//     Friday: 4,
-//     Saturday: 5
-//   };
-  
-//   return dayConstraints.sort((a, b) => dayOrder[a.day] - dayOrder[b.day]
-//   );
-// };
     // State for enhanced form with multiple days
     const [enhancedFormData, setEnhancedFormData] = useState({
         instructor_id: 0,
@@ -113,45 +95,43 @@ export default function TimeConstraintView() {
     });
 
     // Group time constraints by instructor
-useEffect(() => {
-  if (timeConstraints.length > 0) {
-    const grouped: Record<number, GroupedConstraint> = {};
-    
-    timeConstraints.forEach(constraint => {
-      const instructorId = constraint.instructor_id;
-      
-      if (!grouped[instructorId]) {
-        grouped[instructorId] = {
-          instructor_id: instructorId,
-          firstName: constraint.firstName,
-          lastName: constraint.lastName,
-          dayConstraints: []
-        };
-      }
-      
-      grouped[instructorId].dayConstraints.push({
-        id: constraint.id,
-        day: constraint.day_of_the_week,
-        timeSlots: constraint.time_period
-      });
-    });
-    
-    // Replace this line:
-    // setGroupedConstraints(Object.values(grouped));
-    
-    // With these lines:
-    const groupedArray = Object.values(grouped).map(group => ({
-      ...group,
-      dayConstraints: group.dayConstraints.sort((a, b) => 
-        DAYS_OF_WEEK.indexOf(a.day) - DAYS_OF_WEEK.indexOf(b.day)
-      )
-    }));
-    
-    setGroupedConstraints(groupedArray);
-  } else {
-    setGroupedConstraints([]);
-  }
-}, [timeConstraints]);
+    useEffect(() => {
+        if (timeConstraints.length > 0) {
+            const grouped: Record<number, GroupedConstraint> = {};
+
+            timeConstraints.forEach((constraint) => {
+                const instructorId = constraint.instructor_id;
+
+                if (!grouped[instructorId]) {
+                    grouped[instructorId] = {
+                        instructor_id: instructorId,
+                        firstName: constraint.firstName,
+                        lastName: constraint.lastName,
+                        dayConstraints: [],
+                    };
+                }
+
+                grouped[instructorId].dayConstraints.push({
+                    id: constraint.id,
+                    day: constraint.day_of_the_week,
+                    timeSlots: constraint.time_period,
+                });
+            });
+
+            const groupedArray = Object.values(grouped).map((group) => ({
+                ...group,
+                dayConstraints: group.dayConstraints.sort(
+                    (a, b) =>
+                        DAYS_OF_WEEK.indexOf(a.day) -
+                        DAYS_OF_WEEK.indexOf(b.day)
+                ),
+            }));
+
+            setGroupedConstraints(groupedArray);
+        } else {
+            setGroupedConstraints([]);
+        }
+    }, [timeConstraints]);
 
     // Calculate pagination values for grouped constraints
     const totalPages = Math.ceil(groupedConstraints.length / ITEMS_PER_PAGE);
@@ -181,7 +161,34 @@ useEffect(() => {
     useEffect(() => {
         fetchInstructors();
         fetchConstraints();
+        fetchTimeSlots();
     }, []);
+
+    // Effect to format time slots when apiTimeSlots changes
+    useEffect(() => {
+        if (apiTimeSlots.length > 0) {
+            const formattedTimeSlots = apiTimeSlots.map((slot) => {
+                // Format the time slots in the format "HH:MM AM/PM - HH:MM AM/PM"
+                const startTime = slot.startTime;
+                const endTime = slot.endTime;
+                return `${startTime} - ${endTime}`;
+            });
+            setTimeSlots(formattedTimeSlots);
+        }
+    }, [apiTimeSlots]);
+
+    // Helper function to format time string
+    const formatTime = (timeString: string) => {
+        // Parse the time string to create a Date object
+        // Assuming timeString is in format "HH:MM:SS"
+        const [hours, minutes] = timeString.split(":").map(Number);
+
+        // Convert to 12-hour format with AM/PM
+        const period = hours >= 12 ? "PM" : "AM";
+        const hours12 = hours % 12 || 12; // Convert 0 to 12 for 12 AM
+
+        return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
+    };
 
     // Fetch instructors from API
     const fetchInstructors = async () => {
@@ -199,6 +206,30 @@ useEffect(() => {
             console.error("Error fetching instructors:", error);
             setStatusMessage({
                 text: "Failed to load instructors. Please refresh the page.",
+                type: "error",
+            });
+        }
+    };
+
+    // Fetch time slots from API
+    const fetchTimeSlots = async () => {
+        try {
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/schedules?scheduleId=${scheduleId}`
+            );
+
+            if (!response.ok) {
+                throw new Error("Failed to fetch time slots");
+            }
+
+            const data = await response.json();
+
+            setApiTimeSlots(data);
+        } catch (error) {
+            console.error("Error fetching time slots:", error);
+            setStatusMessage({
+                text: "Failed to load time slots. Please refresh the page.",
                 type: "error",
             });
         }
@@ -285,20 +316,22 @@ useEffect(() => {
     };
 
     // Load constraint for edit (single day)
-    const loadConstraintForEdit = (instructorId: number, day: string, timeSlots: string[]) => {
+    const loadConstraintForEdit = (
+        instructorId: number,
+        day: string,
+        timeSlots: string[]
+    ) => {
         // Keep the existing day constraints but update the selected one
         const updatedDayConstraints = [...enhancedFormData.dayConstraints];
-        const dayIndex = updatedDayConstraints.findIndex(
-            (d) => d.day === day
-        );
+        const dayIndex = updatedDayConstraints.findIndex((d) => d.day === day);
 
         if (dayIndex !== -1) {
             // Reset all days first
-            updatedDayConstraints.forEach(day => {
+            updatedDayConstraints.forEach((day) => {
                 day.selected = false;
                 day.timeSlots = [];
             });
-            
+
             // Update the selected day's info
             updatedDayConstraints[dayIndex] = {
                 ...updatedDayConstraints[dayIndex],
@@ -374,7 +407,9 @@ useEffect(() => {
             for (const response of responses) {
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.error || "Failed to create constraint");
+                    throw new Error(
+                        errorData.error || "Failed to create constraint"
+                    );
                 }
             }
 
@@ -395,7 +430,10 @@ useEffect(() => {
         } catch (error) {
             console.error("Error adding constraints:", error);
             setStatusMessage({
-                text: error instanceof Error ? error.message : "Failed to add constraints. Please try again.",
+                text:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to add constraints. Please try again.",
                 type: "error",
             });
         } finally {
@@ -451,7 +489,10 @@ useEffect(() => {
 
             if (!deleteResponse.ok) {
                 const errorData = await deleteResponse.json();
-                throw new Error(errorData.error || "Failed to update constraint: could not remove old constraint");
+                throw new Error(
+                    errorData.error ||
+                        "Failed to update constraint: could not remove old constraint"
+                );
             }
 
             // Then create new constraints for all selected days
@@ -479,7 +520,10 @@ useEffect(() => {
             for (const response of responses) {
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.error || "Failed to update constraint: could not create new constraints");
+                    throw new Error(
+                        errorData.error ||
+                            "Failed to update constraint: could not create new constraints"
+                    );
                 }
             }
 
@@ -508,7 +552,7 @@ useEffect(() => {
             setIsLoading(false);
         }
     };
-    
+
     // Delete constraint
     const handleDeleteConstraint = async () => {
         if (!selectedGroupedConstraint || !selectedDay) return;
@@ -532,7 +576,9 @@ useEffect(() => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to delete constraint");
+                throw new Error(
+                    errorData.error || "Failed to delete constraint"
+                );
             }
 
             await fetchConstraints();
@@ -547,7 +593,10 @@ useEffect(() => {
         } catch (error) {
             console.error("Error deleting constraint:", error);
             setStatusMessage({
-                text: error instanceof Error ? error.message : "Failed to delete constraint. Please try again.",
+                text:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to delete constraint. Please try again.",
                 type: "error",
             });
         } finally {
@@ -571,19 +620,25 @@ useEffect(() => {
     };
 
     // Open edit dialog
-    const openEditDialog = (instructorId: number, day: string, timeSlots: string[]) => {
+    const openEditDialog = (
+        instructorId: number,
+        day: string,
+        timeSlots: string[]
+    ) => {
         setSelectedDay(day);
         loadConstraintForEdit(instructorId, day, timeSlots);
         setIsEditDialogOpen(true);
     };
 
     // Open delete dialog
-    const openDeleteDialog = (groupedConstraint: GroupedConstraint, day: string) => {
+    const openDeleteDialog = (
+        groupedConstraint: GroupedConstraint,
+        day: string
+    ) => {
         setSelectedGroupedConstraint(groupedConstraint);
         setSelectedDay(day);
         setIsDeleteDialogOpen(true);
     };
-
 
     // Check if a time slot is available for a given instructor and day
     const isTimeSlotAvailable = (timeSlot: string, dayName: string) => {
@@ -591,14 +646,16 @@ useEffect(() => {
             return true;
         }
 
-        // For edit mode, exclude the current constraint 
+        // For edit mode, exclude the current constraint
         const existingConstraints = timeConstraints.filter((constraint) => {
             // If we're editing a day, exclude that day's constraints
-            if (selectedDay === constraint.day_of_the_week && 
-                constraint.instructor_id === enhancedFormData.instructor_id) {
+            if (
+                selectedDay === constraint.day_of_the_week &&
+                constraint.instructor_id === enhancedFormData.instructor_id
+            ) {
                 return false;
             }
-            
+
             return (
                 constraint.instructor_id === enhancedFormData.instructor_id &&
                 constraint.day_of_the_week === dayName
@@ -638,6 +695,8 @@ useEffect(() => {
         ).length;
     };
 
+    // Rest of the component...
+
     return (
         <div>
             <div className="flex justify-between items-center mb-6">
@@ -653,88 +712,111 @@ useEffect(() => {
             {/* Display status message */}
             <StatusMessageDisplay />
 
-
-
             {!isLoading && groupedConstraints.length === 0 ? (
-    <div className="text-center p-8 text-gray-500">
-        No time constraints added yet
-    </div>
-) : (
-    <>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {paginatedGroupedConstraints.map((groupedConstraint) => (
-                <Card key={groupedConstraint.instructor_id} className="overflow-hidden hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                        {/* Instructor header */}
-                        <div className="mb-3 pb-2 border-b">
-                            <h3 className="font-bold text-lg">
-                                {groupedConstraint.firstName} {groupedConstraint.lastName}
-                            </h3>
-                        </div>
-                        
-                        {/* Day constraints */}
-                        <div className="space-y-4">
-                        {groupedConstraint.dayConstraints
-  .slice() // Create a copy to avoid mutating the original array
-  .sort((a, b) => DAYS_OF_WEEK.indexOf(a.day) - DAYS_OF_WEEK.indexOf(b.day))
-  .map((dayConstraint) => (
-    <div key={`${groupedConstraint.instructor_id}-${dayConstraint.day}`} 
-         className="flex justify-between items-start p-2 bg-slate-50 rounded-md">
-                                    <div>
-                                        <p className="text-sm font-semibold text-slate-700 mb-2">
-                                            {dayConstraint.day}
-                                        </p>
-                                        <div className="flex flex-wrap gap-1">
-                                            {dayConstraint.timeSlots.map(
-                                                (time, index) => (
-                                                    <Badge
-                                                        key={index}
-                                                        variant="outline"
-                                                        className="text-xs flex items-center bg-white"
-                                                    >
-                                                        <Clock className="h-3 w-3 mr-1" />
-                                                        {time}
-                                                    </Badge>
-                                                )
-                                            )}
+                <div className="text-center p-8 text-gray-500">
+                    No time constraints added yet
+                </div>
+            ) : (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {paginatedGroupedConstraints.map(
+                            (groupedConstraint) => (
+                                <Card
+                                    key={groupedConstraint.instructor_id}
+                                    className="overflow-hidden hover:shadow-md transition-shadow"
+                                >
+                                    <CardContent className="p-4">
+                                        {/* Instructor header */}
+                                        <div className="mb-3 pb-2 border-b">
+                                            <h3 className="font-bold text-lg">
+                                                {groupedConstraint.firstName}{" "}
+                                                {groupedConstraint.lastName}
+                                            </h3>
                                         </div>
-                                    </div>
-                                    <div className="flex gap-1">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-8 w-8 p-0 rounded-full"
-                                            onClick={() => 
-                                                openEditDialog(
-                                                    groupedConstraint.instructor_id,
-                                                    dayConstraint.day,
-                                                    dayConstraint.timeSlots
+
+                                        {/* Day constraints */}
+                                        <div className="space-y-4">
+                                            {groupedConstraint.dayConstraints
+                                                .slice() // Create a copy to avoid mutating the original array
+                                                .sort(
+                                                    (a, b) =>
+                                                        DAYS_OF_WEEK.indexOf(
+                                                            a.day
+                                                        ) -
+                                                        DAYS_OF_WEEK.indexOf(
+                                                            b.day
+                                                        )
                                                 )
-                                            }
-                                        >
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-8 w-8 p-0 rounded-full text-red-500 hover:text-red-700"
-                                            onClick={() => 
-                                                openDeleteDialog(
-                                                    groupedConstraint,
-                                                    dayConstraint.day
-                                                )
-                                            }
-                                        >
-                                            <Trash className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            ))}
-        </div>
+                                                .map((dayConstraint) => (
+                                                    <div
+                                                        key={`${groupedConstraint.instructor_id}-${dayConstraint.day}`}
+                                                        className="flex justify-between items-start p-2 bg-slate-50 rounded-md"
+                                                    >
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-slate-700 mb-2">
+                                                                {
+                                                                    dayConstraint.day
+                                                                }
+                                                            </p>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {dayConstraint.timeSlots.map(
+                                                                    (
+                                                                        time,
+                                                                        index
+                                                                    ) => (
+                                                                        <Badge
+                                                                            key={
+                                                                                index
+                                                                            }
+                                                                            variant="outline"
+                                                                            className="text-xs flex items-center bg-white"
+                                                                        >
+                                                                            <Clock className="h-3 w-3 mr-1" />
+                                                                            {
+                                                                                time
+                                                                            }
+                                                                        </Badge>
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-1">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 w-8 p-0 rounded-full"
+                                                                onClick={() =>
+                                                                    openEditDialog(
+                                                                        groupedConstraint.instructor_id,
+                                                                        dayConstraint.day,
+                                                                        dayConstraint.timeSlots
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Pencil className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 w-8 p-0 rounded-full text-red-500 hover:text-red-700"
+                                                                onClick={() =>
+                                                                    openDeleteDialog(
+                                                                        groupedConstraint,
+                                                                        dayConstraint.day
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Trash className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )
+                        )}
+                    </div>
 
                     {/* Add pagination if there are items to display */}
                     {groupedConstraints.length > 0 && (
@@ -906,7 +988,7 @@ useEffect(() => {
                                                                                 checked={
                                                                                     isSelected
                                                                                 }
-                                                                               disabled={
+                                                                                disabled={
                                                                                     !!isDisabled
                                                                                 }
                                                                                 onCheckedChange={() =>
@@ -1024,7 +1106,7 @@ useEffect(() => {
                             <Select
                                 value={enhancedFormData.instructor_id.toString()}
                                 onValueChange={handleInstructorChange}
-                                disabled={true}  // Disable changing instructor in edit mode
+                                disabled={true} // Disable changing instructor in edit mode
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select instructor" />
@@ -1264,7 +1346,7 @@ useEffect(() => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            
+
             {/* Delete Constraint Dialog */}
             <Dialog
                 open={isDeleteDialogOpen}
@@ -1283,13 +1365,14 @@ useEffect(() => {
                         {selectedGroupedConstraint && selectedDay && (
                             <div>
                                 <p className="font-medium mt-2">
-                                    {selectedGroupedConstraint.firstName} {selectedGroupedConstraint.lastName}{" "}
-                                    - {selectedDay}
+                                    {selectedGroupedConstraint.firstName}{" "}
+                                    {selectedGroupedConstraint.lastName} -{" "}
+                                    {selectedDay}
                                 </p>
                                 <div className="flex flex-wrap gap-1 mt-2">
                                     {selectedGroupedConstraint.dayConstraints
-                                        .find(dc => dc.day === selectedDay)?.timeSlots
-                                        .map((time, index) => (
+                                        .find((dc) => dc.day === selectedDay)
+                                        ?.timeSlots.map((time, index) => (
                                             <Badge
                                                 key={index}
                                                 variant="outline"
