@@ -136,21 +136,45 @@ export async function PATCH(request: Request) {
     try {
         const body = await request.json();
         const validatedData = editScheduleSchema.parse(body);
-        const { id, name, startDate, endDate, userId } = validatedData;
+        const { id, name, startDate, endDate, userId, timeSlots } =
+            validatedData;
 
         // Generate academic year string
         const academicYear = generateAcademicYear(startDate, endDate);
 
-        const updatedSchedule = await db
-            .update(schedules)
-            .set({
-                name,
-                academicYear,
-                userId,
-            })
-            .where(eq(schedules.id, id));
+        return await db.transaction(async (tx) => {
+            // Update schedule details
+            await tx
+                .update(schedules)
+                .set({
+                    name,
+                    academicYear,
+                    userId,
+                })
+                .where(eq(schedules.id, id));
 
-        return NextResponse.json(updatedSchedule);
+            // If timeSlots are provided, update them too
+            if (timeSlots && timeSlots.length > 0) {
+                // First delete existing time slots for this schedule
+                await tx
+                    .delete(scheduleTimeSlots)
+                    .where(eq(scheduleTimeSlots.scheduleId, id));
+
+                // Then insert the new time slots
+                for (const timeSlot of timeSlots) {
+                    await tx.insert(scheduleTimeSlots).values({
+                        startTime: timeSlot.startTime,
+                        endTime: timeSlot.endTime,
+                        scheduleId: id,
+                    });
+                }
+            }
+
+            return NextResponse.json({
+                message: "Schedule updated successfully",
+                id,
+            });
+        });
     } catch (error: unknown) {
         console.error("Error updating schedule:", error);
         if (error instanceof z.ZodError) {

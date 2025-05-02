@@ -112,6 +112,7 @@ export type TimeConstraintFormData = {
 // };
 
 export type CourseHour = {
+    display_slot: string;
     id: number;
     time_slot: string;
 };

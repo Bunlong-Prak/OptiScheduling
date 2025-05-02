@@ -7,6 +7,7 @@ import {
     timestamp,
     varchar,
 } from "drizzle-orm/mysql-core";
+import { Assistant } from "next/font/google";
 import { start } from "repl";
 
 export const users = mysqlTable("users", {

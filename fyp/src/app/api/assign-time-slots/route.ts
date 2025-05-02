@@ -170,20 +170,26 @@ export async function PATCH(request: Request) {
     try {
         const body = await request.json();
         const validatedData = timetableAssignmentSchema.parse(body);
-        const { sectionId, courseHoursId, classroomId, day } = validatedData;
+        const { sectionId, courseHoursId, classroomId } = validatedData;
+        // Note: day is validated but not used directly in the sections update
 
         // Update the section with new assignment data
-        const updatedSection = await db
+        await db
             .update(sections)
             .set({
                 courseHoursId,
                 classroomId,
-                day,
             })
-            .where(eq(sections.id, sectionId))
-            .returning();
+            .where(eq(sections.id, sectionId));
 
-        return NextResponse.json(updatedSection[0]);
+        // Fetch the updated section separately
+        const updatedSection = await db
+            .select()
+            .from(sections)
+            .where(eq(sections.id, sectionId))
+            .limit(1);
+
+        return NextResponse.json(updatedSection[0] || { id: sectionId });
     } catch (error: unknown) {
         console.error("Error updating timetable assignment:", error);
         return NextResponse.json(
@@ -200,20 +206,25 @@ export async function DELETE(request: Request) {
         const validatedData = removeTimetableAssignmentSchema.parse(body);
         const { sectionId } = validatedData;
 
-        // Remove the assignment by setting courseHoursId, classroomId and day to null
-        const updatedSection = await db
+        // Remove the assignment by setting courseHoursId and classroomId to null
+        await db
             .update(sections)
             .set({
                 courseHoursId: null,
                 classroomId: null,
-                day: null,
             })
+            .where(eq(sections.id, sectionId));
+
+        // Fetch the updated section separately
+        const updatedSection = await db
+            .select()
+            .from(sections)
             .where(eq(sections.id, sectionId))
-            .returning();
+            .limit(1);
 
         return NextResponse.json({
             message: "Assignment removed successfully",
-            section: updatedSection[0],
+            section: updatedSection[0] || { id: sectionId },
         });
     } catch (error: unknown) {
         console.error("Error removing timetable assignment:", error);

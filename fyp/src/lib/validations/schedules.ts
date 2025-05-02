@@ -55,6 +55,7 @@ export const createScheduleSchema = z
     });
 
 // Schema for editing an existing schedule
+// Schema for editing an existing schedule
 export const editScheduleSchema = z
     .object({
         // ID: Required for updates
@@ -81,6 +82,12 @@ export const editScheduleSchema = z
             required_error: "End date is required",
             invalid_type_error: "End date must be a valid date",
         }),
+
+        // Add the timeSlots field to the edit schema
+        timeSlots: z
+            .array(timeSlotSchema)
+            .min(1, { message: "At least one time slot is required" })
+            .optional(), // Make it optional for backward compatibility
 
         // User ID: Optional, to associate schedule with a user
         userId: z.string().min(1).max(100),
