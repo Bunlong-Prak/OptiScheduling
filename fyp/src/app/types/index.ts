@@ -115,6 +115,8 @@ export type CourseHour = {
     display_slot: string;
     id: number;
     time_slot: string;
+    startTime: string;
+    endTime: string;
 };
 
 export type TimetableCourse = {
