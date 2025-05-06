@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "c632fc4a-9e51-4bfe-84f1-d4cf1c193a0b",
+  "id": "73420c05-215e-46f1-a892-8d3771979c72",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -196,6 +196,13 @@
           "type": "int",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "schedule_id": {

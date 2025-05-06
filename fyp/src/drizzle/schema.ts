@@ -7,8 +7,6 @@ import {
     timestamp,
     varchar,
 } from "drizzle-orm/mysql-core";
-import { Assistant } from "next/font/google";
-import { start } from "repl";
 
 export const users = mysqlTable("users", {
     id: varchar("id", {
@@ -93,7 +91,8 @@ export const courses = mysqlTable("courses", {
     code: varchar("code", { length: 50 }).notNull(),
     color: varchar("color", { length: 50 }),
     capacity: int("capacity").notNull(),
-    duration: int("duration").notNull(), // Foreign key to Section
+    duration: int("duration").notNull(),
+    status: varchar("status", { length: 50 }), // Foreign key to Section
     scheduleId: int("schedule_id")
         .notNull()
         .references(() => schedules.id, {

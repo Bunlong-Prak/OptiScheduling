@@ -40,6 +40,7 @@ const courseSchema = z.object({
     duration: z.number().min(1, { message: "Duration is required" }),
     // Capacity: Required
     capacity: z.number().min(1, { message: "Capacity is required" }),
+    status: z.string().optional(), // Optional status field
     // Sections array: Required, at least one section
     sectionsList: z
         .array(sectionSchema)
@@ -108,6 +109,7 @@ export async function GET(request: Request) {
                 instructorId: instructors.id, // Include instructor ID
                 duration: courses.duration,
                 capacity: courses.capacity,
+                status: courses.status,
                 sectionId: sections.id,
                 section: sections.number,
                 classroom: classrooms.code, // Keep this for backward compatibility
@@ -160,6 +162,7 @@ export async function POST(request: Request) {
             instructor,
             duration,
             capacity,
+            status,
             sectionsList,
             scheduleId,
         } = validationResult.data;
@@ -208,6 +211,7 @@ export async function POST(request: Request) {
             instructorId: instructorResult[0].id,
             duration: duration,
             capacity: capacity,
+            status: status,
         });
         console.log("Inserted course:", coursess);
         // Get the inserted course ID
@@ -274,6 +278,7 @@ export async function POST(request: Request) {
                 instructorId: instructors.id, // Include instructor ID
                 duration: courses.duration,
                 capacity: courses.capacity,
+                status: courses.status,
             })
             .from(courses)
             .innerJoin(majors, eq(courses.majorId, majors.id))

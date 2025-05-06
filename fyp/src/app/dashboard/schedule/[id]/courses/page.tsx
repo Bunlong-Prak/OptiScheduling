@@ -620,6 +620,9 @@ export default function CoursesView() {
                                     Capacity
                                 </th>
                                 <th className="border p-2 bg-gray-100 text-left">
+                                    Status
+                                </th>
+                                <th className="border p-2 bg-gray-100 text-left">
                                     Actions
                                 </th>
                             </tr>
@@ -666,6 +669,9 @@ export default function CoursesView() {
                                         </td>
                                         <td className="border p-2">
                                             {course.capacity}
+                                        </td>
+                                        <td className="border p-2">
+                                            {course.status}
                                         </td>
                                         <td className="border p-2">
                                             <div className="flex gap-2">
@@ -777,7 +783,32 @@ export default function CoursesView() {
                                                     value={major.name}
                                                     onSelect={(value) => {
                                                         setCurrentMajor(value);
+                                                        setFormData({
+                                                            ...formData,
+                                                            major: value,
+                                                        });
                                                         setMajorOpen(false);
+
+                                                        // Add to courseMajors if not already present
+                                                        if (
+                                                            !courseMajors.some(
+                                                                (m) =>
+                                                                    m.major_name ===
+                                                                    value
+                                                            )
+                                                        ) {
+                                                            const newMajor = {
+                                                                id:
+                                                                    courseMajors.length +
+                                                                    1,
+                                                                major_name:
+                                                                    value,
+                                                            };
+                                                            setCourseMajors([
+                                                                ...courseMajors,
+                                                                newMajor,
+                                                            ]);
+                                                        }
                                                     }}
                                                 >
                                                     <Check
@@ -1009,9 +1040,7 @@ export default function CoursesView() {
                             disabled={
                                 !formData.title ||
                                 !formData.code ||
-                                !formData.major ||
-                                !formData.instructorId ||
-                                sections.length === 0
+                                !formData.instructorId
                             }
                         >
                             Add Course

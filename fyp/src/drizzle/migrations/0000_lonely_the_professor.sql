@@ -27,6 +27,7 @@ CREATE TABLE `courses` (
 	`color` varchar(50),
 	`capacity` int NOT NULL,
 	`duration` int NOT NULL,
+	`status` varchar(50),
 	`schedule_id` int NOT NULL,
 	`major_id` int NOT NULL,
 	`instructor_id` int NOT NULL,
