@@ -601,11 +601,11 @@ export default function TimetableView() {
         }
     };
 
-    // Function to export timetable
-    const exportTimetable = () => {
-        // Implement export functionality
-        alert("Export functionality to be implemented");
-    };
+    // // Function to export timetable
+    // const exportTimetable = () => {
+    //     // Implement export functionality
+    //     alert("Export functionality to be implemented");
+    // };
 
     // Handle drag over for available courses section
     const handleAvailableDrop = (e: React.DragEvent<HTMLDivElement>) => {
