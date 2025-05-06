@@ -57,6 +57,7 @@ export type Course = {
     sectionId: number;
     section: string;
     classroom: string;
+    status: string; // "active" or "inactive"
 };
 
 // export type Schedule = {

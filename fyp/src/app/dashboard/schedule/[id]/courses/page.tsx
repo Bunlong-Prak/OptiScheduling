@@ -76,9 +76,11 @@ export default function CoursesView() {
         duration: 0,
         capacity: 0,
         section: "",
+        status: "", // Added status field
     });
 
     const [instructorOpen, setInstructorOpen] = useState(false);
+    const [majorOpen, setMajorOpen] = useState(false); // Added for major popover
     // const [isLoading, setIsLoading] = useState(true);
 
     // Clear status message after 5 seconds
@@ -248,6 +250,7 @@ export default function CoursesView() {
                 major: majorName,
                 color: formData.color,
                 instructor: formData.instructorId, // Send ID instead of name
+                status: formData.status, // Added status field
                 duration: Number(formData.duration),
                 capacity: Number(formData.capacity),
                 sectionsList: sectionsList,
@@ -353,7 +356,8 @@ export default function CoursesView() {
                 !formData.title ||
                 !formData.code ||
                 !majorName ||
-                !formData.color
+                !formData.color ||
+                !formData.status // Added status validation
             ) {
                 setStatusMessage({
                     text: "All course fields are required",
@@ -370,6 +374,7 @@ export default function CoursesView() {
                 major: majorName,
                 color: formData.color,
                 instructor: instructorId,
+                status: formData.status, // Added status field
                 duration: Number(formData.duration) || 1,
                 capacity: Number(formData.capacity) || 1,
                 sectionsList: sectionsList,
@@ -495,6 +500,7 @@ export default function CoursesView() {
             duration: 0,
             capacity: 0,
             section: "",
+            status: "", // Reset status field
         });
         setSelectedCourse(null);
         setSections([]);
@@ -536,6 +542,7 @@ export default function CoursesView() {
             duration: course.duration,
             capacity: course.capacity,
             section: course.section,
+            status: course.status || "offline", // Initialize status with default
         });
 
         // Initialize with the current section
@@ -553,6 +560,9 @@ export default function CoursesView() {
                 major_name: course.major,
             },
         ]);
+
+        // Set current major for the dropdown display
+        setCurrentMajor(course.major);
 
         setIsEditDialogOpen(true);
     };
@@ -735,76 +745,79 @@ export default function CoursesView() {
                         </div>
 
                         {/* Major List UI  */}
-                        <div className="space-y-6">
-                            <div>
-                                <Label className="text-base font-medium">
-                                    Suggestion Majors
-                                </Label>
-                                <p className="text-sm text-gray-500 mt-1">
-                                    Add course majors
-                                </p>
-                            </div>
-
-                            {courseMajors.length > 0 && (
-                                <div className="space-y-2 mb-2">
-                                    {courseMajors.map((major) => (
-                                        <div
-                                            key={major.id}
-                                            className="p-3 border rounded-md flex justify-between items-center"
-                                        >
-                                            <div className="flex items-center space-x-3">
-                                                <span className="bg-purple-50 px-2 py-1 rounded-md text-sm">
-                                                    Major: {major.major_name}
-                                                </span>
-                                            </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    removeMajor(major.id)
-                                                }
-                                                className="h-8 w-8"
-                                            >
-                                                <Trash className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            <div className="flex items-end gap-3">
-                                <div className="flex-1 space-y-2">
-                                    <Label htmlFor="major">Major</Label>
-                                    <Select
-                                        value={currentMajor}
-                                        onValueChange={(value) =>
-                                            setCurrentMajor(value)
-                                        }
+                        <div className="space-y-2">
+                            <Label htmlFor="major">Major</Label>
+                            <Popover
+                                open={majorOpen}
+                                onOpenChange={setMajorOpen}
+                            >
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        aria-expanded={majorOpen}
+                                        className="w-full justify-between"
                                     >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select major" />
-                                        </SelectTrigger>
-                                        <SelectContent>
+                                        {currentMajor
+                                            ? currentMajor
+                                            : "Select major..."}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-full p-0">
+                                    <Command>
+                                        <CommandInput placeholder="Search major..." />
+                                        <CommandEmpty>
+                                            No major found.
+                                        </CommandEmpty>
+                                        <CommandGroup>
                                             {majors.map((major) => (
-                                                <SelectItem
+                                                <CommandItem
                                                     key={major.id}
                                                     value={major.name}
+                                                    onSelect={(value) => {
+                                                        setCurrentMajor(value);
+                                                        setMajorOpen(false);
+                                                    }}
                                                 >
+                                                    <Check
+                                                        className={`mr-2 h-4 w-4 ${
+                                                            currentMajor ===
+                                                            major.name
+                                                                ? "opacity-100"
+                                                                : "opacity-0"
+                                                        }`}
+                                                    />
                                                     {major.name}
-                                                </SelectItem>
+                                                </CommandItem>
                                             ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                                        </CommandGroup>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
 
-                                <Button
-                                    onClick={addMajor}
-                                    disabled={!currentMajor}
-                                    className="flex-shrink-0"
-                                >
-                                    <Plus className="h-4 w-4 mr-2" /> Add
-                                </Button>
-                            </div>
+                        {/* New Status Input */}
+                        <div className="space-y-2">
+                            <Label htmlFor="status">Status</Label>
+                            <Select
+                                value={formData?.status || ""}
+                                onValueChange={(value) =>
+                                    handleSelectChange("status", value)
+                                }
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="online">
+                                        Online
+                                    </SelectItem>
+                                    <SelectItem value="offline">
+                                        Offline
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         <div className="space-y-2">
