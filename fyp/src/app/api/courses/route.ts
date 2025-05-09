@@ -78,6 +78,7 @@ const editCourseSchema = z.object({
     duration: z.number().min(1, { message: "Duration is required" }),
     // Capacity: Required
     capacity: z.number().min(1, { message: "Capacity is required" }),
+    status: z.string().optional(), // Optional status field
     // Sections array: Required, at least one section
     sectionsList: z
         .array(sectionSchema)
@@ -331,6 +332,7 @@ export async function PATCH(request: Request) {
             instructor,
             duration,
             capacity,
+            status,
             sectionsList,
         } = validationResult.data;
         console.log("Ah ach: ", sectionsList);
@@ -376,6 +378,7 @@ export async function PATCH(request: Request) {
             color: string;
             duration: number;
             capacity: number;
+            status: string;
             majorId: number;
             instructorId: number;
         }> = {};
@@ -385,7 +388,7 @@ export async function PATCH(request: Request) {
         if (color !== undefined) updateData.color = color;
         if (duration !== undefined) updateData.duration = duration;
         if (capacity !== undefined) updateData.capacity = capacity;
-
+        if (status !== undefined) updateData.status = status;
         // Handle major update if provided
         if (major !== undefined) {
             const majorResult = await db
@@ -491,6 +494,7 @@ export async function PATCH(request: Request) {
                 instructorId: instructors.id, // Include instructor ID
                 duration: courses.duration,
                 capacity: courses.capacity,
+                status: courses.status,
             })
             .from(courses)
             .innerJoin(majors, eq(courses.majorId, majors.id))
