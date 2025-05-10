@@ -6,7 +6,7 @@ import {
     sections,
 } from "@/drizzle/schema";
 import { db } from "@/lib/db";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -24,6 +24,7 @@ const saveTimetableSchema = z.object({
     day: z.string(),
     startTime: z.string(),
     endTime: z.string(),
+    classroom: z.string(),
 });
 
 const removeTimetableAssignmentSchema = z.object({
@@ -63,8 +64,8 @@ export async function GET(request: Request) {
             .innerJoin(courseHours, eq(courseHours.id, sections.courseHoursId))
             .innerJoin(instructors, eq(instructors.id, courses.instructorId))
             .innerJoin(classrooms, eq(classrooms.id, sections.classroomId))
-            .where(and(eq(courses.scheduleId, parseInt(scheduleId))));
-
+            .where(eq(courses.scheduleId, parseInt(scheduleId)));
+        console.log("Assignments:", assignments);
         return NextResponse.json(assignments);
     } catch (error: unknown) {
         console.error("Error fetching timetable assignments:", error);
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
                 continue;
             }
 
-            const { sectionId, day, startTime, endTime } =
+            const { sectionId, day, startTime, endTime, classroom } =
                 validationResult.data;
 
             // First, create the course hour
@@ -134,6 +135,7 @@ export async function POST(request: Request) {
                 .update(sections)
                 .set({
                     courseHoursId: courseHourId,
+                    classroomId: parseInt(classroom),
                 })
                 .where(eq(sections.id, sectionId));
 

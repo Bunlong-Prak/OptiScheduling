@@ -336,28 +336,37 @@ export default function TimetableView() {
                 assignmentsData.forEach((assignment: any) => {
                     // Extract data from the API response
                     const sectionId = assignment.sectionId?.toString() || "";
-                    const classroomCode = assignment.classroom; // This is classroom CODE not ID
+                    const classroomCode = assignment.classroom;
                     const code = assignment.code;
-                    const title = assignment.title || code; // Fallback to code if title is missing
+                    const title = assignment.title || code;
                     const firstName = assignment.firstName;
                     const lastName = assignment.lastName;
                     const day = assignment.day;
 
-                    // Parse the time slot - extract start time from formats like "13:00 - 15:00"
-                    let timeSlot = assignment.timeSlot;
-                    let endTimeFromRange = null;
+                    // Parse the time slot - handle different formats
+                    let startTime = assignment.startTime; // Direct startTime if available
+                    let endTime = assignment.endTime; // Direct endTime if available
 
-                    if (timeSlot && timeSlot.includes(" - ")) {
-                        const parts = timeSlot.split(" - ");
-                        timeSlot = parts[0].trim();
-                        endTimeFromRange = parts[1].trim(); // Store end time for later use
+                    // If startTime/endTime not directly available, parse from timeSlot
+                    if (!startTime && assignment.timeSlot) {
+                        let timeSlot = assignment.timeSlot;
+
+                        // Handle format like "13:00 - 15:00"
+                        if (timeSlot.includes(" - ")) {
+                            const parts = timeSlot.split(" - ");
+                            startTime = parts[0].trim();
+                            endTime = parts[1].trim();
+                        } else {
+                            // If it's just a single time or time range without spaces
+                            startTime = timeSlot;
+                        }
                     }
 
-                    // Use specified duration or calculate from range
-                    let duration = parseInt(assignment.duration || 3, 10);
+                    // Use specified duration or calculate from time slots
+                    let duration = parseInt(assignment.duration || "1", 10);
 
                     // Skip invalid assignments
-                    if (!sectionId || !day || !timeSlot) {
+                    if (!sectionId || !day || !startTime) {
                         console.warn(
                             "Skipping invalid assignment:",
                             assignment
@@ -370,18 +379,16 @@ export default function TimetableView() {
                         (c) => c.code === classroomCode
                     );
 
-                    // If classroom not found, log error and continue
                     if (!classroom) {
                         console.warn(
-                            `Classroom with code ${classroomCode} not found. Available classrooms:`,
-                            classrooms.map((c) => `${c.id}: ${c.code}`)
+                            `Classroom with code ${classroomCode} not found.`
                         );
                         return;
                     }
 
                     const classroomId = classroom.id.toString();
 
-                    // Instructor name from firstName and lastName
+                    // Instructor name
                     const instructorName =
                         firstName && lastName
                             ? `${firstName} ${lastName}`
@@ -393,53 +400,63 @@ export default function TimetableView() {
                     const colorClassName =
                         Object.values(colors_class)[colorIndex];
 
-                    // Find the time slot that matches the assignment
-                    const matchingTimeSlot = timeSlots.find((ts) => {
+                    // Find the time slot that matches the start time
+                    // This is crucial: we need to match the exact format
+                    const startIndex = timeSlots.findIndex((ts) => {
                         const tsKey = getTimeSlotKey(ts);
-                        return tsKey === timeSlot || ts.startTime === timeSlot;
+
+                        // Try multiple matching strategies
+                        return (
+                            tsKey === startTime || // Exact match
+                            ts.startTime === startTime || // Match startTime property
+                            ts.time_slot === startTime || // Match time_slot property
+                            // If the time slot is a range, check if it starts with our startTime
+                            (ts.time_slot &&
+                                ts.time_slot.startsWith(startTime + "-")) ||
+                            // Try matching just the time part if it's in HH:MM format
+                            (tsKey.includes("-") &&
+                                tsKey.split("-")[0].trim() === startTime)
+                        );
                     });
 
-                    if (!matchingTimeSlot) {
+                    if (startIndex === -1) {
                         console.warn(
-                            `Time slot "${timeSlot}" not found for course ${code}. Available time slots:`,
-                            timeSlots.map((ts) => getTimeSlotKey(ts))
+                            `Time slot "${startTime}" not found for course ${code}. Available time slots:`,
+                            timeSlots.map((ts) => ({
+                                key: getTimeSlotKey(ts),
+                                startTime: ts.startTime,
+                                time_slot: ts.time_slot,
+                            }))
                         );
                         return;
                     }
 
-                    const startIndex = timeSlots.indexOf(matchingTimeSlot);
+                    // If we have an endTime, try to calculate duration more accurately
+                    if (endTime) {
+                        const endIndex = timeSlots.findIndex((ts) => {
+                            const tsKey = getTimeSlotKey(ts);
+                            return (
+                                ts.endTime === endTime ||
+                                (ts.time_slot &&
+                                    ts.time_slot.endsWith("-" + endTime)) ||
+                                (tsKey.includes("-") &&
+                                    tsKey.split("-")[1].trim() === endTime)
+                            );
+                        });
 
-                    // If we have an end time from the range, try to use it for more accurate duration
-                    if (endTimeFromRange) {
-                        const endIndex = timeSlots.findIndex(
-                            (ts) =>
-                                ts.time_slot === endTimeFromRange ||
-                                ts.endTime === endTimeFromRange
-                        );
                         if (endIndex !== -1) {
-                            // Calculate duration from start to end time slot
                             duration = endIndex - startIndex + 1;
                             console.log(
-                                `Calculated duration for ${code}: ${duration} hours (${timeSlot} to ${endTimeFromRange})`
+                                `Calculated duration for ${code}: ${duration} hours (${startTime} to ${endTime})`
                             );
                         }
                     }
 
-                    // Calculate endTime safely
+                    // Calculate actualDuration and endTime
                     const actualDuration = Math.min(
                         duration,
                         timeSlots.length - startIndex
                     );
-                    const endTimeIndex = Math.min(
-                        startIndex + actualDuration - 1,
-                        timeSlots.length - 1
-                    );
-                    const endTime =
-                        timeSlots[endTimeIndex].endTime ||
-                        timeSlots[endTimeIndex].time_slot
-                            ?.split("-")[1]
-                            ?.trim() ||
-                        timeSlots[endTimeIndex].time_slot;
 
                     // Create the course object
                     const course = {
@@ -449,30 +466,36 @@ export default function TimetableView() {
                         instructor: instructorName,
                         duration: actualDuration,
                         day: day,
-                        startTime: timeSlot,
-                        endTime: endTime,
+                        startTime: startTime,
+                        endTime:
+                            endTime ||
+                            timeSlots[
+                                Math.min(
+                                    startIndex + actualDuration - 1,
+                                    timeSlots.length - 1
+                                )
+                            ].endTime,
                         classroom: classroomId,
                         color: colorClassName,
                         section: sectionId.toString(),
                         room: classroomCode,
-                        courseHours: timeSlot,
                     };
 
                     console.log("Processing course for schedule:", course);
 
-                    // Add to assigned courses if not already there
+                    // Add to assigned courses
                     if (
                         !newAssignedCourses.some(
                             (c) =>
                                 c.sectionId === sectionId &&
                                 c.day === day &&
-                                c.startTime === timeSlot
+                                c.startTime === startTime
                         )
                     ) {
                         newAssignedCourses.push({ ...course });
                     }
 
-                    // Add to schedule grid
+                    // Add to schedule grid - this is where the UI display happens
                     for (let i = 0; i < actualDuration; i++) {
                         if (startIndex + i >= timeSlots.length) break;
 
@@ -553,13 +576,16 @@ export default function TimetableView() {
 
         setIsSaving(true);
         try {
-            // Prepare data for API
+            // Prepare data for API - ensure we're saving the right format
             const assignmentsData = assignedCourses.map((course) => ({
                 sectionId: course.sectionId,
                 day: course.day,
                 startTime: course.startTime,
                 endTime: course.endTime,
+                classroom: course.classroom,
             }));
+
+            console.log("Saving assignments:", assignmentsData);
 
             // Send all assignments to API
             const response = await fetch("/api/assign-time-slots", {
