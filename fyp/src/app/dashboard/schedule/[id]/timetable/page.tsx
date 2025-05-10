@@ -83,6 +83,26 @@ export default function TimetableView() {
 
     const params = useParams();
 
+    // Helper function to get consistent time slot key
+    const getTimeSlotKey = (timeSlot: any): string => {
+        // If it's a time slot string like "8:00-9:00", use it directly
+        if (typeof timeSlot === "string") {
+            return timeSlot;
+        }
+
+        // If it's an object with startTime, use that
+        if (timeSlot.startTime) {
+            return timeSlot.startTime;
+        }
+
+        // If it's an object with time_slot, use that
+        if (timeSlot.time_slot) {
+            return timeSlot.time_slot;
+        }
+
+        return timeSlot.toString();
+    };
+
     // Helper function to check if time slots are consecutive
     const areTimeSlotsConsecutive = (slots: any[]): boolean => {
         if (!slots || slots.length < 2) return false;
@@ -159,9 +179,10 @@ export default function TimetableView() {
                                 const formattedSlot: any = {
                                     id: slot.id,
                                     time_slot:
-                                        slot.startTime && slot.endTime
+                                        slot.time_slot ||
+                                        (slot.startTime && slot.endTime
                                             ? `${slot.startTime}-${slot.endTime}`
-                                            : slot.startTime,
+                                            : slot.startTime),
                                     startTime: slot.startTime,
                                     endTime: slot.endTime,
                                 };
@@ -197,40 +218,11 @@ export default function TimetableView() {
                         // Save original time slots for data processing
                         setTimeSlots(apiTimeSlots);
 
-                        // Format time slots for display in table header
-                        let formattedDisplaySlots;
-
-                        if (isConsecutive) {
-                            // For consecutive slots like 8-9, 9-10, display as 8-10
-                            const firstSlot = apiTimeSlots[0];
-                            const lastSlot =
-                                apiTimeSlots[apiTimeSlots.length - 1];
-
-                            formattedDisplaySlots = [
-                                {
-                                    id: firstSlot.id,
-                                    time_slot: `${firstSlot.startTime}-${lastSlot.endTime}`,
-                                    startTime: firstSlot.startTime,
-                                    endTime: lastSlot.endTime,
-                                },
-                            ];
-                        } else {
-                            // For non-consecutive slots like 9-10, 10:30-11, display each separately
-                            formattedDisplaySlots = apiTimeSlots.map(
-                                (slot: CourseHour) => ({
-                                    id: slot.id,
-                                    time_slot: `${slot.startTime}-${slot.endTime}`,
-                                    startTime: slot.startTime,
-                                    endTime: slot.endTime,
-                                })
-                            );
-                        }
-
-                        // Set display time slots for table headers
-                        setDisplayTimeSlots(formattedDisplaySlots);
+                        // For display, just use the time slots as is
+                        setDisplayTimeSlots(apiTimeSlots);
                         console.log(
                             "Formatted time slots for display:",
-                            formattedDisplaySlots
+                            apiTimeSlots
                         );
                     } else {
                         console.error(
@@ -401,21 +393,21 @@ export default function TimetableView() {
                     const colorClassName =
                         Object.values(colors_class)[colorIndex];
 
-                    // Find the time slot index
-                    const startIndex = timeSlots.findIndex(
-                        (ts) =>
-                            ts.time_slot === timeSlot ||
-                            ts.startTime === timeSlot
-                    );
+                    // Find the time slot that matches the assignment
+                    const matchingTimeSlot = timeSlots.find((ts) => {
+                        const tsKey = getTimeSlotKey(ts);
+                        return tsKey === timeSlot || ts.startTime === timeSlot;
+                    });
 
-                    // Debug the time slot matching
-                    if (startIndex === -1) {
+                    if (!matchingTimeSlot) {
                         console.warn(
                             `Time slot "${timeSlot}" not found for course ${code}. Available time slots:`,
-                            timeSlots.map((ts) => ts.time_slot || ts.startTime)
+                            timeSlots.map((ts) => getTimeSlotKey(ts))
                         );
                         return;
                     }
+
+                    const startIndex = timeSlots.indexOf(matchingTimeSlot);
 
                     // If we have an end time from the range, try to use it for more accurate duration
                     if (endTimeFromRange) {
@@ -484,9 +476,9 @@ export default function TimetableView() {
                     for (let i = 0; i < actualDuration; i++) {
                         if (startIndex + i >= timeSlots.length) break;
 
-                        const currentTimeSlot =
-                            timeSlots[startIndex + i].startTime ||
-                            timeSlots[startIndex + i].time_slot;
+                        const currentTimeSlot = getTimeSlotKey(
+                            timeSlots[startIndex + i]
+                        );
                         const key = `${day}-${classroomId}-${currentTimeSlot}`;
 
                         console.log(`Adding to schedule with key: ${key}`);
@@ -662,8 +654,9 @@ export default function TimetableView() {
     };
 
     const getTimeSlotId = (timeSlotStr: string): number => {
+        // Find the time slot using the consistent key
         const index = timeSlots.findIndex(
-            (ts) => ts.time_slot === timeSlotStr || ts.startTime === timeSlotStr
+            (ts) => getTimeSlotKey(ts) === timeSlotStr
         );
         return index !== -1 ? index + 1 : 0;
     };
@@ -672,12 +665,19 @@ export default function TimetableView() {
     const handleDrop = (day: string, classroomId: string, timeSlot: string) => {
         if (!draggedCourse || timeSlots.length === 0) return;
 
-        // Get time slot ID - course hours related
-        const timeSlotId = getTimeSlotId(timeSlot);
-        if (timeSlotId === 0) {
-            console.error(`Time slot ${timeSlot} not found in database`);
+        console.log("Dropping course on slot:", timeSlot);
+
+        // Find the time slot that matches the drop location
+        const matchingTimeSlot = timeSlots.find(
+            (ts) => getTimeSlotKey(ts) === timeSlot
+        );
+
+        if (!matchingTimeSlot) {
+            console.error(`Time slot ${timeSlot} not found`);
             return;
         }
+
+        const timeSlotIndex = timeSlots.indexOf(matchingTimeSlot);
 
         // Check if the time slot is already occupied
         const key = `${day}-${classroomId}-${timeSlot}`;
@@ -703,9 +703,6 @@ export default function TimetableView() {
         }
 
         // Check if there's enough space for the course duration
-        const timeSlotIndex = timeSlots.findIndex(
-            (ts) => ts.time_slot === timeSlot || ts.startTime === timeSlot
-        );
         if (timeSlotIndex + draggedCourse.duration > timeSlots.length) {
             alert("Not enough time slots available for this course duration.");
             return;
@@ -714,9 +711,7 @@ export default function TimetableView() {
         // Check for conflicts in subsequent time slots
         for (let i = 1; i < draggedCourse.duration; i++) {
             if (timeSlotIndex + i >= timeSlots.length) break;
-            const nextTimeSlot =
-                timeSlots[timeSlotIndex + i].startTime ||
-                timeSlots[timeSlotIndex + i].time_slot;
+            const nextTimeSlot = getTimeSlotKey(timeSlots[timeSlotIndex + i]);
             const nextKey = `${day}-${classroomId}-${nextTimeSlot}`;
             if (
                 schedule[nextKey] &&
@@ -756,18 +751,19 @@ export default function TimetableView() {
         const assignedCourse = {
             ...draggedCourse,
             day: day,
-            startTime: timeSlot,
+            startTime:
+                timeSlots[timeSlotIndex].startTime ||
+                getTimeSlotKey(timeSlots[timeSlotIndex]),
             endTime: endTimeSlot,
-            courseHoursId: timeSlotId,
             classroom: classroomId,
         };
 
         // Add the course to all its new time slots
         for (let i = 0; i < draggedCourse.duration; i++) {
             if (timeSlotIndex + i >= timeSlots.length) break;
-            const currentTimeSlot =
-                timeSlots[timeSlotIndex + i].startTime ||
-                timeSlots[timeSlotIndex + i].time_slot;
+            const currentTimeSlot = getTimeSlotKey(
+                timeSlots[timeSlotIndex + i]
+            );
             const currentKey = `${day}-${classroomId}-${currentTimeSlot}`;
 
             newSchedule[currentKey] = {
@@ -897,7 +893,7 @@ export default function TimetableView() {
                     // Find the start time index
                     const startIndex = timeSlots.findIndex(
                         (ts) =>
-                            ts.time_slot === startTime ||
+                            getTimeSlotKey(ts) === startTime ||
                             ts.startTime === startTime
                     );
                     if (startIndex === -1) {
@@ -948,9 +944,9 @@ export default function TimetableView() {
                     for (let i = 0; i < duration; i++) {
                         if (startIndex + i >= timeSlots.length) break;
 
-                        const currentTimeSlot =
-                            timeSlots[startIndex + i].startTime ||
-                            timeSlots[startIndex + i].time_slot;
+                        const currentTimeSlot = getTimeSlotKey(
+                            timeSlots[startIndex + i]
+                        );
                         const key = `${day}-${classroom.id}-${currentTimeSlot}`;
 
                         newSchedule[key] = {
@@ -1103,10 +1099,13 @@ export default function TimetableView() {
                                     {days.map((day) =>
                                         timeSlots.map((slot) => (
                                             <th
-                                                key={`${day}-${slot.time_slot}`}
+                                                key={`${day}-${getTimeSlotKey(
+                                                    slot
+                                                )}`}
                                                 className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border "
                                             >
-                                                {slot.time_slot}
+                                                {slot.time_slot ||
+                                                    slot.startTime}
                                             </th>
                                         ))
                                     )}
@@ -1127,7 +1126,9 @@ export default function TimetableView() {
                                         </td>
                                         {days.map((day) =>
                                             timeSlots.map((slot) => {
-                                                const key = `${day}-${classroom.id}-${slot.time_slot}`;
+                                                const slotKey =
+                                                    getTimeSlotKey(slot);
+                                                const key = `${day}-${classroom.id}-${slotKey}`;
                                                 const course = schedule[key];
 
                                                 // Skip cells that are part of a multi-hour course but not the start
@@ -1137,7 +1138,7 @@ export default function TimetableView() {
 
                                                 return (
                                                     <td
-                                                        key={`${day}-${classroom.id}-${slot.time_slot}`}
+                                                        key={`${day}-${classroom.id}-${slotKey}`}
                                                         className="px-1 py-1 whitespace-nowrap text-xs border"
                                                         colSpan={
                                                             course?.colspan || 1
@@ -1149,7 +1150,7 @@ export default function TimetableView() {
                                                             handleDrop(
                                                                 day,
                                                                 classroom.id.toString(),
-                                                                slot.time_slot
+                                                                slotKey
                                                             )
                                                         }
                                                     >
@@ -1160,7 +1161,7 @@ export default function TimetableView() {
                                                                     handleCourseClick(
                                                                         day,
                                                                         classroom.id.toString(),
-                                                                        slot.time_slot,
+                                                                        slotKey,
                                                                         course
                                                                     )
                                                                 }
