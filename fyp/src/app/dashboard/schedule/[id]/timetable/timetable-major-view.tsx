@@ -11,53 +11,35 @@ import {
 } from "@/components/ui/dialog";
 import { colors_class } from "@/components/custom/colors"; // Ensure this path is correct
 import { useParams } from "next/navigation";
+import {
+    Major,
+    CourseHour,
+    Course as CourseType,
+    TimetableCourse,
+    Schedule as ScheduleType
+} from "@/app/types";
 
 const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-interface TimeSlot {
-    id: number;
+// Custom interface for time slots (since CourseHour doesn't fully match our needs)
+interface TimeSlot extends CourseHour {
     time_slot?: string;
-    startTime?: string;
-    endTime?: string;
 }
 
-interface Major {
-    id: number;
-    name: string;
-    shortTag?: string;
-    year?: number | null;
-    numberOfYears?: number;
-}
-
-interface Course {
-    sectionId: string | number;
-    code: string;
-    title?: string;
-    name?: string;
-    color: string;
-    section?: string;
+// Extended TimetableCourse with additional fields needed for this view
+interface ExtendedTimetableCourse extends TimetableCourse {
     major?: string;
-    instructor?: string;
-    firstName?: string;
-    lastName?: string;
-    duration: number;
-    day?: string;
-    startTime?: string;
-    endTime?: string;
-    classroom?: string;
     room?: string;
     year?: number;
-    isStart?: boolean;
-    isMiddle?: boolean;
-    isEnd?: boolean;
-    colspan?: number;
-    subtext?: string; // Added for potential secondary line display in cell
+    subtext?: string;
 }
 
-interface Schedule {
-    [key: string]: Course;
+// Custom mapping type for our schedule
+interface MajorSchedule {
+    [key: string]: ExtendedTimetableCourse;
 }
 
+// Interface for major year display rows
 interface MajorYearDisplayRow {
     id: string;
     displayName: string;
@@ -72,15 +54,17 @@ export default function MajorView() {
     const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
     const [allMajors, setAllMajors] = useState<Major[]>([]);
     const [majorYearDisplayRows, setMajorYearDisplayRows] = useState<MajorYearDisplayRow[]>([]);
-    const [allCoursesData, setAllCoursesData] = useState<Course[]>([]);
-    const [schedule, setSchedule] = useState<Schedule>({});
-    const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
+    const [allCoursesData, setAllCoursesData] = useState<CourseType[]>([]);
+    const [schedule, setSchedule] = useState<MajorSchedule>({});
+    const [availableCourses, setAvailableCourses] = useState<ExtendedTimetableCourse[]>([]);
 
-    const [draggedCourse, setDraggedCourse] = useState<Course | null>(null);
-    const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+    const [draggedCourse, setDraggedCourse] = useState<ExtendedTimetableCourse | null>(null);
+    const [selectedCourse, setSelectedCourse] = useState<ExtendedTimetableCourse | null>(null);
     const [isDraggingToAvailable, setIsDraggingToAvailable] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isGeneratingSchedule, setIsGeneratingSchedule] = useState<boolean>(false);
+    const [scheduleGenerated, setScheduleGenerated] = useState<boolean>(false);
 
     const getTimeSlotKey = useCallback((timeSlot: TimeSlot | string) => {
         if (typeof timeSlot === "string") return timeSlot;
@@ -93,7 +77,7 @@ export default function MajorView() {
         const fetchTimeSlots = async () => {
             if (!params.id) return;
             try {
-                const response = await fetch(`/api/schedules`); // Assuming this fetches schedule config including time slots
+                const response = await fetch(`/api/schedules`);
                 if (response.ok) {
                     const schedulesData = await response.json();
                     const currentSchedule = schedulesData.find(
@@ -101,9 +85,10 @@ export default function MajorView() {
                     );
                     if (currentSchedule && currentSchedule.timeSlots) {
                         const apiTimeSlots = currentSchedule.timeSlots.map(
-                            (slot: TimeSlot) => {
+                            (slot: CourseHour) => {
                                 const formattedSlot: TimeSlot = {
                                     id: slot.id,
+                                    display_slot: slot.display_slot,
                                     time_slot: slot.time_slot || (slot.startTime && slot.endTime ? `${slot.startTime}-${slot.endTime}` : slot.startTime),
                                     startTime: slot.startTime,
                                     endTime: slot.endTime,
@@ -136,7 +121,7 @@ export default function MajorView() {
             try {
                 const response = await fetch(`/api/majors?scheduleId=${params.id}`);
                 if (!response.ok) throw new Error(`Failed to fetch majors: ${response.statusText}`);
-                
+
                 const data: Major[] = await response.json();
                 setAllMajors(data);
 
@@ -147,7 +132,7 @@ export default function MajorView() {
                         baseMajorsMap.set(baseName, {
                             ...major,
                             name: baseName,
-                            numberOfYears: major.numberOfYears || baseMajorsMap.get(baseName)?.numberOfYears || 4 
+                            numberOfYears: major.numberOfYears || baseMajorsMap.get(baseName)?.numberOfYears || 4
                         });
                     } else {
                         const existing = baseMajorsMap.get(baseName)!;
@@ -182,10 +167,10 @@ export default function MajorView() {
         };
         if (params.id) fetchMajorsAndPrepareRows();
     }, [params.id]);
-    
+
     const loadInitialData = useCallback(async () => {
         if (!params.id || timeSlots.length === 0 || majorYearDisplayRows.length === 0) {
-            if (params.id && (timeSlots.length > 0 && majorYearDisplayRows.length > 0)) setIsLoading(false); // Only set to false if params are there but data is missing
+            if (params.id && (timeSlots.length > 0 && majorYearDisplayRows.length > 0)) setIsLoading(false);
             return;
         }
 
@@ -194,14 +179,14 @@ export default function MajorView() {
             const scheduleId = params.id;
             const coursesResponse = await fetch(`/api/courses?scheduleId=${scheduleId}`);
             if (!coursesResponse.ok) throw new Error("Failed to fetch courses");
-            const fetchedCourses: Course[] = await coursesResponse.json();
+            const fetchedCourses: CourseType[] = await coursesResponse.json();
             setAllCoursesData(fetchedCourses);
 
             const assignmentsResponse = await fetch(`/api/assign-time-slots?scheduleId=${scheduleId}`);
             if (!assignmentsResponse.ok) throw new Error("Failed to fetch assignments");
             const assignmentsData: any[] = await assignmentsResponse.json();
 
-            const newSchedule: Schedule = {};
+            const newSchedule: MajorSchedule = {};
             const assignedCourseSectionIds = new Set<string | number>();
 
             assignmentsData.forEach((assignment) => {
@@ -230,16 +215,22 @@ export default function MajorView() {
 
                 if (!targetRow || !assignment.day || !assignment.startTime) return;
 
-                const courseDetails: Partial<Course> = fetchedCourses.find(c => c.sectionId === assignment.sectionId) || {};
-                const fullCourseData: Course = {
-                    ...assignment, ...courseDetails, sectionId: assignment.sectionId,
+                const courseDetails: Partial<CourseType> = fetchedCourses.find(c => c.sectionId === assignment.sectionId) || {};
+                const fullCourseData: ExtendedTimetableCourse = {
+                    sectionId: assignment.sectionId,
                     code: courseDetails.code || assignment.code || "N/A",
                     name: courseDetails.title || courseDetails.name || assignment.title || assignment.name,
                     color: colors_class[(courseDetails.color || assignment.color) as keyof typeof colors_class] || colors_class.default,
                     instructor: `${assignment.firstName || courseDetails.firstName || ""} ${assignment.lastName || courseDetails.lastName || ""}`.trim(),
                     duration: parseInt(String(courseDetails.duration || assignment.duration || "1"), 10),
-                    year: targetRow.year, major: targetRow.majorName,
-                    subtext: courseDetails.subtext || assignment.subtext // Capture subtext if available
+                    section: courseDetails.section || assignment.section || "",
+                    year: targetRow.year,
+                    major: targetRow.majorName,
+                    day: assignment.day,
+                    startTime: assignment.startTime,
+                    endTime: assignment.endTime,
+                    room: assignment.classroom || courseDetails.classroom || "",
+                    subtext: courseDetails.subtext || assignment.subtext
                 };
 
                 const startIndex = timeSlots.findIndex(ts => getTimeSlotKey(ts) === assignment.startTime || ts.startTime === assignment.startTime);
@@ -250,7 +241,8 @@ export default function MajorView() {
                     const currentTimeSlotKey = getTimeSlotKey(timeSlots[startIndex + i]);
                     const scheduleKey = `${targetRow.id}-${assignment.day}-${currentTimeSlotKey}`;
                     newSchedule[scheduleKey] = {
-                        ...fullCourseData, isStart: i === 0,
+                        ...fullCourseData,
+                        isStart: i === 0,
                         isMiddle: i > 0 && i < fullCourseData.duration - 1,
                         isEnd: i === fullCourseData.duration - 1,
                         colspan: i === 0 ? fullCourseData.duration : 0,
@@ -272,11 +264,16 @@ export default function MajorView() {
                         if (match && match[1]) displayYear = parseInt(match[1], 10);
                     }
                     return {
-                        ...course,
+                        sectionId: course.sectionId,
+                        code: course.code,
+                        name: course.title,
                         color: colors_class[course.color as keyof typeof colors_class] || colors_class.default,
-                        year: displayYear, 
+                        year: displayYear,
                         instructor: `${course.firstName || ""} ${course.lastName || ""}`.trim(),
-                    };
+                        duration: course.duration,
+                        section: course.section,
+                        room: course.classroom,
+                    } as ExtendedTimetableCourse;
                 });
             setAvailableCourses(unassigned);
 
@@ -293,24 +290,21 @@ export default function MajorView() {
         } else if (!params.id) {
             setIsLoading(false); // No ID, nothing to load
         }
-         // If params.id is present but timeSlots or majorYearDisplayRows are not ready,
-         // loadInitialData will bail out until they are. setIsLoading(true) is set at the start of loadInitialData.
     }, [params.id, timeSlots, majorYearDisplayRows, loadInitialData]);
 
-
-    const handleDragStart = (course: Course) => setDraggedCourse(course);
+    const handleDragStart = (course: ExtendedTimetableCourse) => setDraggedCourse(course);
     const handleDragOver = (e: React.DragEvent<HTMLElement>) => e.preventDefault();
     const handleAvailableDragOver = (e: React.DragEvent<HTMLElement>) => { e.preventDefault(); setIsDraggingToAvailable(true); };
     const handleAvailableDragLeave = (e: React.DragEvent<HTMLElement>) => { e.preventDefault(); setIsDraggingToAvailable(false); };
 
-    const removeCourseFromScheduleState = (courseIdToRemove: string | number, currentSchedule: Schedule) => {
+    const removeCourseFromScheduleState = (courseIdToRemove: string | number, currentSchedule: MajorSchedule) => {
         const updatedSchedule = { ...currentSchedule };
         Object.keys(updatedSchedule).forEach((key) => {
             if (updatedSchedule[key].sectionId === courseIdToRemove) delete updatedSchedule[key];
         });
         return updatedSchedule;
     };
-    
+
     const handleAvailableDrop = (e: React.DragEvent<HTMLElement>) => {
         e.preventDefault(); setIsDraggingToAvailable(false);
         if (!draggedCourse || !draggedCourse.day) return;
@@ -323,8 +317,9 @@ export default function MajorView() {
                  const match = originalCourseData.major.match(/Year\s+(\d+)/);
                  if (match && match[1]) displayYear = parseInt(match[1], 10);
             }
-            const courseForAvailableList: Course = {
-                ...originalCourseData,
+            const courseForAvailableList: ExtendedTimetableCourse = {
+                // Cast to ExtendedTimetableCourse, ensure all necessary fields are present
+                ...(originalCourseData as ExtendedTimetableCourse), // This assumes originalCourseData is compatible
                 color: colors_class[originalCourseData.color as keyof typeof colors_class] || colors_class.default,
                 instructor: `${originalCourseData.firstName || ""} ${originalCourseData.lastName || ""}`.trim(),
                 year: displayYear,
@@ -346,23 +341,30 @@ export default function MajorView() {
         if (timeSlotIndex === -1) return;
 
         for (let i = 0; i < draggedCourse.duration; i++) {
-            if (timeSlotIndex + i >= timeSlots.length) { alert("Course duration exceeds available time slots."); return; }
+            if (timeSlotIndex + i >= timeSlots.length) {
+                alert("Course duration exceeds available time slots.");
+                return;
+            }
             const nextTimeSlotKeyToCheck = getTimeSlotKey(timeSlots[timeSlotIndex + i]);
             const nextScheduleKey = `${majorYearRowId}-${day}-${nextTimeSlotKeyToCheck}`;
             if (schedule[nextScheduleKey] && schedule[nextScheduleKey].sectionId !== draggedCourse.sectionId) {
-                alert("Conflict with another course."); return;
+                alert("Conflict with another course.");
+                return;
             }
         }
 
         let newSchedule = removeCourseFromScheduleState(draggedCourse.sectionId, schedule);
         const endTimeIndex = timeSlotIndex + draggedCourse.duration - 1;
         const actualEndTimeSlot = timeSlots[Math.min(endTimeIndex, timeSlots.length - 1)];
-        const assignedCourse: Course = {
-            ...draggedCourse, day: day, year: targetRowInfo.year, major: targetRowInfo.majorName,
+        const assignedCourse: ExtendedTimetableCourse = {
+            ...draggedCourse,
+            day,
+            year: targetRowInfo.year,
+            major: targetRowInfo.majorName,
             startTime: timeSlots[timeSlotIndex].startTime || getTimeSlotKey(timeSlots[timeSlotIndex]),
             endTime: actualEndTimeSlot.endTime || actualEndTimeSlot.time_slot?.split("-")[1]?.trim() || actualEndTimeSlot.time_slot,
-            room: draggedCourse.room || draggedCourse.classroom,
-            subtext: draggedCourse.subtext // Preserve subtext if dragged from available
+            room: draggedCourse.room || (draggedCourse as any).classroom, // Handle potential classroom field
+            subtext: draggedCourse.subtext
         };
 
         for (let i = 0; i < draggedCourse.duration; i++) {
@@ -370,7 +372,8 @@ export default function MajorView() {
             const currentTimeSlot = getTimeSlotKey(timeSlots[timeSlotIndex + i]);
             const currentScheduleKey = `${majorYearRowId}-${day}-${currentTimeSlot}`;
             newSchedule[currentScheduleKey] = {
-                ...assignedCourse, isStart: i === 0,
+                ...assignedCourse,
+                isStart: i === 0,
                 isMiddle: i > 0 && i < draggedCourse.duration - 1,
                 isEnd: i === draggedCourse.duration - 1,
                 colspan: i === 0 ? draggedCourse.duration : 0,
@@ -381,7 +384,10 @@ export default function MajorView() {
         setDraggedCourse(null);
     };
 
-    const handleCourseClick = (courseInSchedule: Course) => { setSelectedCourse(courseInSchedule); setIsDialogOpen(true); };
+    const handleCourseClick = (courseInSchedule: ExtendedTimetableCourse) => {
+        setSelectedCourse(courseInSchedule);
+        setIsDialogOpen(true);
+    };
 
     const handleRemoveCourseDialog = () => {
         if (!selectedCourse || !selectedCourse.day) return;
@@ -389,16 +395,20 @@ export default function MajorView() {
         if (originalCourseData) {
             setSchedule(prevSchedule => removeCourseFromScheduleState(selectedCourse.sectionId, prevSchedule));
             let displayYear = selectedCourse.year || 1;
-             if (originalCourseData.major && /Year\s+(\d+)/.test(originalCourseData.major)) { // Check original major string
+             if (originalCourseData.major && /Year\s+(\d+)/.test(originalCourseData.major)) {
                 const match = originalCourseData.major.match(/Year\s+(\d+)/);
                 if (match && match[1]) displayYear = parseInt(match[1], 10);
             }
-            const courseForAvailableList: Course = {
-                ...originalCourseData,
+            const courseForAvailableList: ExtendedTimetableCourse = {
+                sectionId: originalCourseData.sectionId,
+                code: originalCourseData.code,
+                name: originalCourseData.title,
                 color: colors_class[originalCourseData.color as keyof typeof colors_class] || colors_class.default,
                 instructor: `${originalCourseData.firstName || ""} ${originalCourseData.lastName || ""}`.trim(),
+                duration: originalCourseData.duration,
+                section: originalCourseData.section,
                 year: displayYear,
-                day: undefined, startTime: undefined, endTime: undefined, isStart: undefined, isMiddle: undefined, isEnd: undefined, colspan: undefined,
+                room: originalCourseData.classroom
             };
             if (!availableCourses.some(c => c.sectionId === courseForAvailableList.sectionId)) {
                 setAvailableCourses(prev => [...prev, courseForAvailableList]);
@@ -412,48 +422,74 @@ export default function MajorView() {
         Object.values(schedule).forEach(course => {
             if (course.isStart && course.day && course.startTime) {
                 assignmentsToSave.push({
-                    sectionId: course.sectionId, day: course.day, startTime: course.startTime,
-                    endTime: course.endTime, classroom: course.room || course.classroom || null,
+                    sectionId: course.sectionId,
+                    day: course.day,
+                    startTime: course.startTime,
+                    endTime: course.endTime,
+                    classroom: course.room || (course as any).classroom || null, // Handle potential classroom field
                 });
             }
         });
         try {
             const response = await fetch("/api/assign-time-slots", {
-                method: "POST", headers: { "Content-Type": "application/json" },
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ scheduleId: params.id, assignments: assignmentsToSave }),
             });
             if (response.ok) alert("All assignments saved successfully!");
-            else { const errorData = await response.json(); alert(`Failed to save: ${errorData.error || "Unknown"}`); }
-        } catch (error) { console.error("Error saving:", error); alert(`Error saving: ${error instanceof Error ? error.message : "Unknown"}`); }
+            else {
+                const errorData = await response.json();
+                alert(`Failed to save: ${errorData.error || "Unknown"}`);
+            }
+        } catch (error) {
+            console.error("Error saving:", error);
+            alert(`Error saving: ${error instanceof Error ? error.message : "Unknown"}`);
+        }
     };
 
     const generateSchedule = async () => {
         if (!params.id) { alert("Schedule ID missing"); return; }
-        setIsLoading(true);
+        setIsGeneratingSchedule(true);
         try {
             const response = await fetch(`/api/generate-schedule?scheduleId=${params.id}`, { method: "POST" });
             if (!response.ok) throw new Error(`Failed to generate: ${response.statusText}`);
-            alert("Schedule generated! Refreshing view...");
-            await loadInitialData();
-        } catch (error) { console.error("Error generating:", error); alert(`Error generating: ${error instanceof Error ? error.message : "Unknown"}`); setIsLoading(false); }
+            setScheduleGenerated(true);
+            await loadInitialData(); // Reload data after generation
+        } catch (error) {
+            console.error("Error generating:", error);
+            alert(`Error generating: ${error instanceof Error ? error.message : "Unknown"}`);
+        } finally {
+            setIsGeneratingSchedule(false);
+        }
     };
-    
-    const switchToClassroomView = () => window.location.href = `/schedule/${params.id}/timetable`;
+
+
 
     if (isLoading && majorYearDisplayRows.length === 0 && timeSlots.length === 0) {
         return <div className="text-center py-12">Loading schedule configuration...</div>;
     }
-    
+
     return (
-        <div className="relative min-h-screen p-2 md:p-4">
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 md:mb-6 gap-2">
-                <h2 className="text-lg md:text-xl font-bold">Major Timetable</h2>
-                <div className="flex flex-wrap gap-2">
-                    <Button onClick={generateSchedule} variant="outline" size="sm" disabled={isLoading}>{isLoading ? "Generating..." : "Auto-Generate"}</Button>
-                    <Button onClick={saveAllAssignments} size="sm" disabled={isLoading}>Save All</Button>
-                    <Button onClick={switchToClassroomView} size="sm" variant="outline">Classroom View</Button>
+        <div className="relative min-h-screen">
+            <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-bold">Major Timetable</h2>
+                <div className="flex gap-2">
+                    <Button
+                        onClick={generateSchedule}
+                        variant="outline"
+                        disabled={isGeneratingSchedule}
+                    >
+                        {isGeneratingSchedule ? "Generating..." : "Auto-Generate Schedule"}
+                    </Button>
+                    <Button onClick={saveAllAssignments}>Save All</Button>
                 </div>
             </div>
+
+            {scheduleGenerated && (
+                <div className="bg-green-50 border border-green-200 text-green-800 p-3 mb-4 rounded">
+                    <p>Schedule generated successfully! You can still make manual adjustments by dragging courses.</p>
+                </div>
+            )}
 
             {(majorYearDisplayRows.length === 0 || timeSlots.length === 0) && !isLoading ? (
                  <div className="text-center py-8 text-gray-500">
@@ -461,81 +497,90 @@ export default function MajorView() {
                     {timeSlots.length === 0 ? "No time slots configured." : ""}
                 </div>
             ) : (
-                <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-220px)] mb-28 md:mb-32 shadow-lg rounded-md border border-gray-300">
-                    <div className="inline-block min-w-full align-middle">
-                        <table className="min-w-full divide-y divide-gray-300">
-                             <thead className="bg-gray-100 sticky top-0 z-10">
-                               <tr>
-                                 <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-b border-gray-300 w-20 min-w-[80px]">
-                                   Major/Yr
-                                 </th>
-                                 {days.map((day) => (
-                                   <th scope="col" key={day} colSpan={timeSlots.length} className="px-1 py-2 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-b border-gray-300 last:border-r-0">
-                                     {day}
-                                   </th>
-                                 ))}
-                               </tr>
-                               <tr>
-                                 <th scope="col" className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-b border-gray-300">
-                                   Time
-                                 </th>
-                                 {days.map((day) =>
-                                   timeSlots.map((slot) => (
-                                     <th scope="col" key={`${day}-${getTimeSlotKey(slot)}`} className="px-1 py-1.5 text-center text-[9px] font-medium text-gray-500 uppercase tracking-tighter border-r border-b border-gray-300 whitespace-nowrap last:border-r-0">
-                                       {slot.time_slot?.replace(/-/g, '-\u200B') || slot.startTime?.replace(/-/g, '-\u200B')}
-                                     </th>
-                                   ))
-                                 )}
-                               </tr>
-                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {majorYearDisplayRows.map((row) => (
-                                    <tr key={row.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-2 py-1.5 whitespace-nowrap text-xs font-semibold border-r border-gray-300 text-gray-700 align-middle bg-slate-50 sticky left-0 z-5"> {/* Sticky first column */}
-                                            {row.displayName}
-                                        </td>
+                <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] mb-40">
+                    <div className="inline-block min-w-full">
+                        <div className="border rounded-lg overflow-hidden">
+                            <table className="min-w-full divide-y divide-blue-200">
+                                <thead>
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-24 border">
+                                            Major/Yr
+                                        </th>
+                                        {days.map((day) => (
+                                            <th
+                                                key={day}
+                                                colSpan={timeSlots.length}
+                                                className="px-2 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border"
+                                            >
+                                                {day}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 border">
+                                            Time
+                                        </th>
                                         {days.map((day) =>
-                                            timeSlots.map((slot, slotIndex) => {
-                                                const slotKey = getTimeSlotKey(slot);
-                                                const scheduleCellKey = `${row.id}-${day}-${slotKey}`;
-                                                const course = schedule[scheduleCellKey];
-
-                                                if (course && !course.isStart) return null;
-
-                                                return (
-                                                    <td
-                                                        key={`${row.id}-${day}-${slotKey}-${slotIndex}`}
-                                                        className={`px-0.5 py-0.5 text-[10px] border-r border-gray-300 relative h-10 ${course ? '' : 'hover:bg-gray-100 transition-colors'}`}
-                                                        colSpan={course?.colspan || 1}
-                                                        onDragOver={handleDragOver}
-                                                        onDrop={() => handleDrop(row.id, day, slotKey)}
-                                                    >
-                                                        {course ? (
-                                                            <div
-                                                                className={`${course.color} p-0.5 h-full rounded-sm cursor-pointer text-center shadow-sm transition-all font-medium flex flex-col items-center justify-center text-white text-[10px] leading-tight`}
-                                                                onClick={() => handleCourseClick(course)}
-                                                                draggable
-                                                                onDragStart={() => handleDragStart(course)}
-                                                            >
-                                                                <div className="font-semibold truncate w-full px-0.5">{course.code}</div>
-                                                                {course.subtext && <div className="text-[8px] truncate w-full px-0.5">{course.subtext}</div>}
-                                                                {!course.subtext && course.room && <div className="text-[8px] truncate w-full px-0.5">Rm:{course.room}</div>}
-
-                                                            </div>
-                                                        ) : ( <div className="h-full w-full" /> )}
-                                                    </td>
-                                                );
-                                            })
+                                            timeSlots.map((slot) => (
+                                                <th
+                                                    key={`${day}-${getTimeSlotKey(slot)}`}
+                                                    className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border"
+                                                >
+                                                    {slot.time_slot || slot.startTime}
+                                                </th>
+                                            ))
                                         )}
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {majorYearDisplayRows.map((row, index) => (
+                                        <tr key={row.id} className={index % 2 === 0 ? "bg-white" : "bg-white"}>
+                                            <td className="px-4 py-2 whitespace-nowrap text-sm font-medium border text-gray-700">
+                                                {row.displayName}
+                                            </td>
+                                            {days.map((day) =>
+                                                timeSlots.map((slot) => {
+                                                    const slotKey = getTimeSlotKey(slot);
+                                                    const scheduleCellKey = `${row.id}-${day}-${slotKey}`;
+                                                    const course = schedule[scheduleCellKey];
+
+                                                    if (course && !course.isStart) return null;
+
+                                                    return (
+                                                        <td
+                                                            key={`${row.id}-${day}-${slotKey}`}
+                                                            className="px-1 py-1 whitespace-nowrap text-xs border"
+                                                            colSpan={course?.colspan || 1}
+                                                            onDragOver={handleDragOver}
+                                                            onDrop={() => handleDrop(row.id, day, slotKey)}
+                                                        >
+                                                            {course ? (
+                                                                <div
+                                                                    className={`${course.color} p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium`}
+                                                                    onClick={() => handleCourseClick(course)}
+                                                                    draggable
+                                                                    onDragStart={() => handleDragStart(course)}
+                                                                >
+                                                                    <div className="font-semibold truncate">{course.code}</div>
+                                                                   
+                                                                </div>
+                                                            ) : (
+                                                                <div className="h-6 w-full" />
+                                                            )}
+                                                        </td>
+                                                    );
+                                                })
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}
 
-<div
+            <div
                 className={`fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-lg shadow-lg z-50 border-t ${
                     isDraggingToAvailable ? "bg-blue-100" : ""
                 }`}
@@ -593,32 +638,101 @@ export default function MajorView() {
             </div>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="sm:max-w-xs md:max-w-sm">
-                    <DialogHeader><DialogTitle className="text-lg font-semibold">Course Details</DialogTitle></DialogHeader>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold">
+                            Course Details
+                        </DialogTitle>
+                    </DialogHeader>
+
                     {selectedCourse && (
-                        <div className="space-y-3 py-1">
-                            <div className={`w-full h-1 rounded ${selectedCourse.color?.replace("hover:", "").replace("border-", "")}`}></div>
-                            <h3 className="font-semibold text-base">{selectedCourse.code}: {selectedCourse.name || selectedCourse.title}</h3>
-                            <div className="space-y-1 text-xs">
-                                {[
-                                    { label: "Duration", value: `${selectedCourse.duration} hour(s)` },
-                                    { label: "Instructor", value: selectedCourse.instructor || "N/A" },
-                                    { label: "Room", value: selectedCourse.room || selectedCourse.classroom || "TBA" },
-                                    { label: "Time", value: `${selectedCourse.day}, ${selectedCourse.startTime} - ${selectedCourse.endTime}` },
-                                    { label: "Section", value: selectedCourse.section || "N/A" },
-                                    { label: "Year Context", value: selectedCourse.year },
-                                    { label: "Major Context", value: selectedCourse.major },
-                                    { label: "Details", value: selectedCourse.subtext || "N/A"}
-                                ].map(item => (
-                                    <div key={item.label} className="flex justify-between">
-                                        <span className="text-gray-500">{item.label}:</span>
-                                        <span className="font-medium text-gray-800 text-right">{item.value}</span>
+                        <div className="space-y-4">
+                            <div className="space-y-3">
+                                <div
+                                    className={`w-full h-1 ${selectedCourse.color
+                                        .replace("hover:", "")
+                                        .replace("border-", "")}`}
+                                ></div>
+                                <h3 className="font-bold text-lg">
+                                    {selectedCourse.code}: {selectedCourse.name || (selectedCourse as any).title}
+                                </h3>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-muted-foreground">
+                                            Duration:
+                                        </span>
+                                        <span className="text-sm font-medium">
+                                            {selectedCourse.duration} hour(s)
+                                        </span>
                                     </div>
-                                ))}
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-muted-foreground">
+                                            Instructor:
+                                        </span>
+                                        <span className="text-sm font-medium">
+                                            {selectedCourse.instructor || "N/A"}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-muted-foreground">
+                                            Room:
+                                        </span>
+                                        <span className="text-sm font-medium">
+                                            {selectedCourse.room || (selectedCourse as any).classroom || "TBA"}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-muted-foreground">
+                                            Time:
+                                        </span>
+                                        <span className="text-sm font-medium">
+                                            {selectedCourse.day}, {selectedCourse.startTime} - {selectedCourse.endTime}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-muted-foreground">
+                                            Section:
+                                        </span>
+                                        <span className="text-sm font-medium">
+                                            {selectedCourse.section || "N/A"}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-muted-foreground">
+                                            Year Context:
+                                        </span>
+                                        <span className="text-sm font-medium">
+                                            {selectedCourse.year}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-muted-foreground">
+                                            Major Context:
+                                        </span>
+                                        <span className="text-sm font-medium">
+                                            {selectedCourse.major}
+                                        </span>
+                                    </div>
+                                    {selectedCourse.subtext && (
+                                        <div className="flex justify-between">
+                                            <span className="text-sm text-muted-foreground">
+                                                Details:
+                                            </span>
+                                            <span className="text-sm font-medium">
+                                                {selectedCourse.subtext}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+
                             <DialogFooter className="flex justify-end gap-2 pt-2">
-                                <Button variant="outline" size="sm" onClick={() => setIsDialogOpen(false)}>Close</Button>
-                                <Button variant="destructive" size="sm" onClick={handleRemoveCourseDialog}>Remove</Button>
+                                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                                    Close
+                                </Button>
+                                <Button variant="destructive" onClick={handleRemoveCourseDialog}>
+                                    Remove
+                                </Button>
                             </DialogFooter>
                         </div>
                     )}

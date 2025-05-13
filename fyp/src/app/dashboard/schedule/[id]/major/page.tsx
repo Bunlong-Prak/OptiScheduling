@@ -25,7 +25,7 @@ import { Pencil, Plus, Trash } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 10;
 // Add this type definition near the top of your component
 type MajorUpdate = {
     id: number;
