@@ -535,30 +535,56 @@ export default function MajorView() {
                 </div>
             )}
 
-            <div
-                className={`fixed bottom-0 left-0 right-0 bg-gray-50 p-2 md:p-3 rounded-t-lg shadow-[-2px_-5px_15px_-3px_rgba(0,0,0,0.1)] z-20 border-t-2 border-blue-500 ${isDraggingToAvailable ? "ring-2 ring-blue-400 ring-offset-1" : ""}`}
-                onDragOver={handleAvailableDragOver} onDragLeave={handleAvailableDragLeave} onDrop={handleAvailableDrop}
+<div
+                className={`fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-lg shadow-lg z-50 border-t ${
+                    isDraggingToAvailable ? "bg-blue-100" : ""
+                }`}
+                onDragOver={handleAvailableDragOver}
+                onDragLeave={handleAvailableDragLeave}
+                onDrop={handleAvailableDrop}
             >
-                <div className="max-w-screen-xl mx-auto">
-                    <h3 className="text-sm md:text-base font-semibold mb-2 flex items-center text-gray-700">
-                        Available Courses
-                        {isDraggingToAvailable && <span className="ml-2 text-blue-600 animate-pulse text-xs">(Drop to Unassign)</span>}
+                <div className="max-w-9xl mx-auto">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center">
+                        <span className="">Available Courses</span>
+                        {isDraggingToAvailable && (
+                            <span className="ml-2 text-blue-500 animate-pulse">
+                                (Drop Here to Return Course)
+                            </span>
+                        )}
                     </h3>
-                    {isLoading && availableCourses.length === 0 ? (
-                        <div className="text-center py-2 text-xs text-gray-500">Loading courses...</div>
+                    {isLoading ? (
+                        <div className="text-center py-4">
+                            Loading courses...
+                        </div>
                     ) : availableCourses.length === 0 ? (
-                        <div className="text-center py-2 text-xs text-gray-500">All courses assigned.</div>
+                        <div className="text-center py-4 text-gray-500">
+                            All courses have been assigned to the timetable
+                        </div>
                     ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-1.5 md:gap-2 max-h-[15vh] md:max-h-[18vh] overflow-y-auto p-1">
+                        <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto p-2">
                             {availableCourses.map((course) => (
                                 <div
-                                    key={course.sectionId.toString()}
-                                    className={`${course.color} p-1.5 rounded-md shadow cursor-move hover:shadow-md transition-all border border-black/20 text-white`}
-                                    draggable onDragStart={() => handleDragStart(course)}
+                                    key={course.sectionId}
+                                    className={`${course.color} p-3 rounded-lg shadow cursor-move hover:shadow-md transition-all border`}
+                                    draggable
+                                    onDragStart={() => handleDragStart(course)}
                                 >
-                                    <h4 className="font-bold text-[10px] md:text-xs truncate">{course.code}</h4>
-                                    <p className="text-[9px] md:text-[10px] font-medium truncate">{course.name || course.title}</p>
-                                    <p className="text-[8px] md:text-[9px] mt-0.5 text-gray-100/80">Dur: {course.duration}h, Yr: {course.year}</p>
+                                    <h4 className="font-bold text-gray-800">
+                                        {course.code}
+                                    </h4>
+                                    <p className="text-sm font-medium">
+                                        {course.name}
+                                    </p>
+                                    <p className="text-xs mt-1 text-gray-700">
+                                        Duration: {course.duration} hour
+                                        {course.duration > 1 ? "s" : ""}
+                                    </p>
+                                    <p className="text-xs mt-1 truncate text-gray-700">
+                                        Instructor: {course.instructor}
+                                    </p>
+                                    <p className="text-xs mt-1 truncate text-gray-700">
+                                        Section: {course.section || "N/A"}
+                                    </p>
                                 </div>
                             ))}
                         </div>
