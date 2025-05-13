@@ -19,7 +19,6 @@ export default function TimetablePage() {
         />
       </div>
 
-      {/* Render the appropriate view */}
       {currentView === 'classroom' ? <TimetableViewClassroom /> : <MajorView />}
     </div>
   );

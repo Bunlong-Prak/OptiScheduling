@@ -576,10 +576,16 @@ export async function DELETE(request: Request) {
         // First delete all sections associated with the course
         await db.delete(sections).where(eq(sections.id, sectionId));
 
-        const allSections = await db.select({ id: sections.id }).from(sections);
-        // Then delete the course itself
-        if (allSections.length === 1)
+        // Check if any sections remain for this course
+        const remainingSections = await db
+            .select({ id: sections.id })
+            .from(sections)
+            .where(eq(sections.courseId, courseId));
+
+        // If no sections remain, delete the course
+        if (remainingSections.length === 0) {
             await db.delete(courses).where(eq(courses.id, courseId));
+        }
 
         return NextResponse.json({
             message: "Course and associated sections deleted successfully",
