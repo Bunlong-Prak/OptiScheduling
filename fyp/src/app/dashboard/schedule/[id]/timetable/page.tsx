@@ -58,7 +58,7 @@ export default function TimetableView() {
         []
     );
     const [isLoading, setIsLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
+    const [ setIsSaving] = useState(false);
 
     // Add state to track if dragging to available courses area
     const [isDraggingToAvailable, setIsDraggingToAvailable] = useState(false);
@@ -66,7 +66,7 @@ export default function TimetableView() {
     // New state for time slots from database - course hours related
     const [timeSlots, setTimeSlots] = useState<CourseHour[]>([]);
     // State for display time slots (which might be condensed for consecutive slots)
-    const [displayTimeSlots, setDisplayTimeSlots] = useState<CourseHour[]>([]);
+    const [ setDisplayTimeSlots] = useState<CourseHour[]>([]);
 
     // State for classrooms from database
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
@@ -349,7 +349,7 @@ export default function TimetableView() {
 
                     // If startTime/endTime not directly available, parse from timeSlot
                     if (!startTime && assignment.timeSlot) {
-                        let timeSlot = assignment.timeSlot;
+                        const timeSlot = assignment.timeSlot;
 
                         // Handle format like "13:00 - 15:00"
                         if (timeSlot.includes(" - ")) {
