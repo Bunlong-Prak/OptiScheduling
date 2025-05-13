@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import TimetableViewClassroom from "@/app/dashboard/schedule/[id]/timetable/timetable-classroom-view";
+import MajorView from "@/app/dashboard/schedule/[id]/timetable/timetable-major-view";
 import ViewToggleButton from "@/components/custom/view-toggle";
 
 export default function TimetablePage() {
@@ -19,7 +20,7 @@ export default function TimetablePage() {
       </div>
 
       {/* Render the appropriate view */}
-          {currentView === 'classroom' ? <TimetableViewClassroom /> : <div>Major View Not Implemented</div>}
+      {currentView === 'classroom' ? <TimetableViewClassroom /> : <MajorView />}
     </div>
   );
 }
