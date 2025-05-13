@@ -145,6 +145,16 @@ export const majors = mysqlTable("majors", {
         }),
 });
 
+export const suggestedMajors = mysqlTable("suggested_majors", {
+    id: int("id").primaryKey().autoincrement(),
+    majorId: int("major_id")
+        .notNull()
+        .references(() => majors.id),
+    courseId: int("course_id")
+        .notNull()
+        .references(() => courses.id),
+});
+
 export const classrooms = mysqlTable("classrooms", {
     id: int("id").primaryKey().autoincrement(),
     code: varchar("code", { length: 255 }).notNull(),

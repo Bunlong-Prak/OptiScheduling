@@ -5,6 +5,7 @@ import {
     majors,
     schedules,
     sections,
+    suggestedMajors,
 } from "@/drizzle/schema";
 import { db } from "@/lib/db";
 import { and, desc, eq } from "drizzle-orm";
@@ -13,6 +14,10 @@ import { z } from "zod";
 
 const sectionSchema = z.object({
     section: z.string().min(1, { message: "Section number is required" }),
+});
+
+const majorSchema = z.object({
+    major_name: z.string().min(1, { message: "Major name is required" }),
 });
 
 const courseSchema = z.object({
@@ -30,8 +35,10 @@ const courseSchema = z.object({
         .string()
         .min(1, { message: "Course name must be at least 3 characters" })
         .max(100, { message: "Course name cannot exceed 100 characters" }),
-    // Major: Required
-    major: z.string().min(1, { message: "Major is required" }),
+    // Change majorsList to accept an array of strings instead
+    majorsList: z
+        .array(z.string())
+        .min(1, { message: "At least one Major is required" }),
     // Color: Required
     color: z.string().min(1, { message: "Color is required" }),
     // Instructor: Required - now clearly defined as ID
@@ -69,7 +76,9 @@ const editCourseSchema = z.object({
         .min(1, { message: "Course name must be at least 3 characters" })
         .max(100, { message: "Course name cannot exceed 100 characters" }),
     // Major: Required
-    major: z.string().min(1, { message: "Major is required" }),
+    majorsList: z
+        .array(majorSchema)
+        .min(1, { message: "At least one Major is required" }),
     // Color: Required
     color: z.string().min(1, { message: "Color is required" }),
     // Instructor: Required - now clearly defined as ID
@@ -158,7 +167,7 @@ export async function POST(request: Request) {
         const {
             code,
             title,
-            major,
+            majorsList,
             color,
             instructor,
             duration,
@@ -168,11 +177,22 @@ export async function POST(request: Request) {
             scheduleId,
         } = validationResult.data;
 
-        // Look up the major ID
+        // Ensure we have at least one major
+        if (!Array.isArray(majorsList) || majorsList.length === 0) {
+            return NextResponse.json(
+                { error: "At least one major is required" },
+                { status: 400 }
+            );
+        }
+
+        // Use the first major in the list for the course
+        const primaryMajor = majorsList[0];
+
+        // Look up the major ID for the primary major
         const majorResult = await db
             .select({ id: majors.id })
             .from(majors)
-            .where(eq(majors.name, major))
+            .where(eq(majors.name, primaryMajor))
             .limit(1);
 
         if (majorResult.length === 0) {
@@ -203,7 +223,7 @@ export async function POST(request: Request) {
             .limit(1);
 
         // Insert the course without using returning()
-        const coursess = await db.insert(courses).values({
+        const insertCourse = await db.insert(courses).values({
             code: code,
             title: title,
             majorId: majorResult[0].id,
@@ -214,7 +234,7 @@ export async function POST(request: Request) {
             capacity: capacity,
             status: status,
         });
-        console.log("Inserted course:", coursess);
+
         // Get the inserted course ID
         const newCourse = await db.query.courses.findFirst({
             where: and(
@@ -231,6 +251,24 @@ export async function POST(request: Request) {
                 { error: "Failed to create course" },
                 { status: 500 }
             );
+        }
+
+        // Insert all majors into course_majors table
+        for (const majorName of majorsList) {
+            // Look up the major ID
+            const majorEntry = await db
+                .select({ id: majors.id })
+                .from(majors)
+                .where(eq(majors.name, majorName))
+                .limit(1);
+
+            if (majorEntry.length > 0) {
+                // Insert into course_majors junction table
+                await db.insert(suggestedMajors).values({
+                    courseId: newCourse.id,
+                    majorId: majorEntry[0].id,
+                });
+            }
         }
 
         // Array to collect created course sections
@@ -266,34 +304,9 @@ export async function POST(request: Request) {
             }
         }
 
-        // Fetch the complete course with basic info (without sections)
-        const createdCourse = await db
-            .select({
-                id: courses.id,
-                title: courses.title,
-                code: courses.code,
-                major: majors.name,
-                color: courses.color,
-                firstName: instructors.firstName,
-                lastName: instructors.lastName,
-                instructorId: instructors.id, // Include instructor ID
-                duration: courses.duration,
-                capacity: courses.capacity,
-                status: courses.status,
-            })
-            .from(courses)
-            .innerJoin(majors, eq(courses.majorId, majors.id))
-            .innerJoin(instructors, eq(courses.instructorId, instructors.id))
-            .where(eq(courses.id, newCourse.id))
-            .limit(1);
-
-        // Return course with sections
+        // Return course with sections and majors
         return NextResponse.json({
             message: "Course created successfully",
-            course: {
-                ...createdCourse[0],
-                sections: createdSections,
-            },
         });
     } catch (error) {
         console.error("Error creating course:", error);
@@ -327,7 +340,7 @@ export async function PATCH(request: Request) {
             sectionId,
             code,
             title,
-            major,
+            majorList,
             color,
             instructor,
             duration,
@@ -335,7 +348,7 @@ export async function PATCH(request: Request) {
             status,
             sectionsList,
         } = validationResult.data;
-        console.log("Ah ach: ", sectionsList);
+
         if (!sectionId) {
             return NextResponse.json(
                 { error: "Section ID is required" },

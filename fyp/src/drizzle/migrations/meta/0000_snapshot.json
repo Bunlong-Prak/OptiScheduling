@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "754af0f7-c663-4d6e-aab5-bf9c5b2c9837",
+  "id": "cf1e1628-3d2f-4d72-9188-5c389ca396ad",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -873,6 +873,71 @@
       "compositePrimaryKeys": {
         "sessions_id": {
           "name": "sessions_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "suggested_majors": {
+      "name": "suggested_majors",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "major_id": {
+          "name": "major_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "course_id": {
+          "name": "course_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "suggested_majors_major_id_majors_id_fk": {
+          "name": "suggested_majors_major_id_majors_id_fk",
+          "tableFrom": "suggested_majors",
+          "tableTo": "majors",
+          "columnsFrom": [
+            "major_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "suggested_majors_course_id_courses_id_fk": {
+          "name": "suggested_majors_course_id_courses_id_fk",
+          "tableFrom": "suggested_majors",
+          "tableTo": "courses",
+          "columnsFrom": [
+            "course_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "suggested_majors_id": {
+          "name": "suggested_majors_id",
           "columns": [
             "id"
           ]

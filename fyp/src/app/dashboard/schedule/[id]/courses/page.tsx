@@ -60,7 +60,7 @@ export default function CoursesView() {
     >([]);
     const [currentSection, setCurrentSection] = useState("");
 
-    // Add state for managing majors like sections
+    // State for managing majors
     const [courseMajors, setCourseMajors] = useState<
         { id: number; major_name: string }[]
     >([]);
@@ -81,7 +81,6 @@ export default function CoursesView() {
 
     const [instructorOpen, setInstructorOpen] = useState(false);
     const [majorOpen, setMajorOpen] = useState(false); // Added for major popover
-    // const [isLoading, setIsLoading] = useState(true);
 
     // Clear status message after 5 seconds
     useEffect(() => {
@@ -110,6 +109,51 @@ export default function CoursesView() {
     );
 
     const params = useParams();
+
+    // Function to get available majors (not assigned to any course)
+    const getAvailableMajors = () => {
+        // Create a set of majors already assigned to courses
+        const assignedMajors = new Set<string>();
+
+        // Add all majors from existing courses to the set
+        courses.forEach((course) => {
+            if (course.major) {
+                assignedMajors.add(course.major);
+            }
+        });
+
+        // Add currently selected majors in the form
+        courseMajors.forEach((major) => {
+            assignedMajors.add(major.major_name);
+        });
+
+        // Return only majors that aren't already assigned
+        return majors.filter((major) => !assignedMajors.has(major.name));
+    };
+
+    // Function for edit dialog to exclude current course's majors from filtering
+    const getAvailableMajorsForEdit = () => {
+        const assignedMajors = new Set<string>();
+
+        // Add all majors from existing courses to the set, except the current course
+        courses.forEach((course) => {
+            if (
+                course.major &&
+                selectedCourse &&
+                course.sectionId !== selectedCourse.sectionId
+            ) {
+                assignedMajors.add(course.major);
+            }
+        });
+
+        // Add currently selected majors in the form
+        courseMajors.forEach((major) => {
+            assignedMajors.add(major.major_name);
+        });
+
+        // Return only majors that aren't already assigned
+        return majors.filter((major) => !assignedMajors.has(major.name));
+    };
 
     const fetchData = async () => {
         try {
@@ -201,9 +245,12 @@ export default function CoursesView() {
 
     // Add major handler
     const addMajor = () => {
-        if (currentMajor) {
+        if (
+            currentMajor &&
+            !courseMajors.some((m) => m.major_name === currentMajor)
+        ) {
             const newMajor = {
-                id: courseMajors.length + 1,
+                id: Date.now(), // Using timestamp for unique ID
                 major_name: currentMajor,
             };
 
@@ -239,22 +286,20 @@ export default function CoursesView() {
             const sectionsList = sections.map((item) => ({
                 section: item.section_id,
             }));
-
-            // Get the major from the courseMajors array
-            const majorName = courseMajors[0].major_name;
-
-            // Create API payload with the base course data, all sections, and schedule ID
+            const majorList = courseMajors.map((item) => item.major_name);
+            // Create API payload with the base course data, all majors, and schedule ID
             const apiData = {
                 code: formData.code,
                 title: formData.title,
-                major: majorName,
+                // Send all majors instead of just one
+                majorsList: majorList,
                 color: formData.color,
-                instructor: formData.instructorId, // Send ID instead of name
-                status: formData.status, // Added status field
+                instructor: formData.instructorId,
+                status: formData.status,
                 duration: Number(formData.duration),
                 capacity: Number(formData.capacity),
                 sectionsList: sectionsList,
-                scheduleId: Number(scheduleId), // Add schedule ID from URL
+                scheduleId: Number(scheduleId),
             };
 
             const response = await fetch("/api/courses", {
@@ -348,16 +393,13 @@ export default function CoursesView() {
                 return;
             }
 
-            // Get the major from the courseMajors array
-            const majorName = courseMajors[0].major_name;
-
             // Pre-validate all required fields
             if (
                 !formData.title ||
                 !formData.code ||
-                !majorName ||
+                courseMajors.length === 0 ||
                 !formData.color ||
-                !formData.status // Added status validation
+                !formData.status
             ) {
                 setStatusMessage({
                     text: "All course fields are required",
@@ -371,10 +413,11 @@ export default function CoursesView() {
                 sectionId: sectionId,
                 code: formData.code,
                 title: formData.title,
-                major: majorName,
+                // Send all majors instead of just one
+                majors: courseMajors.map((m) => m.major_name),
                 color: formData.color,
                 instructor: instructorId,
-                status: formData.status, // Added status field
+                status: formData.status,
                 duration: Number(formData.duration) || 1,
                 capacity: Number(formData.capacity) || 1,
                 sectionsList: sectionsList,
@@ -500,7 +543,7 @@ export default function CoursesView() {
             duration: 0,
             capacity: 0,
             section: "",
-            status: "", // Reset status field
+            status: "",
         });
         setSelectedCourse(null);
         setSections([]);
@@ -513,7 +556,7 @@ export default function CoursesView() {
     const addSection = () => {
         if (currentSection) {
             const newSection = {
-                id: sections.length + 1,
+                id: Date.now(), // Using timestamp for unique ID
                 section_id: currentSection,
             };
 
@@ -535,14 +578,14 @@ export default function CoursesView() {
             code: course.code,
             major: course.major,
             color: course.color,
-            instructorId: course.instructorId || "", // Use instructor ID
+            instructorId: course.instructorId || "",
             instructorName: `${course.firstName || ""} ${
                 course.lastName || ""
-            }`.trim(), // Use full name for display
+            }`.trim(),
             duration: course.duration,
             capacity: course.capacity,
             section: course.section,
-            status: course.status || "offline", // Initialize status with default
+            status: course.status || "offline",
         });
 
         // Initialize with the current section
@@ -562,7 +605,7 @@ export default function CoursesView() {
         ]);
 
         // Set current major for the dropdown display
-        setCurrentMajor(course.major);
+        setCurrentMajor("");
 
         setIsEditDialogOpen(true);
     };
@@ -631,7 +674,7 @@ export default function CoursesView() {
                             {courses.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={7}
+                                        colSpan={8}
                                         className="border p-4 text-center text-gray-500"
                                     >
                                         No courses found. Add a new course to
@@ -641,7 +684,7 @@ export default function CoursesView() {
                             ) : paginatedCourses.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={7}
+                                        colSpan={8}
                                         className="border p-4 text-center text-gray-500"
                                     >
                                         No courses found on this page.
@@ -750,82 +793,119 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        {/* Major List UI  */}
-                        <div className="space-y-2">
-                            <Label htmlFor="major">Major</Label>
-                            <Popover
-                                open={majorOpen}
-                                onOpenChange={setMajorOpen}
-                            >
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        role="combobox"
-                                        aria-expanded={majorOpen}
-                                        className="w-full justify-between"
-                                    >
-                                        {currentMajor
-                                            ? currentMajor
-                                            : "Select major..."}
-                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-full p-0">
-                                    <Command>
-                                        <CommandInput placeholder="Search major..." />
-                                        <CommandEmpty>
-                                            No major found.
-                                        </CommandEmpty>
-                                        <CommandGroup>
-                                            {majors.map((major) => (
-                                                <CommandItem
-                                                    key={major.id}
-                                                    value={major.name}
-                                                    onSelect={(value) => {
-                                                        setCurrentMajor(value);
-                                                        setFormData({
-                                                            ...formData,
-                                                            major: value,
-                                                        });
-                                                        setMajorOpen(false);
+                        {/* Majors List UI */}
+                        <div className="space-y-6">
+                            <div>
+                                <Label className="text-base font-medium">
+                                    Majors
+                                </Label>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Select majors for this course
+                                </p>
+                            </div>
 
-                                                        // Add to courseMajors if not already present
-                                                        if (
-                                                            !courseMajors.some(
-                                                                (m) =>
-                                                                    m.major_name ===
+                            {courseMajors.length > 0 && (
+                                <div className="space-y-2 mb-2">
+                                    {courseMajors.map((major) => (
+                                        <div
+                                            key={major.id}
+                                            className="p-3 border rounded-md flex justify-between items-center"
+                                        >
+                                            <div className="flex items-center space-x-3">
+                                                <span className="bg-blue-50 px-2 py-1 rounded-md text-sm">
+                                                    {major.major_name}
+                                                </span>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    removeMajor(major.id)
+                                                }
+                                                className="h-8 w-8"
+                                            >
+                                                <Trash className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="flex items-end gap-3">
+                                <div className="flex-1 space-y-2">
+                                    <Popover
+                                        open={majorOpen}
+                                        onOpenChange={setMajorOpen}
+                                    >
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                aria-expanded={majorOpen}
+                                                className="w-full justify-between"
+                                            >
+                                                {currentMajor
+                                                    ? currentMajor
+                                                    : "Select major..."}
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-full p-0">
+                                            <Command>
+                                                <CommandInput placeholder="Search major..." />
+                                                <CommandEmpty>
+                                                    No major found.
+                                                </CommandEmpty>
+                                                <CommandGroup>
+                                                    {getAvailableMajors().map(
+                                                        (major) => (
+                                                            <CommandItem
+                                                                key={major.id}
+                                                                value={
+                                                                    major.name
+                                                                }
+                                                                onSelect={(
                                                                     value
-                                                            )
-                                                        ) {
-                                                            const newMajor = {
-                                                                id:
-                                                                    courseMajors.length +
-                                                                    1,
-                                                                major_name:
-                                                                    value,
-                                                            };
-                                                            setCourseMajors([
-                                                                ...courseMajors,
-                                                                newMajor,
-                                                            ]);
-                                                        }
-                                                    }}
-                                                >
-                                                    <Check
-                                                        className={`mr-2 h-4 w-4 ${
-                                                            currentMajor ===
-                                                            major.name
-                                                                ? "opacity-100"
-                                                                : "opacity-0"
-                                                        }`}
-                                                    />
-                                                    {major.name}
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
+                                                                ) => {
+                                                                    setCurrentMajor(
+                                                                        value
+                                                                    );
+                                                                    setMajorOpen(
+                                                                        false
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <Check
+                                                                    className={`mr-2 h-4 w-4 ${
+                                                                        currentMajor ===
+                                                                        major.name
+                                                                            ? "opacity-100"
+                                                                            : "opacity-0"
+                                                                    }`}
+                                                                />
+                                                                {major.name}
+                                                            </CommandItem>
+                                                        )
+                                                    )}
+                                                </CommandGroup>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+
+                                <Button
+                                    onClick={addMajor}
+                                    disabled={
+                                        !currentMajor ||
+                                        courseMajors.some(
+                                            (m) => m.major_name === currentMajor
+                                        )
+                                    }
+                                    className="flex-shrink-0"
+                                >
+                                    <Plus className="h-4 w-4 mr-2" /> Add
+                                </Button>
+                            </div>
                         </div>
 
                         {/* New Status Input */}
@@ -1040,7 +1120,9 @@ export default function CoursesView() {
                             disabled={
                                 !formData.title ||
                                 !formData.code ||
-                                !formData.instructorId
+                                !formData.instructorId ||
+                                courseMajors.length === 0 ||
+                                sections.length === 0
                             }
                         >
                             Add Course
@@ -1085,55 +1167,163 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-major">Major</Label>
-                                <Select
-                                    value={formData.major}
-                                    onValueChange={(value) =>
-                                        handleSelectChange("major", value)
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select major" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {majors.map((major) => (
-                                            <SelectItem
-                                                key={major.id}
-                                                value={major.name}
-                                            >
-                                                {major.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                        {/* Majors List UI - Updated for Edit Dialog */}
+                        <div className="space-y-6">
+                            <div>
+                                <Label className="text-base font-medium">
+                                    Majors
+                                </Label>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Select majors for this course
+                                </p>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="color">Color</Label>
-                                <Select
-                                    value={formData?.color || ""}
-                                    onValueChange={(value) =>
-                                        handleSelectChange("color", value)
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select color" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {colors.map((color) => (
-                                            <SelectItem
-                                                key={color}
-                                                value={color}
+                            {courseMajors.length > 0 && (
+                                <div className="space-y-2 mb-2">
+                                    {courseMajors.map((major) => (
+                                        <div
+                                            key={major.id}
+                                            className="p-3 border rounded-md flex justify-between items-center"
+                                        >
+                                            <div className="flex items-center space-x-3">
+                                                <span className="bg-blue-50 px-2 py-1 rounded-md text-sm">
+                                                    {major.major_name}
+                                                </span>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    removeMajor(major.id)
+                                                }
+                                                className="h-8 w-8"
                                             >
-                                                {color.charAt(0).toUpperCase() +
-                                                    color.slice(1)}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                                <Trash className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="flex items-end gap-3">
+                                <div className="flex-1 space-y-2">
+                                    <Popover
+                                        open={majorOpen}
+                                        onOpenChange={setMajorOpen}
+                                    >
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                aria-expanded={majorOpen}
+                                                className="w-full justify-between"
+                                            >
+                                                {currentMajor
+                                                    ? currentMajor
+                                                    : "Select major..."}
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-full p-0">
+                                            <Command>
+                                                <CommandInput placeholder="Search major..." />
+                                                <CommandEmpty>
+                                                    No major found.
+                                                </CommandEmpty>
+                                                <CommandGroup>
+                                                    {getAvailableMajorsForEdit().map(
+                                                        (major) => (
+                                                            <CommandItem
+                                                                key={major.id}
+                                                                value={
+                                                                    major.name
+                                                                }
+                                                                onSelect={(
+                                                                    value
+                                                                ) => {
+                                                                    setCurrentMajor(
+                                                                        value
+                                                                    );
+                                                                    setMajorOpen(
+                                                                        false
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <Check
+                                                                    className={`mr-2 h-4 w-4 ${
+                                                                        currentMajor ===
+                                                                        major.name
+                                                                            ? "opacity-100"
+                                                                            : "opacity-0"
+                                                                    }`}
+                                                                />
+                                                                {major.name}
+                                                            </CommandItem>
+                                                        )
+                                                    )}
+                                                </CommandGroup>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+
+                                <Button
+                                    onClick={addMajor}
+                                    disabled={
+                                        !currentMajor ||
+                                        courseMajors.some(
+                                            (m) => m.major_name === currentMajor
+                                        )
+                                    }
+                                    className="flex-shrink-0"
+                                >
+                                    <Plus className="h-4 w-4 mr-2" /> Add
+                                </Button>
                             </div>
+                        </div>
+
+                        {/* Status field */}
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-status">Status</Label>
+                            <Select
+                                value={formData?.status || ""}
+                                onValueChange={(value) =>
+                                    handleSelectChange("status", value)
+                                }
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="online">
+                                        Online
+                                    </SelectItem>
+                                    <SelectItem value="offline">
+                                        Offline
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-color">Color</Label>
+                            <Select
+                                value={formData?.color || ""}
+                                onValueChange={(value) =>
+                                    handleSelectChange("color", value)
+                                }
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select color" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {colors.map((color) => (
+                                        <SelectItem key={color} value={color}>
+                                            {getColorName(color)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         <div className="space-y-2">
@@ -1306,8 +1496,8 @@ export default function CoursesView() {
                             disabled={
                                 !formData.title ||
                                 !formData.code ||
-                                !formData.major ||
                                 !formData.instructorId ||
+                                courseMajors.length === 0 ||
                                 sections.length === 0
                             }
                         >

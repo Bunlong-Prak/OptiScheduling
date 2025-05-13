@@ -109,7 +109,6 @@ export default function MajorView() {
             }
 
             const data = await response.json();
-            console.log("Majors data received:", data);
 
             if (!Array.isArray(data)) {
                 console.error("Expected array but got:", typeof data);
@@ -619,11 +618,21 @@ export default function MajorView() {
     const getYearShortTags = (major: Major) => {
         if (!major || !major.shortTag) return "";
 
-        const yearTags = [];
-        for (let i = 1; i <= (major.numberOfYears || 4); i++) {
-            yearTags.push(`${major.shortTag}${i}`);
+        // If shortTag already contains the year, just use it directly
+        if (major.years && major.years.length > 0) {
+            // If you have the actual year tags available, use them
+            return major.years
+                .map((year) => `${major.shortTag.replace(/\d+$/, "")}${year}`)
+                .join(", ");
+        } else {
+            // Fallback if no year data is available
+            const baseTag = major.shortTag.replace(/\d+$/, ""); // Remove trailing numbers
+            const yearTags = [];
+            for (let i = 1; i <= (major.numberOfYears || 4); i++) {
+                yearTags.push(`${baseTag}${i}`);
+            }
+            return yearTags.join(", ");
         }
-        return yearTags.join(", ");
     };
 
     return (

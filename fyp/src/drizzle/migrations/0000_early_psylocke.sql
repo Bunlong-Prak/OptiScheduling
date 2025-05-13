@@ -110,6 +110,13 @@ CREATE TABLE `sessions` (
 	CONSTRAINT `sessions_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
+CREATE TABLE `suggested_majors` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`major_id` int NOT NULL,
+	`course_id` int NOT NULL,
+	CONSTRAINT `suggested_majors_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
 CREATE TABLE `users` (
 	`id` varchar(100) NOT NULL DEFAULT (uuid()),
 	`email` varchar(255) NOT NULL,
@@ -136,4 +143,6 @@ ALTER TABLE `schedules` ADD CONSTRAINT `schedules_user_id_users_id_fk` FOREIGN K
 ALTER TABLE `sections` ADD CONSTRAINT `sections_course_hours_id_course_hours_id_fk` FOREIGN KEY (`course_hours_id`) REFERENCES `course_hours`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `sections` ADD CONSTRAINT `sections_course_id_courses_id_fk` FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `sections` ADD CONSTRAINT `sections_classroom_id_classrooms_id_fk` FOREIGN KEY (`classroom_id`) REFERENCES `classrooms`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `sessions` ADD CONSTRAINT `sessions_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE cascade ON UPDATE no action;
+ALTER TABLE `sessions` ADD CONSTRAINT `sessions_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `suggested_majors` ADD CONSTRAINT `suggested_majors_major_id_majors_id_fk` FOREIGN KEY (`major_id`) REFERENCES `majors`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `suggested_majors` ADD CONSTRAINT `suggested_majors_course_id_courses_id_fk` FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE no action ON UPDATE no action;
