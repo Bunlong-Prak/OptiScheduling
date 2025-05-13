@@ -70,6 +70,7 @@ CREATE TABLE `majors` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`name` varchar(255) NOT NULL,
 	`short_tag` varchar(50) NOT NULL,
+	`year` int,
 	`schedule_id` int NOT NULL,
 	CONSTRAINT `majors_id` PRIMARY KEY(`id`)
 );

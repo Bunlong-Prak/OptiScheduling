@@ -4,10 +4,10 @@ import { majors } from "@/drizzle/schema";
 import { db } from "@/lib/db";
 import {
     createMajorSchema,
-    editMajorSchema,
     deleteMajorSchema,
+    editMajorSchema,
 } from "@/lib/validations/majors";
-import { and, eq, like, desc } from "drizzle-orm";
+import { and, desc, eq, like } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 // GET all majors or majors by name
@@ -96,7 +96,6 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        console.log("POST /api/majors with body:", body);
 
         // Check if it's a batch operation
         if (body.majors && Array.isArray(body.majors)) {
@@ -110,8 +109,6 @@ export async function POST(request: NextRequest) {
                 );
             }
 
-            console.log(`Adding ${majorsToAdd.length} majors in batch`);
-            console.log("Majors to add:", majorsToAdd);
             // Insert without returning
             try {
                 await db.insert(majors).values(majorsToAdd);

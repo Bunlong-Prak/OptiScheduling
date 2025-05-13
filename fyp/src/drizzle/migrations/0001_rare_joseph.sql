@@ -1,1 +1,0 @@
-ALTER TABLE `majors` ADD `year` int;
