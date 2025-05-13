@@ -58,7 +58,7 @@ export default function TimetableView() {
         []
     );
     const [isLoading, setIsLoading] = useState(true);
-    const [ setIsSaving] = useState(false);
+    // const [isSaving, setIsSaving] = useState(false);
 
     // Add state to track if dragging to available courses area
     const [isDraggingToAvailable, setIsDraggingToAvailable] = useState(false);
@@ -66,7 +66,7 @@ export default function TimetableView() {
     // New state for time slots from database - course hours related
     const [timeSlots, setTimeSlots] = useState<CourseHour[]>([]);
     // State for display time slots (which might be condensed for consecutive slots)
-    const [ setDisplayTimeSlots] = useState<CourseHour[]>([]);
+    // const [displayTimeSlots, setDisplayTimeSlots] = useState<CourseHour[]>([]);
 
     // State for classrooms from database
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
@@ -219,11 +219,7 @@ export default function TimetableView() {
                         setTimeSlots(apiTimeSlots);
 
                         // For display, just use the time slots as is
-                        setDisplayTimeSlots(apiTimeSlots);
-                        console.log(
-                            "Formatted time slots for display:",
-                            apiTimeSlots
-                        );
+                       
                     } else {
                         console.error(
                             "No time slots found for schedule",
@@ -574,7 +570,6 @@ export default function TimetableView() {
             return;
         }
 
-        setIsSaving(true);
         try {
             // Prepare data for API - ensure we're saving the right format
             const assignmentsData = assignedCourses.map((course) => ({
@@ -614,8 +609,6 @@ export default function TimetableView() {
                     error instanceof Error ? error.message : "Unknown error"
                 }`
             );
-        } finally {
-            setIsSaving(false);
         }
     };
 
