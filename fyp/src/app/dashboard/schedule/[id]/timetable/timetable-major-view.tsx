@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -9,993 +9,595 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { colors_class } from "@/components/custom/colors";
+import { colors_class } from "@/components/custom/colors"; // Ensure this path is correct
 import { useParams } from "next/navigation";
 
 const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+interface TimeSlot {
+    id: number;
+    time_slot?: string;
+    startTime?: string;
+    endTime?: string;
+}
+
+interface Major {
+    id: number;
+    name: string;
+    shortTag?: string;
+    year?: number | null;
+    numberOfYears?: number;
+}
+
+interface Course {
+    sectionId: string | number;
+    code: string;
+    title?: string;
+    name?: string;
+    color: string;
+    section?: string;
+    major?: string;
+    instructor?: string;
+    firstName?: string;
+    lastName?: string;
+    duration: number;
+    day?: string;
+    startTime?: string;
+    endTime?: string;
+    classroom?: string;
+    room?: string;
+    year?: number;
+    isStart?: boolean;
+    isMiddle?: boolean;
+    isEnd?: boolean;
+    colspan?: number;
+    subtext?: string; // Added for potential secondary line display in cell
+}
+
+interface Schedule {
+    [key: string]: Course;
+}
+
+interface MajorYearDisplayRow {
+    id: string;
+    displayName: string;
+    majorName: string;
+    year: number;
+    originalMajorId: number;
+}
+
 export default function MajorView() {
-   // Type definitions
-   interface TimeSlot {
-     id: number;
-     time_slot?: string;
-     startTime?: string;
-     endTime?: string;
-   }
-  
-   interface Major {
-     id: number;
-     name: string;
-     shortTag?: string;
-     year?: number | null;
-     numberOfYears?: number;
-     years?: number[];
-   }
-  
-   interface Course {
-     sectionId: string | number;
-     code: string;
-     title?: string;
-     name?: string;
-     color: string;
-     section?: string;
-     major?: string;
-     instructor?: string;
-     firstName?: string;
-     lastName?: string;
-     duration: number;
-     day?: string;
-     startTime?: string;
-     endTime?: string;
-     classroom?: string;
-     room?: string;
-     year?: number;
-     isStart?: boolean;
-     isMiddle?: boolean;
-     isEnd?: boolean;
-     colspan?: number;
-   }
-  
-   interface Schedule {
-     [key: string]: Course;
-   }
-  
-   interface YearCourses {
-     [year: number]: Course[];
-   }
-  
-   // State variables
-   const [schedule, setSchedule] = useState<Schedule>({});
-   const [majors, setMajors] = useState<Major[]>([]);
-   const [selectedMajor, setSelectedMajor] = useState<Major | null>(null);
-   const [draggedCourse, setDraggedCourse] = useState<Course | null>(null);
-   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-   const [yearCourses, setYearCourses] = useState<YearCourses>({
-     1: [],
-     2: [],
-     3: [],
-     4: [],
-     5: [],
-     6: []
-   });
-   const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
-   const [isDraggingToAvailable, setIsDraggingToAvailable] = useState(false);
-   const [filteredMajorId, setFilteredMajorId] = useState<number | null>(null); // Corrected type
-   const [activeYears, setActiveYears] = useState<number[]>([]); // Corrected type
-   const [isLoading, setIsLoading] = useState(false);
-   const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const params = useParams();
 
-   const params = useParams();
+    const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+    const [allMajors, setAllMajors] = useState<Major[]>([]);
+    const [majorYearDisplayRows, setMajorYearDisplayRows] = useState<MajorYearDisplayRow[]>([]);
+    const [allCoursesData, setAllCoursesData] = useState<Course[]>([]);
+    const [schedule, setSchedule] = useState<Schedule>({});
+    const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
 
-   // Helper function to get consistent time slot key
-   const getTimeSlotKey = (timeSlot: TimeSlot | string) => { // Added type for timeSlot
-     // If it's a time slot string like "8:00-9:00", use it directly
-     if (typeof timeSlot === "string") {
-         return timeSlot;
-     }
+    const [draggedCourse, setDraggedCourse] = useState<Course | null>(null);
+    const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+    const [isDraggingToAvailable, setIsDraggingToAvailable] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-     // If it's an object with startTime, use that
-     if (timeSlot.startTime) {
-         return timeSlot.startTime;
-     }
+    const getTimeSlotKey = useCallback((timeSlot: TimeSlot | string) => {
+        if (typeof timeSlot === "string") return timeSlot;
+        if (timeSlot.startTime) return timeSlot.startTime;
+        if (timeSlot.time_slot) return timeSlot.time_slot;
+        return String(timeSlot.id);
+    }, []);
 
-     // If it's an object with time_slot, use that
-     if (timeSlot.time_slot) {
-         return timeSlot.time_slot;
-     }
+    useEffect(() => {
+        const fetchTimeSlots = async () => {
+            if (!params.id) return;
+            try {
+                const response = await fetch(`/api/schedules`); // Assuming this fetches schedule config including time slots
+                if (response.ok) {
+                    const schedulesData = await response.json();
+                    const currentSchedule = schedulesData.find(
+                        (s: { id: { toString: () => string | string[]; } }) => s.id.toString() === params.id
+                    );
+                    if (currentSchedule && currentSchedule.timeSlots) {
+                        const apiTimeSlots = currentSchedule.timeSlots.map(
+                            (slot: TimeSlot) => {
+                                const formattedSlot: TimeSlot = {
+                                    id: slot.id,
+                                    time_slot: slot.time_slot || (slot.startTime && slot.endTime ? `${slot.startTime}-${slot.endTime}` : slot.startTime),
+                                    startTime: slot.startTime,
+                                    endTime: slot.endTime,
+                                };
+                                if (!slot.startTime && !slot.endTime && slot.time_slot && slot.time_slot.includes("-")) {
+                                    const [startTime, endTime] = slot.time_slot.split("-").map((time) => time.trim());
+                                    formattedSlot.startTime = startTime;
+                                    formattedSlot.endTime = endTime;
+                                }
+                                return formattedSlot;
+                            }
+                        );
+                        setTimeSlots(apiTimeSlots);
+                    } else {
+                        console.error("No time slots found for schedule", params.id);
+                    }
+                } else {
+                    console.error("Failed to fetch schedules for time slots");
+                }
+            } catch (error) {
+                console.error("Error fetching time slots:", error);
+            }
+        };
+        if (params.id) fetchTimeSlots();
+    }, [params.id]);
 
-     return String(timeSlot); // Fallback, ensure string conversion
-   };
-
-   // Fetch time slots
-   useEffect(() => {
-     const fetchTimeSlots = async () => {
-       try {
-         const scheduleId = params.id;
-         const response = await fetch(`/api/schedules`);
-
-         if (response.ok) {
-           const schedulesData = await response.json();
-           // Find the current schedule by ID
-           const currentSchedule = schedulesData.find(
-             (s: { id: { toString: () => string | string[]; }; }) => s.id.toString() === scheduleId // Added type for s
-           );
-
-           if (currentSchedule && currentSchedule.timeSlots) {
-             // Transform API time slots to a consistent format
-             const apiTimeSlots = currentSchedule.timeSlots.map(
-               (slot: TimeSlot) => { // Added type for slot
-                 const formattedSlot: TimeSlot = { // Ensured consistent type
-                   id: slot.id,
-                   time_slot:
-                     slot.time_slot ||
-                     (slot.startTime && slot.endTime
-                       ? `${slot.startTime}-${slot.endTime}`
-                       : slot.startTime),
-                   startTime: slot.startTime,
-                   endTime: slot.endTime,
-                 };
-
-                 // If time_slot already has start/end times but not as separate properties
-                 if (
-                   !slot.startTime &&
-                   !slot.endTime &&
-                   slot.time_slot &&
-                   slot.time_slot.includes("-")
-                 ) {
-                   const [startTime, endTime] = slot.time_slot
-                     .split("-")
-                     .map((time) => time.trim());
-                   formattedSlot.startTime = startTime;
-                   formattedSlot.endTime = endTime;
-                 }
-
-                 return formattedSlot;
-               }
-             );
-
-             setTimeSlots(apiTimeSlots);
-           } else {
-             console.error("No time slots found for schedule", scheduleId);
-           }
-         } else {
-           console.error("Failed to fetch schedules");
-         }
-       } catch (error) {
-         console.error("Error fetching time slots:", error);
-       }
-     };
-
-     if (params.id) { // Ensure params.id exists before fetching
-        fetchTimeSlots();
-     }
-   }, [params.id]);
-
-   // Fetch majors
-   useEffect(() => {
-     const fetchMajors = async () => {
-       try {
-         const scheduleId = params.id;
-         if (!scheduleId) {
-           console.error("Schedule ID is undefined");
-           return;
-         }
-          
-         const response = await fetch(
-           `/api/majors?scheduleId=${scheduleId}`,
-           {
-             method: "GET",
-             headers: {
-               "Content-Type": "application/json",
-             },
-           }
-         );
-
-         if (!response.ok) {
-           throw new Error(`Failed to fetch majors: ${response.status} ${response.statusText}`);
-         }
-
-         const data = await response.json();
-          
-         // Group majors by name
-         const majorGroups = data.reduce((groups: {[key: string]: Major[]}, major: Major) => { // Added types
-           if (!major || !major.name) {
-             return groups;
-           }
-            
-           const name = major.name.replace(/\s+Year\s+\d+$/, ''); // Remove "Year X" suffix
-           if (!groups[name]) {
-             groups[name] = [];
-           }
-           groups[name].push(major);
-           return groups;
-         }, {});
-          
-         // Extract unique majors (base entries)
-         const uniqueMajors: Major[] = Object.keys(majorGroups).map(name => { // Added type
-           const majorGroup = majorGroups[name];
-           const baseMajor = majorGroup.find((m) => !m.year) || majorGroup[0];
-            
-           // Count how many years this major has
-           const years = majorGroup
-             .filter((m) => m.year)
-             .map((m) => m.year as number) // Assert m.year is number
-             .sort((a, b) => a - b);
-            
-           return {
-             ...baseMajor,
-             numberOfYears: years.length || 4, // Default to 4 if no years found
-             years
-           };
-         });
-          
-         setMajors(uniqueMajors);
-          
-         // Set the first major as selected by default
-         if (uniqueMajors.length > 0) {
-           setSelectedMajor(uniqueMajors[0]);
-           setFilteredMajorId(uniqueMajors[0].id); 
-            
-           // Set active years for the first major
-           const yearsArray: number[] = []; // Added type
-           for (let i = 1; i <= (uniqueMajors[0].numberOfYears || 4); i++) {
-             yearsArray.push(i);
-           }
-           setActiveYears(yearsArray);
-         }
-       } catch (error) {
-         console.error("Error fetching majors:", error);
-       }
-     };
-
-     if (params.id) { // Ensure params.id exists
-        fetchMajors();
-     }
-   }, [params.id]);
-
-   // Fetch courses and organize by year
-   useEffect(() => {
-     const fetchCourses = async () => {
-       if (!selectedMajor) return;
-        
-       setIsLoading(true);
-       try {
-         const scheduleId = params.id;
-         const response = await fetch(
-           `/api/courses?scheduleId=${scheduleId}`
-         );
-         if (response.ok) {
-           const coursesData = await response.json();
-
-           const coursesByYear: YearCourses = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: []};
-           const unassignedCourses: Course[] = [];
-
-           coursesData.forEach((course: Course) => { // Added type for course
-             if (course.major && course.major.includes(selectedMajor.name)) {
-               let year: number | null = null;
+    useEffect(() => {
+        const fetchMajorsAndPrepareRows = async () => {
+            if (!params.id) return;
+            try {
+                const response = await fetch(`/api/majors?scheduleId=${params.id}`);
+                if (!response.ok) throw new Error(`Failed to fetch majors: ${response.statusText}`);
                 
-               if (course.section && /[A-Za-z]+(\d+)/.test(course.section)) {
-                 const match = course.section.match(/[A-Za-z]+(\d+)/);
-                 if (match && match[1]) {
-                   year = parseInt(match[1], 10);
-                 }
-               }
-                
-               if (year === null && course.major && /Year\s+(\d+)/.test(course.major)) {
-                 const match = course.major.match(/Year\s+(\d+)/);
-                 if (match && match[1]) {
-                   year = parseInt(match[1], 10);
-                 }
-               }
-                
-               year = year === null ? 1 : Math.min(Math.max(year, 1), 6);
-                
-               if (course.day && course.startTime) {
-                 coursesByYear[year].push({
-                   ...course,
-                   color: colors_class[course.color as keyof typeof colors_class] || colors_class.default, // Added type safety
-                 });
-               } else {
-                 unassignedCourses.push({
-                   ...course,
-                   color: colors_class[course.color as keyof typeof colors_class] || colors_class.default, // Added type safety
-                   year
-                 });
-               }
-             }
-           });
+                const data: Major[] = await response.json();
+                setAllMajors(data);
 
-           setYearCourses(coursesByYear);
-           setAvailableCourses(unassignedCourses);
-         } else {
-           console.error("Failed to fetch courses");
-         }
-       } catch (error) {
-         console.error("Error fetching courses:", error);
-       } finally {
-         setIsLoading(false);
-       }
-     };
-     
-     if (selectedMajor && params.id) { // Ensure params.id
-        fetchCourses();
-     }
-   }, [selectedMajor, params.id]);
+                const baseMajorsMap: Map<string, Major> = new Map();
+                data.forEach(major => {
+                    const baseName = major.name.replace(/\s+Year\s+\d+$/, '').trim();
+                    if (!baseMajorsMap.has(baseName) || (baseMajorsMap.get(baseName)!.year !== undefined && major.year === undefined)) {
+                        baseMajorsMap.set(baseName, {
+                            ...major,
+                            name: baseName,
+                            numberOfYears: major.numberOfYears || baseMajorsMap.get(baseName)?.numberOfYears || 4 
+                        });
+                    } else {
+                        const existing = baseMajorsMap.get(baseName)!;
+                        if (major.numberOfYears && (!existing.numberOfYears || major.numberOfYears > existing.numberOfYears)) {
+                            existing.numberOfYears = major.numberOfYears;
+                        }
+                    }
+                });
 
-   // Fetch timetable assignments and build schedule data
-   useEffect(() => {
-     const fetchTimetable = async () => {
-       if (!selectedMajor || !timeSlots.length) return;
+                const processedRows: MajorYearDisplayRow[] = [];
+                Array.from(baseMajorsMap.values()).forEach(baseMajor => {
+                    const numYears = baseMajor.numberOfYears || 4;
+                    for (let y = 1; y <= numYears; y++) {
+                        processedRows.push({
+                            id: `${baseMajor.id}-${y}`,
+                            displayName: `${baseMajor.shortTag || baseMajor.name.substring(0, 3).toUpperCase()}${y}`,
+                            majorName: baseMajor.name,
+                            year: y,
+                            originalMajorId: baseMajor.id,
+                        });
+                    }
+                });
+                processedRows.sort((a, b) => {
+                    if (a.majorName < b.majorName) return -1;
+                    if (a.majorName > b.majorName) return 1;
+                    return a.year - b.year;
+                });
+                setMajorYearDisplayRows(processedRows);
+            } catch (error) {
+                console.error("Error fetching majors or processing rows:", error);
+            }
+        };
+        if (params.id) fetchMajorsAndPrepareRows();
+    }, [params.id]);
+    
+    const loadInitialData = useCallback(async () => {
+        if (!params.id || timeSlots.length === 0 || majorYearDisplayRows.length === 0) {
+            if (params.id && (timeSlots.length > 0 && majorYearDisplayRows.length > 0)) setIsLoading(false); // Only set to false if params are there but data is missing
+            return;
+        }
 
-       try {
-         const scheduleId = params.id;
-         const response = await fetch(
-           `/api/assign-time-slots?scheduleId=${scheduleId}`
-         );
+        setIsLoading(true);
+        try {
+            const scheduleId = params.id;
+            const coursesResponse = await fetch(`/api/courses?scheduleId=${scheduleId}`);
+            if (!coursesResponse.ok) throw new Error("Failed to fetch courses");
+            const fetchedCourses: Course[] = await coursesResponse.json();
+            setAllCoursesData(fetchedCourses);
 
-         if (!response.ok) {
-           throw new Error(
-             `Failed to fetch assignments: ${response.status} ${response.statusText}`
-           );
-         }
+            const assignmentsResponse = await fetch(`/api/assign-time-slots?scheduleId=${scheduleId}`);
+            if (!assignmentsResponse.ok) throw new Error("Failed to fetch assignments");
+            const assignmentsData: any[] = await assignmentsResponse.json();
 
-         const assignmentsData = await response.json();
-         const newSchedule: Schedule = {};
-          
-         assignmentsData.forEach((assignment: any) => { // Consider defining a type for assignment
-           if (assignment.major && assignment.major.includes(selectedMajor.name)) {
-             const { day, startTime, section } = assignment;
-              
-             if (!day || !startTime) {
-               return;
-             }
-              
-             let year = 1;
-             if (section && /[A-Za-z]+(\d+)/.test(section)) {
-               const match = section.match(/[A-Za-z]+(\d+)/);
-               if (match && match[1]) {
-                 year = parseInt(match[1], 10);
-               }
-             } else if (assignment.major && /Year\s+(\d+)/.test(assignment.major)) {
-               const match = assignment.major.match(/Year\s+(\d+)/);
-               if (match && match[1]) {
-                 year = parseInt(match[1], 10);
-               }
-             }
-             year = Math.min(Math.max(year, 1), 6);
-              
-             const course: Course = { // Assert type
-               ...assignment,
-               color: colors_class[assignment.color as keyof typeof colors_class] || colors_class.default,
-               instructor: `${assignment.firstName || ""} ${assignment.lastName || ""}`.trim(),
-               isStart: true,
-               year
-             };
-              
-             const startIndex = timeSlots.findIndex(ts => {
-               const tsKey = getTimeSlotKey(ts);
-               return tsKey === startTime || ts.startTime === startTime;
-             });
-              
-             if (startIndex === -1) {
-               return;
-             }
-              
-             const duration = parseInt(assignment.duration || "1", 10);
-              
-             for (let i = 0; i < duration; i++) {
-               if (startIndex + i >= timeSlots.length) break;
-                
-               const currentTimeSlot = getTimeSlotKey(timeSlots[startIndex + i]);
-               const key = `${day}-${year}-${currentTimeSlot}`;
-                
-               newSchedule[key] = {
-                 ...course,
-                 isStart: i === 0,
-                 isMiddle: i > 0 && i < duration - 1,
-                 isEnd: i === duration - 1,
-                 colspan: i === 0 ? duration : 0,
-               };
-             }
-           }
-         });
-          
-         setSchedule(newSchedule);
-       } catch (error) {
-         console.error("Error fetching timetable assignments:", error);
-       }
-     };
-      
-     if (selectedMajor && timeSlots.length > 0 && params.id) { // Ensure params.id
-        fetchTimetable();
-     }
-   }, [selectedMajor, timeSlots, params.id]);
+            const newSchedule: Schedule = {};
+            const assignedCourseSectionIds = new Set<string | number>();
 
-   // Handle major selection
-   const handleMajorChange = (majorIdValue: string) => { // Renamed for clarity
-     const majorId = parseInt(majorIdValue);
-     const major = majors.find(m => m.id === majorId);
-     if (major) {
-       setSelectedMajor(major);
-       setFilteredMajorId(majorId);
-        
-       const yearsArray: number[] = []; // Added type
-       for (let i = 1; i <= (major.numberOfYears || 4); i++) {
-         yearsArray.push(i);
-       }
-       setActiveYears(yearsArray);
-     }
-   };
+            assignmentsData.forEach((assignment) => {
+                let targetRow: MajorYearDisplayRow | undefined = undefined;
+                if (assignment.major) {
+                    const majorNameMatch = assignment.major.match(/^(.*?)(\s+Year\s+(\d+))?$/);
+                    if (majorNameMatch) {
+                        const assignmentMajorBaseName = majorNameMatch[1].trim();
+                        const assignmentYear = majorNameMatch[3] ? parseInt(majorNameMatch[3], 10) : null;
+                        targetRow = majorYearDisplayRows.find(row =>
+                            row.majorName.toLowerCase() === assignmentMajorBaseName.toLowerCase() &&
+                            (assignmentYear === null || row.year === assignmentYear)
+                        );
+                    }
+                }
+                if (!targetRow && assignment.section) {
+                    const sectionPrefixMatch = assignment.section.match(/^([A-Za-z]+)(\d)/);
+                    if (sectionPrefixMatch) {
+                        const sectionMajorTag = sectionPrefixMatch[1].toUpperCase();
+                        const sectionYear = parseInt(sectionPrefixMatch[2], 10);
+                        targetRow = majorYearDisplayRows.find(row =>
+                            (row.displayName.startsWith(sectionMajorTag) && row.year === sectionYear)
+                        );
+                    }
+                }
 
-  // --- CORRECTED FUNCTION DEFINITIONS START ---
-  const handleDragStart = (course: Course) => {
-    setDraggedCourse(course);
-  };
+                if (!targetRow || !assignment.day || !assignment.startTime) return;
 
-  const handleDragOver = (e: React.DragEvent<HTMLElement>) => { // Added type for event
-    e.preventDefault();
-  };
+                const courseDetails = fetchedCourses.find(c => c.sectionId === assignment.sectionId) || {};
+                const fullCourseData: Course = {
+                    ...assignment, ...courseDetails, sectionId: assignment.sectionId,
+                    code: courseDetails.code || assignment.code || "N/A",
+                    name: courseDetails.title || courseDetails.name || assignment.title || assignment.name,
+                    color: colors_class[(courseDetails.color || assignment.color) as keyof typeof colors_class] || colors_class.default,
+                    instructor: `${assignment.firstName || courseDetails.firstName || ""} ${assignment.lastName || courseDetails.lastName || ""}`.trim(),
+                    duration: parseInt(String(courseDetails.duration || assignment.duration || "1"), 10),
+                    year: targetRow.year, major: targetRow.majorName,
+                    subtext: courseDetails.subtext || assignment.subtext // Capture subtext if available
+                };
 
-  const handleAvailableDragOver = (e: React.DragEvent<HTMLElement>) => { // Added type for event
-    e.preventDefault();
-    setIsDraggingToAvailable(true);
-  };
+                const startIndex = timeSlots.findIndex(ts => getTimeSlotKey(ts) === assignment.startTime || ts.startTime === assignment.startTime);
+                if (startIndex === -1) return;
 
-  const handleAvailableDragLeave = (e: React.DragEvent<HTMLElement>) => { // Added type for event
-    e.preventDefault();
-    setIsDraggingToAvailable(false);
-  };
+                for (let i = 0; i < fullCourseData.duration; i++) {
+                    if (startIndex + i >= timeSlots.length) break;
+                    const currentTimeSlotKey = getTimeSlotKey(timeSlots[startIndex + i]);
+                    const scheduleKey = `${targetRow.id}-${assignment.day}-${currentTimeSlotKey}`;
+                    newSchedule[scheduleKey] = {
+                        ...fullCourseData, isStart: i === 0,
+                        isMiddle: i > 0 && i < fullCourseData.duration - 1,
+                        isEnd: i === fullCourseData.duration - 1,
+                        colspan: i === 0 ? fullCourseData.duration : 0,
+                    };
+                }
+                assignedCourseSectionIds.add(fullCourseData.sectionId);
+            });
+            setSchedule(newSchedule);
 
-  const handleAvailableDrop = (e: React.DragEvent<HTMLElement>) => { // Added type for event
-    e.preventDefault();
-    setIsDraggingToAvailable(false);
+            const unassigned = fetchedCourses
+                .filter(course => !assignedCourseSectionIds.has(course.sectionId))
+                .map(course => {
+                    let displayYear = 1;
+                    if (course.section && /[A-Za-z]+(\d+)/.test(course.section)) {
+                        const match = course.section.match(/[A-Za-z]+(\d+)/);
+                        if (match && match[1]) displayYear = parseInt(match[1], 10);
+                    } else if (course.major && /Year\s+(\d+)/.test(course.major)) {
+                        const match = course.major.match(/Year\s+(\d+)/);
+                        if (match && match[1]) displayYear = parseInt(match[1], 10);
+                    }
+                    return {
+                        ...course,
+                        color: colors_class[course.color as keyof typeof colors_class] || colors_class.default,
+                        year: displayYear, 
+                        instructor: `${course.firstName || ""} ${course.lastName || ""}`.trim(),
+                    };
+                });
+            setAvailableCourses(unassigned);
 
-    if (!draggedCourse) return;
+        } catch (error) {
+            console.error("Error loading initial schedule data:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [params.id, timeSlots, majorYearDisplayRows, getTimeSlotKey]);
 
-    if (draggedCourse.day) {
-      removeCourseFromTimetable(draggedCourse);
-    }
-  };
+    useEffect(() => {
+        if (params.id && timeSlots.length > 0 && majorYearDisplayRows.length > 0) {
+             loadInitialData();
+        } else if (!params.id) {
+            setIsLoading(false); // No ID, nothing to load
+        }
+         // If params.id is present but timeSlots or majorYearDisplayRows are not ready,
+         // loadInitialData will bail out until they are. setIsLoading(true) is set at the start of loadInitialData.
+    }, [params.id, timeSlots, majorYearDisplayRows, loadInitialData]);
 
-  const handleDrop = (day: string, year: number, timeSlot: string) => {
-    if (!draggedCourse || timeSlots.length === 0) return;
 
-    const timeSlotIndex = timeSlots.findIndex(
-      (ts) => getTimeSlotKey(ts) === timeSlot
-    );
+    const handleDragStart = (course: Course) => setDraggedCourse(course);
+    const handleDragOver = (e: React.DragEvent<HTMLElement>) => e.preventDefault();
+    const handleAvailableDragOver = (e: React.DragEvent<HTMLElement>) => { e.preventDefault(); setIsDraggingToAvailable(true); };
+    const handleAvailableDragLeave = (e: React.DragEvent<HTMLElement>) => { e.preventDefault(); setIsDraggingToAvailable(false); };
 
-    if (timeSlotIndex === -1) {
-      console.error(`Time slot ${timeSlot} not found`);
-      return;
-    }
+    const removeCourseFromScheduleState = (courseIdToRemove: string | number, currentSchedule: Schedule) => {
+        const updatedSchedule = { ...currentSchedule };
+        Object.keys(updatedSchedule).forEach((key) => {
+            if (updatedSchedule[key].sectionId === courseIdToRemove) delete updatedSchedule[key];
+        });
+        return updatedSchedule;
+    };
+    
+    const handleAvailableDrop = (e: React.DragEvent<HTMLElement>) => {
+        e.preventDefault(); setIsDraggingToAvailable(false);
+        if (!draggedCourse || !draggedCourse.day) return;
 
-    const key = `${day}-${year}-${timeSlot}`;
-    const existingCourse = schedule[key];
-
-    if (existingCourse && existingCourse.sectionId === draggedCourse.sectionId) {
-      return;
-    }
-
-    if (existingCourse && existingCourse.sectionId !== draggedCourse.sectionId) {
-      alert("This time slot is already occupied. Please choose another slot.");
-      return;
-    }
-
-    if (timeSlotIndex + draggedCourse.duration > timeSlots.length) {
-      alert("Not enough time slots available for this course duration.");
-      return;
-    }
-
-    for (let i = 1; i < draggedCourse.duration; i++) {
-      if (timeSlotIndex + i >= timeSlots.length) break;
-      const nextTimeSlot = getTimeSlotKey(timeSlots[timeSlotIndex + i]);
-      const nextKey = `${day}-${year}-${nextTimeSlot}`;
-      if (schedule[nextKey] && schedule[nextKey].sectionId !== draggedCourse.sectionId) {
-        alert("There's a conflict with another course in subsequent time slots.");
-        return;
-      }
-    }
-
-    const newSchedule = { ...schedule };
-    Object.keys(newSchedule).forEach((scheduleKey) => {
-      if (newSchedule[scheduleKey].sectionId === draggedCourse.sectionId) {
-        delete newSchedule[scheduleKey];
-      }
-    });
-
-    const endTimeIndex = timeSlotIndex + draggedCourse.duration - 1;
-    const endTimeSlot =
-      endTimeIndex < timeSlots.length
-        ? timeSlots[endTimeIndex].endTime ||
-          timeSlots[endTimeIndex].time_slot?.split("-")[1]?.trim() ||
-          timeSlots[endTimeIndex].time_slot
-        : timeSlots[timeSlots.length - 1].endTime ||
-          timeSlots[timeSlots.length - 1].time_slot?.split("-")[1]?.trim() ||
-          timeSlots[timeSlots.length - 1].time_slot;
-
-    const assignedCourse: Course = { // Assert type
-      ...draggedCourse,
-      day: day,
-      year: year,
-      startTime: 
-        timeSlots[timeSlotIndex].startTime ||
-        getTimeSlotKey(timeSlots[timeSlotIndex]),
-      endTime: endTimeSlot
+        const originalCourseData = allCoursesData.find(c => c.sectionId === draggedCourse.sectionId);
+        if (originalCourseData) {
+            setSchedule(prevSchedule => removeCourseFromScheduleState(draggedCourse.sectionId, prevSchedule));
+            let displayYear = draggedCourse.year || 1; // Use year from dragged course or default
+            if (originalCourseData.major && /Year\s+(\d+)/.test(originalCourseData.major)) {
+                 const match = originalCourseData.major.match(/Year\s+(\d+)/);
+                 if (match && match[1]) displayYear = parseInt(match[1], 10);
+            }
+            const courseForAvailableList: Course = {
+                ...originalCourseData,
+                color: colors_class[originalCourseData.color as keyof typeof colors_class] || colors_class.default,
+                instructor: `${originalCourseData.firstName || ""} ${originalCourseData.lastName || ""}`.trim(),
+                year: displayYear,
+                day: undefined, startTime: undefined, endTime: undefined, isStart: undefined, isMiddle: undefined, isEnd: undefined, colspan: undefined,
+            };
+            if (!availableCourses.some(c => c.sectionId === courseForAvailableList.sectionId)) {
+                 setAvailableCourses(prev => [...prev, courseForAvailableList]);
+            }
+        }
+        setDraggedCourse(null);
     };
 
-    for (let i = 0; i < draggedCourse.duration; i++) {
-      if (timeSlotIndex + i >= timeSlots.length) break;
-      const currentTimeSlot = getTimeSlotKey(timeSlots[timeSlotIndex + i]);
-      const currentKey = `${day}-${year}-${currentTimeSlot}`;
+    const handleDrop = (majorYearRowId: string, day: string, timeSlotKey: string) => {
+        if (!draggedCourse || timeSlots.length === 0) return;
+        const targetRowInfo = majorYearDisplayRows.find(r => r.id === majorYearRowId);
+        if (!targetRowInfo) return;
 
-      newSchedule[currentKey] = {
-        ...assignedCourse,
-        isStart: i === 0,
-        isMiddle: i > 0 && i < draggedCourse.duration - 1,
-        isEnd: i === draggedCourse.duration - 1,
-        colspan: i === 0 ? draggedCourse.duration : 0,
-      };
-    }
+        const timeSlotIndex = timeSlots.findIndex(ts => getTimeSlotKey(ts) === timeSlotKey);
+        if (timeSlotIndex === -1) return;
 
-    setSchedule(newSchedule);
-
-    const isFromAvailable = !draggedCourse.day;
-
-    if (isFromAvailable) {
-      setAvailableCourses((prev) =>
-        prev.filter((course) => course.sectionId !== draggedCourse.sectionId)
-      );
-
-      const updatedYearCourses = { ...yearCourses };
-      updatedYearCourses[year] = [
-        ...updatedYearCourses[year].filter(c => c.sectionId !== draggedCourse.sectionId),
-        assignedCourse
-      ];
-      setYearCourses(updatedYearCourses);
-    } else {
-      const updatedYearCourses = { ...yearCourses };
-      Object.keys(updatedYearCourses).forEach(yearKeyStr => { // Ensure yearKey is number for indexing
-        const yearKey = parseInt(yearKeyStr);
-        updatedYearCourses[yearKey] = updatedYearCourses[yearKey].filter(
-          c => c.sectionId !== draggedCourse.sectionId
-        );
-      });
-      updatedYearCourses[year].push(assignedCourse);
-      setYearCourses(updatedYearCourses);
-    }
-  };
-
-  const handleCourseClick = (day: string, year: number, timeSlot: string, course: Course) => {
-    setSelectedCourse(course);
-    setIsDialogOpen(true);
-  };
-
-  const handleRemoveCourse = () => {
-    if (!selectedCourse) return;
-    removeCourseFromTimetable(selectedCourse);
-    setIsDialogOpen(false);
-  };
-  // --- CORRECTED FUNCTION DEFINITIONS END ---
-
-  // Save all assignments to the database
-  const saveAllAssignments = async () => {
-    try {
-      const allAssignments: any[] = []; // Consider defining a type for assignment payload
-      
-      Object.keys(schedule).forEach(key => {
-        const course = schedule[key];
-        if (course.isStart) { 
-          allAssignments.push({
-            sectionId: course.sectionId,
-            day: course.day,
-            startTime: course.startTime,
-            endTime: course.endTime,
-            classroom: course.classroom,
-          });
+        for (let i = 0; i < draggedCourse.duration; i++) {
+            if (timeSlotIndex + i >= timeSlots.length) { alert("Course duration exceeds available time slots."); return; }
+            const nextTimeSlotKeyToCheck = getTimeSlotKey(timeSlots[timeSlotIndex + i]);
+            const nextScheduleKey = `${majorYearRowId}-${day}-${nextTimeSlotKeyToCheck}`;
+            if (schedule[nextScheduleKey] && schedule[nextScheduleKey].sectionId !== draggedCourse.sectionId) {
+                alert("Conflict with another course."); return;
+            }
         }
-      });
-      
-      if (allAssignments.length === 0) {
-        alert("No courses to save!");
-        return;
-      }
 
-      const response = await fetch("/api/assign-time-slots", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(allAssignments),
-      });
+        let newSchedule = removeCourseFromScheduleState(draggedCourse.sectionId, schedule);
+        const endTimeIndex = timeSlotIndex + draggedCourse.duration - 1;
+        const actualEndTimeSlot = timeSlots[Math.min(endTimeIndex, timeSlots.length - 1)];
+        const assignedCourse: Course = {
+            ...draggedCourse, day: day, year: targetRowInfo.year, major: targetRowInfo.majorName,
+            startTime: timeSlots[timeSlotIndex].startTime || getTimeSlotKey(timeSlots[timeSlotIndex]),
+            endTime: actualEndTimeSlot.endTime || actualEndTimeSlot.time_slot?.split("-")[1]?.trim() || actualEndTimeSlot.time_slot,
+            room: draggedCourse.room || draggedCourse.classroom,
+            subtext: draggedCourse.subtext // Preserve subtext if dragged from available
+        };
 
-      if (response.ok) {
-        alert("All assignments saved successfully!");
-      } else {
-        const errorData = await response.json();
-        console.error("Failed to save assignments:", errorData);
-        alert(`Failed to save assignments: ${errorData.error || "Unknown error"}`);
-      }
-    } catch (error) {
-      console.error("Error saving assignments:", error);
-      alert(`Error saving assignments: ${error instanceof Error ? error.message : "Unknown error"}`);
-    }
-  };
-
-  // Generate schedule automatically
-  const generateSchedule = async () => {
-    if (!params.id) {
-      alert("Schedule ID is missing");
-      return;
-    }
-
-    try {
-      const scheduleId = params.id.toString();
-      const response = await fetch(
-        `/api/generate-schedule?scheduleId=${scheduleId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+        for (let i = 0; i < draggedCourse.duration; i++) {
+            if (timeSlotIndex + i >= timeSlots.length) break;
+            const currentTimeSlot = getTimeSlotKey(timeSlots[timeSlotIndex + i]);
+            const currentScheduleKey = `${majorYearRowId}-${day}-${currentTimeSlot}`;
+            newSchedule[currentScheduleKey] = {
+                ...assignedCourse, isStart: i === 0,
+                isMiddle: i > 0 && i < draggedCourse.duration - 1,
+                isEnd: i === draggedCourse.duration - 1,
+                colspan: i === 0 ? draggedCourse.duration : 0,
+            };
         }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to generate schedule: ${response.status} ${response.statusText}`
-        );
-      }
-
-      alert("Schedule generated successfully! Refreshing view...");
-      
-      if (selectedMajor) {
-        handleMajorChange(selectedMajor.id.toString()); // Pass string as expected
-      }
-    } catch (error) {
-      console.error("Error generating schedule:", error);
-      alert(`Error generating schedule: ${error instanceof Error ? error.message : "Unknown error"}`);
-    }
-  };
-
-  // Switch to classroom view
-  const switchToClassroomView = () => {
-    window.location.href = `/schedule/${params.id}/timetable`;
-  };
-
-  const removeCourseFromTimetable = (course: Course) => {
-    if (!course.day || !course.startTime) return;
-
-    const newSchedule = { ...schedule };
-    Object.keys(newSchedule).forEach((key) => {
-      if (newSchedule[key].sectionId === course.sectionId) {
-        delete newSchedule[key];
-      }
-    });
-    setSchedule(newSchedule);
-
-    const cleanCourse: Course = { // Assert type
-      code: course.code,
-      name: course.title || course.name,
-      color: course.color,
-      duration: course.duration,
-      instructor: course.instructor,
-      sectionId: course.sectionId,
-      section: course.section,
-      year: course.year || 1,
-      major: course.major,
-      // Ensure all required properties of Course are present or optional
-      title: course.title,
-      firstName: course.firstName,
-      lastName: course.lastName,
-      classroom: course.classroom,
-      room: course.room,
+        setSchedule(newSchedule);
+        setAvailableCourses(prev => prev.filter(c => c.sectionId !== draggedCourse.sectionId));
+        setDraggedCourse(null);
     };
 
-    if (!availableCourses.some((c) => c.sectionId === course.sectionId)) {
-      setAvailableCourses((prev) => [...prev, cleanCourse]);
+    const handleCourseClick = (courseInSchedule: Course) => { setSelectedCourse(courseInSchedule); setIsDialogOpen(true); };
+
+    const handleRemoveCourseDialog = () => {
+        if (!selectedCourse || !selectedCourse.day) return;
+        const originalCourseData = allCoursesData.find(c => c.sectionId === selectedCourse.sectionId);
+        if (originalCourseData) {
+            setSchedule(prevSchedule => removeCourseFromScheduleState(selectedCourse.sectionId, prevSchedule));
+            let displayYear = selectedCourse.year || 1;
+             if (originalCourseData.major && /Year\s+(\d+)/.test(originalCourseData.major)) { // Check original major string
+                const match = originalCourseData.major.match(/Year\s+(\d+)/);
+                if (match && match[1]) displayYear = parseInt(match[1], 10);
+            }
+            const courseForAvailableList: Course = {
+                ...originalCourseData,
+                color: colors_class[originalCourseData.color as keyof typeof colors_class] || colors_class.default,
+                instructor: `${originalCourseData.firstName || ""} ${originalCourseData.lastName || ""}`.trim(),
+                year: displayYear,
+                day: undefined, startTime: undefined, endTime: undefined, isStart: undefined, isMiddle: undefined, isEnd: undefined, colspan: undefined,
+            };
+            if (!availableCourses.some(c => c.sectionId === courseForAvailableList.sectionId)) {
+                setAvailableCourses(prev => [...prev, courseForAvailableList]);
+            }
+        }
+        setIsDialogOpen(false); setSelectedCourse(null);
+    };
+
+    const saveAllAssignments = async () => {
+        const assignmentsToSave: any[] = [];
+        Object.values(schedule).forEach(course => {
+            if (course.isStart && course.day && course.startTime) {
+                assignmentsToSave.push({
+                    sectionId: course.sectionId, day: course.day, startTime: course.startTime,
+                    endTime: course.endTime, classroom: course.room || course.classroom || null,
+                });
+            }
+        });
+        try {
+            const response = await fetch("/api/assign-time-slots", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ scheduleId: params.id, assignments: assignmentsToSave }),
+            });
+            if (response.ok) alert("All assignments saved successfully!");
+            else { const errorData = await response.json(); alert(`Failed to save: ${errorData.error || "Unknown"}`); }
+        } catch (error) { console.error("Error saving:", error); alert(`Error saving: ${error instanceof Error ? error.message : "Unknown"}`); }
+    };
+
+    const generateSchedule = async () => {
+        if (!params.id) { alert("Schedule ID missing"); return; }
+        setIsLoading(true);
+        try {
+            const response = await fetch(`/api/generate-schedule?scheduleId=${params.id}`, { method: "POST" });
+            if (!response.ok) throw new Error(`Failed to generate: ${response.statusText}`);
+            alert("Schedule generated! Refreshing view...");
+            await loadInitialData();
+        } catch (error) { console.error("Error generating:", error); alert(`Error generating: ${error instanceof Error ? error.message : "Unknown"}`); setIsLoading(false); }
+    };
+    
+    const switchToClassroomView = () => window.location.href = `/schedule/${params.id}/timetable`;
+
+    if (isLoading && majorYearDisplayRows.length === 0 && timeSlots.length === 0) {
+        return <div className="text-center py-12">Loading schedule configuration...</div>;
     }
-
-    const updatedYearCourses = { ...yearCourses };
-    const courseYear = course.year || 1;
-    if (updatedYearCourses[courseYear]) { // Check if year array exists
-        updatedYearCourses[courseYear] = updatedYearCourses[courseYear].filter(
-          c => c.sectionId !== course.sectionId
-        );
-    }
-    setYearCourses(updatedYearCourses);
-  };
-
-  return (
-    <div className="relative min-h-screen">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-2xl font-bold">Major View Timetable</h2>
-        <div className="space-x-2">
-          <Button
-            onClick={generateSchedule}
-            variant="outline"
-          >
-            Auto-Generate Schedule
-          </Button>
-          <Button onClick={saveAllAssignments}>Save All</Button>
-          <Button onClick={switchToClassroomView}>Classroom View</Button>
-        </div>
-      </div>
-
-      <div className="mb-4">
-        <select 
-          className="border p-2 rounded-md w-64"
-          value={filteredMajorId === null ? "" : filteredMajorId} // Handle null case for value
-          onChange={(e) => handleMajorChange(e.target.value)}
-        >
-          <option value="">Select a Major</option>
-          {majors.map((major) => (
-            <option key={major.id} value={major.id}>
-              {major.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {isLoading ? (
-        <div className="text-center py-8">Loading timetable data...</div>
-      ) : selectedMajor ? (
-        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] mb-40">
-          <div className="inline-block min-w-full">
-            <div className="border rounded-lg overflow-hidden">
-              <table className="min-w-full divide-y divide-blue-200">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-24 border">
-                      Year
-                    </th>
-                    {days.map((day) => (
-                      <th
-                        key={day}
-                        colSpan={timeSlots.length}
-                        className="px-2 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border"
-                      >
-                        {day}
-                      </th>
-                    ))}
-                  </tr>
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 border">
-                      Time
-                    </th>
-                    {days.map((day) =>
-                      timeSlots.map((slot) => (
-                        <th
-                          key={`${day}-${getTimeSlotKey(slot)}`}
-                          className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border"
-                        >
-                          {slot.time_slot || slot.startTime}
-                        </th>
-                      ))
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {activeYears.map((year) => (
-                    <tr key={year} className="bg-white">
-                      <td className="px-4 py-2 whitespace-nowrap text-sm font-medium border text-gray-700">
-                        Year {year}
-                      </td>
-                      {days.map((day) =>
-                        timeSlots.map((slot, slotIndex) => { // Added slotIndex for unique key if needed
-                          const slotKey = getTimeSlotKey(slot);
-                          const key = `${day}-${year}-${slotKey}`;
-                          const course = schedule[key];
-
-                          if (course && !course.isStart) {
-                            return null;
-                          }
-
-                          return (
-                            <td
-                              key={`${day}-${year}-${slotKey}-${slotIndex}`} // Ensure unique key
-                              className="px-1 py-1 whitespace-nowrap text-xs border"
-                              colSpan={course?.colspan || 1}
-                              onDragOver={handleDragOver}
-                              onDrop={() => handleDrop(day, year, slotKey)}
-                            >
-                              {course ? (
-                                <div
-                                  className={`${course.color} p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium`}
-                                  onClick={() =>
-                                    handleCourseClick(
-                                      day,
-                                      year,
-                                      slotKey,
-                                      course
-                                    )
-                                  }
-                                  draggable
-                                  onDragStart={() =>
-                                    handleDragStart(
-                                      course
-                                    )
-                                  }
-                                >
-                                  {course.code}
-                                </div>
-                              ) : (
-                                <div className="h-6 w-full" />
-                              )}
-                            </td>
-                          );
-                        })
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+    
+    return (
+        <div className="relative min-h-screen p-2 md:p-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 md:mb-6 gap-2">
+                <h2 className="text-lg md:text-xl font-bold">Major Timetable</h2>
+                <div className="flex flex-wrap gap-2">
+                    <Button onClick={generateSchedule} variant="outline" size="sm" disabled={isLoading}>{isLoading ? "Generating..." : "Auto-Generate"}</Button>
+                    <Button onClick={saveAllAssignments} size="sm" disabled={isLoading}>Save All</Button>
+                    <Button onClick={switchToClassroomView} size="sm" variant="outline">Classroom View</Button>
+                </div>
             </div>
-          </div>
-        </div>
-      ) : (
-        <div className="text-center py-8">Please select a major to view the timetable</div>
-      )}
 
-      <div
-        className={`fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-lg shadow-lg z-50 border-t ${
-          isDraggingToAvailable ? "bg-blue-100" : ""
-        }`}
-        onDragOver={handleAvailableDragOver}
-        onDragLeave={handleAvailableDragLeave}
-        onDrop={handleAvailableDrop}
-      >
-        <div className="max-w-9xl mx-auto">
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <span className="">Available Courses</span>
-            {isDraggingToAvailable && (
-              <span className="ml-2 text-blue-500 animate-pulse">
-                (Drop Here to Return Course)
-              </span>
+            {(majorYearDisplayRows.length === 0 || timeSlots.length === 0) && !isLoading ? (
+                 <div className="text-center py-8 text-gray-500">
+                    {majorYearDisplayRows.length === 0 ? "No majors configured. " : ""}
+                    {timeSlots.length === 0 ? "No time slots configured." : ""}
+                </div>
+            ) : (
+                <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-220px)] mb-28 md:mb-32 shadow-lg rounded-md border border-gray-300">
+                    <div className="inline-block min-w-full align-middle">
+                        <table className="min-w-full divide-y divide-gray-300">
+                             <thead className="bg-gray-100 sticky top-0 z-10">
+                               <tr>
+                                 <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-b border-gray-300 w-20 min-w-[80px]">
+                                   Major/Yr
+                                 </th>
+                                 {days.map((day) => (
+                                   <th scope="col" key={day} colSpan={timeSlots.length} className="px-1 py-2 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider border-r border-b border-gray-300 last:border-r-0">
+                                     {day}
+                                   </th>
+                                 ))}
+                               </tr>
+                               <tr>
+                                 <th scope="col" className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-b border-gray-300">
+                                   Time
+                                 </th>
+                                 {days.map((day) =>
+                                   timeSlots.map((slot) => (
+                                     <th scope="col" key={`${day}-${getTimeSlotKey(slot)}`} className="px-1 py-1.5 text-center text-[9px] font-medium text-gray-500 uppercase tracking-tighter border-r border-b border-gray-300 whitespace-nowrap last:border-r-0">
+                                       {slot.time_slot?.replace(/-/g, '-\u200B') || slot.startTime?.replace(/-/g, '-\u200B')}
+                                     </th>
+                                   ))
+                                 )}
+                               </tr>
+                             </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {majorYearDisplayRows.map((row) => (
+                                    <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-2 py-1.5 whitespace-nowrap text-xs font-semibold border-r border-gray-300 text-gray-700 align-middle bg-slate-50 sticky left-0 z-5"> {/* Sticky first column */}
+                                            {row.displayName}
+                                        </td>
+                                        {days.map((day) =>
+                                            timeSlots.map((slot, slotIndex) => {
+                                                const slotKey = getTimeSlotKey(slot);
+                                                const scheduleCellKey = `${row.id}-${day}-${slotKey}`;
+                                                const course = schedule[scheduleCellKey];
+
+                                                if (course && !course.isStart) return null;
+
+                                                return (
+                                                    <td
+                                                        key={`${row.id}-${day}-${slotKey}-${slotIndex}`}
+                                                        className={`px-0.5 py-0.5 text-[10px] border-r border-gray-300 relative h-10 ${course ? '' : 'hover:bg-gray-100 transition-colors'}`}
+                                                        colSpan={course?.colspan || 1}
+                                                        onDragOver={handleDragOver}
+                                                        onDrop={() => handleDrop(row.id, day, slotKey)}
+                                                    >
+                                                        {course ? (
+                                                            <div
+                                                                className={`${course.color} p-0.5 h-full rounded-sm cursor-pointer text-center shadow-sm transition-all font-medium flex flex-col items-center justify-center text-white text-[10px] leading-tight`}
+                                                                onClick={() => handleCourseClick(course)}
+                                                                draggable
+                                                                onDragStart={() => handleDragStart(course)}
+                                                            >
+                                                                <div className="font-semibold truncate w-full px-0.5">{course.code}</div>
+                                                                {course.subtext && <div className="text-[8px] truncate w-full px-0.5">{course.subtext}</div>}
+                                                                {!course.subtext && course.room && <div className="text-[8px] truncate w-full px-0.5">Rm:{course.room}</div>}
+
+                                                            </div>
+                                                        ) : ( <div className="h-full w-full" /> )}
+                                                    </td>
+                                                );
+                                            })
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             )}
-          </h3>
-          {isLoading ? (
-            <div className="text-center py-4">
-              Loading courses...
-            </div>
-          ) : availableCourses.length === 0 ? (
-            <div className="text-center py-4 text-gray-500">
-              All courses have been assigned to the timetable
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto p-2"> {/* Adjusted grid cols for responsiveness */}
-              {availableCourses.map((course) => (
-                <div
-                  key={course.sectionId.toString()} // Ensure key is string
-                  className={`${course.color} p-3 rounded-lg shadow cursor-move hover:shadow-md transition-all border`}
-                  draggable
-                  onDragStart={() => handleDragStart(course)}
-                >
-                  <h4 className="font-bold text-gray-800">
-                    {course.code}
-                  </h4>
-                  <p className="text-sm font-medium">
-                    {course.name || course.title} {/* Display name or title */}
-                  </p>
-                  <p className="text-xs mt-1 text-gray-700">
-                    Duration: {course.duration} hour
-                    {course.duration > 1 ? "s" : ""}
-                  </p>
-                  <p className="text-xs mt-1 truncate text-gray-700">
-                    Instructor: {course.instructor}
-                  </p>
-                  <p className="text-xs mt-1 truncate text-gray-700">
-                    Section: {course.section || "N/A"}
-                  </p>
-                  <p className="text-xs mt-1 truncate text-gray-700">
-                    Year: {course.year || 1}
-                  </p>
+
+            <div
+                className={`fixed bottom-0 left-0 right-0 bg-gray-50 p-2 md:p-3 rounded-t-lg shadow-[-2px_-5px_15px_-3px_rgba(0,0,0,0.1)] z-20 border-t-2 border-blue-500 ${isDraggingToAvailable ? "ring-2 ring-blue-400 ring-offset-1" : ""}`}
+                onDragOver={handleAvailableDragOver} onDragLeave={handleAvailableDragLeave} onDrop={handleAvailableDrop}
+            >
+                <div className="max-w-screen-xl mx-auto">
+                    <h3 className="text-sm md:text-base font-semibold mb-2 flex items-center text-gray-700">
+                        Available Courses
+                        {isDraggingToAvailable && <span className="ml-2 text-blue-600 animate-pulse text-xs">(Drop to Unassign)</span>}
+                    </h3>
+                    {isLoading && availableCourses.length === 0 ? (
+                        <div className="text-center py-2 text-xs text-gray-500">Loading courses...</div>
+                    ) : availableCourses.length === 0 ? (
+                        <div className="text-center py-2 text-xs text-gray-500">All courses assigned.</div>
+                    ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-1.5 md:gap-2 max-h-[15vh] md:max-h-[18vh] overflow-y-auto p-1">
+                            {availableCourses.map((course) => (
+                                <div
+                                    key={course.sectionId.toString()}
+                                    className={`${course.color} p-1.5 rounded-md shadow cursor-move hover:shadow-md transition-all border border-black/20 text-white`}
+                                    draggable onDragStart={() => handleDragStart(course)}
+                                >
+                                    <h4 className="font-bold text-[10px] md:text-xs truncate">{course.code}</h4>
+                                    <p className="text-[9px] md:text-[10px] font-medium truncate">{course.name || course.title}</p>
+                                    <p className="text-[8px] md:text-[9px] mt-0.5 text-gray-100/80">Dur: {course.duration}h, Yr: {course.year}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
-              ))}
             </div>
-          )}
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent className="sm:max-w-xs md:max-w-sm">
+                    <DialogHeader><DialogTitle className="text-lg font-semibold">Course Details</DialogTitle></DialogHeader>
+                    {selectedCourse && (
+                        <div className="space-y-3 py-1">
+                            <div className={`w-full h-1 rounded ${selectedCourse.color?.replace("hover:", "").replace("border-", "")}`}></div>
+                            <h3 className="font-semibold text-base">{selectedCourse.code}: {selectedCourse.name || selectedCourse.title}</h3>
+                            <div className="space-y-1 text-xs">
+                                {[
+                                    { label: "Duration", value: `${selectedCourse.duration} hour(s)` },
+                                    { label: "Instructor", value: selectedCourse.instructor || "N/A" },
+                                    { label: "Room", value: selectedCourse.room || selectedCourse.classroom || "TBA" },
+                                    { label: "Time", value: `${selectedCourse.day}, ${selectedCourse.startTime} - ${selectedCourse.endTime}` },
+                                    { label: "Section", value: selectedCourse.section || "N/A" },
+                                    { label: "Year Context", value: selectedCourse.year },
+                                    { label: "Major Context", value: selectedCourse.major },
+                                    { label: "Details", value: selectedCourse.subtext || "N/A"}
+                                ].map(item => (
+                                    <div key={item.label} className="flex justify-between">
+                                        <span className="text-gray-500">{item.label}:</span>
+                                        <span className="font-medium text-gray-800 text-right">{item.value}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <DialogFooter className="flex justify-end gap-2 pt-2">
+                                <Button variant="outline" size="sm" onClick={() => setIsDialogOpen(false)}>Close</Button>
+                                <Button variant="destructive" size="sm" onClick={handleRemoveCourseDialog}>Remove</Button>
+                            </DialogFooter>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
-      </div>
-
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">
-              Course Details
-            </DialogTitle>
-          </DialogHeader>
-
-          {selectedCourse && (
-            <div className="space-y-4">
-              <div className="space-y-3">
-                <div
-                  className={`w-full h-1 ${selectedCourse.color
-                    ?.replace("hover:", "")
-                    ?.replace("border-", "")}`} // Added optional chaining for safety
-                ></div>
-                <h3 className="font-bold text-lg">
-                  {selectedCourse.code}: {selectedCourse.name || selectedCourse.title}
-                </h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      Duration:
-                    </span>
-                    <span className="text-sm font-medium">
-                      {selectedCourse.duration} hour(s)
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      Instructor:
-                    </span>
-                    <span className="text-sm font-medium">
-                      {selectedCourse.instructor}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      Room:
-                    </span>
-                    <span className="text-sm font-medium">
-                      {selectedCourse.room || selectedCourse.classroom || "TBA"} {/* Check both room and classroom */}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      Time:
-                    </span>
-                    <span className="text-sm font-medium">
-                      {selectedCourse.day},{" "}
-                      {selectedCourse.startTime} -{" "}
-                      {selectedCourse.endTime}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      Section:
-                    </span>
-                    <span className="text-sm font-medium">
-                      {selectedCourse.section}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      Year:
-                    </span>
-                    <span className="text-sm font-medium">
-                      {selectedCourse.year}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      Major:
-                    </span>
-                    <span className="text-sm font-medium">
-                      {selectedCourse.major}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <DialogFooter className="flex justify-end gap-2"> {/* Added DialogFooter for consistency */}
-                <Button
-                  variant="outline"
-                  onClick={() => setIsDialogOpen(false)}
-                >
-                  Close
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleRemoveCourse}
-                >
-                  Remove
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+    );
 }
