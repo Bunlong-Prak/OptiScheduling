@@ -230,7 +230,7 @@ export default function MajorView() {
 
                 if (!targetRow || !assignment.day || !assignment.startTime) return;
 
-                const courseDetails = fetchedCourses.find(c => c.sectionId === assignment.sectionId) || {};
+                const courseDetails: Partial<Course> = fetchedCourses.find(c => c.sectionId === assignment.sectionId) || {};
                 const fullCourseData: Course = {
                     ...assignment, ...courseDetails, sectionId: assignment.sectionId,
                     code: courseDetails.code || assignment.code || "N/A",
