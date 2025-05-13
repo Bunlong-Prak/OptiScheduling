@@ -219,7 +219,6 @@ export default function TimetableViewClassroom() {
                         setTimeSlots(apiTimeSlots);
 
                         // For display, just use the time slots as is
-                       
                     } else {
                         console.error(
                             "No time slots found for schedule",
@@ -1056,7 +1055,7 @@ export default function TimetableViewClassroom() {
     return (
         <div className="relative min-h-screen">
             <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-bold">Classroom View Timetable</h2>
+                <h2 className="text-2xl font-bold">Classroom View Timetable</h2>
                 <div className="flex gap-4">
                     <Button
                         onClick={generateSchedule}
