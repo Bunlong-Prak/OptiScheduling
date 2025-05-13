@@ -137,6 +137,7 @@ export const majors = mysqlTable("majors", {
     id: int("id").primaryKey().autoincrement(),
     name: varchar("name", { length: 255 }).notNull(),
     shortTag: varchar("short_tag", { length: 50 }).notNull(),
+    year: int("year"), // New field - can be null for base majors
     scheduleId: int("schedule_id")
         .notNull()
         .references(() => schedules.id, {

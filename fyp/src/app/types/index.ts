@@ -3,7 +3,12 @@
 export type Major = {
     id: number;
     name: string;
-    short_tag: string;
+    shortTag: string;
+    year?: number | null; // Allow both number and null
+    scheduleId: number;
+    // UI display fields (not stored in DB)
+    numberOfYears?: number;
+    years?: number[];
 };
 
 export type Classroom = {
@@ -97,7 +102,8 @@ export type ClassroomFormData = {
 
 export type MajorFormData = {
     name: string;
-    short_tag: string;
+    shortTag: string;
+    numberOfYears: number; // Number of years for this major
 };
 
 export type TimeConstraintFormData = {
