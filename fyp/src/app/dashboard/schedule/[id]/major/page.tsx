@@ -34,6 +34,9 @@ type MajorUpdate = {
     year: number | null; // Allow both number and null
 };
 
+// Define a more specific type for majors being added to the DB, excluding UI-only fields
+type MajorCreatePayload = Omit<Major, "id" | "numberOfYears" | "years">;
+
 export default function MajorView() {
     const [majors, setMajors] = useState<Major[]>([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -86,10 +89,6 @@ export default function MajorView() {
                 });
                 return;
             }
-
-            // Add a console log to debug the API call
-            console.log(`Fetching majors for schedule ID: ${scheduleId}`);
-
             const response = await fetch(
                 `/api/majors?scheduleId=${scheduleId}`,
                 {
@@ -119,50 +118,65 @@ export default function MajorView() {
                 return;
             }
 
-            // Group majors by name
+            // Group majors by their derived base name
             const majorGroups: Record<string, Major[]> = data.reduce(
                 (groups: Record<string, Major[]>, major: Major) => {
-                    // Ensure major has a name property before using it
-                    if (!major || !major.name) {
+                    if (
+                        !major ||
+                        typeof major.name !== "string" ||
+                        major.year === null
+                    ) {
+                        // Skip if not a year-specific entry
                         console.warn(
-                            "Skipping major with missing name:",
+                            "Skipping major with missing/invalid name or non-year entry:",
                             major
                         );
                         return groups;
                     }
-
-                    const name = major.name.replace(/\s+Year\s+\d+$/, ""); // Remove "Year X" suffix
-                    if (!groups[name]) {
-                        groups[name] = [];
+                    // Derive base name by stripping " Year X"
+                    const baseName = major.name.replace(/\s+Year\s+\d+$/, "");
+                    if (!groups[baseName]) {
+                        groups[baseName] = [];
                     }
-                    groups[name].push(major);
+                    groups[baseName].push(major);
                     return groups;
                 },
                 {}
             );
 
-            // Extract unique majors (base entries)
-            const uniqueMajors = Object.keys(majorGroups).map((name) => {
-                const majorGroup = majorGroups[name];
-                const baseMajor =
-                    majorGroup.find((m: Major) => !m.year) || majorGroup[0];
+            // Construct "conceptual" unique majors from the groups
+            const uniqueMajors = Object.keys(majorGroups)
+                .map((baseName) => {
+                    const majorGroup = majorGroups[baseName];
+                    if (!majorGroup || majorGroup.length === 0) return null; // Should not happen
 
-                // Count how many years this major has
-                const years = majorGroup
-                    .filter((m: Major) => m.year)
-                    .map((m: Major) => m.year as number)
-                    .sort((a, b) => a - b);
+                    // Sort by year to pick a consistent representative entry (e.g., Year 1)
+                    majorGroup.sort(
+                        (a, b) => (a.year || Infinity) - (b.year || Infinity)
+                    );
+                    const representativeYearEntry = majorGroup[0]; // e.g., the "Year 1" entry
 
-                return {
-                    ...baseMajor,
-                    numberOfYears: years.length || 4, // Default to 4 if no years found
-                    years,
-                };
-            });
+                    const years = majorGroup
+                        .map((m: Major) => m.year as number)
+                        .sort((a, b) => a - b);
 
-            console.log("Processed unique majors:", uniqueMajors);
+                    // Derive base short tag from the representative entry's short tag
+                    // e.g., "CS1" -> "CS"
+                    const baseShortTag =
+                        representativeYearEntry.shortTag.replace(/\d+$/, "");
+
+                    return {
+                        id: representativeYearEntry.id, // Use ID of a constituent entry (e.g., Year 1)
+                        name: baseName, // Derived base name
+                        shortTag: baseShortTag, // Derived base short tag
+                        numberOfYears: years.length,
+                        years: years,
+                        scheduleId: representativeYearEntry.scheduleId, // Essential for subsequent API calls
+                    };
+                })
+                .filter(Boolean) as Major[]; // Filter out any nulls
+
             setMajors(uniqueMajors);
-            // Reset to first page when data changes
             setCurrentPage(1);
         } catch (error: unknown) {
             console.error("Error fetching majors:", error);
@@ -190,9 +204,8 @@ export default function MajorView() {
         });
     };
 
-    // Function to handle opening the add dialog
     const openAddDialog = () => {
-        resetForm(); // Ensure form is clean before opening
+        resetForm();
         setIsAddDialogOpen(true);
     };
 
@@ -203,7 +216,6 @@ export default function MajorView() {
                 throw new Error("Schedule ID is missing");
             }
 
-            // Validate form data
             if (!formData.name || !formData.shortTag) {
                 setStatusMessage({
                     text: "Name and short tag are required",
@@ -212,53 +224,44 @@ export default function MajorView() {
                 return;
             }
 
-            console.log("Adding major with data:", {
-                name: formData.name,
-                shortTag: formData.shortTag,
-                numberOfYears: formData.numberOfYears,
-                scheduleId,
-            });
+            const trimmedName = formData.name.trim();
+            const trimmedShortTag = formData.shortTag.trim();
 
-            // Create an array for all the majors we need to add
-            const majorsToAdd: Omit<Major, "id">[] = [];
+            const majorsToAdd: MajorCreatePayload[] = [];
 
-            // Add year-specific majors
+            // 2. Add year-specific majors
             for (let i = 1; i <= formData.numberOfYears; i++) {
                 majorsToAdd.push({
-                    name: `${formData.name} Year ${i}`,
-                    shortTag: `${formData.shortTag}${i}`,
+                    name: `${trimmedName} Year ${i}`, // e.g., "Computer Science Year 1"
+                    shortTag: `${trimmedShortTag}${i}`, // e.g., "CS1"
                     year: i,
                     scheduleId: Number(scheduleId),
                 });
             }
 
-            // Send batch request to add all majors
             const response = await fetch("/api/majors", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ majors: majorsToAdd }),
+                body: JSON.stringify({ majors: majorsToAdd }), // API should handle creating multiple
             });
 
-            // Log the full response for debugging
             const responseText = await response.text();
-            console.log("Server response:", response.status, responseText);
-
-            // Check if the response was successful
             if (!response.ok) {
+                console.error(
+                    "Server response on add:",
+                    response.status,
+                    responseText
+                );
                 throw new Error(
-                    `Failed to create majors: ${response.status} ${response.statusText}`
+                    `Failed to create majors: ${response.status} ${response.statusText} - ${responseText}`
                 );
             }
 
-            // Refresh the major list
             await fetchMajors();
-
-            // Close dialog and reset form
             setIsAddDialogOpen(false);
             resetForm();
-
             setStatusMessage({
                 text: "Major added successfully",
                 type: "success",
@@ -274,16 +277,27 @@ export default function MajorView() {
         }
     };
 
-    const handleEditMajor = async () => {
-        if (!selectedMajor) return;
+    async function handleEditMajor(
+        selectedMajor: Major | null,
+        formData: MajorFormData,
+        setStatusMessage: (
+            msg: { text: string; type: "success" | "error" } | null
+        ) => void,
+        fetchMajors: () => Promise<void>,
+        setIsEditDialogOpen: (isOpen: boolean) => void,
+        resetForm: () => void
+    ) {
+        if (!selectedMajor || !selectedMajor.scheduleId) {
+            setStatusMessage({
+                text: "No major selected or schedule ID is missing for editing.",
+                type: "error",
+            });
+            return;
+        }
 
         try {
-            const scheduleId = params.id;
-            if (!scheduleId) {
-                throw new Error("Schedule ID is missing");
-            }
+            const scheduleId = selectedMajor.scheduleId; // From the conceptual major
 
-            // Validate form data
             if (!formData.name || !formData.shortTag) {
                 setStatusMessage({
                     text: "Name and short tag are required",
@@ -292,197 +306,140 @@ export default function MajorView() {
                 return;
             }
 
-            console.log(
-                "Editing major:",
-                selectedMajor,
-                "with form data:",
-                formData
-            );
+            const newBaseName = formData.name.trim();
+            const newBaseShortTag = formData.shortTag.trim();
 
-            // Find all year versions of this major
-            const response = await fetch(
+            // Fetch existing *year-specific* DB entries for the *original base name* of the major.
+            // `selectedMajor.name` holds the original base name (e.g., "Computer Science").
+            // The API GET /api/majors?name=<BASE_NAME>&scheduleId=<ID> must be able to
+            // return all actual database records like "Computer Science Year 1", "Computer Science Year 2", etc.
+            const fetchResponse = await fetch(
                 `/api/majors?name=${encodeURIComponent(
                     selectedMajor.name
                 )}&scheduleId=${scheduleId}`,
                 {
                     method: "GET",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
+                    headers: { "Content-Type": "application/json" },
                 }
             );
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(
-                    "Server response for fetching major details:",
-                    errorText
-                );
+            if (!fetchResponse.ok) {
+                const errorText = await fetchResponse.text();
                 throw new Error(
-                    `Failed to fetch major details: ${response.status} ${response.statusText}`
+                    `Failed to fetch major details for editing: ${fetchResponse.status} ${errorText}`
                 );
             }
+            const existingDbEntries: Major[] = await fetchResponse.json(); // These are year-specific DB records
 
-            const existingMajors = await response.json();
-            console.log("Existing majors found:", existingMajors);
+            // ---- THIS IS THE KEY DIFFERENCE: WE NO LONGER LOOK FOR A `year: null` RECORD ----
+            // The old code had:
+            // const oldBaseMajorInDb = existingDbEntries.find((m) => m.year === null);
+            // if (!oldBaseMajorInDb) { /* ... throw error ... */ }
+            // This is removed.
 
-            const baseMajor = existingMajors.find(
-                (m: Major) => m.year === null
+            const updates: MajorUpdate[] = [];
+            const newYearSpecificMajorsToAdd: MajorCreatePayload[] = [];
+            const yearsToDeleteIds: number[] = [];
+
+            // Get a set of years that currently exist in the DB for this major
+            const existingDbYears = new Set(
+                existingDbEntries
+                    .map((m) => m.year)
+                    .filter((y) => y !== null) as number[] // Ensure we only consider actual years
             );
 
-            if (!baseMajor) {
-                console.warn(
-                    "Could not find base major, will use first major in the list"
-                );
-                if (existingMajors.length === 0) {
-                    throw new Error("No majors found to update");
-                }
-            }
-
-            // Update base major (or first major if no base is found)
-            const baseMajorToUpdate = baseMajor || existingMajors[0];
-            const baseMajorUpdate: MajorUpdate = {
-                id: baseMajorToUpdate.id,
-                name: formData.name,
-                shortTag: formData.shortTag, // Using shortTag to match API
-                year: null,
-            };
-
-            console.log("Base major update:", baseMajorUpdate);
-
-            // Create array of all updates needed
-            const updates: MajorUpdate[] = [baseMajorUpdate];
-
-            // Delete majors if we're reducing the number of years
-            const yearsToDelete = existingMajors
-                .filter(
-                    (m: Major) =>
-                        typeof m.year === "number" &&
-                        m.year > formData.numberOfYears
-                )
-                .map((m: Major) => m.id);
-
-            if (yearsToDelete.length > 0) {
-                console.log("Years to delete:", yearsToDelete);
-
-                const deleteResponse = await fetch("/api/majors", {
-                    method: "DELETE",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ ids: yearsToDelete }),
-                });
-
-                const deleteResponseText = await deleteResponse.text();
-                console.log(
-                    "Delete response:",
-                    deleteResponse.status,
-                    deleteResponseText
-                );
-
-                if (!deleteResponse.ok) {
-                    throw new Error(
-                        `Failed to delete excess year majors: ${deleteResponse.status} ${deleteResponse.statusText}`
+            // Iterate over the year-specific entries found in the database
+            existingDbEntries.forEach((dbEntry) => {
+                if (dbEntry.year === null) {
+                    // This case should ideally not happen if your API is correctly
+                    // returning only year-specific entries for the given base name.
+                    // If it does, you might want to log it or handle it.
+                    console.warn(
+                        "Encountered a null-year entry during edit processing:",
+                        dbEntry
                     );
+                    return;
                 }
-            }
 
-            // Update existing year majors
-            const yearsToUpdate = existingMajors.filter(
-                (m: Major) =>
-                    typeof m.year === "number" &&
-                    m.year <= formData.numberOfYears
-            );
-
-            console.log("Years to update:", yearsToUpdate);
-
-            yearsToUpdate.forEach((yearMajor: Major) => {
-                if (typeof yearMajor.year === "number") {
+                if (
+                    dbEntry.year !== null &&
+                    dbEntry.year !== undefined &&
+                    dbEntry.year > formData.numberOfYears
+                ) {
+                    // This year is no longer needed (e.g., major changed from 4 years to 3 years)
+                    yearsToDeleteIds.push(dbEntry.id);
+                } else {
+                    // This year still exists, update its name/shortTag
                     updates.push({
-                        id: yearMajor.id,
-                        name: `${formData.name} Year ${yearMajor.year}`,
-                        shortTag: `${formData.shortTag}${yearMajor.year}`, // Using shortTag consistently
-                        year: yearMajor.year,
+                        id: dbEntry.id,
+                        name: `${newBaseName} Year ${dbEntry.year}`,
+                        shortTag: `${newBaseShortTag}${dbEntry.year}`,
+                        year: dbEntry.year ?? null, // Keep the year as is
                     });
                 }
             });
 
-            // Add new year majors if we're increasing the number of years
-            const existingYears = new Set(
-                existingMajors
-                    .filter((m: Major) => m.year)
-                    .map((m: Major) => m.year)
-            );
-            const newYears = [];
-
+            // Add new year-specific entries if numberOfYears increased
             for (let i = 1; i <= formData.numberOfYears; i++) {
-                if (!existingYears.has(i)) {
-                    newYears.push({
-                        name: `${formData.name} Year ${i}`,
-                        shortTag: `${formData.shortTag}${i}`,
+                if (!existingDbYears.has(i)) {
+                    newYearSpecificMajorsToAdd.push({
+                        name: `${newBaseName} Year ${i}`,
+                        shortTag: `${newBaseShortTag}${i}`,
                         year: i,
-                        scheduleId: Number(scheduleId),
+                        scheduleId: Number(scheduleId), // Ensure scheduleId is correctly passed
                     });
                 }
             }
 
-            console.log("New years to add:", newYears);
-
-            // Only send update request if there are updates to make
+            // --- Database Operations ---
             if (updates.length > 0) {
-                console.log("Sending updates:", updates);
-
                 const updateResponse = await fetch("/api/majors", {
                     method: "PATCH",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
+                    headers: { "Content-Type": "application/json" },
+                    // API needs to handle an array of update objects, each with id, name, shortTag, year
                     body: JSON.stringify({ updates }),
                 });
-
                 const updateResponseText = await updateResponse.text();
-                console.log(
-                    "Update response:",
-                    updateResponse.status,
-                    updateResponseText
-                );
-
                 if (!updateResponse.ok) {
                     throw new Error(
-                        `Failed to update majors: ${updateResponse.status} ${updateResponse.statusText}`
+                        `Failed to update majors: ${updateResponse.status} ${updateResponseText}`
                     );
                 }
             }
 
-            // Add new years if needed
-            if (newYears.length > 0) {
-                console.log("Adding new years:", newYears);
-
+            if (newYearSpecificMajorsToAdd.length > 0) {
                 const addResponse = await fetch("/api/majors", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ majors: newYears }),
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        majors: newYearSpecificMajorsToAdd,
+                    }), // API creates multiple year-specific
                 });
-
                 const addResponseText = await addResponse.text();
-                console.log(
-                    "Add response:",
-                    addResponse.status,
-                    addResponseText
-                );
-
                 if (!addResponse.ok) {
                     throw new Error(
-                        `Failed to add new year majors: ${addResponse.status} ${addResponse.statusText}`
+                        `Failed to add new year majors: ${addResponse.status} ${addResponseText}`
                     );
                 }
             }
 
-            await fetchMajors();
-            setIsEditDialogOpen(false);
-            resetForm();
+            if (yearsToDeleteIds.length > 0) {
+                const deleteResponse = await fetch("/api/majors", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ ids: yearsToDeleteIds }), // API deletes by array of IDs
+                });
+                const deleteResponseText = await deleteResponse.text();
+                if (!deleteResponse.ok) {
+                    throw new Error(
+                        `Failed to delete excess year majors: ${deleteResponse.status} ${deleteResponseText}`
+                    );
+                }
+            }
+
+            await fetchMajors(); // Refresh the list
+            setIsEditDialogOpen(false); // Close the dialog
+            resetForm(); // Reset form data
             setStatusMessage({
                 text: "Major updated successfully",
                 type: "success",
@@ -490,104 +447,119 @@ export default function MajorView() {
         } catch (error: unknown) {
             console.error("Error updating major:", error);
             setStatusMessage({
-                text:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to update major. Please try again.",
+                text: `Failed to update major: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`,
                 type: "error",
             });
         }
-    };
+    }
 
-    const handleDeleteMajor = async () => {
-        if (!selectedMajor) return;
+    async function handleDeleteMajor(
+        selectedMajor: Major | null,
+        setSelectedMajor: React.Dispatch<React.SetStateAction<Major | null>>,
+        setIsDeleteDialogOpen: React.Dispatch<React.SetStateAction<boolean>>,
+        fetchMajors: () => Promise<void>,
+        setStatusMessage: React.Dispatch<
+            React.SetStateAction<{
+                text: string;
+                type: "success" | "error";
+            } | null>
+        >
+    ) {
+        if (!selectedMajor) {
+            setStatusMessage({
+                text: "No major selected for deletion.",
+                type: "error",
+            });
+            return;
+        }
+
+        // Ensure scheduleId is present on the selectedMajor object.
+        // This scheduleId is crucial for fetching the correct set of year-specific entries.
+        const scheduleId = selectedMajor.scheduleId;
+        if (!scheduleId) {
+            setStatusMessage({
+                text: "Schedule ID is missing from the selected major. Cannot proceed with deletion.",
+                type: "error",
+            });
+            console.error(
+                "Schedule ID missing on selectedMajor for deletion:",
+                selectedMajor
+            );
+            return;
+        }
 
         try {
-            const scheduleId = params.id;
-            if (!scheduleId) {
-                throw new Error("Schedule ID is missing");
-            }
-
-            console.log("Deleting major:", selectedMajor);
-
-            // Find all year versions of this major using the same API endpoint as in GET
+            // Fetch ALL year-specific DB entries associated with this conceptual major's base name.
+            // The API GET /api/majors?name=<BASE_NAME>&scheduleId=<ID> must
+            // return all database records like "Computer Science Year 1", "Computer Science Year 2", etc.
+            // based on the selectedMajor.name (which is the base name, e.g., "Computer Science").
             const response = await fetch(
                 `/api/majors?name=${encodeURIComponent(
                     selectedMajor.name
                 )}&scheduleId=${scheduleId}`,
                 {
                     method: "GET",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
+                    headers: { "Content-Type": "application/json" },
                 }
             );
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(
-                    "Server response for fetching major details:",
-                    errorText
-                );
                 throw new Error(
-                    `Failed to fetch major details: ${response.status} ${response.statusText}`
+                    `Failed to fetch major details for deletion: ${response.status} ${errorText}`
                 );
             }
 
-            const deletedMajors = await response.json();
-            console.log("Majors to delete:", deletedMajors);
+            const majorsToDeleteInDb: Major[] = await response.json(); // These are the actual year-specific DB records
 
-            if (!Array.isArray(deletedMajors) || deletedMajors.length === 0) {
-                throw new Error("No majors found to delete");
+            if (!majorsToDeleteInDb || majorsToDeleteInDb.length === 0) {
+                // This means no year-specific entries were found in the DB for this base name.
+                // It could be they were already deleted, or there's an issue with the base name matching.
+                setStatusMessage({
+                    text: `No year-specific entries found in the database for "${selectedMajor.name}". They may have already been deleted.`,
+                    type: "success", // Changed from "info" to match the allowed types
+                });
+                await fetchMajors(); // Refresh the list in the UI
+                setIsDeleteDialogOpen(false);
+                setSelectedMajor(null);
+                return;
             }
 
-            const majorIds = deletedMajors.map((m: Major) => m.id);
-            console.log("Major IDs to delete:", majorIds);
+            // Collect the IDs of all the year-specific database records to be deleted.
+            const majorIdsToDelete = majorsToDeleteInDb.map((m) => m.id);
 
-            // Delete all related majors
             const deleteResponse = await fetch("/api/majors", {
                 method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ ids: majorIds }),
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ids: majorIdsToDelete }), // API must handle an array of IDs
             });
 
             const deleteResponseText = await deleteResponse.text();
-            console.log(
-                "Delete response:",
-                deleteResponse.status,
-                deleteResponseText
-            );
-
             if (!deleteResponse.ok) {
                 throw new Error(
-                    `Failed to delete majors: ${deleteResponse.status} ${deleteResponse.statusText}`
+                    `Failed to delete major entries: ${deleteResponse.status} ${deleteResponseText}`
                 );
             }
 
-            // Refresh the major list
-            await fetchMajors();
-
-            // Close dialog
+            await fetchMajors(); // Refresh the list of majors in the UI
             setIsDeleteDialogOpen(false);
-            setSelectedMajor(null);
-
+            setSelectedMajor(null); // Clear the selected major
             setStatusMessage({
-                text: "Major deleted successfully",
+                text: `Major "${selectedMajor.name}" and all its year entries deleted successfully.`,
                 type: "success",
             });
         } catch (error: unknown) {
             console.error("Error deleting major:", error);
             setStatusMessage({
-                text:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to delete major. Please try again.",
+                text: `Failed to delete major: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`,
                 type: "error",
             });
         }
-    };
+    }
 
     const resetForm = () => {
         setFormData({
@@ -599,12 +571,14 @@ export default function MajorView() {
     };
 
     const openEditDialog = (major: Major) => {
-        resetForm(); // Reset first to clear any previous data
+        // major is the conceptual major
+        resetForm();
         setSelectedMajor(major);
+        // major.name is base name, major.shortTag is base short tag
         setFormData({
             name: major.name,
             shortTag: major.shortTag,
-            numberOfYears: major.numberOfYears || 4,
+            numberOfYears: major.numberOfYears || 4, // Ensure numberOfYears is present
         });
         setIsEditDialogOpen(true);
     };
@@ -614,25 +588,25 @@ export default function MajorView() {
         setIsDeleteDialogOpen(true);
     };
 
-    // Helper function to get year short tags for display
     const getYearShortTags = (major: Major) => {
+        // major is the conceptual major
         if (!major || !major.shortTag) return "";
+        const baseTag = major.shortTag; // This is already the base tag, e.g., "CS"
 
-        // If shortTag already contains the year, just use it directly
-        if (major.years && major.years.length > 0) {
-            // If you have the actual year tags available, use them
-            return major.years
-                .map((year) => `${major.shortTag.replace(/\d+$/, "")}${year}`)
-                .join(", ");
-        } else {
-            // Fallback if no year data is available
-            const baseTag = major.shortTag.replace(/\d+$/, ""); // Remove trailing numbers
-            const yearTags = [];
-            for (let i = 1; i <= (major.numberOfYears || 4); i++) {
-                yearTags.push(`${baseTag}${i}`);
-            }
-            return yearTags.join(", ");
+        const yearTags = [];
+        // Use major.years if available (actual years present), otherwise generate from numberOfYears
+        const yearsToDisplay =
+            major.years && major.years.length > 0
+                ? major.years
+                : Array.from(
+                      { length: major.numberOfYears || 0 }, // Default to 0 if undefined
+                      (_, i) => i + 1
+                  );
+
+        for (const year of yearsToDisplay) {
+            yearTags.push(`${baseTag}${year}`);
         }
+        return yearTags.join(", ");
     };
 
     return (
@@ -735,7 +709,6 @@ export default function MajorView() {
                     </table>
                 </div>
 
-                {/* Add pagination if we have majors */}
                 {majors.length > 0 && (
                     <CustomPagination
                         currentPage={currentPage}
@@ -757,7 +730,6 @@ export default function MajorView() {
                     <DialogHeader>
                         <DialogTitle>Add New Major</DialogTitle>
                     </DialogHeader>
-
                     <div className="grid gap-4 py-4">
                         <div className="space-y-2">
                             <Label htmlFor="name">Major Name</Label>
@@ -771,7 +743,7 @@ export default function MajorView() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="shortTag">Short Tag</Label>
+                            <Label htmlFor="shortTag">Short Tag (Base)</Label>
                             <Input
                                 id="shortTag"
                                 name="shortTag"
@@ -781,7 +753,8 @@ export default function MajorView() {
                             />
                             <span className="text-sm text-gray-500">
                                 Enter only the major code (e.g., CS for Computer
-                                Science)
+                                Science). Year numbers will be appended
+                                automatically.
                             </span>
                         </div>
 
@@ -791,7 +764,7 @@ export default function MajorView() {
                             </Label>
                             <Select
                                 onValueChange={handleYearsChange}
-                                defaultValue="4"
+                                defaultValue={formData.numberOfYears.toString()}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select number of years" />
@@ -806,29 +779,51 @@ export default function MajorView() {
                                 </SelectContent>
                             </Select>
                         </div>
-
                         <div className="mt-2 p-2 bg-gray-50 rounded">
                             <p className="font-medium">Preview:</p>
                             <div className="mt-1">
-                                <p className="font-medium">{formData.name}</p>
+                                <p>
+                                    Base Name:{" "}
+                                    <span className="font-semibold">
+                                        {formData.name || "[Not set]"}
+                                    </span>
+                                </p>
+                                <p>
+                                    Base Short Tag:{" "}
+                                    <span className="font-semibold">
+                                        {formData.shortTag || "[Not set]"}
+                                    </span>
+                                </p>
+                                <p className="font-medium mt-1">
+                                    Generated Year Entries:
+                                </p>
                                 <div className="flex flex-wrap gap-2 mt-1">
-                                    {Array.from(
-                                        { length: formData.numberOfYears },
-                                        (_, i) => i + 1
-                                    ).map((year) => (
-                                        <span
-                                            key={year}
-                                            className="px-2 py-1 bg-blue-100 text-blue-800 rounded"
-                                        >
-                                            {formData.shortTag}
-                                            {year} (Year {year})
+                                    {formData.name &&
+                                    formData.shortTag &&
+                                    formData.numberOfYears > 0 ? (
+                                        Array.from(
+                                            { length: formData.numberOfYears },
+                                            (_, i) => i + 1
+                                        ).map((year) => (
+                                            <span
+                                                key={year}
+                                                className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
+                                            >
+                                                {`${formData.name} Year ${year}`}{" "}
+                                                ({`${formData.shortTag}${year}`}
+                                                )
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="text-xs text-gray-500">
+                                            Enter name, short tag, and select
+                                            years.
                                         </span>
-                                    ))}
+                                    )}
                                 </div>
                             </div>
                         </div>
                     </div>
-
                     <DialogFooter>
                         <Button
                             variant="outline"
@@ -856,7 +851,6 @@ export default function MajorView() {
                     <DialogHeader>
                         <DialogTitle>Edit Major</DialogTitle>
                     </DialogHeader>
-
                     <div className="grid gap-4 py-4">
                         <div className="space-y-2">
                             <Label htmlFor="edit-name">Major Name</Label>
@@ -869,7 +863,9 @@ export default function MajorView() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="edit-shortTag">Short Tag</Label>
+                            <Label htmlFor="edit-shortTag">
+                                Short Tag (Base)
+                            </Label>
                             <Input
                                 id="edit-shortTag"
                                 name="shortTag"
@@ -878,7 +874,8 @@ export default function MajorView() {
                             />
                             <span className="text-sm text-gray-500">
                                 Enter only the major code (e.g., CS for Computer
-                                Science)
+                                Science). Year numbers will be appended
+                                automatically.
                             </span>
                         </div>
 
@@ -903,29 +900,52 @@ export default function MajorView() {
                                 </SelectContent>
                             </Select>
                         </div>
-
                         <div className="mt-2 p-2 bg-gray-50 rounded">
-                            <p className="font-medium">Preview:</p>
+                            <p className="font-medium">Preview of Changes:</p>
                             <div className="mt-1">
-                                <p className="font-medium">{formData.name}</p>
+                                <p>
+                                    New Base Name:{" "}
+                                    <span className="font-semibold">
+                                        {formData.name || "[Not set]"}
+                                    </span>
+                                </p>
+                                <p>
+                                    New Base Short Tag:{" "}
+                                    <span className="font-semibold">
+                                        {formData.shortTag || "[Not set]"}
+                                    </span>
+                                </p>
+                                <p className="font-medium mt-1">
+                                    Generated Year Entries (
+                                    {formData.numberOfYears} years):
+                                </p>
                                 <div className="flex flex-wrap gap-2 mt-1">
-                                    {Array.from(
-                                        { length: formData.numberOfYears },
-                                        (_, i) => i + 1
-                                    ).map((year) => (
-                                        <span
-                                            key={year}
-                                            className="px-2 py-1 bg-blue-100 text-blue-800 rounded"
-                                        >
-                                            {formData.shortTag}
-                                            {year} (Year {year})
+                                    {formData.name &&
+                                    formData.shortTag &&
+                                    formData.numberOfYears > 0 ? (
+                                        Array.from(
+                                            { length: formData.numberOfYears },
+                                            (_, i) => i + 1
+                                        ).map((year) => (
+                                            <span
+                                                key={year}
+                                                className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
+                                            >
+                                                {`${formData.name} Year ${year}`}
+                                                ({`${formData.shortTag}${year}`}
+                                                )
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="text-xs text-gray-500">
+                                            Enter name, short tag, and select
+                                            years.
                                         </span>
-                                    ))}
+                                    )}
                                 </div>
                             </div>
                         </div>
                     </div>
-
                     <DialogFooter>
                         <Button
                             variant="outline"
@@ -936,12 +956,24 @@ export default function MajorView() {
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleEditMajor}>Save Changes</Button>
+                        <Button
+                            onClick={() =>
+                                handleEditMajor(
+                                    selectedMajor,
+                                    formData,
+                                    setStatusMessage,
+                                    fetchMajors,
+                                    setIsEditDialogOpen,
+                                    resetForm
+                                )
+                            }
+                        >
+                            Save Changes
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* Delete Major Dialog */}
             <Dialog
                 open={isDeleteDialogOpen}
                 onOpenChange={(open) => {
@@ -953,20 +985,22 @@ export default function MajorView() {
                     <DialogHeader>
                         <DialogTitle>Delete Major</DialogTitle>
                     </DialogHeader>
-
                     <div className="py-4">
-                        <p>Are you sure you want to delete this major?</p>
+                        <p>
+                            Are you sure you want to delete this major and all
+                            its associated year entries?
+                        </p>
                         <p className="font-medium mt-2">
                             {selectedMajor?.name}
                         </p>
                         <p className="text-sm text-gray-500 mt-1">
-                            This will delete all{" "}
-                            {selectedMajor?.numberOfYears || 4} years of this
-                            major.
+                            This will delete the base major and all{" "}
+                            {selectedMajor?.numberOfYears || 0} year-specific
+                            entries.
                         </p>
                         <div className="mt-2">
                             <p className="text-sm">
-                                Short tags that will be deleted:
+                                Short tags that will be deleted (example):
                             </p>
                             <p className="text-sm font-medium">
                                 {selectedMajor &&
@@ -974,7 +1008,6 @@ export default function MajorView() {
                             </p>
                         </div>
                     </div>
-
                     <DialogFooter>
                         <Button
                             variant="outline"
@@ -987,7 +1020,15 @@ export default function MajorView() {
                         </Button>
                         <Button
                             variant="destructive"
-                            onClick={handleDeleteMajor}
+                            onClick={() =>
+                                handleDeleteMajor(
+                                    selectedMajor,
+                                    setSelectedMajor,
+                                    setIsDeleteDialogOpen,
+                                    fetchMajors,
+                                    setStatusMessage
+                                )
+                            }
                         >
                             Delete
                         </Button>
