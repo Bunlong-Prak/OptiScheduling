@@ -61,7 +61,7 @@ export async function GET(request: Request) {
             })
             .from(courses)
             .innerJoin(sections, eq(sections.courseId, courses.id))
-            .innerJoin(courseHours, eq(courseHours.id, sections.courseHoursId))
+            .innerJoin(courseHours, eq(courseHours.sectionId, sections.id))
             .innerJoin(instructors, eq(instructors.id, courses.instructorId))
             .innerJoin(classrooms, eq(classrooms.id, sections.classroomId))
             .where(eq(courses.scheduleId, parseInt(scheduleId)));
@@ -112,14 +112,14 @@ export async function POST(request: Request) {
             await db.insert(courseHours).values({
                 day: day,
                 timeSlot: `${startTime} - ${endTime}`,
+                sectionId: sectionId,
             });
 
             // Get the ID of the newly created course hour
             const createdCourseHour = await db
                 .select({ id: courseHours.id })
                 .from(courseHours)
-                .where(eq(courseHours.timeSlot, `${startTime} - ${endTime}`))
-                .limit(1);
+                .where(eq(courseHours.sectionId, sectionId));
 
             if (createdCourseHour.length === 0) {
                 console.error(
@@ -128,13 +128,12 @@ export async function POST(request: Request) {
                 continue; // Skip to next assignment
             }
 
-            const courseHourId = createdCourseHour[0].id;
+            const courseHourId = createdCourseHour.id;
 
             // Update the section with the reference to the new course hour
             await db
                 .update(sections)
                 .set({
-                    courseHoursId: courseHourId,
                     classroomId: parseInt(classroom),
                 })
                 .where(eq(sections.id, sectionId));

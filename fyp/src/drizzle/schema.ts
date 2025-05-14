@@ -115,7 +115,6 @@ export const courseRelations = relations(courses, ({ many, one }) => ({
 export const sections = mysqlTable("sections", {
     id: int("id").primaryKey().autoincrement(),
     number: varchar("number", { length: 50 }).notNull(),
-    courseHoursId: int("course_hours_id").references(() => courseHours.id), // Foreign key to Course Hours
     courseId: int("course_id")
         .notNull()
         .references(() => courses.id, { onDelete: "cascade" }), // Foreign key to Course
@@ -131,6 +130,11 @@ export const courseHours = mysqlTable("course_hours", {
     id: int("id").primaryKey().autoincrement(),
     day: varchar("day", { length: 50 }).notNull(),
     timeSlot: varchar("time_slot", { length: 50 }).notNull(),
+    sectionId: int("section_id")
+        .notNull()
+        .references(() => sections.id, {
+            onDelete: "cascade",
+        }), // Foreign key to Section
 });
 
 export const majors = mysqlTable("majors", {

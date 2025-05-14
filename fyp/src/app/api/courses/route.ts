@@ -20,6 +20,12 @@ const majorSchema = z.object({
     major_name: z.string().min(1, { message: "Major name is required" }),
 });
 
+// Accept either string or object with major_name
+const majorInputSchema = z.union([
+    z.string().min(1, { message: "Major name is required" }),
+    majorSchema,
+]);
+
 const courseSchema = z.object({
     // Course Code: Required, alphanumeric with possible spaces/dashes, min 2 chars, max 10 chars
     code: z
@@ -75,9 +81,9 @@ const editCourseSchema = z.object({
         .string()
         .min(1, { message: "Course name must be at least 3 characters" })
         .max(100, { message: "Course name cannot exceed 100 characters" }),
-    // Major: Required
+    // Updated majorsList to support both string and object formats
     majorsList: z
-        .array(majorSchema)
+        .array(majorInputSchema)
         .min(1, { message: "At least one Major is required" }),
     // Color: Required
     color: z.string().min(1, { message: "Color is required" }),
@@ -92,6 +98,8 @@ const editCourseSchema = z.object({
     sectionsList: z
         .array(sectionSchema)
         .min(1, { message: "At least one section is required" }),
+    // Optional array of section IDs to delete
+    sectionsToDelete: z.array(z.number()).optional(),
 });
 
 const deleteCourseSchema = z.object({
@@ -340,13 +348,14 @@ export async function PATCH(request: Request) {
             sectionId,
             code,
             title,
-            majorList,
+            majorsList,
             color,
             instructor,
             duration,
             capacity,
             status,
             sectionsList,
+            sectionsToDelete,
         } = validationResult.data;
 
         if (!sectionId) {
@@ -402,12 +411,22 @@ export async function PATCH(request: Request) {
         if (duration !== undefined) updateData.duration = duration;
         if (capacity !== undefined) updateData.capacity = capacity;
         if (status !== undefined) updateData.status = status;
-        // Handle major update if provided
-        if (major !== undefined) {
+
+        // Handle majorsList update if provided - Using the first major as the primary
+        if (majorsList && majorsList.length > 0) {
+            // Use the first major as the primary major for the course
+            const primaryMajor = majorsList[0];
+
+            // Check if it's a string or an object with major_name
+            const primaryMajorName =
+                typeof primaryMajor === "string"
+                    ? primaryMajor
+                    : primaryMajor.major_name;
+
             const majorResult = await db
                 .select({ id: majors.id })
                 .from(majors)
-                .where(eq(majors.name, major))
+                .where(eq(majors.name, primaryMajorName))
                 .limit(1);
 
             if (majorResult.length === 0) {
@@ -418,6 +437,35 @@ export async function PATCH(request: Request) {
             }
 
             updateData.majorId = majorResult[0].id;
+
+            // Delete existing suggested majors for this course
+            await db
+                .delete(suggestedMajors)
+                .where(eq(suggestedMajors.courseId, courseId));
+
+            // Insert all majors into course_majors table
+            for (const majorItem of majorsList) {
+                // Handle both string and object formats
+                const majorName =
+                    typeof majorItem === "string"
+                        ? majorItem
+                        : majorItem.major_name;
+
+                // Look up the major ID
+                const majorEntry = await db
+                    .select({ id: majors.id })
+                    .from(majors)
+                    .where(eq(majors.name, majorName))
+                    .limit(1);
+
+                if (majorEntry.length > 0) {
+                    // Insert into course_majors junction table
+                    await db.insert(suggestedMajors).values({
+                        courseId: courseId,
+                        majorId: majorEntry[0].id,
+                    });
+                }
+            }
         }
 
         // Handle instructor update if provided
@@ -446,8 +494,6 @@ export async function PATCH(request: Request) {
                 .set(updateData)
                 .where(eq(courses.id, courseId));
         }
-
-        console.log("Here are the sectionsList:", sectionsList);
 
         // Handle section updates if provided
         if (sectionsList && sectionsList.length > 0) {
@@ -486,8 +532,8 @@ export async function PATCH(request: Request) {
         }
 
         // If any sections need to be deleted
-        if (body.sectionsToDelete && Array.isArray(body.sectionsToDelete)) {
-            for (const sectionIdToDelete of body.sectionsToDelete) {
+        if (sectionsToDelete && Array.isArray(sectionsToDelete)) {
+            for (const sectionIdToDelete of sectionsToDelete) {
                 await db
                     .delete(sections)
                     .where(eq(sections.id, sectionIdToDelete));
@@ -523,11 +569,22 @@ export async function PATCH(request: Request) {
             .from(sections)
             .where(eq(sections.courseId, courseId));
 
+        // Fetch all related majors for the course
+        const relatedMajors = await db
+            .select({
+                majorId: suggestedMajors.majorId,
+                majorName: majors.name,
+            })
+            .from(suggestedMajors)
+            .innerJoin(majors, eq(suggestedMajors.majorId, majors.id))
+            .where(eq(suggestedMajors.courseId, courseId));
+
         return NextResponse.json({
             message: "Course updated successfully",
             course: {
                 ...updatedCourse[0],
                 sections: updatedSections,
+                majors: relatedMajors.map((m) => m.majorName),
             },
         });
     } catch (error) {
@@ -597,6 +654,11 @@ export async function DELETE(request: Request) {
 
         // If no sections remain, delete the course
         if (remainingSections.length === 0) {
+            // First delete all suggested majors for this course
+            await db
+                .delete(suggestedMajors)
+                .where(eq(suggestedMajors.courseId, courseId));
+            // Then delete the course
             await db.delete(courses).where(eq(courses.id, courseId));
         }
 

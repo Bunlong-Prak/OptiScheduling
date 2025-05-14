@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "cf1e1628-3d2f-4d72-9188-5c389ca396ad",
+  "id": "9dc0fe5c-e333-47eb-90a9-a6a0d4a963f1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -138,10 +138,31 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "section_id": {
+          "name": "section_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "course_hours_section_id_sections_id_fk": {
+          "name": "course_hours_section_id_sections_id_fk",
+          "tableFrom": "course_hours",
+          "tableTo": "sections",
+          "columnsFrom": [
+            "section_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {
         "course_hours_id": {
           "name": "course_hours_id",
@@ -737,13 +758,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "course_hours_id": {
-          "name": "course_hours_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "course_id": {
           "name": "course_id",
           "type": "int",
@@ -761,19 +775,6 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "sections_course_hours_id_course_hours_id_fk": {
-          "name": "sections_course_hours_id_course_hours_id_fk",
-          "tableFrom": "sections",
-          "tableTo": "course_hours",
-          "columnsFrom": [
-            "course_hours_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "sections_course_id_courses_id_fk": {
           "name": "sections_course_id_courses_id_fk",
           "tableFrom": "sections",
