@@ -634,19 +634,19 @@ export default function TimetableViewClassroom() {
     // Function to remove a course from the timetable and return it to available courses
     const removeCourseFromTimetable = (course: TimetableCourse) => {
         if (!course.day || !course.classroom || !course.startTime) return;
-    
+
         // Find all keys for this course in the schedule
         const newSchedule = { ...schedule };
-    
+
         // Remove all occurrences of this course ID from schedule
         Object.keys(newSchedule).forEach((key) => {
             if (newSchedule[key].sectionId === course.sectionId) {
                 delete newSchedule[key];
             }
         });
-    
+
         setSchedule(newSchedule);
-    
+
         // Return the course to available courses list
         // Create a clean version without timetable-specific properties
         const cleanCourse = {
@@ -666,14 +666,14 @@ export default function TimetableViewClassroom() {
             isStart: undefined,
             isMiddle: undefined,
             isEnd: undefined,
-            colspan: undefined
+            colspan: undefined,
         };
-    
+
         // Only add back to available courses if it's not already there
         if (!availableCourses.some((c) => c.sectionId === course.sectionId)) {
             setAvailableCourses((prev) => [...prev, cleanCourse]);
         }
-    
+
         // Remove from assigned courses
         setAssignedCourses((prev) =>
             prev.filter((c) => c.sectionId !== course.sectionId)
@@ -688,27 +688,28 @@ export default function TimetableViewClassroom() {
     };
 
     // Handle drop - completely rewritten to prevent duplication
+    // Handle drop - completely rewritten to prevent duplication
     const handleDrop = (day: string, classroomId: string, timeSlot: string) => {
         if (!draggedCourse || timeSlots.length === 0) return;
-    
+
         console.log("Dropping course on slot:", timeSlot);
-    
+
         // Find the time slot that matches the drop location
         const matchingTimeSlot = timeSlots.find(
             (ts) => getTimeSlotKey(ts) === timeSlot
         );
-    
+
         if (!matchingTimeSlot) {
             console.error(`Time slot ${timeSlot} not found`);
             return;
         }
-    
+
         const timeSlotIndex = timeSlots.indexOf(matchingTimeSlot);
-    
+
         // Check if the time slot is already occupied
         const key = `${day}-${classroomId}-${timeSlot}`;
         const existingCourse = schedule[key];
-    
+
         // If dropping on the same course, do nothing
         if (
             existingCourse &&
@@ -716,7 +717,7 @@ export default function TimetableViewClassroom() {
         ) {
             return;
         }
-    
+
         // If dropping on a different course, show conflict message
         if (
             existingCourse &&
@@ -727,16 +728,18 @@ export default function TimetableViewClassroom() {
             );
             return;
         }
-    
+
         // CRITICAL FIX: Check if there's enough space for the course duration within the SAME DAY
         // First, calculate how many time slots are left in this day
         const remainingSlots = timeSlots.length - timeSlotIndex;
-        
+
         if (draggedCourse.duration > remainingSlots) {
-            alert("Courses cannot span across multiple days. Not enough time slots available for this course duration.");
+            alert(
+                "Courses cannot span across multiple days. Not enough time slots available for this course duration."
+            );
             return;
         }
-    
+
         // Check for conflicts in subsequent time slots
         for (let i = 1; i < draggedCourse.duration; i++) {
             if (timeSlotIndex + i >= timeSlots.length) break;
@@ -752,7 +755,7 @@ export default function TimetableViewClassroom() {
                 return;
             }
         }
-    
+
         // Create a new schedule and remove all instances of the dragged course
         const newSchedule = { ...schedule };
         Object.keys(newSchedule).forEach((scheduleKey) => {
@@ -762,7 +765,7 @@ export default function TimetableViewClassroom() {
                 delete newSchedule[scheduleKey];
             }
         });
-    
+
         // Calculate end time
         const endTimeIndex = timeSlotIndex + draggedCourse.duration - 1;
         const endTimeSlot =
@@ -775,7 +778,7 @@ export default function TimetableViewClassroom() {
                       ?.split("-")[1]
                       ?.trim() ||
                   timeSlots[timeSlots.length - 1].time_slot;
-    
+
         // Create course with assignment data
         const assignedCourse = {
             ...draggedCourse,
@@ -786,7 +789,7 @@ export default function TimetableViewClassroom() {
             endTime: endTimeSlot,
             classroom: classroomId,
         };
-    
+
         // Add the course to all its new time slots
         for (let i = 0; i < draggedCourse.duration; i++) {
             if (timeSlotIndex + i >= timeSlots.length) break;
@@ -794,7 +797,7 @@ export default function TimetableViewClassroom() {
                 timeSlots[timeSlotIndex + i]
             );
             const currentKey = `${day}-${classroomId}-${currentTimeSlot}`;
-    
+
             newSchedule[currentKey] = {
                 ...assignedCourse,
                 isStart: i === 0,
@@ -803,34 +806,34 @@ export default function TimetableViewClassroom() {
                 colspan: i === 0 ? draggedCourse.duration : 0,
             };
         }
-    
+
         // Update schedule state
         setSchedule(newSchedule);
-    
-        // Handle assignment lists based on where the course came from
-        const isFromAvailable = !draggedCourse.day;
-    
-        if (isFromAvailable) {
-            // Remove from available courses
-            setAvailableCourses((prev) =>
-                prev.filter(
-                    (course) => course.sectionId !== draggedCourse.sectionId
-                )
-            );
-    
-            // Add to assigned courses
-            setAssignedCourses((prev) => [
-                ...prev.filter((c) => c.sectionId !== draggedCourse.sectionId),
-                assignedCourse,
-            ]);
-        } else {
-            // Just update the position in assigned courses
+
+        // IMPORTANT FIX: Always remove the course from available courses when it's assigned
+        // No matter where it came from - ensure it's not in the available list
+        setAvailableCourses((prev) =>
+            prev.filter(
+                (course) => course.sectionId !== draggedCourse.sectionId
+            )
+        );
+
+        // Check if course is already in assigned courses
+        const isAlreadyAssigned = assignedCourses.some(
+            (c) => c.sectionId === draggedCourse.sectionId
+        );
+
+        if (isAlreadyAssigned) {
+            // Update the course position within assigned courses
             setAssignedCourses((prev) => {
                 const filtered = prev.filter(
                     (c) => c.sectionId !== draggedCourse.sectionId
                 );
                 return [...filtered, assignedCourse];
             });
+        } else {
+            // Add to assigned courses
+            setAssignedCourses((prev) => [...prev, assignedCourse]);
         }
     };
     // Handle course click - updated to use classroom instead of major
@@ -1018,12 +1021,12 @@ export default function TimetableViewClassroom() {
         const { day, classroomId, timeSlot } = cellToDelete;
         const key = `${day}-${classroomId}-${timeSlot}`;
         const course = schedule[key];
-    
+
         if (!course) return;
-    
+
         // Get the course sectionId to remove
         const courseId = course.sectionId;
-    
+
         // Create a new schedule without this course
         const newSchedule = { ...schedule };
         Object.keys(newSchedule).forEach((scheduleKey) => {
@@ -1031,9 +1034,9 @@ export default function TimetableViewClassroom() {
                 delete newSchedule[scheduleKey];
             }
         });
-    
+
         setSchedule(newSchedule);
-    
+
         // Return the course to available courses list with a clean state
         // Create a clean version without timetable-specific properties
         const cleanCourse = {
@@ -1053,22 +1056,22 @@ export default function TimetableViewClassroom() {
             isStart: undefined,
             isMiddle: undefined,
             isEnd: undefined,
-            colspan: undefined
+            colspan: undefined,
         };
-    
+
         // Only add back to available courses if it's not already there
         if (!availableCourses.some((c) => c.sectionId === courseId)) {
             setAvailableCourses((prev) => [...prev, cleanCourse]);
         }
-    
+
         // Remove from assigned courses
         setAssignedCourses((prev) =>
             prev.filter((c) => c.sectionId !== courseId)
         );
-    
+
         setIsDialogOpen(false);
     };
-    
+
     return (
         <div className="relative min-h-screen">
             <div className="flex justify-between items-center mb-8">

@@ -52,7 +52,7 @@ export type Course = {
     title: string;
     code: string;
     year: number;
-    major: string;
+    major: string[];
     color: string;
     firstName?: string;
     lastName?: string;

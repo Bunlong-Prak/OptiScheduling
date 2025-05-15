@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "9dc0fe5c-e333-47eb-90a9-a6a0d4a963f1",
+  "id": "b2dbf5cf-3b53-4feb-9aae-e9795ca956b2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -233,13 +233,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "major_id": {
-          "name": "major_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "instructor_id": {
           "name": "instructor_id",
           "type": "int",
@@ -261,19 +254,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "courses_major_id_majors_id_fk": {
-          "name": "courses_major_id_majors_id_fk",
-          "tableFrom": "courses",
-          "tableTo": "majors",
-          "columnsFrom": [
-            "major_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "courses_instructor_id_instructors_id_fk": {

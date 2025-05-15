@@ -98,9 +98,6 @@ export const courses = mysqlTable("courses", {
         .references(() => schedules.id, {
             onDelete: "cascade",
         }), // Foreign key to Schedule
-    majorId: int("major_id")
-        .notNull()
-        .references(() => majors.id), // Foreign key to Major
     instructorId: int("instructor_id")
         .notNull()
         .references(() => instructors.id), // Foreign key to Instructor

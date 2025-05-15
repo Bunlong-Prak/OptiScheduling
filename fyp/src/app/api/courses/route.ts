@@ -113,37 +113,38 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const scheduleId = searchParams.get("scheduleId");
-
         // Base query
         let query = db
             .select({
                 id: courses.id,
                 title: courses.title,
                 code: courses.code,
-                major: majors.name,
+                major: majors.name, // Changed from suggestedMajors.majorId to majors.name // Add this line to get the short tag
                 color: courses.color,
                 firstName: instructors.firstName,
                 lastName: instructors.lastName,
-                instructorId: instructors.id, // Include instructor ID
+                instructorId: instructors.id,
                 duration: courses.duration,
                 capacity: courses.capacity,
                 status: courses.status,
                 sectionId: sections.id,
                 section: sections.number,
-                classroom: classrooms.code, // Keep this for backward compatibility
+                classroom: classrooms.code,
             })
             .from(courses)
-            .innerJoin(majors, eq(courses.majorId, majors.id))
             .innerJoin(instructors, eq(courses.instructorId, instructors.id))
+            .innerJoin(
+                suggestedMajors,
+                eq(courses.id, suggestedMajors.courseId)
+            )
+            .innerJoin(majors, eq(suggestedMajors.majorId, majors.id))
             .innerJoin(sections, eq(courses.id, sections.courseId))
-            .leftJoin(classrooms, eq(sections.classroomId, classrooms.id)) // Changed to leftJoin for compatibility
-            .innerJoin(schedules, eq(courses.scheduleId, schedules.id)) as any; // Explicitly cast to any to allow mutation
-
+            .leftJoin(classrooms, eq(sections.classroomId, classrooms.id))
+            .innerJoin(schedules, eq(courses.scheduleId, schedules.id)) as any;
         // Add filter for scheduleId if provided
         if (scheduleId) {
             query = query.where(eq(courses.scheduleId, parseInt(scheduleId)));
         }
-
         const allCourses = await query;
         return NextResponse.json(allCourses);
     } catch (error: unknown) {
@@ -234,7 +235,6 @@ export async function POST(request: Request) {
         const insertCourse = await db.insert(courses).values({
             code: code,
             title: title,
-            majorId: majorResult[0].id,
             color: color,
             scheduleId: scheduleResult[0].id,
             instructorId: instructorResult[0].id,
@@ -248,7 +248,7 @@ export async function POST(request: Request) {
             where: and(
                 eq(courses.code, code),
                 eq(courses.title, title),
-                eq(courses.majorId, majorResult[0].id),
+
                 eq(courses.instructorId, instructorResult[0].id)
             ),
             orderBy: desc(courses.id),
@@ -556,7 +556,7 @@ export async function PATCH(request: Request) {
                 status: courses.status,
             })
             .from(courses)
-            .innerJoin(majors, eq(courses.majorId, majors.id))
+
             .innerJoin(instructors, eq(courses.instructorId, instructors.id))
             .where(eq(courses.id, courseId))
             .limit(1);
