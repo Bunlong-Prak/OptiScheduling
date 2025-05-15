@@ -238,6 +238,8 @@ export default function CoursesView() {
                 scheduleId: Number(scheduleId),
             };
 
+            console.log("Sending to API:", apiData);
+
             const response = await fetch("/api/courses", {
                 method: "POST",
                 headers: {
@@ -349,7 +351,7 @@ export default function CoursesView() {
                 sectionId: sectionId,
                 code: formData.code,
                 title: formData.title,
-                majors: selectedMajors,
+                majorsList: selectedMajors,  // CORRECT PARAMETER NAME
                 color: formData.color,
                 instructor: instructorId,
                 status: formData.status,
