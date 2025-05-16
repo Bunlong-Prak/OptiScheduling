@@ -174,12 +174,71 @@ export default function CoursesView() {
             // Calculate total pages
             setTotalPages(Math.ceil(processedCourses.length / ITEMS_PER_PAGE));
 
+            // Fetch majors data
+            if (scheduleId !== undefined) {
+                await fetchMajors(scheduleId);
+                // Fetch instructors data
+                await fetchInstructors(scheduleId);
+                // Fetch classrooms data
+            }
+
             // Continue with other fetches...
             // [rest of the existing code]
         } catch (error) {
             console.error("Error fetching data:", error);
             setStatusMessage({
                 text: "Failed to load courses. Please try again.",
+                type: "error",
+            });
+        }
+    };
+
+    // Add separate functions for fetching majors and instructors
+    const fetchMajors = async (scheduleId: string | string[]) => {
+        try {
+            const response = await fetch(
+                `/api/majors?scheduleId=${scheduleId}`
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("Error fetching majors:", errorData);
+                throw new Error(errorData.error || "Failed to fetch majors");
+            }
+
+            const majorsData = await response.json();
+            console.log("Majors data:", majorsData);
+            setMajors(majorsData);
+        } catch (error) {
+            console.error("Error fetching majors:", error);
+            setStatusMessage({
+                text: "Failed to load majors. Please try again.",
+                type: "error",
+            });
+        }
+    };
+
+    const fetchInstructors = async (scheduleId: string | string[]) => {
+        try {
+            const response = await fetch(
+                `/api/instructors?scheduleId=${scheduleId}`
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("Error fetching instructors:", errorData);
+                throw new Error(
+                    errorData.error || "Failed to fetch instructors"
+                );
+            }
+
+            const instructorsData = await response.json();
+            console.log("Instructors data:", instructorsData);
+            setInstructors(instructorsData);
+        } catch (error) {
+            console.error("Error fetching instructors:", error);
+            setStatusMessage({
+                text: "Failed to load instructors. Please try again.",
                 type: "error",
             });
         }
@@ -366,7 +425,7 @@ export default function CoursesView() {
                 sectionId: sectionId,
                 code: formData.code,
                 title: formData.title,
-                majorsList: selectedMajors,  // CORRECT PARAMETER NAME
+                majorsList: selectedMajors, // CORRECT PARAMETER NAME
                 color: formData.color,
                 instructor: instructorId,
                 status: formData.status,

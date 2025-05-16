@@ -1,6 +1,5 @@
 "use client";
 
-import { Course as ApiCourse } from "@/app/types";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -23,6 +22,7 @@ const days = [
 import {
     CellToDelete,
     Classroom,
+    Course,
     CourseHour,
     Schedule,
     ScheduleAssignment,
@@ -258,6 +258,7 @@ export default function TimetableViewClassroom() {
     }, [params.id]);
 
     // Fetch real courses from API
+    // Fetch real courses from API
     useEffect(() => {
         const fetchCourses = async () => {
             setIsLoading(true);
@@ -267,13 +268,47 @@ export default function TimetableViewClassroom() {
                     `/api/courses?scheduleId=${scheduleId}`
                 );
                 if (response.ok) {
-                    const coursesData: ApiCourse[] = await response.json();
+                    const coursesData: Course[] = await response.json();
+                    console.log("Original API response:", coursesData);
 
-                    // Transform API courses to the format needed for the timetable
-                    // Keep all sections instead of filtering out duplicates
-                    const transformedCourses = coursesData.map((course) => ({
+                    // Group courses by sectionId
+                    const coursesBySectionId: { [sectionId: string]: Course } =
+                        {};
+
+                    coursesData.forEach((course) => {
+                        const sectionId = course.sectionId.toString();
+
+                        if (!coursesBySectionId[sectionId]) {
+                            // First time seeing this section, create a new entry
+                            coursesBySectionId[sectionId] = { ...course };
+                        } else {
+                            // We've seen this section before, combine the majors
+                            const existingCourse =
+                                coursesBySectionId[sectionId];
+
+                            // If the current course has majors, add them
+                            if (course.major && Array.isArray(course.major)) {
+                                existingCourse.major = [
+                                    ...(existingCourse.major || []),
+                                    ...course.major.filter(
+                                        (m) => !existingCourse.major.includes(m)
+                                    ),
+                                ];
+                            }
+                        }
+                    });
+
+                    console.log(
+                        "Courses grouped by sectionId:",
+                        coursesBySectionId
+                    );
+
+                    // Transform for timetable
+                    const transformedCourses = Object.values(
+                        coursesBySectionId
+                    ).map((course: any) => ({
                         code: course.code,
-                        sectionId: course.sectionId, // Add sectionId for uniqueness
+                        sectionId: course.sectionId,
                         name: course.title,
                         color: colors_class[course.color],
                         duration: course.duration,
@@ -282,14 +317,14 @@ export default function TimetableViewClassroom() {
                         }`.trim(),
                         section: course.section,
                         room: course.classroom || "TBA",
-                        uniqueId: `${course.code}-${course.section}`, // Create a uniqueId combining code and section
+                        uniqueId: `${course.code}-${course.section}`,
+                        majors: course.major || [], // Use the majors array from your type
                     }));
 
-                    // No more filtering out duplicates by course code
+                    console.log("Transformed courses:", transformedCourses);
                     setAvailableCourses(transformedCourses);
                 } else {
                     console.error("Failed to fetch courses");
-                    // Fallback to empty array if API fails
                     setAvailableCourses([]);
                 }
             } catch (error) {
