@@ -36,7 +36,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { colors, getColorName } from "@/components/custom/colors";
-import { Checkbox } from "@/components/ui/checkbox";
+
 // Number of courses to show per page
 const ITEMS_PER_PAGE = 10;
 
@@ -61,8 +61,8 @@ export default function CoursesView() {
     >([]);
     const [currentSection, setCurrentSection] = useState("");
 
-    // State for managing majors - updated to handle checkbox selection
-    const [selectedMajors, setSelectedMajors] = useState<string[]>([]);
+    // State for managing major - updated to handle single selection
+    const [selectedMajor, setSelectedMajor] = useState<string>("");
 
     const [formData, setFormData] = useState({
         title: "",
@@ -129,9 +129,6 @@ export default function CoursesView() {
             const coursesData = await response.json();
             console.log("Original API response:", coursesData);
 
-            // The issue might be that the backend is already filtering out duplicate sectionIds
-            // Let's try a completely different approach - modify the API response directly
-
             // Group all courses with the same sectionId
             const combinedCourses = [];
             const sectionIdMap = new Map();
@@ -143,17 +140,8 @@ export default function CoursesView() {
                 if (!sectionIdMap.has(sectionIdKey)) {
                     sectionIdMap.set(sectionIdKey, {
                         ...course,
-                        major: [], // Initialize empty majors array
+                        major: course.major, // Just store the single major
                     });
-                }
-
-                // Add the major to the course's majors array
-                const currentCourse = sectionIdMap.get(sectionIdKey);
-                if (
-                    course.major &&
-                    !currentCourse.major.includes(course.major)
-                ) {
-                    currentCourse.major.push(course.major);
                 }
             });
 
@@ -179,11 +167,7 @@ export default function CoursesView() {
                 await fetchMajors(scheduleId);
                 // Fetch instructors data
                 await fetchInstructors(scheduleId);
-                // Fetch classrooms data
             }
-
-            // Continue with other fetches...
-            // [rest of the existing code]
         } catch (error) {
             console.error("Error fetching data:", error);
             setStatusMessage({
@@ -268,23 +252,14 @@ export default function CoursesView() {
         }
     };
 
-    // Toggle major selection
-    const toggleMajor = (majorName: string) => {
-        setSelectedMajors((prev) =>
-            prev.includes(majorName)
-                ? prev.filter((m) => m !== majorName)
-                : [...prev, majorName]
-        );
-    };
-
     const handleAddCourse = async () => {
-        // Make sure we have at least one section and one major
-        if (sections.length === 0 || selectedMajors.length === 0) {
+        // Make sure we have at least one section and a major
+        if (sections.length === 0 || !selectedMajor) {
             setStatusMessage({
                 text:
                     sections.length === 0
                         ? "At least one section is required"
-                        : "At least one major is required",
+                        : "A major is required",
                 type: "error",
             });
             return;
@@ -298,11 +273,11 @@ export default function CoursesView() {
                 section: item.section_id,
             }));
 
-            // Create API payload with the base course data, all majors, and schedule ID
+            // Create API payload with the base course data, the major, and schedule ID
             const apiData = {
                 code: formData.code,
                 title: formData.title,
-                majorsList: selectedMajors,
+                majorsList: [selectedMajor], // Send as an array with one element
                 color: formData.color,
                 instructor: formData.instructorId,
                 status: formData.status,
@@ -349,13 +324,13 @@ export default function CoursesView() {
     };
 
     const handleEditCourse = async () => {
-        // Make sure we have at least one section and one major
-        if (sections.length === 0 || selectedMajors.length === 0) {
+        // Make sure we have at least one section and a major
+        if (sections.length === 0 || !selectedMajor) {
             setStatusMessage({
                 text:
                     sections.length === 0
                         ? "At least one section is required"
-                        : "At least one major is required",
+                        : "A major is required",
                 type: "error",
             });
             return;
@@ -409,7 +384,7 @@ export default function CoursesView() {
             if (
                 !formData.title ||
                 !formData.code ||
-                selectedMajors.length === 0 ||
+                !selectedMajor ||
                 !formData.color ||
                 !formData.status
             ) {
@@ -425,7 +400,7 @@ export default function CoursesView() {
                 sectionId: sectionId,
                 code: formData.code,
                 title: formData.title,
-                majorsList: selectedMajors, // CORRECT PARAMETER NAME
+                majorsList: [selectedMajor], // Send as an array with one element
                 color: formData.color,
                 instructor: instructorId,
                 status: formData.status,
@@ -558,8 +533,8 @@ export default function CoursesView() {
         setSelectedCourse(null);
         setSections([]);
         setCurrentSection("");
-        // Reset majors state
-        setSelectedMajors([]);
+        // Reset major state
+        setSelectedMajor("");
     };
 
     const addSection = () => {
@@ -605,7 +580,7 @@ export default function CoursesView() {
         ]);
 
         // Initialize with the current major
-        setSelectedMajors([course.major]);
+        setSelectedMajor(course.major);
 
         setIsEditDialogOpen(true);
     };
@@ -708,10 +683,7 @@ export default function CoursesView() {
                                             }`.trim() || "—"}
                                         </td>
                                         <td className="border p-2">
-                                            {course.major &&
-                                            course.major.length > 0
-                                                ? course.major.join(", ")
-                                                : course.major || "—"}
+                                            {course.major || "—"}
                                         </td>
                                         <td className="border p-2">
                                             {course.capacity}
@@ -796,95 +768,27 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        {/* Majors List UI - Updated to use dropdown with multiple select */}
-                        <div className="space-y-4">
-                            <div>
-                                <Label className="text-base font-medium">
-                                    Majors
-                                </Label>
-                                <p className="text-sm text-gray-500 mt-1">
-                                    Select majors for this course
-                                </p>
-                            </div>
-
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        role="combobox"
-                                        className="w-full justify-between"
-                                    >
-                                        {selectedMajors.length > 0
-                                            ? `${selectedMajors.length} major${
-                                                  selectedMajors.length > 1
-                                                      ? "s"
-                                                      : ""
-                                              } selected`
-                                            : "Select majors..."}
-                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-full p-0">
-                                    <Command>
-                                        <CommandInput placeholder="Search major..." />
-                                        <CommandEmpty>
-                                            No major found.
-                                        </CommandEmpty>
-                                        <CommandGroup className="max-h-64 overflow-y-auto">
-                                            {majors.map((major) => (
-                                                <CommandItem
-                                                    key={major.id}
-                                                    value={major.name}
-                                                    onSelect={() =>
-                                                        toggleMajor(major.name)
-                                                    }
-                                                >
-                                                    <div className="flex items-center space-x-2 w-full">
-                                                        <Checkbox
-                                                            id={`major-${major.id}`}
-                                                            checked={selectedMajors.includes(
-                                                                major.name
-                                                            )}
-                                                            onCheckedChange={() =>
-                                                                toggleMajor(
-                                                                    major.name
-                                                                )
-                                                            }
-                                                            className="mr-2"
-                                                        />
-                                                        <span>
-                                                            {major.name}
-                                                        </span>
-                                                    </div>
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
-
-                            {selectedMajors.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                    {selectedMajors.map((majorName) => (
-                                        <div
-                                            key={majorName}
-                                            className="bg-blue-50 px-2 py-1 rounded-md text-sm flex items-center"
+                        {/* Major dropdown - Single select */}
+                        <div className="space-y-2">
+                            <Label htmlFor="major">Major</Label>
+                            <Select
+                                value={selectedMajor}
+                                onValueChange={setSelectedMajor}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a major" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {majors.map((major) => (
+                                        <SelectItem
+                                            key={major.id}
+                                            value={major.name}
                                         >
-                                            {majorName}
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() =>
-                                                    toggleMajor(majorName)
-                                                }
-                                                className="h-5 w-5 ml-1 p-0"
-                                            >
-                                                <Trash className="h-3 w-3" />
-                                            </Button>
-                                        </div>
+                                            {major.name}
+                                        </SelectItem>
                                     ))}
-                                </div>
-                            )}
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         {/* New Status Input */}
@@ -1100,7 +1004,7 @@ export default function CoursesView() {
                                 !formData.title ||
                                 !formData.code ||
                                 !formData.instructorId ||
-                                selectedMajors.length === 0 ||
+                                !selectedMajor ||
                                 sections.length === 0
                             }
                         >
@@ -1146,95 +1050,27 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        {/* Majors List UI - Updated to use dropdown with multiple select for Edit Dialog */}
-                        <div className="space-y-4">
-                            <div>
-                                <Label className="text-base font-medium">
-                                    Majors
-                                </Label>
-                                <p className="text-sm text-gray-500 mt-1">
-                                    Select majors for this course
-                                </p>
-                            </div>
-
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        role="combobox"
-                                        className="w-full justify-between"
-                                    >
-                                        {selectedMajors.length > 0
-                                            ? `${selectedMajors.length} major${
-                                                  selectedMajors.length > 1
-                                                      ? "s"
-                                                      : ""
-                                              } selected`
-                                            : "Select majors..."}
-                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-full p-0">
-                                    <Command>
-                                        <CommandInput placeholder="Search major..." />
-                                        <CommandEmpty>
-                                            No major found.
-                                        </CommandEmpty>
-                                        <CommandGroup className="max-h-64 overflow-y-auto">
-                                            {majors.map((major) => (
-                                                <CommandItem
-                                                    key={major.id}
-                                                    value={major.name}
-                                                    onSelect={() =>
-                                                        toggleMajor(major.name)
-                                                    }
-                                                >
-                                                    <div className="flex items-center space-x-2 w-full">
-                                                        <Checkbox
-                                                            id={`edit-major-${major.id}`}
-                                                            checked={selectedMajors.includes(
-                                                                major.name
-                                                            )}
-                                                            onCheckedChange={() =>
-                                                                toggleMajor(
-                                                                    major.name
-                                                                )
-                                                            }
-                                                            className="mr-2"
-                                                        />
-                                                        <span>
-                                                            {major.name}
-                                                        </span>
-                                                    </div>
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
-
-                            {selectedMajors.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                    {selectedMajors.map((majorName) => (
-                                        <div
-                                            key={majorName}
-                                            className="bg-blue-50 px-2 py-1 rounded-md text-sm flex items-center"
+                        {/* Major dropdown - Single select for Edit Dialog */}
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-major">Major</Label>
+                            <Select
+                                value={selectedMajor}
+                                onValueChange={setSelectedMajor}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a major" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {majors.map((major) => (
+                                        <SelectItem
+                                            key={major.id}
+                                            value={major.name}
                                         >
-                                            {majorName}
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() =>
-                                                    toggleMajor(majorName)
-                                                }
-                                                className="h-5 w-5 ml-1 p-0"
-                                            >
-                                                <Trash className="h-3 w-3" />
-                                            </Button>
-                                        </div>
+                                            {major.name}
+                                        </SelectItem>
                                     ))}
-                                </div>
-                            )}
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         {/* Status field */}
@@ -1452,7 +1288,7 @@ export default function CoursesView() {
                                 !formData.title ||
                                 !formData.code ||
                                 !formData.instructorId ||
-                                selectedMajors.length === 0 ||
+                                !selectedMajor ||
                                 sections.length === 0
                             }
                         >

@@ -5,7 +5,6 @@ import {
     majors,
     schedules,
     sections,
-    suggestedMajors,
 } from "@/drizzle/schema";
 import { db } from "@/lib/db";
 import { and, desc, eq } from "drizzle-orm";
@@ -16,16 +15,7 @@ const sectionSchema = z.object({
     section: z.string().min(1, { message: "Section number is required" }),
 });
 
-const majorSchema = z.object({
-    major_name: z.string().min(1, { message: "Major name is required" }),
-});
-
-// Accept either string or object with major_name
-const majorInputSchema = z.union([
-    z.string().min(1, { message: "Major name is required" }),
-    majorSchema,
-]);
-
+// Course schema for creating new courses
 const courseSchema = z.object({
     // Course Code: Required, alphanumeric with possible spaces/dashes, min 2 chars, max 10 chars
     code: z
@@ -41,10 +31,11 @@ const courseSchema = z.object({
         .string()
         .min(1, { message: "Course name must be at least 3 characters" })
         .max(100, { message: "Course name cannot exceed 100 characters" }),
-    // Change majorsList to accept an array of strings instead
+    // Single major name - will be converted to majorId
     majorsList: z
         .array(z.string())
-        .min(1, { message: "At least one Major is required" }),
+        .min(1, { message: "A Major is required" })
+        .max(1, { message: "Only one major can be selected" }),
     // Color: Required
     color: z.string().min(1, { message: "Color is required" }),
     // Instructor: Required - now clearly defined as ID
@@ -63,6 +54,7 @@ const courseSchema = z.object({
     }),
 });
 
+// Schema for editing courses
 const editCourseSchema = z.object({
     sectionId: z.number({
         required_error: "Section ID is required",
@@ -81,10 +73,11 @@ const editCourseSchema = z.object({
         .string()
         .min(1, { message: "Course name must be at least 3 characters" })
         .max(100, { message: "Course name cannot exceed 100 characters" }),
-    // Updated majorsList to support both string and object formats
+    // Single major name - will be converted to majorId
     majorsList: z
-        .array(majorInputSchema)
-        .min(1, { message: "At least one Major is required" }),
+        .array(z.string())
+        .min(1, { message: "A Major is required" })
+        .max(1, { message: "Only one major can be selected" }),
     // Color: Required
     color: z.string().min(1, { message: "Color is required" }),
     // Instructor: Required - now clearly defined as ID
@@ -113,13 +106,13 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const scheduleId = searchParams.get("scheduleId");
-        // Base query
+        // Base query - directly join with majors using majorId in courses
         let query = db
             .select({
                 id: courses.id,
                 title: courses.title,
                 code: courses.code,
-                major: majors.name, // Changed from suggestedMajors.majorId to majors.name // Add this line to get the short tag
+                major: majors.name, // Get major name from direct join
                 color: courses.color,
                 firstName: instructors.firstName,
                 lastName: instructors.lastName,
@@ -133,14 +126,11 @@ export async function GET(request: Request) {
             })
             .from(courses)
             .innerJoin(instructors, eq(courses.instructorId, instructors.id))
-            .innerJoin(
-                suggestedMajors,
-                eq(courses.id, suggestedMajors.courseId)
-            )
-            .innerJoin(majors, eq(suggestedMajors.majorId, majors.id))
+            .innerJoin(majors, eq(courses.majorId, majors.id)) // Direct join with majors
             .innerJoin(sections, eq(courses.id, sections.courseId))
             .leftJoin(classrooms, eq(sections.classroomId, classrooms.id))
             .innerJoin(schedules, eq(courses.scheduleId, schedules.id)) as any;
+
         // Add filter for scheduleId if provided
         if (scheduleId) {
             query = query.where(eq(courses.scheduleId, parseInt(scheduleId)));
@@ -186,22 +176,22 @@ export async function POST(request: Request) {
             scheduleId,
         } = validationResult.data;
 
-        // Ensure we have at least one major
-        if (!Array.isArray(majorsList) || majorsList.length === 0) {
+        // Ensure we have exactly one major
+        if (!Array.isArray(majorsList) || majorsList.length !== 1) {
             return NextResponse.json(
-                { error: "At least one major is required" },
+                { error: "Exactly one major is required" },
                 { status: 400 }
             );
         }
 
-        // Use the first major in the list for the course
-        const primaryMajor = majorsList[0];
+        // Get the major name from the array (there's only one element)
+        const majorName = majorsList[0];
 
-        // Look up the major ID for the primary major
+        // Look up the major ID for the provided major name
         const majorResult = await db
             .select({ id: majors.id })
             .from(majors)
-            .where(eq(majors.name, primaryMajor))
+            .where(eq(majors.name, majorName))
             .limit(1);
 
         if (majorResult.length === 0) {
@@ -210,6 +200,9 @@ export async function POST(request: Request) {
                 { status: 404 }
             );
         }
+
+        // Get the major ID
+        const majorId = majorResult[0].id;
 
         // Use instructor directly as the ID (since frontend now sends ID)
         const instructorResult = await db
@@ -231,13 +224,14 @@ export async function POST(request: Request) {
             .where(eq(schedules.id, scheduleId))
             .limit(1);
 
-        // Insert the course without using returning()
+        // Insert the course with majorId
         const insertCourse = await db.insert(courses).values({
             code: code,
             title: title,
             color: color,
             scheduleId: scheduleResult[0].id,
             instructorId: instructorResult[0].id,
+            majorId: majorId, // Store majorId directly in the course table
             duration: duration,
             capacity: capacity,
             status: status,
@@ -248,7 +242,6 @@ export async function POST(request: Request) {
             where: and(
                 eq(courses.code, code),
                 eq(courses.title, title),
-
                 eq(courses.instructorId, instructorResult[0].id)
             ),
             orderBy: desc(courses.id),
@@ -259,24 +252,6 @@ export async function POST(request: Request) {
                 { error: "Failed to create course" },
                 { status: 500 }
             );
-        }
-
-        // Insert all majors into course_majors table
-        for (const majorName of majorsList) {
-            // Look up the major ID
-            const majorEntry = await db
-                .select({ id: majors.id })
-                .from(majors)
-                .where(eq(majors.name, majorName))
-                .limit(1);
-
-            if (majorEntry.length > 0) {
-                // Insert into course_majors junction table
-                await db.insert(suggestedMajors).values({
-                    courseId: newCourse.id,
-                    majorId: majorEntry[0].id,
-                });
-            }
         }
 
         // Array to collect created course sections
@@ -312,7 +287,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // Return course with sections and majors
+        // Return course with sections
         return NextResponse.json({
             message: "Course created successfully",
         });
@@ -412,21 +387,16 @@ export async function PATCH(request: Request) {
         if (capacity !== undefined) updateData.capacity = capacity;
         if (status !== undefined) updateData.status = status;
 
-        // Handle majorsList update if provided - Using the first major as the primary
-        if (majorsList && majorsList.length > 0) {
-            // Use the first major as the primary major for the course
-            const primaryMajor = majorsList[0];
+        // Handle majorsList update if provided - Using the single major
+        if (majorsList && majorsList.length === 1) {
+            // Get the major name
+            const majorName = majorsList[0];
 
-            // Check if it's a string or an object with major_name
-            const primaryMajorName =
-                typeof primaryMajor === "string"
-                    ? primaryMajor
-                    : primaryMajor.major_name;
-
+            // Look up the major ID
             const majorResult = await db
                 .select({ id: majors.id })
                 .from(majors)
-                .where(eq(majors.name, primaryMajorName))
+                .where(eq(majors.name, majorName))
                 .limit(1);
 
             if (majorResult.length === 0) {
@@ -436,36 +406,8 @@ export async function PATCH(request: Request) {
                 );
             }
 
+            // Set the majorId for direct update
             updateData.majorId = majorResult[0].id;
-
-            // Delete existing suggested majors for this course
-            await db
-                .delete(suggestedMajors)
-                .where(eq(suggestedMajors.courseId, courseId));
-
-            // Insert all majors into course_majors table
-            for (const majorItem of majorsList) {
-                // Handle both string and object formats
-                const majorName =
-                    typeof majorItem === "string"
-                        ? majorItem
-                        : majorItem.major_name;
-
-                // Look up the major ID
-                const majorEntry = await db
-                    .select({ id: majors.id })
-                    .from(majors)
-                    .where(eq(majors.name, majorName))
-                    .limit(1);
-
-                if (majorEntry.length > 0) {
-                    // Insert into course_majors junction table
-                    await db.insert(suggestedMajors).values({
-                        courseId: courseId,
-                        majorId: majorEntry[0].id,
-                    });
-                }
-            }
         }
 
         // Handle instructor update if provided
@@ -540,7 +482,7 @@ export async function PATCH(request: Request) {
             }
         }
 
-        // Fetch the updated course with its sections
+        // Fetch the updated course with its sections and direct major
         const updatedCourse = await db
             .select({
                 id: courses.id,
@@ -556,7 +498,7 @@ export async function PATCH(request: Request) {
                 status: courses.status,
             })
             .from(courses)
-
+            .innerJoin(majors, eq(courses.majorId, majors.id)) // Direct join for major
             .innerJoin(instructors, eq(courses.instructorId, instructors.id))
             .where(eq(courses.id, courseId))
             .limit(1);
@@ -569,22 +511,11 @@ export async function PATCH(request: Request) {
             .from(sections)
             .where(eq(sections.courseId, courseId));
 
-        // Fetch all related majors for the course
-        const relatedMajors = await db
-            .select({
-                majorId: suggestedMajors.majorId,
-                majorName: majors.name,
-            })
-            .from(suggestedMajors)
-            .innerJoin(majors, eq(suggestedMajors.majorId, majors.id))
-            .where(eq(suggestedMajors.courseId, courseId));
-
         return NextResponse.json({
             message: "Course updated successfully",
             course: {
                 ...updatedCourse[0],
                 sections: updatedSections,
-                majors: relatedMajors.map((m) => m.majorName),
             },
         });
     } catch (error) {
@@ -654,11 +585,7 @@ export async function DELETE(request: Request) {
 
         // If no sections remain, delete the course
         if (remainingSections.length === 0) {
-            // First delete all suggested majors for this course
-            await db
-                .delete(suggestedMajors)
-                .where(eq(suggestedMajors.courseId, courseId));
-            // Then delete the course
+            // Then delete the course (majorId is now stored directly in the course table)
             await db.delete(courses).where(eq(courses.id, courseId));
         }
 

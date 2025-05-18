@@ -52,7 +52,7 @@ export type Course = {
     title: string;
     code: string;
     year: number;
-    major: string[];
+    major: string;
     color: string;
     firstName?: string;
     lastName?: string;
@@ -103,7 +103,7 @@ export type ClassroomFormData = {
 export type MajorFormData = {
     name: string;
     shortTag: string;
-    numberOfYears: number; // Number of years for this major
+    // Number of years for this major
 };
 
 export type TimeConstraintFormData = {

@@ -1,5 +1,4 @@
 // lib/validations/majors.ts - Updated Schema
-
 import { z } from "zod";
 
 export const createMajorSchema = z.object({
@@ -22,9 +21,6 @@ export const createMajorSchema = z.object({
     scheduleId: z.number({
         required_error: "Schedule ID is required",
     }),
-
-    // Year: Optional, can be null
-    year: z.number().int().nullable().optional(),
 });
 
 export const editMajorSchema = z.object({
@@ -44,9 +40,6 @@ export const editMajorSchema = z.object({
         .string()
         .min(1, { message: "Short tag is required" })
         .max(10, { message: "Short tag cannot exceed 10 characters" }),
-
-    // Year: Optional, can be null
-    year: z.number().int().nullable().optional(),
 });
 
 export const deleteMajorSchema = z.object({

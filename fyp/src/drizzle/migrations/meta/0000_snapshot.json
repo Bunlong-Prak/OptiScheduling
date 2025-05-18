@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "b2dbf5cf-3b53-4feb-9aae-e9795ca956b2",
+  "id": "0bedb0f4-8bd1-4af4-846d-1259bc2fee45",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -233,6 +233,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "major_id": {
+          "name": "major_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "instructor_id": {
           "name": "instructor_id",
           "type": "int",
@@ -254,6 +261,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "courses_major_id_majors_id_fk": {
+          "name": "courses_major_id_majors_id_fk",
+          "tableFrom": "courses",
+          "tableTo": "majors",
+          "columnsFrom": [
+            "major_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "courses_instructor_id_instructors_id_fk": {
@@ -554,13 +574,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "year": {
-          "name": "year",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "schedule_id": {
           "name": "schedule_id",
           "type": "int",
@@ -854,71 +867,6 @@
       "compositePrimaryKeys": {
         "sessions_id": {
           "name": "sessions_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraint": {}
-    },
-    "suggested_majors": {
-      "name": "suggested_majors",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": true
-        },
-        "major_id": {
-          "name": "major_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "course_id": {
-          "name": "course_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "suggested_majors_major_id_majors_id_fk": {
-          "name": "suggested_majors_major_id_majors_id_fk",
-          "tableFrom": "suggested_majors",
-          "tableTo": "majors",
-          "columnsFrom": [
-            "major_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "suggested_majors_course_id_courses_id_fk": {
-          "name": "suggested_majors_course_id_courses_id_fk",
-          "tableFrom": "suggested_majors",
-          "tableTo": "courses",
-          "columnsFrom": [
-            "course_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "suggested_majors_id": {
-          "name": "suggested_majors_id",
           "columns": [
             "id"
           ]

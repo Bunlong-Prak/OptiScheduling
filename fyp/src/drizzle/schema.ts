@@ -98,6 +98,9 @@ export const courses = mysqlTable("courses", {
         .references(() => schedules.id, {
             onDelete: "cascade",
         }), // Foreign key to Schedule
+    majorId: int("major_id")
+        .notNull()
+        .references(() => majors.id), // Foreign key to Major
     instructorId: int("instructor_id")
         .notNull()
         .references(() => instructors.id), // Foreign key to Instructor
@@ -138,22 +141,11 @@ export const majors = mysqlTable("majors", {
     id: int("id").primaryKey().autoincrement(),
     name: varchar("name", { length: 255 }).notNull(),
     shortTag: varchar("short_tag", { length: 50 }).notNull(),
-    year: int("year"), // New field - can be null for base majors
     scheduleId: int("schedule_id")
         .notNull()
         .references(() => schedules.id, {
             onDelete: "cascade",
         }),
-});
-
-export const suggestedMajors = mysqlTable("suggested_majors", {
-    id: int("id").primaryKey().autoincrement(),
-    majorId: int("major_id")
-        .notNull()
-        .references(() => majors.id),
-    courseId: int("course_id")
-        .notNull()
-        .references(() => courses.id),
 });
 
 export const classrooms = mysqlTable("classrooms", {
