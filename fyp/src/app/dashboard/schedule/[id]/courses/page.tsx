@@ -308,7 +308,7 @@ export default function CoursesView() {
                 });
             } else {
                 const error = await response.json();
-                console.error("Error adding courses:", error);
+                console.error("Error adding courses:", error, response);
                 setStatusMessage({
                     text: "Failed to add course. Please try again.",
                     type: "error",
