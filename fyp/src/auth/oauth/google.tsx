@@ -2,9 +2,7 @@ import * as arctic from "arctic";
 
 const clientId = process.env.GOOGLE_CLIENT_ID || "";
 const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
-const redirectURI = "http://localhost:3000/api/oauth/google/callback";
-
-console.log(clientId, clientSecret, redirectURI);
+const redirectURI = `${process.env.DOMAIN}/api/oauth/google/callback`;
 
 if (!clientId && clientSecret) {
     console.log(

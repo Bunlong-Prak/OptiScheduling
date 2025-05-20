@@ -428,11 +428,11 @@ export default function ClassroomView() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     {isTypesLoading ? (
-                                        <SelectItem value="" disabled>
+                                        <SelectItem value="loading" disabled>
                                             Loading classroom types...
                                         </SelectItem>
                                     ) : classroomTypes.length === 0 ? (
-                                        <SelectItem value="" disabled>
+                                        <SelectItem value="none" disabled>
                                             No classroom types available
                                         </SelectItem>
                                     ) : (
@@ -510,11 +510,11 @@ export default function ClassroomView() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     {isTypesLoading ? (
-                                        <SelectItem value="" disabled>
+                                        <SelectItem value="loading" disabled>
                                             Loading classroom types...
                                         </SelectItem>
                                     ) : classroomTypes.length === 0 ? (
-                                        <SelectItem value="" disabled>
+                                        <SelectItem value="none" disabled>
                                             No classroom types available
                                         </SelectItem>
                                     ) : (
