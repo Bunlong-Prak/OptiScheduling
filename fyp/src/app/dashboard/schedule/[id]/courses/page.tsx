@@ -41,6 +41,7 @@ import { colors, getColorName } from "@/components/custom/colors";
 const ITEMS_PER_PAGE = 10;
 
 export default function CoursesView() {
+    // State variables
     const [courses, setCourses] = useState<Course[]>([]);
     const [majors, setMajors] = useState<Major[]>([]);
     const [instructors, setInstructors] = useState<Instructor[]>([]);
@@ -57,9 +58,19 @@ export default function CoursesView() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
     const [sections, setSections] = useState<
-        { id: number; section_id: string }[]
+        {
+            id: number;
+            section_id: string;
+            instructor_id?: string;
+            instructor_name?: string;
+        }[]
     >([]);
     const [currentSection, setCurrentSection] = useState("");
+    const [currentInstructor, setCurrentInstructor] = useState<{
+        id: string;
+        name: string;
+    } | null>(null);
+    const [currentInstructorOpen, setCurrentInstructorOpen] = useState(false);
 
     // State for managing major - updated to handle single selection
     const [selectedMajor, setSelectedMajor] = useState<string>("");
@@ -68,15 +79,11 @@ export default function CoursesView() {
         title: "",
         code: "",
         color: "",
-        instructorId: "",
-        instructorName: "",
         duration: 0,
         capacity: 0,
         section: "",
         status: "",
     });
-
-    const [instructorOpen, setInstructorOpen] = useState(false);
 
     // Clear status message after 5 seconds
     useEffect(() => {
@@ -252,6 +259,47 @@ export default function CoursesView() {
         }
     };
 
+    // Function to add a section with instructor
+    const addSection = () => {
+        if (!currentSection) return;
+
+        const newSection = {
+            id: Date.now(), // Using timestamp for unique ID
+            section_id: currentSection,
+            instructor_id: currentInstructor?.id ?? undefined,
+            instructor_name: currentInstructor?.name ?? undefined,
+        };
+
+        setSections([...sections, newSection]);
+
+        // Reset inputs
+        setCurrentSection("");
+        setCurrentInstructor(null);
+    };
+
+    // Function to update instructor for an existing section
+    const updateSectionInstructor = (
+        sectionId: number,
+        instructorId: string,
+        instructorName: string
+    ) => {
+        setSections(
+            sections.map((section) =>
+                section.id === sectionId
+                    ? {
+                          ...section,
+                          instructor_id: instructorId,
+                          instructor_name: instructorName,
+                      }
+                    : section
+            )
+        );
+    };
+
+    const removeSection = (id: number) => {
+        setSections(sections.filter((section) => section.id !== id));
+    };
+
     const handleAddCourse = async () => {
         // Make sure we have at least one section and a major
         if (sections.length === 0 || !selectedMajor) {
@@ -268,9 +316,10 @@ export default function CoursesView() {
         try {
             const scheduleId = params.id;
 
-            // Create an array of sections
+            // Create an array of sections with instructors
             const sectionsList = sections.map((item) => ({
                 section: item.section_id,
+                instructorId: item.instructor_id || null,
             }));
 
             // Create API payload with the base course data, the major, and schedule ID
@@ -279,11 +328,10 @@ export default function CoursesView() {
                 title: formData.title,
                 majorsList: [selectedMajor], // Send as an array with one element
                 color: formData.color,
-                instructor: formData.instructorId,
                 status: formData.status,
                 duration: Number(formData.duration),
                 capacity: Number(formData.capacity),
-                sectionsList: sectionsList,
+                sectionsList: sectionsList, // Now includes instructor IDs per section
                 scheduleId: Number(scheduleId),
             };
 
@@ -308,7 +356,7 @@ export default function CoursesView() {
                 });
             } else {
                 const error = await response.json();
-                console.error("Error adding courses:", error, response);
+                console.error("Error adding courses:", error);
                 setStatusMessage({
                     text: "Failed to add course. Please try again.",
                     type: "error",
@@ -360,25 +408,11 @@ export default function CoursesView() {
                 return;
             }
 
-            // Create an array of sections
+            // Create an array of sections with instructors
             const sectionsList = sections.map((item) => ({
                 section: item.section_id,
+                instructorId: item.instructor_id || null,
             }));
-
-            // Convert instructorId to string safely, without using trim()
-            const instructorId =
-                formData.instructorId !== null &&
-                formData.instructorId !== undefined
-                    ? String(formData.instructorId)
-                    : "";
-
-            if (!instructorId) {
-                setStatusMessage({
-                    text: "Instructor ID is required",
-                    type: "error",
-                });
-                return;
-            }
 
             // Pre-validate all required fields
             if (
@@ -402,11 +436,10 @@ export default function CoursesView() {
                 title: formData.title,
                 majorsList: [selectedMajor], // Send as an array with one element
                 color: formData.color,
-                instructor: instructorId,
                 status: formData.status,
                 duration: Number(formData.duration) || 1,
                 capacity: Number(formData.capacity) || 1,
-                sectionsList: sectionsList,
+                sectionsList: sectionsList, // Now includes instructor IDs per section
             };
 
             console.log("Sending to API:", apiData);
@@ -523,8 +556,6 @@ export default function CoursesView() {
             title: "",
             code: "",
             color: "",
-            instructorId: "",
-            instructorName: "",
             duration: 0,
             capacity: 0,
             section: "",
@@ -533,26 +564,9 @@ export default function CoursesView() {
         setSelectedCourse(null);
         setSections([]);
         setCurrentSection("");
+        setCurrentInstructor(null);
         // Reset major state
         setSelectedMajor("");
-    };
-
-    const addSection = () => {
-        if (currentSection) {
-            const newSection = {
-                id: Date.now(), // Using timestamp for unique ID
-                section_id: currentSection,
-            };
-
-            setSections([...sections, newSection]);
-
-            // Reset section input
-            setCurrentSection("");
-        }
-    };
-
-    const removeSection = (id: number) => {
-        setSections(sections.filter((section) => section.id !== id));
     };
 
     const openEditDialog = (course: Course) => {
@@ -561,21 +575,25 @@ export default function CoursesView() {
             title: course.title,
             code: course.code,
             color: course.color,
-            instructorId: course.instructorId || "",
-            instructorName: `${course.firstName || ""} ${
-                course.lastName || ""
-            }`.trim(),
             duration: course.duration,
             capacity: course.capacity,
             section: course.section,
             status: course.status || "offline",
         });
 
-        // Initialize with the current section
+        // Get the instructor for this section
+        const instructorName = `${course.firstName || ""} ${
+            course.lastName || ""
+        }`.trim();
+
+        // Initialize with the current section and its instructor
         setSections([
             {
                 id: 1,
                 section_id: course.section,
+                instructor_id: course.instructorId,
+                instructor_name:
+                    instructorName !== "" ? instructorName : undefined,
             },
         ]);
 
@@ -589,7 +607,6 @@ export default function CoursesView() {
         setSelectedCourse(course);
         setIsDeleteDialogOpen(true);
     };
-
     return (
         <div>
             {statusMessage && (
@@ -835,69 +852,6 @@ export default function CoursesView() {
                             </Select>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="instructor">Instructor</Label>
-                            <Popover
-                                open={instructorOpen}
-                                onOpenChange={setInstructorOpen}
-                            >
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        role="combobox"
-                                        aria-expanded={instructorOpen}
-                                        className="w-full justify-between"
-                                    >
-                                        {formData.instructorName
-                                            ? formData.instructorName
-                                            : "Select instructor..."}
-                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-full p-0">
-                                    <Command>
-                                        <CommandInput placeholder="Search instructor..." />
-                                        <CommandEmpty>
-                                            No instructor found.
-                                        </CommandEmpty>
-                                        <CommandGroup>
-                                            {instructors.map((instructor) => (
-                                                <CommandItem
-                                                    key={instructor.id}
-                                                    value={`${instructor.first_name} ${instructor.last_name} (ID: ${instructor.id})`}
-                                                    onSelect={() => {
-                                                        setFormData({
-                                                            ...formData,
-                                                            instructorId:
-                                                                instructor.id.toString(),
-                                                            instructorName: `${instructor.first_name} ${instructor.last_name}`,
-                                                        });
-                                                        setInstructorOpen(
-                                                            false
-                                                        );
-                                                    }}
-                                                >
-                                                    <Check
-                                                        className={`mr-2 h-4 w-4 ${
-                                                            formData.instructorId ===
-                                                            instructor.id.toString()
-                                                                ? "opacity-100"
-                                                                : "opacity-0"
-                                                        }`}
-                                                    />
-                                                    {instructor.first_name}{" "}
-                                                    {instructor.last_name}
-                                                    <span className="ml-2 text-xs text-gray-500">
-                                                        (ID: {instructor.id})
-                                                    </span>
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="duration">
@@ -926,14 +880,14 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        {/* Section list */}
+                        {/* Section list with instructors */}
                         <div className="space-y-6">
                             <div>
                                 <Label className="text-base font-medium">
                                     Sections
                                 </Label>
                                 <p className="text-sm text-gray-500 mt-1">
-                                    Add course sections
+                                    Add course sections with instructors
                                 </p>
                             </div>
 
@@ -942,75 +896,219 @@ export default function CoursesView() {
                                     {sections.map((section) => (
                                         <div
                                             key={section.id}
-                                            className="p-3 border rounded-md flex justify-between items-center"
+                                            className="p-3 border rounded-md"
                                         >
-                                            <div className="flex items-center space-x-3">
+                                            <div className="flex justify-between items-center mb-2">
                                                 <span className="bg-blue-50 px-2 py-1 rounded-md text-sm">
                                                     Section {section.section_id}
                                                 </span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        removeSection(
+                                                            section.id
+                                                        )
+                                                    }
+                                                    className="h-8 w-8"
+                                                >
+                                                    <Trash className="h-4 w-4" />
+                                                </Button>
                                             </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    removeSection(section.id)
-                                                }
-                                                className="h-8 w-8"
-                                            >
-                                                <Trash className="h-4 w-4" />
-                                            </Button>
+                                            <div className="mt-2">
+                                                <Label className="text-sm">
+                                                    Instructor
+                                                </Label>
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            role="combobox"
+                                                            className="w-full justify-between mt-1"
+                                                        >
+                                                            {section.instructor_name ||
+                                                                "Select instructor..."}
+                                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-full p-0">
+                                                        <Command>
+                                                            <CommandInput placeholder="Search instructor..." />
+                                                            <CommandEmpty>
+                                                                No instructor
+                                                                found.
+                                                            </CommandEmpty>
+                                                            <CommandGroup>
+                                                                {instructors.map(
+                                                                    (
+                                                                        instructor
+                                                                    ) => (
+                                                                        <CommandItem
+                                                                            key={
+                                                                                instructor.id
+                                                                            }
+                                                                            value={`${instructor.first_name} ${instructor.last_name}`}
+                                                                            onSelect={() => {
+                                                                                updateSectionInstructor(
+                                                                                    section.id,
+                                                                                    instructor.id.toString(),
+                                                                                    `${instructor.first_name} ${instructor.last_name}`
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <Check
+                                                                                className={`mr-2 h-4 w-4 ${
+                                                                                    section.instructor_id ===
+                                                                                    instructor.id.toString()
+                                                                                        ? "opacity-100"
+                                                                                        : "opacity-0"
+                                                                                }`}
+                                                                            />
+                                                                            {
+                                                                                instructor.first_name
+                                                                            }{" "}
+                                                                            {
+                                                                                instructor.last_name
+                                                                            }
+                                                                        </CommandItem>
+                                                                    )
+                                                                )}
+                                                            </CommandGroup>
+                                                        </Command>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
                             )}
 
-                            <div className="flex items-end gap-3">
-                                <div className="flex-1 space-y-2">
-                                    <Label htmlFor="section">Section</Label>
-                                    <Input
-                                        id="section"
-                                        placeholder="Enter section number"
-                                        value={currentSection}
-                                        onChange={(e) =>
-                                            setCurrentSection(e.target.value)
-                                        }
-                                    />
+                            <div className="grid gap-4">
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="section">
+                                            Section Number
+                                        </Label>
+                                        <Input
+                                            id="section"
+                                            placeholder="Enter section number"
+                                            value={currentSection}
+                                            onChange={(e) =>
+                                                setCurrentSection(
+                                                    e.target.value
+                                                )
+                                            }
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="section-instructor">
+                                            Instructor (Optional)
+                                        </Label>
+                                        <Popover
+                                            open={currentInstructorOpen}
+                                            onOpenChange={
+                                                setCurrentInstructorOpen
+                                            }
+                                        >
+                                            <PopoverTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    role="combobox"
+                                                    aria-expanded={
+                                                        currentInstructorOpen
+                                                    }
+                                                    className="w-full justify-between"
+                                                >
+                                                    {currentInstructor?.name ||
+                                                        "Select instructor..."}
+                                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-full p-0">
+                                                <Command>
+                                                    <CommandInput placeholder="Search instructor..." />
+                                                    <CommandEmpty>
+                                                        No instructor found.
+                                                    </CommandEmpty>
+                                                    <CommandGroup>
+                                                        {instructors.map(
+                                                            (instructor) => (
+                                                                <CommandItem
+                                                                    key={
+                                                                        instructor.id
+                                                                    }
+                                                                    value={`${instructor.first_name} ${instructor.last_name}`}
+                                                                    onSelect={() => {
+                                                                        setCurrentInstructor(
+                                                                            {
+                                                                                id: instructor.id.toString(),
+                                                                                name: `${instructor.first_name} ${instructor.last_name}`,
+                                                                            }
+                                                                        );
+                                                                        setCurrentInstructorOpen(
+                                                                            false
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Check
+                                                                        className={`mr-2 h-4 w-4 ${
+                                                                            currentInstructor?.id ===
+                                                                            instructor.id.toString()
+                                                                                ? "opacity-100"
+                                                                                : "opacity-0"
+                                                                        }`}
+                                                                    />
+                                                                    {
+                                                                        instructor.first_name
+                                                                    }{" "}
+                                                                    {
+                                                                        instructor.last_name
+                                                                    }
+                                                                </CommandItem>
+                                                            )
+                                                        )}
+                                                    </CommandGroup>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
                                 </div>
 
                                 <Button
                                     onClick={addSection}
                                     disabled={!currentSection}
-                                    className="flex-shrink-0"
+                                    className="w-full mt-2"
                                 >
                                     <Plus className="h-4 w-4 mr-2" /> Add
+                                    Section
                                 </Button>
                             </div>
                         </div>
-                    </div>
 
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                resetForm();
-                                setIsAddDialogOpen(false);
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleAddCourse}
-                            disabled={
-                                !formData.title ||
-                                !formData.code ||
-                                !formData.instructorId ||
-                                !selectedMajor ||
-                                sections.length === 0
-                            }
-                        >
-                            Add Course
-                        </Button>
-                    </DialogFooter>
+                        <DialogFooter>
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    resetForm();
+                                    setIsAddDialogOpen(false);
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleAddCourse}
+                                disabled={
+                                    !formData.title ||
+                                    !formData.code ||
+                                    !selectedMajor ||
+                                    sections.length === 0
+                                }
+                            >
+                                Add Course
+                            </Button>
+                        </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
 
@@ -1117,69 +1215,6 @@ export default function CoursesView() {
                             </Select>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-instructor">Instructor</Label>
-                            <Popover
-                                open={instructorOpen}
-                                onOpenChange={setInstructorOpen}
-                            >
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        role="combobox"
-                                        aria-expanded={instructorOpen}
-                                        className="w-full justify-between"
-                                    >
-                                        {formData.instructorName
-                                            ? formData.instructorName
-                                            : "Select instructor..."}
-                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-full p-0">
-                                    <Command>
-                                        <CommandInput placeholder="Search instructor..." />
-                                        <CommandEmpty>
-                                            No instructor found.
-                                        </CommandEmpty>
-                                        <CommandGroup>
-                                            {instructors.map((instructor) => (
-                                                <CommandItem
-                                                    key={instructor.id}
-                                                    value={`${instructor.first_name} ${instructor.last_name} (ID: ${instructor.id})`}
-                                                    onSelect={() => {
-                                                        setFormData({
-                                                            ...formData,
-                                                            instructorId:
-                                                                instructor.id.toString(),
-                                                            instructorName: `${instructor.first_name} ${instructor.last_name}`,
-                                                        });
-                                                        setInstructorOpen(
-                                                            false
-                                                        );
-                                                    }}
-                                                >
-                                                    <Check
-                                                        className={`mr-2 h-4 w-4 ${
-                                                            formData.instructorId ===
-                                                            instructor.id.toString()
-                                                                ? "opacity-100"
-                                                                : "opacity-0"
-                                                        }`}
-                                                    />
-                                                    {instructor.first_name}{" "}
-                                                    {instructor.last_name}
-                                                    <span className="ml-2 text-xs text-gray-500">
-                                                        (ID: {instructor.id})
-                                                    </span>
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="edit-duration">
@@ -1208,14 +1243,14 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        {/* Section list */}
+                        {/* Section list with instructors - Edit Dialog */}
                         <div className="space-y-6">
                             <div>
                                 <Label className="text-base font-medium">
                                     Sections
                                 </Label>
                                 <p className="text-sm text-gray-500 mt-1">
-                                    Add course sections
+                                    Add course sections with instructors
                                 </p>
                             </div>
 
@@ -1224,77 +1259,219 @@ export default function CoursesView() {
                                     {sections.map((section) => (
                                         <div
                                             key={section.id}
-                                            className="p-3 border rounded-md flex justify-between items-center"
+                                            className="p-3 border rounded-md"
                                         >
-                                            <div className="flex items-center space-x-3">
+                                            <div className="flex justify-between items-center mb-2">
                                                 <span className="bg-blue-50 px-2 py-1 rounded-md text-sm">
                                                     Section {section.section_id}
                                                 </span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        removeSection(
+                                                            section.id
+                                                        )
+                                                    }
+                                                    className="h-8 w-8"
+                                                >
+                                                    <Trash className="h-4 w-4" />
+                                                </Button>
                                             </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    removeSection(section.id)
-                                                }
-                                                className="h-8 w-8"
-                                            >
-                                                <Trash className="h-4 w-4" />
-                                            </Button>
+                                            <div className="mt-2">
+                                                <Label className="text-sm">
+                                                    Instructor
+                                                </Label>
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            role="combobox"
+                                                            className="w-full justify-between mt-1"
+                                                        >
+                                                            {section.instructor_name ||
+                                                                "Select instructor..."}
+                                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-full p-0">
+                                                        <Command>
+                                                            <CommandInput placeholder="Search instructor..." />
+                                                            <CommandEmpty>
+                                                                No instructor
+                                                                found.
+                                                            </CommandEmpty>
+                                                            <CommandGroup>
+                                                                {instructors.map(
+                                                                    (
+                                                                        instructor
+                                                                    ) => (
+                                                                        <CommandItem
+                                                                            key={
+                                                                                instructor.id
+                                                                            }
+                                                                            value={`${instructor.first_name} ${instructor.last_name}`}
+                                                                            onSelect={() => {
+                                                                                updateSectionInstructor(
+                                                                                    section.id,
+                                                                                    instructor.id.toString(),
+                                                                                    `${instructor.first_name} ${instructor.last_name}`
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <Check
+                                                                                className={`mr-2 h-4 w-4 ${
+                                                                                    section.instructor_id ===
+                                                                                    instructor.id.toString()
+                                                                                        ? "opacity-100"
+                                                                                        : "opacity-0"
+                                                                                }`}
+                                                                            />
+                                                                            {
+                                                                                instructor.first_name
+                                                                            }{" "}
+                                                                            {
+                                                                                instructor.last_name
+                                                                            }
+                                                                        </CommandItem>
+                                                                    )
+                                                                )}
+                                                            </CommandGroup>
+                                                        </Command>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
                             )}
 
-                            <div className="flex items-end gap-3">
-                                <div className="flex-1 space-y-2">
-                                    <Label htmlFor="edit-section">
-                                        Section
-                                    </Label>
-                                    <Input
-                                        id="edit-section"
-                                        placeholder="Enter section number"
-                                        value={currentSection}
-                                        onChange={(e) =>
-                                            setCurrentSection(e.target.value)
-                                        }
-                                    />
+                            <div className="grid gap-4">
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="edit-section">
+                                            Section Number
+                                        </Label>
+                                        <Input
+                                            id="edit-section"
+                                            placeholder="Enter section number"
+                                            value={currentSection}
+                                            onChange={(e) =>
+                                                setCurrentSection(
+                                                    e.target.value
+                                                )
+                                            }
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="edit-section-instructor">
+                                            Instructor (Optional)
+                                        </Label>
+                                        <Popover
+                                            open={currentInstructorOpen}
+                                            onOpenChange={
+                                                setCurrentInstructorOpen
+                                            }
+                                        >
+                                            <PopoverTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    role="combobox"
+                                                    aria-expanded={
+                                                        currentInstructorOpen
+                                                    }
+                                                    className="w-full justify-between"
+                                                >
+                                                    {currentInstructor?.name ||
+                                                        "Select instructor..."}
+                                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-full p-0">
+                                                <Command>
+                                                    <CommandInput placeholder="Search instructor..." />
+                                                    <CommandEmpty>
+                                                        No instructor found.
+                                                    </CommandEmpty>
+                                                    <CommandGroup>
+                                                        {instructors.map(
+                                                            (instructor) => (
+                                                                <CommandItem
+                                                                    key={
+                                                                        instructor.id
+                                                                    }
+                                                                    value={`${instructor.first_name} ${instructor.last_name}`}
+                                                                    onSelect={() => {
+                                                                        setCurrentInstructor(
+                                                                            {
+                                                                                id: instructor.id.toString(),
+                                                                                name: `${instructor.first_name} ${instructor.last_name}`,
+                                                                            }
+                                                                        );
+                                                                        setCurrentInstructorOpen(
+                                                                            false
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Check
+                                                                        className={`mr-2 h-4 w-4 ${
+                                                                            currentInstructor?.id ===
+                                                                            instructor.id.toString()
+                                                                                ? "opacity-100"
+                                                                                : "opacity-0"
+                                                                        }`}
+                                                                    />
+                                                                    {
+                                                                        instructor.first_name
+                                                                    }{" "}
+                                                                    {
+                                                                        instructor.last_name
+                                                                    }
+                                                                </CommandItem>
+                                                            )
+                                                        )}
+                                                    </CommandGroup>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
                                 </div>
 
                                 <Button
                                     onClick={addSection}
                                     disabled={!currentSection}
-                                    className="flex-shrink-0"
+                                    className="w-full mt-2"
                                 >
                                     <Plus className="h-4 w-4 mr-2" /> Add
+                                    Section
                                 </Button>
                             </div>
                         </div>
-                    </div>
 
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                resetForm();
-                                setIsEditDialogOpen(false);
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleEditCourse}
-                            disabled={
-                                !formData.title ||
-                                !formData.code ||
-                                !formData.instructorId ||
-                                !selectedMajor ||
-                                sections.length === 0
-                            }
-                        >
-                            Save Changes
-                        </Button>
-                    </DialogFooter>
+                        <DialogFooter>
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    resetForm();
+                                    setIsEditDialogOpen(false);
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleEditCourse}
+                                disabled={
+                                    !formData.title ||
+                                    !formData.code ||
+                                    !selectedMajor ||
+                                    sections.length === 0
+                                }
+                            >
+                                Save Changes
+                            </Button>
+                        </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
 
