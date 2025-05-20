@@ -176,15 +176,24 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-
+    
         if (name === "numTimeSlots") {
-            // Parse the number and ensure it's a valid positive integer
-            const numValue = parseInt(value);
-            if (!isNaN(numValue) && numValue >= 0) {
+            // Allow empty string (when deleting) or valid numbers
+            if (value === "") {
                 setFormData({
                     ...formData,
-                    [name]: numValue,
+                    [name]: 0,
                 });
+            } else {
+                // Parse the number and ensure it's a valid positive integer
+                const numValue = parseInt(value);
+                // Add maximum limit of 24 time slots
+                if (!isNaN(numValue) && numValue >= 0 && numValue <= 24) {
+                    setFormData({
+                        ...formData,
+                        [name]: numValue,
+                    });
+                }
             }
         } else {
             setFormData({
@@ -293,7 +302,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                 startDate: formData.startDate,
                 endDate: formData.endDate,
                 timeSlots: formData.timeSlots,
-                userId: "1", // Replace with actual user ID
+                userId:  authUser.id, 
             };
 
             console.log("Sending update data:", apiData);
@@ -354,6 +363,13 @@ export default function Dashboard({ authUser }: DashboardProps) {
         } catch (error) {
             console.error("Error deleting schedule:", error);
         }
+    };
+
+    // Generate placeholder based on index
+    const getTimePlaceholder = (index: number, isStartTime: boolean) => {
+        const baseHour = 8 + index; // Start from 08:00 and increment by 1 hour for each index
+        const hour = isStartTime ? baseHour : baseHour + 1; // End time is start time + 1
+        return hour < 10 ? `0${hour}:00` : `${hour}:00`; // Format with leading zero if needed
     };
 
     return (
@@ -466,7 +482,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                             <Input
                                 id="name"
                                 name="name"
-                                placeholder="e.g., Schedule 1 2025-2026"
+                                placeholder="Schedule 1"
                                 value={formData.name}
                                 onChange={handleInputChange}
                             />
@@ -478,7 +494,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 <Input
                                     id="startDate"
                                     name="startDate"
-                                    placeholder="e.g., Jan 5, 2025"
+                                    placeholder="5 May 2025"
                                     value={formData.startDate}
                                     onChange={handleInputChange}
                                 />
@@ -489,7 +505,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 <Input
                                     id="endDate"
                                     name="endDate"
-                                    placeholder="e.g., May 15, 2025"
+                                    placeholder="5 May 2026"
                                     value={formData.endDate}
                                     onChange={handleInputChange}
                                 />
@@ -531,7 +547,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                             </Label>
                                             <Input
                                                 id={`startTime-${index}`}
-                                                placeholder="e.g., 9:00 AM"
+                                                placeholder={getTimePlaceholder(index, true)}
                                                 value={timeSlot.startTime}
                                                 onChange={(e) =>
                                                     handleTimeSlotChange(
@@ -548,7 +564,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                             </Label>
                                             <Input
                                                 id={`endTime-${index}`}
-                                                placeholder="e.g., 10:30 AM"
+                                                placeholder={getTimePlaceholder(index, false)}
                                                 value={timeSlot.endTime}
                                                 onChange={(e) =>
                                                     handleTimeSlotChange(
@@ -592,7 +608,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                             <Input
                                 id="edit-name"
                                 name="name"
-                                placeholder="e.g., Schedule 1 2025-2026"
+                                placeholder="Schedule 1"
                                 value={formData.name}
                                 onChange={handleInputChange}
                             />
@@ -606,7 +622,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 <Input
                                     id="edit-startDate"
                                     name="startDate"
-                                    placeholder="e.g., Jan 5, 2025"
+                                    placeholder="10 May 2025"
                                     value={formData.startDate}
                                     onChange={handleInputChange}
                                 />
@@ -617,7 +633,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 <Input
                                     id="edit-endDate"
                                     name="endDate"
-                                    placeholder="e.g., May 15, 2025"
+                                    placeholder="10 May 2026"
                                     value={formData.endDate}
                                     onChange={handleInputChange}
                                 />
@@ -659,7 +675,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                             </Label>
                                             <Input
                                                 id={`edit-startTime-${index}`}
-                                                placeholder="e.g., 9:00 AM"
+                                                placeholder={getTimePlaceholder(index, true)}
                                                 value={timeSlot.startTime}
                                                 onChange={(e) =>
                                                     handleTimeSlotChange(
@@ -678,7 +694,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                             </Label>
                                             <Input
                                                 id={`edit-endTime-${index}`}
-                                                placeholder="e.g., 10:30 AM"
+                                                placeholder={getTimePlaceholder(index, false)}
                                                 value={timeSlot.endTime}
                                                 onChange={(e) =>
                                                     handleTimeSlotChange(
