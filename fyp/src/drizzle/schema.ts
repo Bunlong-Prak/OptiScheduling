@@ -101,9 +101,6 @@ export const courses = mysqlTable("courses", {
     majorId: int("major_id")
         .notNull()
         .references(() => majors.id), // Foreign key to Major
-    instructorId: int("instructor_id")
-        .notNull()
-        .references(() => instructors.id), // Foreign key to Instructor
 });
 
 export const courseRelations = relations(courses, ({ many, one }) => ({
@@ -119,6 +116,9 @@ export const sections = mysqlTable("sections", {
         .notNull()
         .references(() => courses.id, { onDelete: "cascade" }), // Foreign key to Course
     classroomId: int("classroom_id").references(() => classrooms.id), // Foreign key to Classroom
+    instructorId: int("instructor_id")
+        .notNull()
+        .references(() => instructors.id), // Foreign key to Instructor
 });
 
 export const sectionRelations = relations(sections, ({ many, one }) => ({

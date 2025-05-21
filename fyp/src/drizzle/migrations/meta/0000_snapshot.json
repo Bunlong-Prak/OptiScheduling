@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "0bedb0f4-8bd1-4af4-846d-1259bc2fee45",
+  "id": "826c6a78-0852-4cfc-8f29-ceb6c2d42fa9",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -239,13 +239,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "instructor_id": {
-          "name": "instructor_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
         }
       },
       "indexes": {},
@@ -269,19 +262,6 @@
           "tableTo": "majors",
           "columnsFrom": [
             "major_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "courses_instructor_id_instructors_id_fk": {
-          "name": "courses_instructor_id_instructors_id_fk",
-          "tableFrom": "courses",
-          "tableTo": "instructors",
-          "columnsFrom": [
-            "instructor_id"
           ],
           "columnsTo": [
             "id"
@@ -764,6 +744,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "instructor_id": {
+          "name": "instructor_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {},
@@ -787,6 +774,19 @@
           "tableTo": "classrooms",
           "columnsFrom": [
             "classroom_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "sections_instructor_id_instructors_id_fk": {
+          "name": "sections_instructor_id_instructors_id_fk",
+          "tableFrom": "sections",
+          "tableTo": "instructors",
+          "columnsFrom": [
+            "instructor_id"
           ],
           "columnsTo": [
             "id"

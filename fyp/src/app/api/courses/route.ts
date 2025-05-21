@@ -13,6 +13,7 @@ import { z } from "zod";
 
 const sectionSchema = z.object({
     section: z.string().min(1, { message: "Section number is required" }),
+    instructorId: z.string().optional(), // Optional instructor ID
 });
 
 // Course schema for creating new courses
@@ -38,9 +39,7 @@ const courseSchema = z.object({
         .max(1, { message: "Only one major can be selected" }),
     // Color: Required
     color: z.string().min(1, { message: "Color is required" }),
-    // Instructor: Required - now clearly defined as ID
-    instructor: z.string().min(1, { message: "Instructor ID is required" }),
-    // Duration: Required
+
     duration: z.number().min(1, { message: "Duration is required" }),
     // Capacity: Required
     capacity: z.number().min(1, { message: "Capacity is required" }),
@@ -80,9 +79,7 @@ const editCourseSchema = z.object({
         .max(1, { message: "Only one major can be selected" }),
     // Color: Required
     color: z.string().min(1, { message: "Color is required" }),
-    // Instructor: Required - now clearly defined as ID
-    instructor: z.string().min(1, { message: "Instructor ID is required" }),
-    // Duration: Required
+    // Instructor: Required - now clearly defined as I
     duration: z.number().min(1, { message: "Duration is required" }),
     // Capacity: Required
     capacity: z.number().min(1, { message: "Capacity is required" }),
@@ -116,7 +113,7 @@ export async function GET(request: Request) {
                 color: courses.color,
                 firstName: instructors.firstName,
                 lastName: instructors.lastName,
-                instructorId: instructors.id,
+                instructorId: instructors.id, // Include instructor ID
                 duration: courses.duration,
                 capacity: courses.capacity,
                 status: courses.status,
@@ -125,9 +122,9 @@ export async function GET(request: Request) {
                 classroom: classrooms.code,
             })
             .from(courses)
-            .innerJoin(instructors, eq(courses.instructorId, instructors.id))
             .innerJoin(majors, eq(courses.majorId, majors.id)) // Direct join with majors
             .innerJoin(sections, eq(courses.id, sections.courseId))
+            .innerJoin(instructors, eq(sections.instructorId, instructors.id))
             .leftJoin(classrooms, eq(sections.classroomId, classrooms.id))
             .innerJoin(schedules, eq(courses.scheduleId, schedules.id)) as any;
 
@@ -168,7 +165,7 @@ export async function POST(request: Request) {
             title,
             majorsList,
             color,
-            instructor,
+
             duration,
             capacity,
             status,
@@ -204,20 +201,6 @@ export async function POST(request: Request) {
         // Get the major ID
         const majorId = majorResult[0].id;
 
-        // Use instructor directly as the ID (since frontend now sends ID)
-        const instructorResult = await db
-            .select({ id: instructors.id })
-            .from(instructors)
-            .where(eq(instructors.id, parseInt(instructor))) // Convert string ID to number
-            .limit(1);
-
-        if (instructorResult.length === 0) {
-            return NextResponse.json(
-                { error: "Instructor not found" },
-                { status: 404 }
-            );
-        }
-
         const scheduleResult = await db
             .select({ id: schedules.id })
             .from(schedules)
@@ -230,7 +213,7 @@ export async function POST(request: Request) {
             title: title,
             color: color,
             scheduleId: scheduleResult[0].id,
-            instructorId: instructorResult[0].id,
+
             majorId: majorId, // Store majorId directly in the course table
             duration: duration,
             capacity: capacity,
@@ -239,11 +222,7 @@ export async function POST(request: Request) {
 
         // Get the inserted course ID
         const newCourse = await db.query.courses.findFirst({
-            where: and(
-                eq(courses.code, code),
-                eq(courses.title, title),
-                eq(courses.instructorId, instructorResult[0].id)
-            ),
+            where: and(eq(courses.code, code), eq(courses.title, title)),
             orderBy: desc(courses.id),
         });
 
@@ -259,13 +238,20 @@ export async function POST(request: Request) {
 
         // Process each section
         for (const sectionData of sectionsList) {
-            const { section } = sectionData;
+            const { section, instructorId } = sectionData;
 
             // Insert the section
-            await db.insert(sections).values({
-                number: section,
-                courseId: newCourse.id,
-            });
+            if (instructorId !== undefined) {
+                await db.insert(sections).values({
+                    number: section,
+                    courseId: newCourse.id,
+                    instructorId: parseInt(instructorId), // Use the instructor ID directly
+                });
+            } else {
+                console.warn(
+                    `Skipping section ${section} due to missing instructorId`
+                );
+            }
 
             // Fetch the created section data for response
             const sectionDetails = await db
@@ -325,7 +311,6 @@ export async function PATCH(request: Request) {
             title,
             majorsList,
             color,
-            instructor,
             duration,
             capacity,
             status,
@@ -410,25 +395,6 @@ export async function PATCH(request: Request) {
             updateData.majorId = majorResult[0].id;
         }
 
-        // Handle instructor update if provided
-        if (instructor !== undefined) {
-            // Use instructor directly as the ID (since frontend now sends ID)
-            const instructorResult = await db
-                .select({ id: instructors.id })
-                .from(instructors)
-                .where(eq(instructors.id, parseInt(instructor))) // Convert string ID to number
-                .limit(1);
-
-            if (instructorResult.length === 0) {
-                return NextResponse.json(
-                    { error: "Instructor not found" },
-                    { status: 404 }
-                );
-            }
-
-            updateData.instructorId = instructorResult[0].id;
-        }
-
         // Update the course
         if (Object.keys(updateData).length > 0) {
             await db
@@ -453,7 +419,7 @@ export async function PATCH(request: Request) {
 
             // Process each section in the request
             for (const sectionData of sectionsList) {
-                const { section } = sectionData;
+                const { section, instructorId } = sectionData;
 
                 // Check if section already exists
                 if (existingSectionMap.has(section)) {
@@ -463,12 +429,19 @@ export async function PATCH(request: Request) {
                         `Section ${section} already exists, skipping creation`
                     );
                 } else {
-                    // Section doesn't exist, so create it
-                    console.log(`Creating new section ${section}`);
-                    await db.insert(sections).values({
-                        number: section,
-                        courseId: courseId,
-                    });
+                    // Convert string ID to number
+                    if (instructorId !== undefined) {
+                        await db.insert(sections).values({
+                            number: section,
+                            courseId: courseId,
+                            instructorId: parseInt(instructorId), // Use the provided instructor ID or the existing one
+                        });
+                    } else {
+                        // Optionally handle the missing instructorId case here (e.g., throw error or skip)
+                        console.warn(
+                            `Skipping section ${section} due to missing instructorId`
+                        );
+                    }
                 }
             }
         }
@@ -482,41 +455,8 @@ export async function PATCH(request: Request) {
             }
         }
 
-        // Fetch the updated course with its sections and direct major
-        const updatedCourse = await db
-            .select({
-                id: courses.id,
-                title: courses.title,
-                code: courses.code,
-                major: majors.name,
-                color: courses.color,
-                firstName: instructors.firstName,
-                lastName: instructors.lastName,
-                instructorId: instructors.id, // Include instructor ID
-                duration: courses.duration,
-                capacity: courses.capacity,
-                status: courses.status,
-            })
-            .from(courses)
-            .innerJoin(majors, eq(courses.majorId, majors.id)) // Direct join for major
-            .innerJoin(instructors, eq(courses.instructorId, instructors.id))
-            .where(eq(courses.id, courseId))
-            .limit(1);
-
-        const updatedSections = await db
-            .select({
-                id: sections.id,
-                number: sections.number,
-            })
-            .from(sections)
-            .where(eq(sections.courseId, courseId));
-
         return NextResponse.json({
             message: "Course updated successfully",
-            course: {
-                ...updatedCourse[0],
-                sections: updatedSections,
-            },
         });
     } catch (error) {
         console.error("Error updating course:", error);
