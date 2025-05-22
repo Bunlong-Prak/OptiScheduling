@@ -269,14 +269,13 @@ export default function TimetableViewClassroom() {
                 );
                 if (response.ok) {
                     const coursesData: Course[] = await response.json();
-                    console.log("Original API response:", coursesData);
 
                     // Group courses by sectionId
                     const coursesBySectionId: { [sectionId: string]: Course } =
                         {};
 
                     coursesData.forEach((course) => {
-                        const sectionId = course.sectionId.toString();
+                        const sectionId = course.sectionId;
 
                         if (!coursesBySectionId[sectionId]) {
                             // First time seeing this section, create a new entry
@@ -285,23 +284,8 @@ export default function TimetableViewClassroom() {
                             // We've seen this section before, combine the majors
                             const existingCourse =
                                 coursesBySectionId[sectionId];
-
-                            // If the current course has majors, add them
-                            if (course.major && Array.isArray(course.major)) {
-                                existingCourse.major = [
-                                    ...(existingCourse.major || []),
-                                    ...course.major.filter(
-                                        (m) => !existingCourse.major.includes(m)
-                                    ),
-                                ];
-                            }
                         }
                     });
-
-                    console.log(
-                        "Courses grouped by sectionId:",
-                        coursesBySectionId
-                    );
 
                     // Transform for timetable
                     const transformedCourses = Object.values(
@@ -321,7 +305,6 @@ export default function TimetableViewClassroom() {
                         majors: course.major || [], // Use the majors array from your type
                     }));
 
-                    console.log("Transformed courses:", transformedCourses);
                     setAvailableCourses(transformedCourses);
                 } else {
                     console.error("Failed to fetch courses");
@@ -357,7 +340,6 @@ export default function TimetableViewClassroom() {
                 }
 
                 const assignmentsData = await response.json();
-                console.log("Raw assignments data:", assignmentsData);
 
                 // Process the assignments data to create schedule
                 const newSchedule: Record<string, any> = {};
@@ -365,7 +347,7 @@ export default function TimetableViewClassroom() {
 
                 assignmentsData.forEach((assignment: any) => {
                     // Extract data from the API response
-                    const sectionId = assignment.sectionId?.toString() || "";
+                    const sectionId = assignment.sectionId;
                     const classroomCode = assignment.classroom;
                     const code = assignment.code;
                     const title = assignment.title || code;
@@ -511,8 +493,6 @@ export default function TimetableViewClassroom() {
                         room: classroomCode,
                     };
 
-                    console.log("Processing course for schedule:", course);
-
                     // Add to assigned courses
                     if (
                         !newAssignedCourses.some(
@@ -534,8 +514,6 @@ export default function TimetableViewClassroom() {
                         );
                         const key = `${day}-${classroomId}-${currentTimeSlot}`;
 
-                        console.log(`Adding to schedule with key: ${key}`);
-
                         newSchedule[key] = {
                             ...course,
                             isStart: i === 0,
@@ -545,9 +523,6 @@ export default function TimetableViewClassroom() {
                         };
                     }
                 });
-
-                console.log("Final processed schedule:", newSchedule);
-                console.log("Final assigned courses:", newAssignedCourses);
 
                 // Update state with assignments
                 setSchedule(newSchedule);
@@ -613,9 +588,6 @@ export default function TimetableViewClassroom() {
                 endTime: course.endTime,
                 classroom: course.classroom,
             }));
-
-            console.log("Saving assignments:", assignmentsData);
-
             // Send all assignments to API
             const response = await fetch("/api/assign-time-slots", {
                 method: "POST",

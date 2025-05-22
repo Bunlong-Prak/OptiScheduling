@@ -62,7 +62,7 @@ export async function GET(request: Request) {
             .from(courses)
             .innerJoin(sections, eq(sections.courseId, courses.id))
             .innerJoin(courseHours, eq(courseHours.sectionId, sections.id))
-            .innerJoin(instructors, eq(instructors.id, courses.instructorId))
+            .innerJoin(instructors, eq(instructors.id, sections.instructorId))
             .innerJoin(classrooms, eq(classrooms.id, sections.classroomId))
             .where(eq(courses.scheduleId, parseInt(scheduleId)));
         console.log("Assignments:", assignments);
@@ -80,7 +80,6 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-
         // Check if body is an array
         if (!Array.isArray(body)) {
             return NextResponse.json(
@@ -88,10 +87,8 @@ export async function POST(request: Request) {
                 { status: 400 }
             );
         }
-
         // Validate each item in the array
         const results = [];
-
         for (const assignment of body) {
             const validationResult = saveTimetableSchema.safeParse(assignment);
             if (!validationResult.success) {
@@ -104,33 +101,55 @@ export async function POST(request: Request) {
                 );
                 continue;
             }
-
             const { sectionId, day, startTime, endTime, classroom } =
                 validationResult.data;
 
-            // First, create the course hour
-            await db.insert(courseHours).values({
-                day: day,
-                timeSlot: `${startTime} - ${endTime}`,
-                sectionId: sectionId,
-            });
-
-            // Get the ID of the newly created course hour
-            const createdCourseHour = await db
-                .select({ id: courseHours.id })
+            // Check if course hour already exists for this section
+            const existingCourseHour = await db
+                .select()
                 .from(courseHours)
-                .where(eq(courseHours.sectionId, sectionId));
+                .where(eq(courseHours.sectionId, sectionId))
+                .limit(1);
 
-            if (createdCourseHour.length === 0) {
-                console.error(
-                    `Failed to create course hour for section ${sectionId}`
+            let courseHourId;
+
+            if (existingCourseHour.length > 0) {
+                console.log(
+                    `Course hour already exists for section ${sectionId}, updating...`
                 );
-                continue; // Skip to next assignment
+                // Update existing course hour
+                courseHourId = existingCourseHour[0].id;
+                await db
+                    .update(courseHours)
+                    .set({
+                        day: day,
+                        timeSlot: `${startTime} - ${endTime}`,
+                    })
+                    .where(eq(courseHours.id, courseHourId));
+            } else {
+                // Create new course hour
+                await db.insert(courseHours).values({
+                    day: day,
+                    timeSlot: `${startTime} - ${endTime}`,
+                    sectionId: sectionId,
+                });
+
+                // Get the ID of the newly created course hour
+                const createdCourseHour = await db
+                    .select({ id: courseHours.id })
+                    .from(courseHours)
+                    .where(eq(courseHours.sectionId, sectionId));
+
+                if (createdCourseHour.length === 0) {
+                    console.error(
+                        `Failed to create course hour for section ${sectionId}`
+                    );
+                    continue; // Skip to next assignment
+                }
+                courseHourId = createdCourseHour[0].id;
             }
-
-            const courseHourId = createdCourseHour.id;
-
-            // Update the section with the reference to the new course hour
+            console.log("Here");
+            // Update the section with the classroom ID
             await db
                 .update(sections)
                 .set({
@@ -178,7 +197,6 @@ export async function PATCH(request: Request) {
         await db
             .update(sections)
             .set({
-                courseHoursId,
                 classroomId,
             })
             .where(eq(sections.id, sectionId));
@@ -211,7 +229,6 @@ export async function DELETE(request: Request) {
         await db
             .update(sections)
             .set({
-                courseHoursId: null,
                 classroomId: null,
             })
             .where(eq(sections.id, sectionId));
