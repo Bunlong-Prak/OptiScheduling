@@ -591,11 +591,6 @@ export default function TimetableViewClassroom() {
 
     // Function to save all assignments to the database
     const saveAllAssignments = async () => {
-        if (assignedCourses.length === 0) {
-            alert("No courses to save!");
-            return;
-        }
-
         try {
             // Prepare data for API - ensure we're saving the right format
             const assignmentsData = assignedCourses.map((course) => ({

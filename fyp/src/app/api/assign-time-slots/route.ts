@@ -81,6 +81,10 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
 
+        if (body.length === 0) {
+            await db.delete(courseHours);
+            return NextResponse.json("AH PLER");
+        }
         // Check if body is an array
         if (!Array.isArray(body)) {
             return NextResponse.json(
