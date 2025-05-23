@@ -1045,59 +1045,94 @@ export default function TimetableViewClassroom() {
     };
 
     // Handle course delete - updated to use sectionId approach
-    const handleRemoveCourse = () => {
+    const handleRemoveCourse = async () => {
         const { day, classroomId, timeSlot } = cellToDelete;
         const key = `${day}-${classroomId}-${timeSlot}`;
         const course = schedule[key];
 
         if (!course) return;
 
-        // Get the course sectionId to remove
-        const courseId = course.sectionId;
-
-        // Create a new schedule without this course
-        const newSchedule = { ...schedule };
-        Object.keys(newSchedule).forEach((scheduleKey) => {
-            if (newSchedule[scheduleKey].sectionId === courseId) {
-                delete newSchedule[scheduleKey];
-            }
-        });
-
-        setSchedule(newSchedule);
-
-        // Return the course to available courses list with a clean state
-        // Create a clean version without timetable-specific properties
-        const cleanCourse = {
-            code: course.code,
-            name: course.name,
-            color: course.color,
-            duration: course.duration,
-            instructor: course.instructor,
-            sectionId: course.sectionId,
-            section: course.section,
-            room: course.room,
-            // Ensure no residual data from timetable positioning
-            day: undefined,
-            startTime: undefined,
-            endTime: undefined,
-            classroom: undefined,
-            isStart: undefined,
-            isMiddle: undefined,
-            isEnd: undefined,
-            colspan: undefined,
-        };
-
-        // Only add back to available courses if it's not already there
-        if (!availableCourses.some((c) => c.sectionId === courseId)) {
-            setAvailableCourses((prev) => [...prev, cleanCourse]);
-        }
-
-        // Remove from assigned courses
-        setAssignedCourses((prev) =>
-            prev.filter((c) => c.sectionId !== courseId)
-        );
-
+        // Close dialog first for better UX
         setIsDialogOpen(false);
+
+        try {
+            // Call the DELETE API to remove the assignment from the database
+            const response = await fetch("/api/assign-time-slots", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    sectionId: course.sectionId,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(
+                    errorData.error ||
+                        `HTTP ${response.status}: ${response.statusText}`
+                );
+            }
+
+            const result = await response.json();
+            console.log("Course removed successfully:", result);
+
+            // If API call successful, update the local state
+            const courseId = course.sectionId;
+
+            // Create a new schedule without this course
+            const newSchedule = { ...schedule };
+            Object.keys(newSchedule).forEach((scheduleKey) => {
+                if (newSchedule[scheduleKey].sectionId === courseId) {
+                    delete newSchedule[scheduleKey];
+                }
+            });
+            setSchedule(newSchedule);
+
+            // Return the course to available courses list with a clean state
+            // Create a clean version without timetable-specific properties
+            const cleanCourse: TimetableCourse = {
+                code: course.code,
+                name: course.name,
+                color: course.color,
+                duration: course.duration,
+                instructor: course.instructor,
+                sectionId: course.sectionId,
+                section: course.section,
+                room: course.room,
+                // Remove timetable-specific properties by not including them
+            };
+
+            // Only add back to available courses if it's not already there
+            if (!availableCourses.some((c) => c.sectionId === courseId)) {
+                setAvailableCourses((prev) => [...prev, cleanCourse]);
+            }
+
+            // Remove from assigned courses
+            setAssignedCourses((prev) =>
+                prev.filter((c) => c.sectionId !== courseId)
+            );
+
+            // Optional: Show success message
+            // toast.success(`Course ${course.code} removed successfully`);
+        } catch (error) {
+            console.error("Error removing course:", error);
+
+            // Show user-friendly error message
+            const errorMessage =
+                error instanceof Error
+                    ? error.message
+                    : "Failed to remove course from timetable";
+
+            alert(`Error: ${errorMessage}`);
+
+            // Reopen dialog if there was an error
+            setIsDialogOpen(true);
+
+            // Optionally, you could show a toast notification instead:
+            // toast.error(`Failed to remove course: ${errorMessage}`);
+        }
     };
 
     return (
