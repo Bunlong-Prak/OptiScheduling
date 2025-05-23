@@ -132,6 +132,7 @@ export type TimetableCourse = {
     name: string;
     sectionId: number;
     color: string;
+    originalColor?: string; // Add this field
     duration: number;
     instructor: string;
     isStart?: boolean;
@@ -158,6 +159,7 @@ export type ScheduleAssignment = {
     sectionId: number;
     courseCode: string;
     courseTitle: string;
+    courseColor: string; // Add this field
     instructorName: string;
     day: string;
     startTime: string;
