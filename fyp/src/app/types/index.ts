@@ -154,6 +154,8 @@ export type Schedule = {
     endDate: string;
 };
 
+export type TimetableGrid = Record<string, TimetableCourse>;
+
 export type CellToDelete = {
     day: string;
     classroomId: string;

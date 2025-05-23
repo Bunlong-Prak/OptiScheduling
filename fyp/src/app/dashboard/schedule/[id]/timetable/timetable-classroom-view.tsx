@@ -31,11 +31,15 @@ import {
 } from "@/app/types";
 import { colors_class } from "@/components/custom/colors";
 import { useParams } from "next/navigation";
+
+// Define TimetableGrid type for the timetable data structure
+type TimetableGrid = Record<string, TimetableCourse>;
+
 // Initial schedule data (empty object)
-const initialSchedule: Schedule = {};
+const initialSchedule: TimetableGrid = {};
 
 export default function TimetableViewClassroom() {
-    const [schedule, setSchedule] = useState<Schedule>(initialSchedule);
+    const [schedule, setSchedule] = useState<TimetableGrid>(initialSchedule);
     const [draggedCourse, setDraggedCourse] = useState<TimetableCourse | null>(
         null
     );
@@ -323,9 +327,7 @@ export default function TimetableViewClassroom() {
 
     // Fetch timetable assignments from API
     useEffect(() => {
-        const 
-        
-        fetchTimetableAssignments = async () => {
+        const fetchTimetableAssignments = async () => {
             if (!params.id || !timeSlots.length || !classrooms.length) return;
 
             setIsLoading(true);
@@ -344,7 +346,7 @@ export default function TimetableViewClassroom() {
                 const assignmentsData = await response.json();
 
                 // Process the assignments data to create schedule
-                const newSchedule: Record<string, any> = {};
+                const newSchedule: TimetableGrid = {};
                 const newAssignedCourses: TimetableCourse[] = [];
 
                 assignmentsData.forEach((assignment: any) => {
@@ -904,7 +906,7 @@ export default function TimetableViewClassroom() {
                 setSchedule({});
 
                 // Create new schedule data structures
-                const newSchedule: Schedule = {};
+                const newSchedule: TimetableGrid = {};
                 const newAssignedCourses: TimetableCourse[] = [];
 
                 // Process each assignment from the API
@@ -956,33 +958,27 @@ export default function TimetableViewClassroom() {
                     // Calculate duration based on start and end times
                     const duration = endIndex - startIndex + 1;
 
-                    // Deterministic color based on course code to ensure consistency
-                    // const colorKey =
-                    //     courseCode.charCodeAt(0) %
-                    //     Object.keys(colors_class).length;
-                    // const colorClassName = getConsistentCourseColor(courseCode); 
-                    
                     // Use the color from the API if available
-                  // Use the original color from the course if available
-    const colorClassName = courseColor && colors_class[courseColor] ? 
-    colors_class[courseColor] : getConsistentCourseColor(courseCode);
+                    // Use the original color from the course if available
+                    const colorClassName = courseColor && colors_class[courseColor] ? 
+                        colors_class[courseColor] : getConsistentCourseColor(courseCode);
 
-                   // Create course object with consistent color
-    const course: TimetableCourse = {
-        sectionId,
-        code: courseCode,
-        name: courseTitle,
-        instructor: instructorName,
-        duration,
-        day,
-        startTime,
-        endTime,
-        classroom: classroom.id.toString(),
-        color: colorClassName,
-        originalColor: courseColor,
-        section: sectionId.toString(),
-        room: classroomCode,
-    };
+                    // Create course object with consistent color
+                    const course: TimetableCourse = {
+                        sectionId,
+                        code: courseCode,
+                        name: courseTitle,
+                        instructor: instructorName,
+                        duration,
+                        day,
+                        startTime,
+                        endTime,
+                        classroom: classroom.id.toString(),
+                        color: colorClassName,
+                        originalColor: courseColor,
+                        section: sectionId.toString(),
+                        room: classroomCode,
+                    };
 
                     // Add to assigned courses
                     newAssignedCourses.push(course);
