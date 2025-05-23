@@ -6,7 +6,7 @@ import {
     sections,
 } from "@/drizzle/schema";
 import { db } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -80,6 +80,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
+
         // Check if body is an array
         if (!Array.isArray(body)) {
             return NextResponse.json(
@@ -87,132 +88,353 @@ export async function POST(request: Request) {
                 { status: 400 }
             );
         }
+
+        // Extract all sectionIds from the request
+        const requestSectionIds = new Set(
+            body.map((assignment) => assignment.sectionId).filter(Boolean)
+        );
+
+        console.log("Section IDs in request:", Array.from(requestSectionIds));
+
+        // Find and delete course hours that don't have matching sections in the request
+        if (requestSectionIds.size > 0) {
+            // Get all existing course hours
+            const existingCourseHours = await db
+                .select({
+                    id: courseHours.id,
+                    sectionId: courseHours.sectionId,
+                })
+                .from(courseHours);
+
+            // Find course hours that should be deleted (not in the request)
+            const courseHoursToDelete = existingCourseHours.filter(
+                (courseHour) => !requestSectionIds.has(courseHour.sectionId)
+            );
+
+            console.log(
+                `Found ${courseHoursToDelete.length} course hours to delete`
+            );
+
+            // Delete course hours that are not in the request
+            if (courseHoursToDelete.length > 0) {
+                const idsToDelete = courseHoursToDelete.map((ch) => ch.id);
+
+                await db
+                    .delete(courseHours)
+                    .where(inArray(courseHours.id, idsToDelete));
+
+                console.log(
+                    `Deleted ${courseHoursToDelete.length} course hours:`,
+                    courseHoursToDelete.map((ch) => ({
+                        id: ch.id,
+                        sectionId: ch.sectionId,
+                    }))
+                );
+
+                // Also clear classroom assignments for sections that were removed
+                const sectionsToCleanup = courseHoursToDelete.map(
+                    (ch) => ch.sectionId
+                );
+                if (sectionsToCleanup.length > 0) {
+                    await db
+                        .update(sections)
+                        .set({ classroomId: null })
+                        .where(inArray(sections.id, sectionsToCleanup));
+
+                    console.log(
+                        `Cleared classroom assignments for ${sectionsToCleanup.length} sections`
+                    );
+                }
+            }
+        }
+
         // Validate each item in the array
         const results = [];
+        const errors = [];
+
         for (const assignment of body) {
             const validationResult = saveTimetableSchema.safeParse(assignment);
+
             if (!validationResult.success) {
                 // Log the error but continue processing other items
-                console.error(
-                    `Validation error for assignment: ${JSON.stringify(
-                        assignment
-                    )}`,
-                    validationResult.error.errors
-                );
+                const errorMsg = `Validation error for assignment: ${JSON.stringify(
+                    assignment
+                )}`;
+                console.error(errorMsg, validationResult.error.errors);
+                errors.push({
+                    assignment,
+                    error: validationResult.error.errors,
+                });
                 continue;
             }
+
             const { sectionId, day, startTime, endTime, classroom } =
                 validationResult.data;
 
-            // Check if course hour already exists for this section
-            const existingCourseHour = await db
-                .select()
-                .from(courseHours)
-                .where(eq(courseHours.sectionId, sectionId))
-                .limit(1);
+            try {
+                // Check if course hour already exists for this section
+                const existingCourseHour = await db
+                    .select()
+                    .from(courseHours)
+                    .where(eq(courseHours.sectionId, sectionId))
+                    .limit(1);
 
-            let courseHourId;
+                let courseHourId;
 
-            if (existingCourseHour.length > 0) {
-                console.log(
-                    `Course hour already exists for section ${sectionId}, updating...`
-                );
-                // Update existing course hour
-                courseHourId = existingCourseHour[0].id;
-                await db
-                    .update(courseHours)
-                    .set({
+                if (existingCourseHour.length > 0) {
+                    console.log(
+                        `Course hour already exists for section ${sectionId}, updating...`
+                    );
+
+                    // Update existing course hour
+                    courseHourId = existingCourseHour[0].id;
+                    await db
+                        .update(courseHours)
+                        .set({
+                            day: day,
+                            timeSlot: `${startTime} - ${endTime}`,
+                        })
+                        .where(eq(courseHours.id, courseHourId));
+                } else {
+                    // Create new course hour
+                    await db.insert(courseHours).values({
                         day: day,
                         timeSlot: `${startTime} - ${endTime}`,
-                    })
-                    .where(eq(courseHours.id, courseHourId));
-            } else {
-                // Create new course hour
-                await db.insert(courseHours).values({
-                    day: day,
-                    timeSlot: `${startTime} - ${endTime}`,
-                    sectionId: sectionId,
-                });
+                        sectionId: sectionId,
+                    });
 
-                // Get the ID of the newly created course hour
-                const createdCourseHour = await db
-                    .select({ id: courseHours.id })
-                    .from(courseHours)
-                    .where(eq(courseHours.sectionId, sectionId));
+                    // Get the ID of the newly created course hour
+                    const createdCourseHour = await db
+                        .select({ id: courseHours.id })
+                        .from(courseHours)
+                        .where(eq(courseHours.sectionId, sectionId));
 
-                if (createdCourseHour.length === 0) {
-                    console.error(
-                        `Failed to create course hour for section ${sectionId}`
-                    );
-                    continue; // Skip to next assignment
+                    if (createdCourseHour.length === 0) {
+                        console.error(
+                            `Failed to create course hour for section ${sectionId}`
+                        );
+                        errors.push({
+                            sectionId,
+                            error: "Failed to create course hour",
+                        });
+                        continue;
+                    }
+
+                    courseHourId = createdCourseHour[0].id;
                 }
-                courseHourId = createdCourseHour[0].id;
+
+                console.log("Processing section:", sectionId);
+
+                // Update the section with the classroom ID
+                await db
+                    .update(sections)
+                    .set({
+                        classroomId: parseInt(classroom),
+                    })
+                    .where(eq(sections.id, sectionId));
+
+                // Get the updated section
+                const updatedSection = await db
+                    .select()
+                    .from(sections)
+                    .where(eq(sections.id, sectionId))
+                    .limit(1);
+
+                // Add this assignment's result to the results array
+                results.push({
+                    sectionId,
+                    courseHour: { id: courseHourId },
+                    section: updatedSection[0],
+                });
+            } catch (assignmentError) {
+                console.error(
+                    `Error processing assignment for section ${sectionId}:`,
+                    assignmentError
+                );
+                errors.push({
+                    sectionId,
+                    assignment,
+                    error:
+                        assignmentError instanceof Error
+                            ? assignmentError.message
+                            : "Unknown error",
+                });
             }
-            console.log("Here");
-            // Update the section with the classroom ID
-            await db
-                .update(sections)
-                .set({
-                    classroomId: parseInt(classroom),
-                })
-                .where(eq(sections.id, sectionId));
-
-            // Get the updated section
-            const updatedSection = await db
-                .select()
-                .from(sections)
-                .where(eq(sections.id, sectionId))
-                .limit(1);
-
-            // Add this assignment's result to the results array
-            results.push({
-                sectionId,
-                courseHour: { id: courseHourId },
-                section: updatedSection[0],
-            });
         }
 
-        return NextResponse.json({
+        // Prepare response
+        const response = {
             message: `Successfully processed ${results.length} of ${body.length} assignments`,
             data: results,
-        });
+            ...(errors.length > 0 && {
+                errors: errors,
+                errorCount: errors.length,
+            }),
+        };
+
+        return NextResponse.json(response);
     } catch (error: unknown) {
         console.error("Error saving timetable assignments:", error);
         return NextResponse.json(
-            { error: "Failed to save timetable assignments" },
+            {
+                error: "Failed to save timetable assignments",
+                details:
+                    error instanceof Error ? error.message : "Unknown error",
+            },
             { status: 500 }
         );
     }
 }
 
-// PATCH to update assignment (when moving a course to a different time slot)
-export async function PATCH(request: Request) {
+// Alternative version with more granular control:
+export async function POST_ALTERNATIVE(request: Request) {
     try {
         const body = await request.json();
-        const validatedData = timetableAssignmentSchema.parse(body);
-        const { sectionId, courseHoursId, classroomId } = validatedData;
-        // Note: day is validated but not used directly in the sections update
 
-        // Update the section with new assignment data
-        await db
-            .update(sections)
-            .set({
-                classroomId,
-            })
-            .where(eq(sections.id, sectionId));
+        if (!Array.isArray(body)) {
+            return NextResponse.json(
+                { error: "Expected an array of assignments" },
+                { status: 400 }
+            );
+        }
 
-        // Fetch the updated section separately
-        const updatedSection = await db
-            .select()
-            .from(sections)
-            .where(eq(sections.id, sectionId))
-            .limit(1);
+        // Start a transaction for data consistency
+        const result = await db.transaction(async (tx) => {
+            // Extract section IDs from request
+            const requestSectionIds = new Set(
+                body.map((assignment) => assignment.sectionId).filter(Boolean)
+            );
 
-        return NextResponse.json(updatedSection[0] || { id: sectionId });
+            // Step 1: Clean up orphaned course hours
+            let deletedCount = 0;
+            if (requestSectionIds.size > 0) {
+                const existingCourseHours = await tx
+                    .select({
+                        id: courseHours.id,
+                        sectionId: courseHours.sectionId,
+                    })
+                    .from(courseHours);
+
+                const courseHoursToDelete = existingCourseHours.filter(
+                    (ch) => !requestSectionIds.has(ch.sectionId)
+                );
+
+                if (courseHoursToDelete.length > 0) {
+                    // Delete orphaned course hours
+                    const deleteResult = await tx.delete(courseHours).where(
+                        inArray(
+                            courseHours.id,
+                            courseHoursToDelete.map((ch) => ch.id)
+                        )
+                    );
+
+                    // Clear classroom assignments for deleted sections
+                    await tx
+                        .update(sections)
+                        .set({ classroomId: null })
+                        .where(
+                            inArray(
+                                sections.id,
+                                courseHoursToDelete.map((ch) => ch.sectionId)
+                            )
+                        );
+
+                    deletedCount = courseHoursToDelete.length;
+                }
+            }
+
+            // Step 2: Process new/updated assignments
+            const results = [];
+            const errors = [];
+
+            for (const assignment of body) {
+                const validationResult =
+                    saveTimetableSchema.safeParse(assignment);
+
+                if (!validationResult.success) {
+                    errors.push({
+                        assignment,
+                        error: validationResult.error.errors,
+                    });
+                    continue;
+                }
+
+                const { sectionId, day, startTime, endTime, classroom } =
+                    validationResult.data;
+
+                try {
+                    // Upsert course hour
+                    const existingCourseHour = await tx
+                        .select({ id: courseHours.id })
+                        .from(courseHours)
+                        .where(eq(courseHours.sectionId, sectionId))
+                        .limit(1);
+
+                    let courseHourId;
+
+                    if (existingCourseHour.length > 0) {
+                        courseHourId = existingCourseHour[0].id;
+                        await tx
+                            .update(courseHours)
+                            .set({
+                                day: day,
+                                timeSlot: `${startTime} - ${endTime}`,
+                            })
+                            .where(eq(courseHours.id, courseHourId));
+                    } else {
+                        await db.insert(courseHours).values({
+                            day: day,
+                            timeSlot: `${startTime} - ${endTime}`,
+                            sectionId: sectionId,
+                        });
+
+                        // Get the ID of the newly created course hour
+                        const createdCourseHour = await tx
+                            .select({ id: courseHours.id })
+                            .from(courseHours)
+                            .where(eq(courseHours.sectionId, sectionId));
+
+                        courseHourId = createdCourseHour[0].id;
+                    }
+
+                    // Update section classroom
+                    await tx
+                        .update(sections)
+                        .set({ classroomId: parseInt(classroom) })
+                        .where(eq(sections.id, sectionId));
+
+                    results.push({ sectionId, courseHourId });
+                } catch (err) {
+                    errors.push({
+                        sectionId,
+                        error:
+                            err instanceof Error
+                                ? err.message
+                                : "Unknown error",
+                    });
+                }
+            }
+
+            return { results, errors, deletedCount };
+        });
+
+        return NextResponse.json({
+            message: `Successfully processed ${result.results.length} assignments, deleted ${result.deletedCount} orphaned course hours`,
+            data: result.results,
+            deletedCourseHours: result.deletedCount,
+            ...(result.errors.length > 0 && {
+                errors: result.errors,
+                errorCount: result.errors.length,
+            }),
+        });
     } catch (error: unknown) {
-        console.error("Error updating timetable assignment:", error);
+        console.error("Error in timetable assignment transaction:", error);
         return NextResponse.json(
-            { error: "Failed to update timetable assignment" },
+            {
+                error: "Failed to save timetable assignments",
+                details:
+                    error instanceof Error ? error.message : "Unknown error",
+            },
             { status: 500 }
         );
     }
