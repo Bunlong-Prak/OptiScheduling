@@ -283,6 +283,7 @@ export default function CoursesView() {
         instructorId: string,
         instructorName: string
     ) => {
+        console.log("Updating instructor:", sectionId, instructorId, instructorName);
         setSections(
             sections.map((section) =>
                 section.id === sectionId
@@ -294,6 +295,7 @@ export default function CoursesView() {
                     : section
             )
         );
+        setFormData({...formData});
     };
 
     const removeSection = (id: number) => {
@@ -574,7 +576,7 @@ export default function CoursesView() {
         setFormData({
             title: course.title,
             code: course.code,
-            color: course.color,
+            color: course.color ? course.color.toString() : "", // Convert to string
             duration: course.duration,
             capacity: course.capacity,
             section: course.section,
@@ -757,7 +759,7 @@ export default function CoursesView() {
                     setIsAddDialogOpen(open);
                 }}
             >
-                <DialogContent>
+                <DialogContent className="max-h-[80vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Add New Course</DialogTitle>
                     </DialogHeader>
@@ -1120,7 +1122,7 @@ export default function CoursesView() {
                     setIsEditDialogOpen(open);
                 }}
             >
-                <DialogContent>
+                <DialogContent className="max-h-[80vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Edit Course</DialogTitle>
                     </DialogHeader>
@@ -1295,50 +1297,38 @@ export default function CoursesView() {
                                                         </Button>
                                                     </PopoverTrigger>
                                                     <PopoverContent className="w-full p-0">
-                                                        <Command>
-                                                            <CommandInput placeholder="Search instructor..." />
-                                                            <CommandEmpty>
-                                                                No instructor
-                                                                found.
-                                                            </CommandEmpty>
-                                                            <CommandGroup>
-                                                                {instructors.map(
-                                                                    (
-                                                                        instructor
-                                                                    ) => (
-                                                                        <CommandItem
-                                                                            key={
-                                                                                instructor.id
-                                                                            }
-                                                                            value={`${instructor.first_name} ${instructor.last_name}`}
-                                                                            onSelect={() => {
-                                                                                updateSectionInstructor(
-                                                                                    section.id,
-                                                                                    instructor.id.toString(),
-                                                                                    `${instructor.first_name} ${instructor.last_name}`
-                                                                                );
-                                                                            }}
-                                                                        >
-                                                                            <Check
-                                                                                className={`mr-2 h-4 w-4 ${
-                                                                                    section.instructor_id ===
-                                                                                    instructor.id.toString()
-                                                                                        ? "opacity-100"
-                                                                                        : "opacity-0"
-                                                                                }`}
-                                                                            />
-                                                                            {
-                                                                                instructor.first_name
-                                                                            }{" "}
-                                                                            {
-                                                                                instructor.last_name
-                                                                            }
-                                                                        </CommandItem>
-                                                                    )
-                                                                )}
-                                                            </CommandGroup>
-                                                        </Command>
-                                                    </PopoverContent>
+    <Command>
+        <CommandInput placeholder="Search instructor..." />
+        <CommandEmpty>No instructor found.</CommandEmpty>
+        <CommandGroup>
+            {instructors.map((instructor) => (
+                <CommandItem
+                    key={instructor.id}
+                    value={`${instructor.first_name} ${instructor.last_name}`}
+                    onSelect={() => {
+                        // Make sure this function is being called when clicking an instructor
+                        console.log("Instructor selected:", instructor.id, instructor.first_name, instructor.last_name);
+                        updateSectionInstructor(
+                            section.id,
+                            instructor.id.toString(),
+                            `${instructor.first_name} ${instructor.last_name}`
+                        );
+                        // Close the popover when selecting an instructor
+                        setCurrentInstructorOpen(false);
+                    }}>
+                    <Check
+                        className={`mr-2 h-4 w-4 ${
+                            section.instructor_id === instructor.id.toString()
+                                ? "opacity-100"
+                                : "opacity-0"
+                        }`}
+                    />
+                    {instructor.first_name} {instructor.last_name}
+                </CommandItem>
+            ))}
+        </CommandGroup>
+    </Command>
+</PopoverContent>
                                                 </Popover>
                                             </div>
                                         </div>
