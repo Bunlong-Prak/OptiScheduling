@@ -18,7 +18,7 @@ const days = [
     "Friday",
     "Saturday",
 ];
-
+import { getConsistentCourseColor } from '@/components/custom/colors';
 import {
     CellToDelete,
     Classroom,
@@ -288,21 +288,17 @@ export default function TimetableViewClassroom() {
                     });
 
                     // Transform for timetable
-                    const transformedCourses = Object.values(
-                        coursesBySectionId
-                    ).map((course: any) => ({
+                    const transformedCourses = Object.values(coursesBySectionId).map((course: any) => ({
                         code: course.code,
                         sectionId: course.sectionId,
                         name: course.title,
-                        color: colors_class[course.color],
+                        color: getConsistentCourseColor(course.code), 
                         duration: course.duration,
-                        instructor: `${course.firstName || ""} ${
-                            course.lastName || ""
-                        }`.trim(),
+                        instructor: `${course.firstName || ""} ${course.lastName || ""}`.trim(),
                         section: course.section,
                         room: course.classroom || "TBA",
                         uniqueId: `${course.code}-${course.section}`,
-                        majors: course.major || [], // Use the majors array from your type
+                        majors: course.major || [],
                     }));
 
                     setAvailableCourses(transformedCourses);
@@ -409,9 +405,7 @@ export default function TimetableViewClassroom() {
                     // Deterministic color based on course code
                     const colorIndex =
                         code.charCodeAt(0) % Object.keys(colors_class).length;
-                    const colorClassName =
-                        Object.values(colors_class)[colorIndex];
-
+                    const colorClassName = getConsistentCourseColor(code); 
                     // Find the time slot that matches the start time
                     // This is crucial: we need to match the exact format
                     const startIndex = timeSlots.findIndex((ts) => {
@@ -790,11 +784,10 @@ export default function TimetableViewClassroom() {
         const assignedCourse = {
             ...draggedCourse,
             day: day,
-            startTime:
-                timeSlots[timeSlotIndex].startTime ||
-                getTimeSlotKey(timeSlots[timeSlotIndex]),
+            startTime: timeSlots[timeSlotIndex].startTime || getTimeSlotKey(timeSlots[timeSlotIndex]),
             endTime: endTimeSlot,
             classroom: classroomId,
+            color: getConsistentCourseColor(draggedCourse.code), // ✅ Ensure consistent color
         };
 
         // Add the course to all its new time slots
@@ -953,8 +946,7 @@ export default function TimetableViewClassroom() {
                     const colorKey =
                         courseCode.charCodeAt(0) %
                         Object.keys(colors_class).length;
-                    const colorClassName =
-                        Object.values(colors_class)[colorKey];
+                    const colorClassName = getConsistentCourseColor(courseCode); 
 
                     // Create course object
                     const course: TimetableCourse = {

@@ -86,5 +86,40 @@ export const getColorName = (color: string): string => {
     return color.charAt(0).toUpperCase() + color.slice(1);
 };
 
+// Function to consistently assign colors based on course code
+export const getConsistentCourseColor = (courseCode: string): string => {
+    if (!courseCode) return colors_class.blue; // fallback color
+    
+    // Use course code to generate a consistent hash
+    let hash = 0;
+    for (let i = 0; i < courseCode.length; i++) {
+        const char = courseCode.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    
+    // Get absolute value and map to color array
+    const colorKeys = Object.keys(colors_class);
+    const colorIndex = Math.abs(hash) % colorKeys.length;
+    const colorKey = colorKeys[colorIndex];
+    
+    return colors_class[colorKey];
+};
+
+// Alternative simpler version if you prefer (more predictable)
+export const getSimpleCourseColor = (courseCode: string): string => {
+    if (!courseCode) return colors_class.blue; // fallback color
+    
+    const colorKeys = Object.keys(colors_class);
+    const colorIndex = courseCode.charCodeAt(0) % colorKeys.length;
+    const colorKey = colorKeys[colorIndex];
+    
+    return colors_class[colorKey];
+};
+
+// Export the one you want to use as the default
+export const getCourseColor = getConsistentCourseColor;
+
+
 
 
