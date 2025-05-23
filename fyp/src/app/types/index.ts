@@ -146,7 +146,13 @@ export type TimetableCourse = {
     section: string; // Classroom assigned to
 };
 
-export type Schedule = Record<string, TimetableCourse>;
+export type Schedule = {
+    id: string;
+    name: string;
+    academic_year: string;
+    startDate: string;
+    endDate: string;
+};
 
 export type CellToDelete = {
     day: string;
