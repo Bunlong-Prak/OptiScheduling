@@ -1,5 +1,6 @@
 import {
     classrooms,
+    courseHours,
     courses,
     instructors,
     instructorTimeConstraint,
@@ -48,6 +49,22 @@ function normalizeTimeSlot(timeSlot: string): string {
 
     // Already in the right format
     return timeSlot;
+}
+
+// Function to format time slot for display (reverse of normalize)
+function formatTimeSlot(timeSlot: string): string {
+    const [hour, minute] = timeSlot.split(":");
+    const hourNum = parseInt(hour);
+
+    if (hourNum === 0) {
+        return `12:${minute} AM`;
+    } else if (hourNum < 12) {
+        return `${hourNum}:${minute} AM`;
+    } else if (hourNum === 12) {
+        return `12:${minute} PM`;
+    } else {
+        return `${hourNum - 12}:${minute} PM`;
+    }
 }
 
 // Types for our algorithm
@@ -132,11 +149,14 @@ export async function POST(request: Request) {
             timeSlots
         );
 
-        // 3. Return the generated schedule (for testing in Postman)
-        // In a real implementation, you would save this to the database
+        // 3. Store the schedule in the database
+        const storageResult = await storeScheduleInDatabase(schedule);
+
+        // 4. Return the generated schedule with storage results
         return NextResponse.json({
-            message: "Schedule generated successfully",
+            message: "Schedule generated and stored successfully",
             schedule: schedule,
+            storage: storageResult,
             stats: {
                 totalCourses: coursesData.length,
                 totalSections: coursesData.reduce(
@@ -163,6 +183,160 @@ export async function POST(request: Request) {
     }
 }
 
+// Store schedule assignments in the courseHours table
+async function storeScheduleInDatabase(assignments: Assignment[]) {
+    const results = {
+        successful: 0,
+        updated: 0,
+        errors: [] as Array<{ sectionId: number; error: string }>,
+    };
+
+    console.log(`Storing ${assignments.length} assignments in database...`);
+
+    for (const assignment of assignments) {
+        try {
+            const sectionId = assignment.section_id;
+            const day = assignment.day;
+
+            // VALIDATE assignment before processing
+            if (
+                !validateTimeAssignment(
+                    assignment.start_time,
+                    assignment.end_time
+                )
+            ) {
+                console.error(
+                    `❌ Invalid time assignment for section ${sectionId}: ${assignment.start_time} to ${assignment.end_time}`
+                );
+                results.errors.push({
+                    sectionId,
+                    error: `Invalid time range: ${assignment.start_time} to ${assignment.end_time}`,
+                });
+                continue;
+            }
+
+            let startHour: string;
+            let endHour: string;
+
+            try {
+                startHour = convertToSimpleHour(assignment.start_time);
+                endHour = convertToSimpleHour(assignment.end_time);
+            } catch (error) {
+                console.error(
+                    `❌ Failed to convert times for section ${sectionId}:`,
+                    error
+                );
+                results.errors.push({
+                    sectionId,
+                    error: `Time conversion failed: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`,
+                });
+                continue;
+            }
+
+            const timeSlotString = `${startHour} - ${endHour}`;
+
+            // Double-check the final result makes sense
+            const startNum = parseInt(startHour);
+            const endNum = parseInt(endHour);
+            if (startNum >= endNum) {
+                console.error(
+                    `❌ Final time slot validation failed for section ${sectionId}: ${timeSlotString}`
+                );
+                results.errors.push({
+                    sectionId,
+                    error: `Invalid final time slot: ${timeSlotString}`,
+                });
+                continue;
+            }
+
+            console.log(
+                `✅ Processing section ${sectionId}: ${day} ${timeSlotString}`
+            );
+
+            // Database operations (unchanged)
+            const existingCourseHour = await db
+                .select()
+                .from(courseHours)
+                .where(eq(courseHours.sectionId, sectionId))
+                .limit(1);
+
+            if (existingCourseHour.length > 0) {
+                await db
+                    .update(courseHours)
+                    .set({
+                        day: day,
+                        timeSlot: timeSlotString,
+                    })
+                    .where(eq(courseHours.id, existingCourseHour[0].id));
+
+                results.updated++;
+                console.log(`✅ Updated course hour for section ${sectionId}`);
+            } else {
+                await db.insert(courseHours).values({
+                    day: day,
+                    timeSlot: timeSlotString,
+                    sectionId: sectionId,
+                });
+
+                const createdCourseHour = await db
+                    .select({ id: courseHours.id })
+                    .from(courseHours)
+                    .where(eq(courseHours.sectionId, sectionId))
+                    .limit(1);
+
+                if (createdCourseHour.length === 0) {
+                    results.errors.push({
+                        sectionId,
+                        error: "Failed to create course hour",
+                    });
+                    continue;
+                }
+
+                results.successful++;
+                console.log(`✅ Created course hour for section ${sectionId}`);
+            }
+        } catch (error) {
+            console.error(
+                `❌ Error storing assignment for section ${assignment.section_id}:`,
+                error
+            );
+            const errorMessage =
+                error instanceof Error ? error.message : String(error);
+            results.errors.push({
+                sectionId: assignment.section_id,
+                error: errorMessage,
+            });
+        }
+    }
+
+    console.log(
+        `Storage complete. Successful: ${results.successful}, Updated: ${results.updated}, Errors: ${results.errors.length}`
+    );
+
+    if (results.errors.length > 0) {
+        console.log("Errors encountered:");
+        results.errors.forEach((err) =>
+            console.log(`  Section ${err.sectionId}: ${err.error}`)
+        );
+    }
+
+    return results;
+}
+// Helper function to convert time format to simple hour format
+function convertToSimpleHour(timeSlot: string | undefined): string {
+    if (!timeSlot || timeSlot === "undefined" || timeSlot === "null") {
+        throw new Error(`Cannot convert invalid timeSlot: ${timeSlot}`);
+    }
+
+    if (timeSlot.includes(":")) {
+        const [hour] = timeSlot.split(":");
+        return hour;
+    }
+
+    return timeSlot;
+}
 // Fetch time slots for a given schedule
 async function fetchTimeSlots(schedule_id: number): Promise<string[]> {
     try {
@@ -803,7 +977,7 @@ function markInstructorAsBusy(
             );
         }
     }
-} // No available classroom and slot found
+}
 
 // Function to find a slot for a section with an already assigned classroom
 function findSlotForAssignedClassroom(
@@ -821,94 +995,100 @@ function findSlotForAssignedClassroom(
     instructorNameMap: Map<number, string>,
     timeSlots: string[]
 ): Assignment | null {
-    // If classroom_id is null, return null since we can't schedule without a classroom
     if (section.classroom_id === null) {
         console.log(
-            `Cannot schedule section ${section.id} for course ${course.code} - no classroom assigned`
+            `Cannot schedule section ${section.id} - no classroom assigned`
         );
         return null;
     }
 
-    // Get the instructor's constraints for easy access
     const instructorConstraints = timeConstraints.filter(
         (tc) => tc.instructor_id === section.instructor_id
     );
 
-    // Check instructor availability for each day and timeslot
     for (const day of DAYS) {
-        // Get this instructor's constraints for this specific day
         const dayConstraints = instructorConstraints.filter(
             (tc) => tc.day === day
         );
 
         if (dayConstraints.length > 0) {
-            console.log(
-                `Instructor ${section.instructor_id} has ${dayConstraints.length} constraints on ${day}`
-            );
-
-            // Get all constrained time slots for this day
             const constrainedSlots = dayConstraints.flatMap(
                 (dc) => dc.timeSlots
             );
-            console.log(
-                `Constrained time slots: ${constrainedSlots.join(", ")}`
-            );
-
-            // If the instructor is busy for all time slots in a day, skip the day entirely
             const allTimeSlots = new Set(timeSlots);
             const busyTimeSlots = new Set(constrainedSlots);
 
-            // Debug log to see what's happening
-            console.log(
-                `Total time slots: ${allTimeSlots.size}, Busy time slots: ${busyTimeSlots.size}`
-            );
-
             if (busyTimeSlots.size >= allTimeSlots.size) {
                 console.log(
-                    `Instructor ${section.instructor_id} is busy for all time slots on ${day}. Skipping day.`
+                    `Instructor ${section.instructor_id} is busy all day on ${day}`
                 );
                 continue;
             }
         }
 
-        // Try each timeslot
-        for (let i = 0; i < timeSlots.length - course.duration + 1; i++) {
-            const start_time = timeSlots[i];
-            const endTimeIndex = i + course.duration - 1;
-            const end_time = timeSlots[endTimeIndex];
+        // CORRECTED: Proper loop boundary and time calculation
+        const maxStartIndex = timeSlots.length - course.duration;
 
-            // Check if all consecutive slots are available for this specific classroom
+        for (let i = 0; i <= maxStartIndex; i++) {
+            const start_time = timeSlots[i];
+
+            // ALWAYS calculate end time mathematically - never rely on array indexing for end time
+            const end_time = calculateEndTime(start_time, course.duration);
+
+            // Validate the time assignment BEFORE proceeding
+            if (!validateTimeAssignment(start_time, end_time)) {
+                console.error(
+                    `Skipping invalid time assignment for section ${section.id}`
+                );
+                continue;
+            }
+
+            console.log(
+                `Testing: ${course.code} section ${section.id} - ${day} ${start_time} to ${end_time} (${course.duration}h)`
+            );
+
+            // Check if all required consecutive slots are available
             let allSlotsAvailable = true;
+            const slotsToCheck = [];
+
+            // Build list of slots to check (all must be within bounds)
             for (let j = 0; j < course.duration; j++) {
-                const timeSlot = timeSlots[i + j];
+                const slotIndex = i + j;
+                if (slotIndex >= timeSlots.length) {
+                    console.log(
+                        `Slot index ${slotIndex} exceeds available time slots`
+                    );
+                    allSlotsAvailable = false;
+                    break;
+                }
+                slotsToCheck.push(timeSlots[slotIndex]);
+            }
+
+            if (!allSlotsAvailable) continue;
+
+            // Check each required slot
+            for (const timeSlot of slotsToCheck) {
                 const key = `${day}-${section.classroom_id}-${timeSlot}`;
                 const slot = grid.get(key);
 
-                // Check if slot exists and is available
+                // Check slot availability
                 if (!slot || !slot.isAvailable) {
                     allSlotsAvailable = false;
                     break;
                 }
 
-                // Check if instructor has a time constraint for this specific slot
+                // Check instructor constraints
                 const hasConstraint = dayConstraints.some((dc) =>
                     dc.timeSlots.includes(timeSlot)
                 );
-
                 if (hasConstraint) {
-                    console.log(
-                        `Time slot ${timeSlot} on ${day} is constrained for instructor ${section.instructor_id}`
-                    );
                     allSlotsAvailable = false;
                     break;
                 }
 
-                // Check if instructor is already teaching another class at this time
+                // Check instructor availability
                 const instructorKey = `${section.instructor_id}-${day}-${timeSlot}`;
                 if (instructorAssignments.get(instructorKey)) {
-                    console.log(
-                        `Instructor ${section.instructor_id} is already teaching at ${timeSlot} on ${day}`
-                    );
                     allSlotsAvailable = false;
                     break;
                 }
@@ -916,8 +1096,9 @@ function findSlotForAssignedClassroom(
 
             if (allSlotsAvailable) {
                 console.log(
-                    `Found suitable slot for course ${course.code}, section ${section.id} in classroom ${section.classroom_id}: ${day} at ${start_time}-${end_time}`
+                    `✅ Assigned: ${course.code} section ${section.id} - ${day} ${start_time}-${end_time}`
                 );
+
                 return {
                     section_id: section.id,
                     course_code: course.code,
@@ -935,10 +1116,20 @@ function findSlotForAssignedClassroom(
         }
     }
 
-    console.log(
-        `Could not find any suitable slot for course ${course.code}, section ${section.id} in classroom ${section.classroom_id}`
-    );
-    return null; // No available slot found
+    console.log(`❌ Could not schedule: ${course.code} section ${section.id}`);
+    return null;
+}
+function calculateEndTime(startTime: string, duration: number): string {
+    if (!startTime || duration <= 0) {
+        throw new Error(
+            `Invalid parameters: startTime=${startTime}, duration=${duration}`
+        );
+    }
+
+    const [hour, minute] = startTime.split(":");
+    const startHour = parseInt(hour);
+    const endHour = startHour + duration;
+    return `${endHour}:${minute}`;
 }
 
 // Find a split classroom and slot for the second part of a split course
@@ -1110,39 +1301,51 @@ function tryClassroomOnDay(
         return null;
     }
 
-    // Get the instructor's constraints for this day
     const dayConstraints = timeConstraints
         .filter(
             (tc) => tc.instructor_id === section.instructor_id && tc.day === day
         )
         .flatMap((dc) => dc.timeSlots);
 
-    // Try each timeslot on this day
-    for (let i = 0; i < timeSlots.length - course.duration + 1; i++) {
-        const start_time = timeSlots[i];
-        const endTimeIndex = i + course.duration - 1;
-        const end_time = timeSlots[endTimeIndex];
+    // CORRECTED: Same fixes as above
+    const maxStartIndex = timeSlots.length - course.duration;
 
-        // Check if all consecutive slots are available
+    for (let i = 0; i <= maxStartIndex; i++) {
+        const start_time = timeSlots[i];
+        const end_time = calculateEndTime(start_time, course.duration);
+
+        if (!validateTimeAssignment(start_time, end_time)) {
+            continue;
+        }
+
         let allSlotsAvailable = true;
+        const slotsToCheck = [];
+
         for (let j = 0; j < course.duration; j++) {
-            const timeSlot = timeSlots[i + j];
+            const slotIndex = i + j;
+            if (slotIndex >= timeSlots.length) {
+                allSlotsAvailable = false;
+                break;
+            }
+            slotsToCheck.push(timeSlots[slotIndex]);
+        }
+
+        if (!allSlotsAvailable) continue;
+
+        for (const timeSlot of slotsToCheck) {
             const key = `${day}-${section.classroom_id}-${timeSlot}`;
             const slot = grid.get(key);
 
-            // Check if slot exists and is available
             if (!slot || !slot.isAvailable) {
                 allSlotsAvailable = false;
                 break;
             }
 
-            // Check if instructor has a time constraint for this slot
             if (dayConstraints.includes(timeSlot)) {
                 allSlotsAvailable = false;
                 break;
             }
 
-            // Check if instructor is already teaching
             const instructorKey = `${section.instructor_id}-${day}-${timeSlot}`;
             if (instructorAssignments.get(instructorKey)) {
                 allSlotsAvailable = false;
@@ -1151,9 +1354,6 @@ function tryClassroomOnDay(
         }
 
         if (allSlotsAvailable) {
-            console.log(
-                `Found suitable slot for split course ${course.code}, section ${section.id} in classroom ${section.classroom_id}: ${day} at ${start_time}-${end_time}`
-            );
             return {
                 section_id: section.id,
                 course_code: course.code,
@@ -1170,4 +1370,23 @@ function tryClassroomOnDay(
     }
 
     return null;
+}
+
+function validateTimeAssignment(start_time: string, end_time: string): boolean {
+    if (!start_time || !end_time) {
+        console.error(`Invalid times: start=${start_time}, end=${end_time}`);
+        return false;
+    }
+
+    const startHour = parseInt(start_time.split(":")[0]);
+    const endHour = parseInt(end_time.split(":")[0]);
+
+    if (startHour >= endHour) {
+        console.error(
+            `Invalid time range: start=${start_time}(${startHour}) >= end=${end_time}(${endHour})`
+        );
+        return false;
+    }
+
+    return true;
 }
