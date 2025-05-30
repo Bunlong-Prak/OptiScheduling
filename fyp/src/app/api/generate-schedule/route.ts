@@ -140,6 +140,7 @@ export async function POST(request: Request) {
         // Fetch the custom time slots for this schedule
         const timeSlots = await fetchTimeSlots(schedule_id);
 
+        console.log("timeslots: ", timeSlots);
         // 2. Generate the schedule
         const schedule = generateSchedule(
             coursesData,
@@ -149,6 +150,8 @@ export async function POST(request: Request) {
             timeSlots
         );
 
+        console.log("Schedule: ", schedule);
+
         // 3. Store the schedule in the database
         const storageResult = await storeScheduleInDatabase(schedule);
 
@@ -156,17 +159,6 @@ export async function POST(request: Request) {
         return NextResponse.json({
             message: "Schedule generated and stored successfully",
             schedule: schedule,
-            storage: storageResult,
-            stats: {
-                totalCourses: coursesData.length,
-                totalSections: coursesData.reduce(
-                    (acc, course) => acc + course.sections.length,
-                    0
-                ),
-                scheduledAssignments: schedule.length,
-                constraintsApplied: timeConstraints.length,
-                timeSlots: timeSlots,
-            },
         });
     } catch (error: unknown) {
         console.error("Error generating schedule:", error);
@@ -183,160 +175,6 @@ export async function POST(request: Request) {
     }
 }
 
-// Store schedule assignments in the courseHours table
-async function storeScheduleInDatabase(assignments: Assignment[]) {
-    const results = {
-        successful: 0,
-        updated: 0,
-        errors: [] as Array<{ sectionId: number; error: string }>,
-    };
-
-    console.log(`Storing ${assignments.length} assignments in database...`);
-
-    for (const assignment of assignments) {
-        try {
-            const sectionId = assignment.section_id;
-            const day = assignment.day;
-
-            // VALIDATE assignment before processing
-            if (
-                !validateTimeAssignment(
-                    assignment.start_time,
-                    assignment.end_time
-                )
-            ) {
-                console.error(
-                    `❌ Invalid time assignment for section ${sectionId}: ${assignment.start_time} to ${assignment.end_time}`
-                );
-                results.errors.push({
-                    sectionId,
-                    error: `Invalid time range: ${assignment.start_time} to ${assignment.end_time}`,
-                });
-                continue;
-            }
-
-            let startHour: string;
-            let endHour: string;
-
-            try {
-                startHour = convertToSimpleHour(assignment.start_time);
-                endHour = convertToSimpleHour(assignment.end_time);
-            } catch (error) {
-                console.error(
-                    `❌ Failed to convert times for section ${sectionId}:`,
-                    error
-                );
-                results.errors.push({
-                    sectionId,
-                    error: `Time conversion failed: ${
-                        error instanceof Error ? error.message : String(error)
-                    }`,
-                });
-                continue;
-            }
-
-            const timeSlotString = `${startHour} - ${endHour}`;
-
-            // Double-check the final result makes sense
-            const startNum = parseInt(startHour);
-            const endNum = parseInt(endHour);
-            if (startNum >= endNum) {
-                console.error(
-                    `❌ Final time slot validation failed for section ${sectionId}: ${timeSlotString}`
-                );
-                results.errors.push({
-                    sectionId,
-                    error: `Invalid final time slot: ${timeSlotString}`,
-                });
-                continue;
-            }
-
-            console.log(
-                `✅ Processing section ${sectionId}: ${day} ${timeSlotString}`
-            );
-
-            // Database operations (unchanged)
-            const existingCourseHour = await db
-                .select()
-                .from(courseHours)
-                .where(eq(courseHours.sectionId, sectionId))
-                .limit(1);
-
-            if (existingCourseHour.length > 0) {
-                await db
-                    .update(courseHours)
-                    .set({
-                        day: day,
-                        timeSlot: timeSlotString,
-                    })
-                    .where(eq(courseHours.id, existingCourseHour[0].id));
-
-                results.updated++;
-                console.log(`✅ Updated course hour for section ${sectionId}`);
-            } else {
-                await db.insert(courseHours).values({
-                    day: day,
-                    timeSlot: timeSlotString,
-                    sectionId: sectionId,
-                });
-
-                const createdCourseHour = await db
-                    .select({ id: courseHours.id })
-                    .from(courseHours)
-                    .where(eq(courseHours.sectionId, sectionId))
-                    .limit(1);
-
-                if (createdCourseHour.length === 0) {
-                    results.errors.push({
-                        sectionId,
-                        error: "Failed to create course hour",
-                    });
-                    continue;
-                }
-
-                results.successful++;
-                console.log(`✅ Created course hour for section ${sectionId}`);
-            }
-        } catch (error) {
-            console.error(
-                `❌ Error storing assignment for section ${assignment.section_id}:`,
-                error
-            );
-            const errorMessage =
-                error instanceof Error ? error.message : String(error);
-            results.errors.push({
-                sectionId: assignment.section_id,
-                error: errorMessage,
-            });
-        }
-    }
-
-    console.log(
-        `Storage complete. Successful: ${results.successful}, Updated: ${results.updated}, Errors: ${results.errors.length}`
-    );
-
-    if (results.errors.length > 0) {
-        console.log("Errors encountered:");
-        results.errors.forEach((err) =>
-            console.log(`  Section ${err.sectionId}: ${err.error}`)
-        );
-    }
-
-    return results;
-}
-// Helper function to convert time format to simple hour format
-function convertToSimpleHour(timeSlot: string | undefined): string {
-    if (!timeSlot || timeSlot === "undefined" || timeSlot === "null") {
-        throw new Error(`Cannot convert invalid timeSlot: ${timeSlot}`);
-    }
-
-    if (timeSlot.includes(":")) {
-        const [hour] = timeSlot.split(":");
-        return hour;
-    }
-
-    return timeSlot;
-}
 // Fetch time slots for a given schedule
 async function fetchTimeSlots(schedule_id: number): Promise<string[]> {
     try {
@@ -345,37 +183,41 @@ async function fetchTimeSlots(schedule_id: number): Promise<string[]> {
         const timeSlotData = await db
             .select({
                 start_time: scheduleTimeSlots.startTime,
+                end_time: scheduleTimeSlots.endTime,
             })
             .from(scheduleTimeSlots)
-            .where(eq(scheduleTimeSlots.scheduleId, schedule_id))
-            .orderBy(scheduleTimeSlots.startTime);
+            .where(eq(scheduleTimeSlots.scheduleId, schedule_id));
 
         if (!timeSlotData || timeSlotData.length === 0) {
             console.log("No time slots found, using default time slots");
             return [
-                "8:00",
-                "9:00",
-                "10:00",
-                "11:00",
-                "12:00",
-                "13:00",
-                "14:00",
-                "15:00",
-                "16:00",
-                "17:00",
+                "8-9",
+                "9-10",
+                "10-11",
+                "11-12",
+                "12-13",
+                "13-14",
+                "14-15",
+                "15-16",
+                "16-17",
+                "17-18",
             ];
         }
 
-        // Extract start times and normalize them
-        const startTimes = timeSlotData.map((slot) =>
-            normalizeTimeSlot(slot.start_time)
-        );
+        // Each row represents one time slot - format as "start-end"
+        const timeSlots = timeSlotData.map((slot) => {
+            // Extract hour from start_time and end_time
+            const startHour = parseInt(slot.start_time);
+            const endHour = parseInt(slot.end_time);
+            return `${startHour}-${endHour}`;
+        });
+
         console.log(
             `Found ${
-                startTimes.length
-            } time slots for schedule ${schedule_id}: ${startTimes.join(", ")}`
+                timeSlots.length
+            } time slots for schedule ${schedule_id}: ${timeSlots.join(", ")}`
         );
-        return startTimes;
+        return timeSlots;
     } catch (error) {
         console.error("Error fetching time slots:", error);
         throw new Error(
@@ -601,22 +443,86 @@ async function fetchClassrooms(schedule_id: number) {
         );
     }
 }
+// Add this function to your existing code
 
-// Generate the schedule
+// Function to generate schedule automatically
 function generateSchedule(
-    courses: Course[],
+    coursesData: Course[],
     timeConstraints: TimeConstraint[],
-    classrooms: { id: number; code: string; capacity: number }[],
-    instructors: { id: number; first_name: string; last_name: string }[],
+    classroomsData: any[],
+    instructorsData: any[],
     timeSlots: string[]
 ): Assignment[] {
-    // Create a grid of all possible slots
-    const grid: ScheduleGrid = new Map();
+    console.log("Starting schedule generation...");
 
-    // Initialize the grid with all slots marked as available
-    for (const day of DAYS) {
-        for (const timeSlot of timeSlots) {
-            for (const classroom of classrooms) {
+    const assignments: Assignment[] = [];
+    const scheduleGrid = initializeScheduleGrid(classroomsData, timeSlots);
+
+    // Sort sections by course duration (longest first) for better scheduling
+    const allSections = coursesData
+        .flatMap((course) =>
+            course.sections.map((section) => ({
+                ...section,
+                course: course,
+            }))
+        )
+        .sort((a, b) => b.course.duration - a.course.duration);
+
+    console.log(`Processing ${allSections.length} sections...`);
+
+    for (const section of allSections) {
+        console.log(
+            `\nProcessing section ${section.number} of course ${section.course.code}`
+        );
+
+        // Step 1: Assign classroom if not already assigned
+        if (!section.classroom_id) {
+            section.classroom_id = assignClassroomToSection(
+                section,
+                classroomsData
+            );
+            if (!section.classroom_id) {
+                console.log(
+                    `Failed to assign classroom to section ${section.number}`
+                );
+                continue;
+            }
+        }
+
+        // Step 2: Find available time slots for this section
+        const assignment = scheduleSection(
+            section,
+            timeConstraints,
+            classroomsData,
+            instructorsData,
+            timeSlots,
+            scheduleGrid
+        );
+
+        if (assignment) {
+            assignments.push(assignment);
+            console.log(`Successfully scheduled section ${section.number}`);
+        } else {
+            console.log(`Failed to schedule section ${section.number}`);
+        }
+    }
+
+    console.log(
+        `Schedule generation completed. Generated ${assignments.length} assignments.`
+    );
+    return assignments;
+}
+
+// Initialize the schedule grid to track availability
+function initializeScheduleGrid(
+    classroomsData: any[],
+    timeSlots: string[]
+): ScheduleGrid {
+    const grid = new Map<string, Slot>();
+
+    for (const classroom of classroomsData) {
+        for (const day of DAYS) {
+            for (const timeSlot of timeSlots) {
                 const key = `${day}-${classroom.id}-${timeSlot}`;
                 grid.set(key, {
                     day,
@@ -628,765 +534,314 @@ function generateSchedule(
         }
     }
 
-    // Mark slots as unavailable based on time constraints
-    for (const constraint of timeConstraints) {
-        for (const timeSlot of constraint.timeSlots) {
-            for (const classroom of classrooms) {
-                const key = `${constraint.day}-${classroom.id}-${timeSlot}`;
-                const slot = grid.get(key);
-                if (slot) {
-                    slot.isAvailable = false;
-                }
-            }
-        }
-    }
-
-    // Create a map to track instructor assignments for each day and time slot
-    const instructorAssignments = new Map<string, boolean>(); // Key: "instructor_id-day-timeSlot"
-
-    // Sort courses by duration (longest first) and number of sections (most first)
-    const sortedCourses = [...courses].sort((a, b) => {
-        if (a.duration !== b.duration) {
-            return b.duration - a.duration; // Descending by duration
-        }
-        return b.sections.length - a.sections.length; // Descending by number of sections
-    });
-
-    const assignments: Assignment[] = [];
-    const classroomCodeMap = new Map(classrooms.map((c) => [c.id, c.code]));
-    const instructorNameMap = new Map(
-        instructors.map((i) => [i.id, `${i.first_name} ${i.last_name}`])
-    );
-
-    // First pass: Place courses with duration <= 2 hours
-    for (const course of sortedCourses) {
-        if (course.duration <= 2) {
-            for (const section of course.sections) {
-                // Instead of skipping, we'll find an appropriate classroom
-                const assignment = findClassroomAndSlotForSection(
-                    grid,
-                    course,
-                    section,
-                    classrooms,
-                    timeConstraints,
-                    instructorAssignments,
-                    classroomCodeMap,
-                    instructorNameMap,
-                    timeSlots
-                );
-
-                if (assignment) {
-                    assignments.push(assignment);
-                    // Update the section's classroom_id with the assigned classroom
-                    const assignedClassroomId = classrooms.find(
-                        (c) => c.code === assignment.classroom_code
-                    )?.id;
-
-                    if (assignedClassroomId) {
-                        const updatedSection = {
-                            ...section,
-                            classroom_id: assignedClassroomId,
-                        };
-
-                        markSlotsAsOccupied(
-                            grid,
-                            course,
-                            updatedSection,
-                            assignment.day,
-                            assignment.start_time,
-                            timeSlots
-                        );
-
-                        // Mark instructor as busy during this time
-                        markInstructorAsBusy(
-                            instructorAssignments,
-                            section.instructor_id,
-                            assignment.day,
-                            assignment.start_time,
-                            assignment.end_time,
-                            timeSlots
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    // Second pass: Split courses with duration > 2 hours
-    for (const course of sortedCourses) {
-        if (course.duration > 2) {
-            for (const section of course.sections) {
-                // Split the course into two parts
-                const firstDuration = Math.ceil(course.duration / 2);
-                const secondDuration = course.duration - firstDuration;
-
-                // Find classroom and slot for first part
-                const firstCourse = { ...course, duration: firstDuration };
-                const firstAssignment = findClassroomAndSlotForSection(
-                    grid,
-                    firstCourse,
-                    section,
-                    classrooms,
-                    timeConstraints,
-                    instructorAssignments,
-                    classroomCodeMap,
-                    instructorNameMap,
-                    timeSlots
-                );
-
-                if (firstAssignment) {
-                    assignments.push(firstAssignment);
-
-                    // Update the section's classroom_id with the assigned classroom
-                    const assignedClassroomId = classrooms.find(
-                        (c) => c.code === firstAssignment.classroom_code
-                    )?.id;
-
-                    if (assignedClassroomId) {
-                        const updatedSection = {
-                            ...section,
-                            classroom_id: assignedClassroomId,
-                        };
-
-                        markSlotsAsOccupied(
-                            grid,
-                            firstCourse,
-                            updatedSection,
-                            firstAssignment.day,
-                            firstAssignment.start_time,
-                            timeSlots
-                        );
-
-                        markInstructorAsBusy(
-                            instructorAssignments,
-                            section.instructor_id,
-                            firstAssignment.day,
-                            firstAssignment.start_time,
-                            firstAssignment.end_time,
-                            timeSlots
-                        );
-
-                        // Find classroom and slot for second part (preferably on a different day)
-                        // Try to use the same classroom for consistency
-                        const secondCourse = {
-                            ...course,
-                            duration: secondDuration,
-                        };
-                        const secondAssignment =
-                            findSplitClassroomAndSlotForSection(
-                                grid,
-                                secondCourse,
-                                updatedSection,
-                                classrooms,
-                                timeConstraints,
-                                firstAssignment.day,
-                                firstAssignment.classroom_code,
-                                instructorAssignments,
-                                classroomCodeMap,
-                                instructorNameMap,
-                                timeSlots
-                            );
-
-                        if (secondAssignment) {
-                            assignments.push(secondAssignment);
-
-                            // Get the classroom ID for the second part (it may be different)
-                            const secondClassroomId = classrooms.find(
-                                (c) =>
-                                    c.code === secondAssignment.classroom_code
-                            )?.id;
-
-                            if (secondClassroomId) {
-                                const secondUpdatedSection = {
-                                    ...updatedSection,
-                                    classroom_id: secondClassroomId,
-                                };
-
-                                markSlotsAsOccupied(
-                                    grid,
-                                    secondCourse,
-                                    secondUpdatedSection,
-                                    secondAssignment.day,
-                                    secondAssignment.start_time,
-                                    timeSlots
-                                );
-
-                                markInstructorAsBusy(
-                                    instructorAssignments,
-                                    section.instructor_id,
-                                    secondAssignment.day,
-                                    secondAssignment.start_time,
-                                    secondAssignment.end_time,
-                                    timeSlots
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return assignments;
+    return grid;
 }
 
-// New function to find both a classroom and a time slot for a section
-function findClassroomAndSlotForSection(
-    grid: ScheduleGrid,
-    course: Course,
-    section: {
-        id: number;
-        number: string;
-        classroom_id: number | null;
-        instructor_id: number;
-    },
-    classrooms: { id: number; code: string; capacity: number }[],
-    timeConstraints: TimeConstraint[],
-    instructorAssignments: Map<string, boolean>,
-    classroomCodeMap: Map<number, string>,
-    instructorNameMap: Map<number, string>,
-    timeSlots: string[]
-): Assignment | null {
-    // Get the instructor's constraints for easy access
-    const instructorConstraints = timeConstraints.filter(
-        (tc) => tc.instructor_id === section.instructor_id
+// Assign classroom to section based on capacity and availability
+function assignClassroomToSection(
+    section: any,
+    classroomsData: any[]
+): number | null {
+    // Find suitable classrooms (you can add more criteria here)
+    const suitableClassrooms = classroomsData.filter(
+        (classroom) => classroom.capacity >= (section.course.capacity || 0)
     );
 
-    // Log for debugging
-    console.log(
-        `Finding classroom and slot for course ${course.code}, section ${section.id}, instructor ${section.instructor_id}, duration ${course.duration}`
-    );
-    console.log(
-        `Instructor has ${instructorConstraints.length} time constraints`
-    );
-
-    // First check if section already has an assigned classroom
-    if (section.classroom_id !== null) {
+    if (suitableClassrooms.length === 0) {
         console.log(
-            `Section ${section.id} already has classroom ${section.classroom_id} assigned. Using it.`
-        );
-        return findSlotForAssignedClassroom(
-            grid,
-            course,
-            section,
-            timeConstraints,
-            instructorAssignments,
-            classroomCodeMap,
-            instructorNameMap,
-            timeSlots
-        );
-    }
-
-    // If no classroom assigned, try each classroom to find one with available slots
-    for (const classroom of classrooms) {
-        console.log(
-            `Trying classroom ${classroom.id} (${classroom.code}) for section ${section.id}`
-        );
-
-        // Create a temporary section with this classroom assigned
-        const tempSection = {
-            ...section,
-            classroom_id: classroom.id,
-        };
-
-        // Try to find a suitable slot with this classroom
-        const assignment = findSlotForAssignedClassroom(
-            grid,
-            course,
-            tempSection,
-            timeConstraints,
-            instructorAssignments,
-            classroomCodeMap,
-            instructorNameMap,
-            timeSlots
-        );
-
-        if (assignment) {
-            console.log(
-                `Found suitable classroom ${classroom.id} (${classroom.code}) and slot for section ${section.id}`
-            );
-            return assignment;
-        }
-    }
-
-    console.log(
-        `Could not find any suitable classroom and slot for course ${course.code}, section ${section.id}`
-    );
-    return null;
-}
-
-// Mark slots as occupied after assignment
-function markSlotsAsOccupied(
-    grid: ScheduleGrid,
-    course: Course,
-    section: { id: number; number: string; classroom_id: number | null },
-    day: string,
-    start_time: string,
-    timeSlots: string[]
-): void {
-    if (section.classroom_id === null) {
-        console.log(
-            `Cannot mark slots as occupied: section ${section.id} has no classroom assigned`
-        );
-        return;
-    }
-
-    const startIndex = timeSlots.findIndex((ts) => ts === start_time);
-
-    for (let i = 0; i < course.duration; i++) {
-        if (startIndex + i >= timeSlots.length) break;
-
-        const timeSlot = timeSlots[startIndex + i];
-        // Use the classroom ID here, not the section ID
-        const key = `${day}-${section.classroom_id}-${timeSlot}`;
-        const slot = grid.get(key);
-
-        if (slot) {
-            slot.isAvailable = false;
-            slot.assigned_section_id = section.id;
-            console.log(
-                `Marked slot ${key} as occupied by section ${section.id}`
-            );
-        } else {
-            console.log(
-                `Warning: Could not find slot with key ${key} to mark as occupied`
-            );
-        }
-    }
-}
-
-// Mark instructor as busy for the given time period
-function markInstructorAsBusy(
-    instructorAssignments: Map<string, boolean>,
-    instructor_id: number,
-    day: string,
-    start_time: string,
-    end_time: string,
-    timeSlots: string[]
-): void {
-    const startIndex = timeSlots.findIndex((ts) => ts === start_time);
-    const endIndex = timeSlots.findIndex((ts) => ts === end_time);
-
-    for (let i = startIndex; i <= endIndex; i++) {
-        if (i >= 0 && i < timeSlots.length) {
-            const timeSlot = timeSlots[i];
-            const key = `${instructor_id}-${day}-${timeSlot}`;
-            instructorAssignments.set(key, true);
-            console.log(
-                `Marked instructor ${instructor_id} as busy on ${day} at ${timeSlot}`
-            );
-        }
-    }
-}
-
-// Function to find a slot for a section with an already assigned classroom
-function findSlotForAssignedClassroom(
-    grid: ScheduleGrid,
-    course: Course,
-    section: {
-        id: number;
-        number: string;
-        classroom_id: number | null;
-        instructor_id: number;
-    },
-    timeConstraints: TimeConstraint[],
-    instructorAssignments: Map<string, boolean>,
-    classroomCodeMap: Map<number, string>,
-    instructorNameMap: Map<number, string>,
-    timeSlots: string[]
-): Assignment | null {
-    if (section.classroom_id === null) {
-        console.log(
-            `Cannot schedule section ${section.id} - no classroom assigned`
+            `No suitable classrooms found for section ${section.number}`
         );
         return null;
     }
 
-    const instructorConstraints = timeConstraints.filter(
-        (tc) => tc.instructor_id === section.instructor_id
+    // For now, assign the first suitable classroom
+    // You can implement more sophisticated logic here
+    const assignedClassroom = suitableClassrooms[0];
+    console.log(
+        `Assigned classroom ${assignedClassroom.code} to section ${section.number}`
     );
 
-    for (const day of DAYS) {
+    return assignedClassroom.id;
+}
+
+// Schedule a section by finding available time slots
+function scheduleSection(
+    section: any,
+    timeConstraints: TimeConstraint[],
+    classroomsData: any[],
+    instructorsData: any[],
+    timeSlots: string[],
+    scheduleGrid: ScheduleGrid
+): Assignment | null {
+    const course = section.course;
+    const duration = course.duration;
+
+    // Get instructor info
+    const instructor = instructorsData.find(
+        (inst) => inst.id === section.instructor_id
+    );
+    const instructorName = instructor
+        ? `${instructor.first_name} ${instructor.last_name}`
+        : "Unknown";
+
+    // Get classroom info
+    const classroom = classroomsData.find(
+        (cls) => cls.id === section.classroom_id
+    );
+    const classroomCode = classroom ? classroom.code : "Unknown";
+
+    // Get instructor constraints
+    const instructorConstraints = timeConstraints.filter(
+        (constraint) => constraint.instructor_id === section.instructor_id
+    );
+
+    // Find possible time slot combinations that fit the duration
+    const possibleSlots = findPossibleTimeSlots(timeSlots, duration);
+
+    console.log(
+        `Found ${possibleSlots.length} possible time slot combinations for duration ${duration}`
+    );
+
+    console.log("possible Slots: ", possibleSlots);
+
+    // Try to schedule on each day
+    const availableDays = [...DAYS];
+    shuffleArray(availableDays); // Randomize day selection
+
+    for (const day of availableDays) {
+        console.log(`Trying to schedule on ${day}`);
+
+        // Check if instructor is available on this day
         const dayConstraints = instructorConstraints.filter(
-            (tc) => tc.day === day
+            (constraint) => constraint.day === day
         );
 
+        // If instructor has constraints for this day, check availability
         if (dayConstraints.length > 0) {
-            const constrainedSlots = dayConstraints.flatMap(
-                (dc) => dc.timeSlots
-            );
-            const allTimeSlots = new Set(timeSlots);
-            const busyTimeSlots = new Set(constrainedSlots);
+            const availableTimeSlots = dayConstraints[0].timeSlots;
 
-            if (busyTimeSlots.size >= allTimeSlots.size) {
-                console.log(
-                    `Instructor ${section.instructor_id} is busy all day on ${day}`
-                );
-                continue;
-            }
-        }
-
-        // CORRECTED: Proper loop boundary and time calculation
-        const maxStartIndex = timeSlots.length - course.duration;
-
-        for (let i = 0; i <= maxStartIndex; i++) {
-            const start_time = timeSlots[i];
-
-            // ALWAYS calculate end time mathematically - never rely on array indexing for end time
-            const end_time = calculateEndTime(start_time, course.duration);
-
-            // Validate the time assignment BEFORE proceeding
-            if (!validateTimeAssignment(start_time, end_time)) {
-                console.error(
-                    `Skipping invalid time assignment for section ${section.id}`
-                );
-                continue;
-            }
-
-            console.log(
-                `Testing: ${course.code} section ${section.id} - ${day} ${start_time} to ${end_time} (${course.duration}h)`
-            );
-
-            // Check if all required consecutive slots are available
-            let allSlotsAvailable = true;
-            const slotsToCheck = [];
-
-            // Build list of slots to check (all must be within bounds)
-            for (let j = 0; j < course.duration; j++) {
-                const slotIndex = i + j;
-                if (slotIndex >= timeSlots.length) {
-                    console.log(
-                        `Slot index ${slotIndex} exceeds available time slots`
+            // Find a suitable time slot combination
+            for (const slotCombination of possibleSlots) {
+                if (
+                    canScheduleAtTime(
+                        day,
+                        slotCombination,
+                        section.classroom_id,
+                        scheduleGrid,
+                        availableTimeSlots
+                    )
+                ) {
+                    // Mark slots as occupied
+                    markSlotsAsOccupied(
+                        day,
+                        slotCombination,
+                        section.classroom_id,
+                        section.id,
+                        scheduleGrid
                     );
-                    allSlotsAvailable = false;
-                    break;
-                }
-                slotsToCheck.push(timeSlots[slotIndex]);
-            }
 
-            if (!allSlotsAvailable) continue;
+                    const startTime = getStartTime(slotCombination);
+                    const endTime = getEndTime(slotCombination);
 
-            // Check each required slot
-            for (const timeSlot of slotsToCheck) {
-                const key = `${day}-${section.classroom_id}-${timeSlot}`;
-                const slot = grid.get(key);
-
-                // Check slot availability
-                if (!slot || !slot.isAvailable) {
-                    allSlotsAvailable = false;
-                    break;
-                }
-
-                // Check instructor constraints
-                const hasConstraint = dayConstraints.some((dc) =>
-                    dc.timeSlots.includes(timeSlot)
-                );
-                if (hasConstraint) {
-                    allSlotsAvailable = false;
-                    break;
-                }
-
-                // Check instructor availability
-                const instructorKey = `${section.instructor_id}-${day}-${timeSlot}`;
-                if (instructorAssignments.get(instructorKey)) {
-                    allSlotsAvailable = false;
-                    break;
+                    return {
+                        section_id: section.id,
+                        course_code: course.code,
+                        course_title: course.title,
+                        instructor_name: instructorName,
+                        day: day,
+                        start_time: startTime,
+                        end_time: endTime,
+                        classroom_code: classroomCode,
+                    };
                 }
             }
+        } else {
+            // No constraints for this instructor on this day, try any available slot
+            for (const slotCombination of possibleSlots) {
+                if (
+                    canScheduleAtTime(
+                        day,
+                        slotCombination,
+                        section.classroom_id,
+                        scheduleGrid
+                    )
+                ) {
+                    // Mark slots as occupied
+                    markSlotsAsOccupied(
+                        day,
+                        slotCombination,
+                        section.classroom_id,
+                        section.id,
+                        scheduleGrid
+                    );
 
-            if (allSlotsAvailable) {
-                console.log(
-                    `✅ Assigned: ${course.code} section ${section.id} - ${day} ${start_time}-${end_time}`
-                );
+                    const startTime = getStartTime(slotCombination);
+                    const endTime = getEndTime(slotCombination);
 
-                return {
-                    section_id: section.id,
-                    course_code: course.code,
-                    course_title: course.title,
-                    instructor_name:
-                        instructorNameMap.get(section.instructor_id) ||
-                        "Unknown",
-                    day,
-                    start_time,
-                    end_time,
-                    classroom_code:
-                        classroomCodeMap.get(section.classroom_id) || "Unknown",
-                };
+                    return {
+                        section_id: section.id,
+                        course_code: course.code,
+                        course_title: course.title,
+                        instructor_name: instructorName,
+                        day: day,
+                        start_time: startTime,
+                        end_time: endTime,
+                        classroom_code: classroomCode,
+                    };
+                }
             }
-        }
-    }
-
-    console.log(`❌ Could not schedule: ${course.code} section ${section.id}`);
-    return null;
-}
-function calculateEndTime(startTime: string, duration: number): string {
-    if (!startTime || duration <= 0) {
-        throw new Error(
-            `Invalid parameters: startTime=${startTime}, duration=${duration}`
-        );
-    }
-
-    const [hour, minute] = startTime.split(":");
-    const startHour = parseInt(hour);
-    const endHour = startHour + duration;
-    return `${endHour}:${minute}`;
-}
-
-// Find a split classroom and slot for the second part of a split course
-function findSplitClassroomAndSlotForSection(
-    grid: ScheduleGrid,
-    course: Course,
-    section: {
-        id: number;
-        number: string;
-        classroom_id: number | null;
-        instructor_id: number;
-    },
-    classrooms: { id: number; code: string; capacity: number }[],
-    timeConstraints: TimeConstraint[],
-    firstDay: string,
-    preferredClassroomCode: string,
-    instructorAssignments: Map<string, boolean>,
-    classroomCodeMap: Map<number, string>,
-    instructorNameMap: Map<number, string>,
-    timeSlots: string[]
-): Assignment | null {
-    // If classroom_id is null, something went wrong
-    if (section.classroom_id === null) {
-        console.log(
-            `Section ${section.id} has no classroom assigned for split scheduling.`
-        );
-        return null;
-    }
-
-    // First try days other than the first day
-    const otherDays = DAYS.filter((day) => day !== firstDay);
-
-    // Shuffle the days to distribute classes more evenly
-    const shuffledDays = [...otherDays].sort(() => Math.random() - 0.5);
-
-    // Try to use the same classroom first
-    console.log(
-        `Trying to find a slot for the split course in the same classroom (${preferredClassroomCode})`
-    );
-
-    // First try to find a slot with the preferred classroom on a different day
-    for (const day of shuffledDays) {
-        const assignment = tryClassroomOnDay(
-            grid,
-            course,
-            section,
-            day,
-            timeConstraints,
-            instructorAssignments,
-            classroomCodeMap,
-            instructorNameMap,
-            timeSlots
-        );
-
-        if (assignment) {
-            return assignment;
-        }
-    }
-
-    // If that fails, try other classrooms on different days
-    console.log(
-        `Could not find slot in the same classroom on different days. Trying other classrooms.`
-    );
-
-    for (const day of shuffledDays) {
-        for (const classroom of classrooms) {
-            // Skip the already tried classroom
-            if (classroom.code === preferredClassroomCode) {
-                continue;
-            }
-
-            // Create a temporary section with this classroom assigned
-            const tempSection = {
-                ...section,
-                classroom_id: classroom.id,
-            };
-
-            const assignment = tryClassroomOnDay(
-                grid,
-                course,
-                tempSection,
-                day,
-                timeConstraints,
-                instructorAssignments,
-                classroomCodeMap,
-                instructorNameMap,
-                timeSlots
-            );
-
-            if (assignment) {
-                return assignment;
-            }
-        }
-    }
-
-    // If still no luck, try the same day with the preferred classroom
-    console.log(
-        `Trying the same day (${firstDay}) with the preferred classroom.`
-    );
-    const sameDay = tryClassroomOnDay(
-        grid,
-        course,
-        section,
-        firstDay,
-        timeConstraints,
-        instructorAssignments,
-        classroomCodeMap,
-        instructorNameMap,
-        timeSlots
-    );
-
-    if (sameDay) {
-        return sameDay;
-    }
-
-    // Last resort: try other classrooms on the same day
-    console.log(`Trying other classrooms on the same day (${firstDay}).`);
-    for (const classroom of classrooms) {
-        if (classroom.code === preferredClassroomCode) {
-            continue;
-        }
-
-        const tempSection = {
-            ...section,
-            classroom_id: classroom.id,
-        };
-
-        const assignment = tryClassroomOnDay(
-            grid,
-            course,
-            tempSection,
-            firstDay,
-            timeConstraints,
-            instructorAssignments,
-            classroomCodeMap,
-            instructorNameMap,
-            timeSlots
-        );
-
-        if (assignment) {
-            return assignment;
         }
     }
 
     console.log(
-        `Could not find any suitable split arrangement for course ${course.code}, section ${section.id}`
+        `Could not find available time slot for section ${section.number}`
     );
     return null;
 }
 
-// Helper function to try a specific classroom on a specific day
-function tryClassroomOnDay(
-    grid: ScheduleGrid,
-    course: Course,
-    section: {
-        id: number;
-        number: string;
-        classroom_id: number | null;
-        instructor_id: number;
-    },
+// Find all possible consecutive time slot combinations for a given duration
+function findPossibleTimeSlots(
+    timeSlots: string[],
+    duration: number
+): string[][] {
+    const combinations: string[][] = [];
+
+    // Generate consecutive slot combinations based on duration
+    for (let i = 0; i <= timeSlots.length - duration; i++) {
+        const combination = timeSlots.slice(i, i + duration);
+        combinations.push(combination);
+    }
+
+    // Sort combinations by their starting time slot (smaller to bigger)
+    return combinations.sort((a, b) => {
+        // Extract the start hour from the first time slot of each combination
+        const startHourA = parseInt(a[0].split("-")[0]);
+        const startHourB = parseInt(b[0].split("-")[0]);
+        return startHourA - startHourB;
+    });
+}
+
+// Check if a section can be scheduled at a specific time
+function canScheduleAtTime(
     day: string,
-    timeConstraints: TimeConstraint[],
-    instructorAssignments: Map<string, boolean>,
-    classroomCodeMap: Map<number, string>,
-    instructorNameMap: Map<number, string>,
-    timeSlots: string[]
-): Assignment | null {
-    if (section.classroom_id === null) {
-        return null;
-    }
+    slotCombination: string[],
+    classroomId: number,
+    scheduleGrid: ScheduleGrid,
+    instructorAvailableSlots?: string[]
+): boolean {
+    // Check if all required slots are available in the classroom
+    for (const timeSlot of slotCombination) {
+        const key = `${day}-${classroomId}-${timeSlot}`;
+        const slot = scheduleGrid.get(key);
 
-    const dayConstraints = timeConstraints
-        .filter(
-            (tc) => tc.instructor_id === section.instructor_id && tc.day === day
-        )
-        .flatMap((dc) => dc.timeSlots);
-
-    // CORRECTED: Same fixes as above
-    const maxStartIndex = timeSlots.length - course.duration;
-
-    for (let i = 0; i <= maxStartIndex; i++) {
-        const start_time = timeSlots[i];
-        const end_time = calculateEndTime(start_time, course.duration);
-
-        if (!validateTimeAssignment(start_time, end_time)) {
-            continue;
+        if (!slot || !slot.isAvailable) {
+            return false;
         }
 
-        let allSlotsAvailable = true;
-        const slotsToCheck = [];
-
-        for (let j = 0; j < course.duration; j++) {
-            const slotIndex = i + j;
-            if (slotIndex >= timeSlots.length) {
-                allSlotsAvailable = false;
-                break;
-            }
-            slotsToCheck.push(timeSlots[slotIndex]);
+        // If instructor has time constraints, check if this slot is in their available slots
+        if (
+            instructorAvailableSlots &&
+            !instructorAvailableSlots.includes(timeSlot)
+        ) {
+            return false;
         }
-
-        if (!allSlotsAvailable) continue;
-
-        for (const timeSlot of slotsToCheck) {
-            const key = `${day}-${section.classroom_id}-${timeSlot}`;
-            const slot = grid.get(key);
-
-            if (!slot || !slot.isAvailable) {
-                allSlotsAvailable = false;
-                break;
-            }
-
-            if (dayConstraints.includes(timeSlot)) {
-                allSlotsAvailable = false;
-                break;
-            }
-
-            const instructorKey = `${section.instructor_id}-${day}-${timeSlot}`;
-            if (instructorAssignments.get(instructorKey)) {
-                allSlotsAvailable = false;
-                break;
-            }
-        }
-
-        if (allSlotsAvailable) {
-            return {
-                section_id: section.id,
-                course_code: course.code,
-                course_title: course.title,
-                instructor_name:
-                    instructorNameMap.get(section.instructor_id) || "Unknown",
-                day,
-                start_time,
-                end_time,
-                classroom_code:
-                    classroomCodeMap.get(section.classroom_id) || "Unknown",
-            };
-        }
-    }
-
-    return null;
-}
-
-function validateTimeAssignment(start_time: string, end_time: string): boolean {
-    if (!start_time || !end_time) {
-        console.error(`Invalid times: start=${start_time}, end=${end_time}`);
-        return false;
-    }
-
-    const startHour = parseInt(start_time.split(":")[0]);
-    const endHour = parseInt(end_time.split(":")[0]);
-
-    if (startHour >= endHour) {
-        console.error(
-            `Invalid time range: start=${start_time}(${startHour}) >= end=${end_time}(${endHour})`
-        );
-        return false;
     }
 
     return true;
+}
+
+// Mark time slots as occupied
+function markSlotsAsOccupied(
+    day: string,
+    slotCombination: string[],
+    classroomId: number,
+    sectionId: number,
+    scheduleGrid: ScheduleGrid
+): void {
+    for (const timeSlot of slotCombination) {
+        const key = `${day}-${classroomId}-${timeSlot}`;
+        const slot = scheduleGrid.get(key);
+
+        if (slot) {
+            slot.isAvailable = false;
+            slot.assigned_section_id = sectionId;
+        }
+    }
+}
+
+function getStartTime(slotCombination: string[]): string {
+    if (slotCombination.length === 0) {
+        throw new Error("Slot combination cannot be empty");
+    }
+
+    // Extract the start hour from the first time slot
+    const startHour = slotCombination[0].split("-")[0];
+    return startHour;
+}
+
+function getEndTime(slotCombination: string[]): string {
+    if (slotCombination.length === 0) {
+        throw new Error("Slot combination cannot be empty");
+    }
+
+    // Extract the end hour from the last time slot
+    const endHour = slotCombination[slotCombination.length - 1].split("-")[1];
+    return endHour;
+}
+// Utility function to shuffle array
+function shuffleArray<T>(array: T[]): void {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+}
+
+// Function to store schedule in database
+async function storeScheduleInDatabase(
+    assignments: Assignment[]
+): Promise<{ success: boolean; stored: number; errors: any[] }> {
+    console.log(`Storing ${assignments.length} assignments in database...`);
+
+    let stored = 0;
+    const errors: any[] = [];
+
+    for (const assignment of assignments) {
+        try {
+            console.log(`Processing assignment: ${assignment.start_time}`);
+
+            const timeSlotFormat = `${assignment.start_time} - ${assignment.end_time}`;
+
+            console.log(`Storing course hour: ${timeSlotFormat}`);
+
+            await db.insert(courseHours).values({
+                day: assignment.day,
+                timeSlot: timeSlotFormat,
+                sectionId: assignment.section_id,
+            });
+
+            stored++;
+            console.log(
+                `✅ Stored assignment for section ${assignment.section_id}`
+            );
+        } catch (error) {
+            console.error(
+                `❌ Error storing assignment for section ${assignment.section_id}:`,
+                error
+            );
+            errors.push({
+                section_id: assignment.section_id,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
+    console.log(
+        `Storage completed. Stored: ${stored}, Errors: ${errors.length}`
+    );
+
+    return {
+        success: errors.length === 0,
+        stored,
+        errors,
+    };
 }
