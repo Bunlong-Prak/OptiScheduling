@@ -870,174 +870,191 @@ export default function TimetableViewClassroom() {
         setIsDialogOpen(true);
     };
 
-    // Add this function to fetch and generate the schedule
-    const generateSchedule = async () => {
-        if (!params.id) {
-            alert("Schedule ID is missing");
-            return;
+// Replace your existing generateSchedule function with this fixed version
+// Replace your existing generateSchedule function with this fixed version
+const generateSchedule = async () => {
+    if (!params.id) {
+        alert("Schedule ID is missing");
+        return;
+    }
+
+    setIsGeneratingSchedule(true);
+
+    try {
+        const scheduleId = params.id.toString();
+
+        // Call the generate-schedule API endpoint with POST method
+        const response = await fetch(
+            `/api/generate-schedule?scheduleId=${scheduleId}`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(
+                `Failed to generate schedule: ${response.status} ${response.statusText}`
+            );
         }
 
-        setIsGeneratingSchedule(true);
+        const data: ScheduleResponse = await response.json();
 
-        try {
-            const scheduleId = params.id.toString();
+        // Save stats for potential display
+        if (data.stats) {
+            setGenerationStats(data.stats);
+        }
 
-            // Call the generate-schedule API endpoint with POST method
-            const response = await fetch(
-                `/api/generate-schedule?scheduleId=${scheduleId}`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
+        // Process the generated schedule and update the timetable
+        if (data.schedule && Array.isArray(data.schedule)) {
+            // Clear the current schedule
+            setSchedule({});
+
+            // Create new schedule data structures
+            const newSchedule: TimetableGrid = {};
+            const newAssignedCourses: TimetableCourse[] = [];
+
+            // Transform snake_case API response to camelCase to match our types
+            const transformedSchedule: ScheduleAssignment[] = data.schedule.map((item: any) => ({
+                sectionId: item.section_id,
+                courseCode: item.course_code,
+                courseTitle: item.course_title,
+                courseColor: item.course_color || '', // Handle missing color
+                instructorName: item.instructor_name,
+                day: item.day,
+                startTime: item.start_time,
+                endTime: item.end_time,
+                classroomCode: item.classroom_code,
+            }));
+
+            // Process each assignment from the transformed data
+            transformedSchedule.forEach((assignment: ScheduleAssignment) => {
+                const {
+                    sectionId,
+                    courseCode,
+                    courseTitle,
+                    courseColor,
+                    instructorName,
+                    day,
+                    startTime,
+                    endTime,
+                    classroomCode,
+                } = assignment;
+
+                // Find the classroom by code
+                const classroom = classrooms.find(
+                    (c) => c.code === classroomCode
+                );
+                if (!classroom) {
+                    console.warn(
+                        `Classroom with code ${classroomCode} not found`
+                    );
+                    return;
                 }
-            );
 
-            if (!response.ok) {
-                throw new Error(
-                    `Failed to generate schedule: ${response.status} ${response.statusText}`
+                // Find the course from available courses to get color info
+                const originalCourse = availableCourses.find(
+                    (c) => c.code === courseCode
                 );
-            }
 
-            const data: ScheduleResponse = await response.json();
+                // Find the start time index
+                const startIndex = timeSlots.findIndex(
+                    (ts) =>
+                        getTimeSlotKey(ts) === startTime ||
+                        ts.startTime === startTime
+                );
+                if (startIndex === -1) {
+                    console.warn(`Time slot ${startTime} not found`);
+                    return;
+                }
 
-            // Save stats for potential display
-            if (data.stats) {
-                setGenerationStats(data.stats);
-            }
+                // Find the end time index
+                const endIndex = timeSlots.findIndex(
+                    (ts) =>
+                        getTimeSlotKey(ts) === endTime ||
+                        ts.endTime === endTime ||
+                        (ts.time_slot && ts.time_slot.endsWith(`-${endTime}`))
+                );
 
-            // Process the generated schedule and update the timetable
-            if (data.schedule && Array.isArray(data.schedule)) {
-                // Clear the current schedule
-                setSchedule({});
+                // Calculate duration based on start and end times
+                const duration = endIndex !== -1 ? endIndex - startIndex + 1 : 1;
 
-                // Create new schedule data structures
-                const newSchedule: TimetableGrid = {};
-                const newAssignedCourses: TimetableCourse[] = [];
+                // Use the course color from API response, fallback to original course color or generate one
+                const colorClassName = courseColor && colors_class[courseColor]
+                    ? colors_class[courseColor]
+                    : originalCourse
+                    ? originalCourse.color
+                    : getConsistentCourseColor(courseCode);
 
-                // Process each assignment from the API
-                data.schedule.forEach((assignment: ScheduleAssignment) => {
-                    const {
-                        sectionId,
-                        courseCode,
-                        courseTitle,
-                        instructorName,
-                        day,
-                        startTime,
-                        endTime,
-                        classroomCode,
-                        courseColor, // Make sure this is included in your API response
-                    } = assignment;
+                // Create course object with consistent color
+                const course: TimetableCourse = {
+                    sectionId: sectionId,
+                    code: courseCode,
+                    name: courseTitle,
+                    instructor: instructorName,
+                    duration,
+                    day,
+                    startTime: startTime,
+                    endTime: endTime,
+                    classroom: classroom.id.toString(),
+                    color: colorClassName,
+                    originalColor: courseColor || originalCourse?.originalColor,
+                    section: sectionId.toString(),
+                    room: classroomCode,
+                };
 
-                    // Find the classroom ID by code
-                    const classroom = classrooms.find(
-                        (c) => c.code === classroomCode
+                // Add to assigned courses
+                newAssignedCourses.push(course);
+
+                // Add to schedule grid for display
+                for (let i = 0; i < duration; i++) {
+                    if (startIndex + i >= timeSlots.length) break;
+
+                    const currentTimeSlot = getTimeSlotKey(
+                        timeSlots[startIndex + i]
                     );
-                    if (!classroom) {
-                        console.warn(
-                            `Classroom with code ${classroomCode} not found`
-                        );
-                        return;
-                    }
+                    const key = `${day}-${classroom.id}-${currentTimeSlot}`;
 
-                    // Find the start time index
-                    const startIndex = timeSlots.findIndex(
-                        (ts) =>
-                            getTimeSlotKey(ts) === startTime ||
-                            ts.startTime === startTime
-                    );
-                    if (startIndex === -1) {
-                        console.warn(`Time slot ${startTime} not found`);
-                        return;
-                    }
-
-                    // Find the end time index
-                    const endIndex = timeSlots.findIndex(
-                        (ts) =>
-                            ts.time_slot === endTime || ts.endTime === endTime
-                    );
-                    if (endIndex === -1) {
-                        console.warn(`End time slot ${endTime} not found`);
-                        return;
-                    }
-
-                    // Calculate duration based on start and end times
-                    const duration = endIndex - startIndex + 1;
-
-                    // Use the color from the API if available
-                    // Use the original color from the course if available
-                    const colorClassName =
-                        courseColor && colors_class[courseColor]
-                            ? colors_class[courseColor]
-                            : getConsistentCourseColor(courseCode);
-
-                    // Create course object with consistent color
-                    const course: TimetableCourse = {
-                        sectionId,
-                        code: courseCode,
-                        name: courseTitle,
-                        instructor: instructorName,
-                        duration,
-                        day,
-                        startTime,
-                        endTime,
-                        classroom: classroom.id.toString(),
-                        color: colorClassName,
-                        originalColor: courseColor,
-                        section: sectionId.toString(),
-                        room: classroomCode,
+                    newSchedule[key] = {
+                        ...course,
+                        isStart: i === 0,
+                        isMiddle: i > 0 && i < duration - 1,
+                        isEnd: i === duration - 1,
+                        colspan: i === 0 ? duration : 0,
                     };
+                }
+            });
 
-                    // Add to assigned courses
-                    newAssignedCourses.push(course);
+            // Update state with new schedule and assigned courses
+            setSchedule(newSchedule);
+            setAssignedCourses(newAssignedCourses);
 
-                    // Add to schedule grid for display
-                    for (let i = 0; i < duration; i++) {
-                        if (startIndex + i >= timeSlots.length) break;
-
-                        const currentTimeSlot = getTimeSlotKey(
-                            timeSlots[startIndex + i]
-                        );
-                        const key = `${day}-${classroom.id}-${currentTimeSlot}`;
-
-                        newSchedule[key] = {
-                            ...course,
-                            isStart: i === 0,
-                            isMiddle: i > 0 && i < duration - 1,
-                            isEnd: i === duration - 1,
-                            colspan: i === 0 ? duration : 0,
-                        };
-                    }
-                });
-
-                // Update state with new schedule and assigned courses
-                setSchedule(newSchedule);
-                setAssignedCourses(newAssignedCourses);
-
-                // Update available courses (remove assigned courses)
-                const assignedIds = new Set(
-                    newAssignedCourses.map((c) => c.sectionId)
-                );
-                setAvailableCourses((prev) =>
-                    prev.filter((c) => !assignedIds.has(c.sectionId))
-                );
-
-                setScheduleGenerated(true);
-            } else {
-                console.error("Invalid schedule data format", data);
-                alert("Failed to process the generated schedule data.");
-            }
-        } catch (error) {
-            console.error("Error generating schedule:", error);
-            alert(
-                `Error generating schedule: ${
-                    error instanceof Error ? error.message : "Unknown error"
-                }`
+            // Update available courses (remove assigned courses)
+            const assignedIds = new Set(
+                newAssignedCourses.map((c) => c.sectionId)
             );
-        } finally {
-            setIsGeneratingSchedule(false);
+            setAvailableCourses((prev) =>
+                prev.filter((c) => !assignedIds.has(c.sectionId))
+            );
+
+            setScheduleGenerated(true);
+        } else {
+            console.error("Invalid schedule data format", data);
+            alert("Failed to process the generated schedule data.");
         }
-    };
+    } catch (error) {
+        console.error("Error generating schedule:", error);
+        alert(
+            `Error generating schedule: ${
+                error instanceof Error ? error.message : "Unknown error"
+            }`
+        );
+    } finally {
+        setIsGeneratingSchedule(false);
+    }
+};
 
     // Handle course delete - updated to use sectionId approach
     const handleRemoveCourse = async () => {
