@@ -805,6 +805,8 @@ async function storeScheduleInDatabase(
     let stored = 0;
     const errors: any[] = [];
 
+    await db.delete(courseHours);
+
     for (const assignment of assignments) {
         try {
             console.log(`Processing assignment: ${assignment.start_time}`);
