@@ -132,8 +132,9 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
     const fetchSchedules = async () => {
         setIsLoading(true);
+        const userId = authUser.id; // Assuming authUser has an id property
         try {
-            const response = await fetch("/api/schedules");
+            const response = await fetch(`/api/schedules?userId=${userId}`);
             if (!response.ok) {
                 throw new Error("Failed to fetch schedules");
             }
@@ -176,7 +177,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-    
+
         if (name === "numTimeSlots") {
             // Allow empty string (when deleting) or valid numbers
             if (value === "") {
@@ -302,7 +303,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                 startDate: formData.startDate,
                 endDate: formData.endDate,
                 timeSlots: formData.timeSlots,
-                userId:  authUser.id, 
+                userId: authUser.id,
             };
 
             console.log("Sending update data:", apiData);
@@ -547,7 +548,10 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                             </Label>
                                             <Input
                                                 id={`startTime-${index}`}
-                                                placeholder={getTimePlaceholder(index, true)}
+                                                placeholder={getTimePlaceholder(
+                                                    index,
+                                                    true
+                                                )}
                                                 value={timeSlot.startTime}
                                                 onChange={(e) =>
                                                     handleTimeSlotChange(
@@ -564,7 +568,10 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                             </Label>
                                             <Input
                                                 id={`endTime-${index}`}
-                                                placeholder={getTimePlaceholder(index, false)}
+                                                placeholder={getTimePlaceholder(
+                                                    index,
+                                                    false
+                                                )}
                                                 value={timeSlot.endTime}
                                                 onChange={(e) =>
                                                     handleTimeSlotChange(
@@ -675,7 +682,10 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                             </Label>
                                             <Input
                                                 id={`edit-startTime-${index}`}
-                                                placeholder={getTimePlaceholder(index, true)}
+                                                placeholder={getTimePlaceholder(
+                                                    index,
+                                                    true
+                                                )}
                                                 value={timeSlot.startTime}
                                                 onChange={(e) =>
                                                     handleTimeSlotChange(
@@ -694,7 +704,10 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                             </Label>
                                             <Input
                                                 id={`edit-endTime-${index}`}
-                                                placeholder={getTimePlaceholder(index, false)}
+                                                placeholder={getTimePlaceholder(
+                                                    index,
+                                                    false
+                                                )}
                                                 value={timeSlot.endTime}
                                                 onChange={(e) =>
                                                     handleTimeSlotChange(

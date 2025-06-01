@@ -6,7 +6,7 @@ import {
     deleteScheduleSchema,
     editScheduleSchema,
 } from "@/lib/validations/schedules";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -15,7 +15,19 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const scheduleId = searchParams.get("scheduleId");
+        const userId = searchParams.get("userId"); // Add userId parameter
+
         if (!scheduleId) {
+            // Check if userId is provided
+            if (!userId) {
+                return NextResponse.json(
+                    {
+                        error: "userId is required when scheduleId is not provided",
+                    },
+                    { status: 400 }
+                );
+            }
+
             const allScheduleData = await db
                 .select({
                     id: schedules.id,
@@ -27,13 +39,13 @@ export async function GET(request: Request) {
                     scheduleId: scheduleTimeSlots.scheduleId,
                 })
                 .from(schedules)
+                .where(eq(schedules.userId, userId)) // Filter by specific userId
                 .innerJoin(
                     scheduleTimeSlots,
                     eq(scheduleTimeSlots.scheduleId, schedules.id)
                 );
 
             const scheduleMap = new Map();
-
             allScheduleData.forEach((item) => {
                 if (!scheduleMap.has(item.id)) {
                     scheduleMap.set(item.id, {
@@ -43,7 +55,6 @@ export async function GET(request: Request) {
                         timeSlots: [],
                     });
                 }
-
                 // Add this time slot to the schedule
                 const schedule = scheduleMap.get(item.id);
                 schedule.timeSlots.push({
@@ -54,19 +65,41 @@ export async function GET(request: Request) {
             });
 
             const formattedSchedules = Array.from(scheduleMap.values());
-
             console.log("Formatted schedules:", formattedSchedules);
             return NextResponse.json(formattedSchedules);
         } else {
-            const allScheduleData = await db
+            // When scheduleId is provided, optionally check if it belongs to the user
+            let query = db
                 .select({
                     id: scheduleTimeSlots.id,
                     startTime: scheduleTimeSlots.startTime,
                     endTime: scheduleTimeSlots.endTime,
                 })
-                .from(scheduleTimeSlots)
-                .where(eq(scheduleTimeSlots.scheduleId, parseInt(scheduleId)));
+                .from(scheduleTimeSlots);
 
+            if (userId) {
+                // If userId is provided, ensure the schedule belongs to that user
+                query
+                    .innerJoin(
+                        schedules,
+                        eq(schedules.id, scheduleTimeSlots.scheduleId)
+                    )
+                    .where(
+                        and(
+                            eq(
+                                scheduleTimeSlots.scheduleId,
+                                parseInt(scheduleId)
+                            ),
+                            eq(schedules.userId, userId)
+                        )
+                    );
+            } else {
+                query.where(
+                    eq(scheduleTimeSlots.scheduleId, parseInt(scheduleId))
+                );
+            }
+
+            const allScheduleData = await query;
             return NextResponse.json(allScheduleData);
         }
     } catch (error: unknown) {
