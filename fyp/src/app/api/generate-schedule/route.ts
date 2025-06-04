@@ -475,19 +475,22 @@ function generateSchedule(
             `\nProcessing section ${section.number} of course ${section.course.code}`
         );
 
-        // Step 1: Assign classroom if not already assigned
+        // Step 1: ALWAYS assign a random classroom (regardless of existing assignment)
+        console.log(`Previous classroom_id: ${section.classroom_id}`);
+
+        section.classroom_id = assignClassroomToSection(
+            section,
+            classroomsData
+        );
+
         if (!section.classroom_id) {
-            section.classroom_id = assignClassroomToSection(
-                section,
-                classroomsData
+            console.log(
+                `Failed to assign classroom to section ${section.number}`
             );
-            if (!section.classroom_id) {
-                console.log(
-                    `Failed to assign classroom to section ${section.number}`
-                );
-                continue;
-            }
+            continue;
         }
+
+        console.log(`New classroom_id: ${section.classroom_id}`);
 
         // Step 2: Find available time slots for this section
         const assignment = scheduleSection(
@@ -537,33 +540,40 @@ function initializeScheduleGrid(
     return grid;
 }
 
-// Assign classroom to section based on capacity and availability
 function assignClassroomToSection(
     section: any,
     classroomsData: any[]
 ): number | null {
-    // Find suitable classrooms (you can add more criteria here)
+    console.log(`Assigning classroom to section ${section.number}`);
+
+    // Filter suitable classrooms based on capacity or other criteria
     const suitableClassrooms = classroomsData.filter(
         (classroom) => classroom.capacity >= (section.course.capacity || 0)
     );
 
+    console.log(
+        `Suitable classrooms: ${suitableClassrooms.length}/${classroomsData.length}`
+    );
+
     if (suitableClassrooms.length === 0) {
-        console.log(
-            `No suitable classrooms found for section ${section.number}`
-        );
+        console.log("No suitable classrooms found");
         return null;
     }
 
-    // For now, assign the first suitable classroom
-    // You can implement more sophisticated logic here
-    const assignedClassroom = suitableClassrooms[0];
+    // Randomly select from suitable classrooms
+    const randomIndex = Math.floor(Math.random() * suitableClassrooms.length);
+    const assignedClassroom = suitableClassrooms[randomIndex];
+
     console.log(
-        `Assigned classroom ${assignedClassroom.code} to section ${section.number}`
+        `🎲 Randomly assigned suitable classroom: ${
+            assignedClassroom.code
+        } (ID: ${assignedClassroom.id}) - Index ${randomIndex}/${
+            suitableClassrooms.length - 1
+        }`
     );
 
     return assignedClassroom.id;
 }
-
 // Schedule a section by finding available time slots
 function scheduleSection(
     section: any,

@@ -1475,12 +1475,7 @@ export default function TimetableViewClassroom() {
                 setScheduleGenerated(true);
 
                 // Show success message
-                showMessage(
-                    "success",
-                    `Schedule generated successfully! ${
-                        data.stats?.scheduledAssignments || 0
-                    } classes were scheduled.`
-                );
+                showMessage("success", "Schedule generated successfully!");
             } else {
                 console.error("Invalid schedule data format", data);
                 showMessage(
@@ -2058,7 +2053,7 @@ export default function TimetableViewClassroom() {
                                             Section:
                                         </span>
                                         <span className="text-sm font-medium">
-                                            {selectedCourse.section}
+                                            {selectedCourse.sectionId}
                                         </span>
                                     </div>
                                 </div>
