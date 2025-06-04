@@ -1,5 +1,6 @@
 import {
     classrooms,
+    classroomTypes,
     courseHours,
     courses,
     instructors,
@@ -425,7 +426,12 @@ async function fetchClassrooms(schedule_id: number) {
                 code: classrooms.code,
                 capacity: classrooms.capacity,
             })
-            .from(classrooms);
+            .from(classrooms)
+            .innerJoin(
+                classroomTypes,
+                eq(classrooms.classroomTypeId, classroomTypes.id)
+            )
+            .where(eq(classroomTypes.scheduleId, schedule_id));
 
         if (!result || result.length === 0) {
             console.log("No classrooms found in the database");
