@@ -21,7 +21,15 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Search, X } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+    AlertCircle,
+    CheckCircle2,
+    Minus,
+    Plus,
+    Search,
+    X,
+} from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -40,6 +48,29 @@ type TimetableGrid = Record<string, TimetableCourse>;
 
 // Initial schedule data (empty object)
 const initialSchedule: TimetableGrid = {};
+
+// New type for course split configuration
+interface CourseSplitConfig {
+    course: TimetableCourse;
+    splits: number[];
+}
+
+// Add type for instructor time constraints
+interface InstructorTimeConstraint {
+    id: number;
+    instructor_id: number;
+    day_of_the_week: string;
+    time_period: string[];
+    firstName: string;
+    lastName: string;
+}
+
+// Add type for messages
+interface Message {
+    id: number;
+    type: "success" | "error";
+    text: string;
+}
 
 export default function TimetableViewClassroom() {
     const [schedule, setSchedule] = useState<TimetableGrid>(initialSchedule);
@@ -92,7 +123,41 @@ export default function TimetableViewClassroom() {
     const [searchQuery, setSearchQuery] = useState("");
     const [isSearchActive, setIsSearchActive] = useState(false);
 
+    // NEW: Course split dialog state
+    const [isSplitDialogOpen, setIsSplitDialogOpen] = useState(false);
+    const [courseSplitConfig, setCourseSplitConfig] =
+        useState<CourseSplitConfig | null>(null);
+    const [splitDurations, setSplitDurations] = useState<number[]>([]);
+
+    // NEW: Instructor time constraints state
+    const [instructorConstraints, setInstructorConstraints] = useState<
+        InstructorTimeConstraint[]
+    >([]);
+
+    // NEW: Messages state
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [messageIdCounter, setMessageIdCounter] = useState(0);
+
     const params = useParams();
+
+    // NEW: Function to show messages
+    const showMessage = (type: "success" | "error", text: string) => {
+        const id = messageIdCounter;
+        setMessageIdCounter((prev) => prev + 1);
+
+        const newMessage: Message = { id, type, text };
+        setMessages((prev) => [...prev, newMessage]);
+
+        // Auto-remove message after 3 seconds
+        setTimeout(() => {
+            setMessages((prev) => prev.filter((msg) => msg.id !== id));
+        }, 3000);
+    };
+
+    // NEW: Function to manually remove message
+    const removeMessage = (id: number) => {
+        setMessages((prev) => prev.filter((msg) => msg.id !== id));
+    };
 
     // Helper function to get consistent time slot key
     const getTimeSlotKey = (timeSlot: any): string => {
@@ -168,6 +233,252 @@ export default function TimetableViewClassroom() {
         return { startTime, endTime };
     };
 
+    // NEW: Function to check instructor time constraints and scheduling conflicts
+    const checkInstructorConstraints = (
+        course: TimetableCourse,
+        day: string,
+        timeSlotIndex: number,
+        duration: number
+    ): { isValid: boolean; conflictMessage?: string } => {
+        const instructorName = course.instructor.trim();
+
+        console.log("=== CONSTRAINT CHECK DEBUG ===");
+        console.log("Course:", course.code);
+        console.log("Instructor:", instructorName);
+        console.log("Day:", day);
+        console.log("Time Slot Index:", timeSlotIndex);
+        console.log("Duration:", duration);
+        console.log("All Constraints:", instructorConstraints);
+
+        // 1. Check instructor availability constraints (time_period = unavailable times)
+        const matchingConstraints = instructorConstraints.filter(
+            (constraint) => {
+                const constraintInstructorName =
+                    `${constraint.firstName} ${constraint.lastName}`.trim();
+                const nameMatch = constraintInstructorName === instructorName;
+                const dayMatch = constraint.day_of_the_week === day;
+
+                console.log("Checking constraint:");
+                console.log(
+                    "  - Constraint instructor:",
+                    constraintInstructorName
+                );
+                console.log("  - Course instructor:", instructorName);
+                console.log("  - Name match:", nameMatch);
+                console.log("  - Constraint day:", constraint.day_of_the_week);
+                console.log("  - Drop day:", day);
+                console.log("  - Day match:", dayMatch);
+                console.log("  - Time periods:", constraint.time_period);
+
+                return nameMatch && dayMatch;
+            }
+        );
+
+        console.log("Matching constraints found:", matchingConstraints.length);
+
+        if (matchingConstraints.length > 0) {
+            const instructorConstraint = matchingConstraints[0];
+
+            // Check each time slot the course would occupy
+            for (let i = 0; i < duration; i++) {
+                if (timeSlotIndex + i >= timeSlots.length) break;
+
+                const timeSlotObject = timeSlots[timeSlotIndex + i];
+                console.log("Checking time slot object:", timeSlotObject);
+
+                // Get all possible time representations
+                const timeRepresentations = [
+                    timeSlotObject.startTime,
+                    timeSlotObject.time_slot,
+                    getTimeSlotKey(timeSlotObject),
+                ].filter(Boolean); // Remove undefined/null values
+
+                console.log(
+                    "Time representations to check:",
+                    timeRepresentations
+                );
+                console.log(
+                    "Against constraint time periods:",
+                    instructorConstraint.time_period
+                );
+
+                // Check if any time representation matches the constraint periods
+                for (const timeRep of timeRepresentations) {
+                    if (instructorConstraint.time_period.includes(timeRep)) {
+                        console.log("🚫 CONSTRAINT VIOLATION FOUND!");
+                        console.log("Blocked time:", timeRep);
+                        return {
+                            isValid: false,
+                            conflictMessage: `Instructor ${instructorName} is not available on ${day} at ${timeRep} `,
+                        };
+                    }
+                }
+
+                // Also check if time_period contains time ranges and current time falls within
+                for (const timePeriod of instructorConstraint.time_period) {
+                    if (timePeriod.includes("-")) {
+                        // Handle time ranges like "09:00-10:00"
+                        const [periodStart, periodEnd] = timePeriod
+                            .split("-")
+                            .map((t) => t.trim());
+
+                        for (const timeRep of timeRepresentations) {
+                            if (
+                                timeRep === periodStart ||
+                                (timeSlotObject.startTime >= periodStart &&
+                                    timeSlotObject.startTime < periodEnd) ||
+                                (timeSlotObject.time_slot &&
+                                    timeSlotObject.time_slot.startsWith(
+                                        periodStart
+                                    ))
+                            ) {
+                                console.log(
+                                    "🚫 CONSTRAINT VIOLATION FOUND IN RANGE!"
+                                );
+                                console.log("Blocked time range:", timePeriod);
+                                console.log("Attempted time:", timeRep);
+                                return {
+                                    isValid: false,
+                                    conflictMessage: `Instructor ${instructorName} is not available on ${day} at ${timeRep} (time constraint)`,
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Check if instructor is already teaching another course at the same time
+        for (let i = 0; i < duration; i++) {
+            if (timeSlotIndex + i >= timeSlots.length) break;
+
+            const currentTimeSlot = getTimeSlotKey(
+                timeSlots[timeSlotIndex + i]
+            );
+
+            // Check all schedule entries for conflicts with this instructor
+            const conflictingCourse = Object.entries(schedule).find(
+                ([scheduleKey, scheduledCourse]) => {
+                    // Skip if it's the same course (in case of moving an existing course)
+                    if (scheduledCourse.sectionId === course.sectionId) {
+                        return false;
+                    }
+
+                    // Check if the scheduled course is on the same day and same instructor
+                    if (
+                        scheduledCourse.day === day &&
+                        scheduledCourse.instructor.trim() === instructorName
+                    ) {
+                        // Parse the schedule key to get the time slot
+                        const keyParts = scheduleKey.split("-");
+                        const scheduleTimeSlot = keyParts[keyParts.length - 1]; // Last part is the time slot
+
+                        // Check if time slots overlap
+                        return scheduleTimeSlot === currentTimeSlot;
+                    }
+
+                    return false;
+                }
+            );
+
+            if (conflictingCourse) {
+                const [, conflictingScheduledCourse] = conflictingCourse;
+                console.log("🚫 SCHEDULING CONFLICT FOUND!");
+                return {
+                    isValid: false,
+                    conflictMessage: `Instructor ${instructorName} is already teaching ${conflictingScheduledCourse.code} on ${day} at ${currentTimeSlot}`,
+                };
+            }
+        }
+
+        console.log("✅ No constraints violated");
+        return { isValid: true };
+    };
+
+    // NEW: Course split dialog functions
+    const handleCourseClick = (course: TimetableCourse) => {
+        if (course.duration > 1) {
+            setCourseSplitConfig({ course, splits: [] });
+            setSplitDurations([course.duration]); // Start with original duration
+            setIsSplitDialogOpen(true);
+        } else {
+            // For 1-hour courses, directly set as draggable
+            setDraggedCourse(course);
+        }
+    };
+
+    const addSplit = () => {
+        setSplitDurations((prev) => [...prev, 1]);
+    };
+
+    const removeSplit = (index: number) => {
+        if (splitDurations.length > 1) {
+            setSplitDurations((prev) => prev.filter((_, i) => i !== index));
+        }
+    };
+
+    const updateSplitDuration = (index: number, value: number) => {
+        setSplitDurations((prev) =>
+            prev.map((duration, i) =>
+                i === index ? Math.max(1, value) : duration
+            )
+        );
+    };
+
+    const getTotalSplitDuration = () => {
+        return splitDurations.reduce((sum, duration) => sum + duration, 0);
+    };
+
+    const isValidSplit = () => {
+        const total = getTotalSplitDuration();
+        return total === courseSplitConfig?.course.duration;
+    };
+
+    const applySplit = () => {
+        if (!courseSplitConfig || !isValidSplit()) return;
+
+        const { course } = courseSplitConfig;
+
+        // Remove original course from available courses
+        setAvailableCourses((prev) =>
+            prev.filter((c) => c.sectionId !== course.sectionId)
+        );
+
+        // Create split courses
+        const splitCourses = splitDurations.map((duration, index) => ({
+            ...course,
+            sectionId: Number.isNaN(Number(course.sectionId))
+                ? course.sectionId
+                : Number(course.sectionId), // keep as number if possible
+            duration: duration,
+            uniqueId: `${course.code}-${course.section}-split-${index + 1}`,
+            name: `${course.name} (Part ${index + 1})`,
+        }));
+
+        // Add split courses to available courses
+        setAvailableCourses((prev) => [
+            ...prev,
+            ...splitCourses.map((split, idx) => ({
+                ...split,
+                sectionId:
+                    typeof split.sectionId === "number"
+                        ? split.sectionId * 1000 + idx + 1 // ensure uniqueness and number type
+                        : idx + 1, // fallback if not a number
+            })),
+        ]);
+
+        // Close dialog
+        setIsSplitDialogOpen(false);
+        setCourseSplitConfig(null);
+        setSplitDurations([]);
+    };
+
+    const cancelSplit = () => {
+        setIsSplitDialogOpen(false);
+        setCourseSplitConfig(null);
+        setSplitDurations([]);
+    };
+
     // NEW: Filtered schedule based on search query
     const filteredSchedule = useMemo(() => {
         if (!searchQuery.trim()) {
@@ -205,6 +516,35 @@ export default function TimetableViewClassroom() {
     const clearSearch = () => {
         setSearchQuery("");
     };
+
+    // NEW: Fetch instructor time constraints
+    useEffect(() => {
+        const fetchInstructorConstraints = async () => {
+            try {
+                const scheduleId = params.id;
+                const response = await fetch(
+                    `/api/time-constraints?scheduleId=${scheduleId}`
+                );
+
+                if (response.ok) {
+                    const constraintsData = await response.json();
+                    setInstructorConstraints(constraintsData);
+                    console.log(
+                        "Loaded instructor constraints:",
+                        constraintsData
+                    );
+                } else {
+                    console.error("Failed to fetch instructor constraints");
+                }
+            } catch (error) {
+                console.error("Error fetching instructor constraints:", error);
+            }
+        };
+
+        if (params.id) {
+            fetchInstructorConstraints();
+        }
+    }, [params.id]);
 
     // Fetch time slots and classrooms from API
     useEffect(() => {
@@ -671,11 +1011,12 @@ export default function TimetableViewClassroom() {
             });
 
             if (response.ok) {
-                alert("All assignments saved successfully!");
+                showMessage("success", "All assignments saved successfully!");
             } else {
                 const errorData = await response.json();
                 console.error("Failed to save assignments:", errorData);
-                alert(
+                showMessage(
+                    "error",
                     `Failed to save assignments: ${
                         errorData.error || "Unknown error"
                     }`
@@ -683,7 +1024,8 @@ export default function TimetableViewClassroom() {
             }
         } catch (error) {
             console.error("Error saving assignments:", error);
-            alert(
+            showMessage(
+                "error",
                 `Error saving assignments: ${
                     error instanceof Error ? error.message : "Unknown error"
                 }`
@@ -767,8 +1109,7 @@ export default function TimetableViewClassroom() {
         return index !== -1 ? index + 1 : 0;
     };
 
-    // Handle drop - completely rewritten to prevent duplication
-    // Handle drop - completely rewritten to prevent duplication
+    // UPDATED: Handle drop with instructor constraint checking
     const handleDrop = (day: string, classroomId: string, timeSlot: string) => {
         if (!draggedCourse || timeSlots.length === 0) return;
 
@@ -803,7 +1144,8 @@ export default function TimetableViewClassroom() {
             existingCourse &&
             existingCourse.sectionId !== draggedCourse.sectionId
         ) {
-            alert(
+            showMessage(
+                "error",
                 "This time slot is already occupied. Please choose another slot."
             );
             return;
@@ -814,7 +1156,8 @@ export default function TimetableViewClassroom() {
         const remainingSlots = timeSlots.length - timeSlotIndex;
 
         if (draggedCourse.duration > remainingSlots) {
-            alert(
+            showMessage(
+                "error",
                 "Courses cannot span across multiple days. Not enough time slots available for this course duration."
             );
             return;
@@ -829,11 +1172,29 @@ export default function TimetableViewClassroom() {
                 schedule[nextKey] &&
                 schedule[nextKey].sectionId !== draggedCourse.sectionId
             ) {
-                alert(
+                showMessage(
+                    "error",
                     "There's a conflict with another course in subsequent time slots."
                 );
                 return;
             }
+        }
+
+        // NEW: Check instructor time constraints
+        const constraintCheck = checkInstructorConstraints(
+            draggedCourse,
+            day,
+            timeSlotIndex,
+            draggedCourse.duration
+        );
+
+        if (!constraintCheck.isValid) {
+            showMessage(
+                "error",
+                constraintCheck.conflictMessage ||
+                    "Instructor time constraint conflict"
+            );
+            return;
         }
 
         // Create a new schedule and remove all instances of the dragged course
@@ -918,8 +1279,9 @@ export default function TimetableViewClassroom() {
             setAssignedCourses((prev) => [...prev, assignedCourse]);
         }
     };
-    // Handle course click - updated to use classroom instead of major
-    const handleCourseClick = (
+
+    // Handle course click in timetable - updated to use classroom instead of major
+    const handleScheduledCourseClick = (
         day: string,
         classroomId: string,
         timeSlot: string,
@@ -931,10 +1293,10 @@ export default function TimetableViewClassroom() {
         setIsDialogOpen(true);
     };
 
-    // Updated generateSchedule function with fixed color logic
+    // UPDATED: generateSchedule function with success message
     const generateSchedule = async () => {
         if (!params.id) {
-            alert("Schedule ID is missing");
+            showMessage("error", "Schedule ID is missing");
             return;
         }
 
@@ -1111,13 +1473,25 @@ export default function TimetableViewClassroom() {
                 );
 
                 setScheduleGenerated(true);
+
+                // Show success message
+                showMessage(
+                    "success",
+                    `Schedule generated successfully! ${
+                        data.stats?.scheduledAssignments || 0
+                    } classes were scheduled.`
+                );
             } else {
                 console.error("Invalid schedule data format", data);
-                alert("Failed to process the generated schedule data.");
+                showMessage(
+                    "error",
+                    "Failed to process the generated schedule data."
+                );
             }
         } catch (error) {
             console.error("Error generating schedule:", error);
-            alert(
+            showMessage(
+                "error",
                 `Error generating schedule: ${
                     error instanceof Error ? error.message : "Unknown error"
                 }`
@@ -1197,8 +1571,11 @@ export default function TimetableViewClassroom() {
                 prev.filter((c) => c.sectionId !== courseId)
             );
 
-            // Optional: Show success message
-            // toast.success(`Course ${course.code} removed successfully`);
+            // Show success message
+            showMessage(
+                "success",
+                `Course ${course.code} removed successfully`
+            );
         } catch (error) {
             console.error("Error removing course:", error);
 
@@ -1208,13 +1585,10 @@ export default function TimetableViewClassroom() {
                     ? error.message
                     : "Failed to remove course from timetable";
 
-            alert(`Error: ${errorMessage}`);
+            showMessage("error", `Error: ${errorMessage}`);
 
             // Reopen dialog if there was an error
             setIsDialogOpen(true);
-
-            // Optionally, you could show a toast notification instead:
-            // toast.error(`Failed to remove course: ${errorMessage}`);
         }
     };
 
@@ -1270,6 +1644,37 @@ export default function TimetableViewClassroom() {
                     </div>
                 )}
             </div>
+
+            {/* NEW: Message Display Area */}
+            {messages.length > 0 && (
+                <div className="mb-4 space-y-2">
+                    {messages.map((message) => (
+                        <div
+                            key={message.id}
+                            className={`flex items-center justify-between p-3 rounded-lg border ${
+                                message.type === "success"
+                                    ? "bg-green-50 border-green-200 text-green-800"
+                                    : "bg-red-50 border-red-200 text-red-800"
+                            }`}
+                        >
+                            <div className="flex items-center">
+                                {message.type === "success" ? (
+                                    <CheckCircle2 className="h-5 w-5 mr-2" />
+                                ) : (
+                                    <AlertCircle className="h-5 w-5 mr-2" />
+                                )}
+                                <span>{message.text}</span>
+                            </div>
+                            <button
+                                onClick={() => removeMessage(message.id)}
+                                className="ml-2 hover:opacity-70"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Optional: Show generation results */}
             {scheduleGenerated && generationStats && (
@@ -1376,7 +1781,7 @@ export default function TimetableViewClassroom() {
                                                             <div
                                                                 className={`${course.color} p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium`}
                                                                 onClick={() =>
-                                                                    handleCourseClick(
+                                                                    handleScheduledCourseClick(
                                                                         day,
                                                                         classroom.id.toString(),
                                                                         slotKey,
@@ -1438,9 +1843,10 @@ export default function TimetableViewClassroom() {
                             {availableCourses.map((course) => (
                                 <div
                                     key={course.sectionId}
-                                    className={`${course.color} p-3 rounded-lg shadow cursor-move hover:shadow-md transition-all border`}
+                                    className={`${course.color} p-3 rounded-lg shadow cursor-pointer hover:shadow-md transition-all border`}
                                     draggable
                                     onDragStart={() => handleDragStart(course)}
+                                    onClick={() => handleCourseClick(course)}
                                 >
                                     <h4 className="font-bold text-gray-800">
                                         {course.code}
@@ -1458,12 +1864,139 @@ export default function TimetableViewClassroom() {
                                     <p className="text-xs mt-1 truncate text-gray-700">
                                         Section: {course.section || "N/A"}
                                     </p>
+                                    {course.duration > 1 && (
+                                        <p className="text-xs mt-1 text-blue-600 font-medium">
+                                            Click to split duration
+                                        </p>
+                                    )}
                                 </div>
                             ))}
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* Course Split Dialog */}
+            <Dialog
+                open={isSplitDialogOpen}
+                onOpenChange={setIsSplitDialogOpen}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold">
+                            Split Course Duration
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    {courseSplitConfig && (
+                        <div className="space-y-4">
+                            <div className="space-y-3">
+                                <div
+                                    className={`w-full h-1 ${courseSplitConfig.course.color
+                                        .replace("hover:", "")
+                                        .replace("border-", "")}`}
+                                ></div>
+                                <h3 className="font-bold text-lg">
+                                    {courseSplitConfig.course.code}:{" "}
+                                    {courseSplitConfig.course.name}
+                                </h3>
+                                <div className="text-sm text-gray-600">
+                                    Original Duration:{" "}
+                                    {courseSplitConfig.course.duration} hours
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <Label className="text-sm font-medium">
+                                    Split into parts:
+                                </Label>
+
+                                {splitDurations.map((duration, index) => (
+                                    <div
+                                        key={index}
+                                        className="flex items-center gap-2"
+                                    >
+                                        <Label className="text-sm w-16">
+                                            Part {index + 1}:
+                                        </Label>
+                                        <Input
+                                            type="number"
+                                            min="1"
+                                            value={duration}
+                                            onChange={(e) =>
+                                                updateSplitDuration(
+                                                    index,
+                                                    parseInt(e.target.value) ||
+                                                        1
+                                                )
+                                            }
+                                            className="w-20"
+                                        />
+                                        <span className="text-sm text-gray-500">
+                                            hours
+                                        </span>
+                                        {splitDurations.length > 1 && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    removeSplit(index)
+                                                }
+                                            >
+                                                <Minus className="h-4 w-4" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                ))}
+
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={addSplit}
+                                    className="w-full"
+                                >
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Add Another Part
+                                </Button>
+                            </div>
+
+                            <div className="text-sm">
+                                <div className="flex justify-between">
+                                    <span>Total Duration:</span>
+                                    <span
+                                        className={`font-medium ${
+                                            isValidSplit()
+                                                ? "text-green-600"
+                                                : "text-red-600"
+                                        }`}
+                                    >
+                                        {getTotalSplitDuration()} /{" "}
+                                        {courseSplitConfig.course.duration}{" "}
+                                        hours
+                                    </span>
+                                </div>
+                                {!isValidSplit() && (
+                                    <div className="text-red-600 text-xs mt-1">
+                                        Total must equal original duration
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex justify-end gap-2">
+                                <Button variant="outline" onClick={cancelSplit}>
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={applySplit}
+                                    disabled={!isValidSplit()}
+                                >
+                                    Split Course
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {/* Course details dialog */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
