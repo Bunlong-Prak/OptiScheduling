@@ -2053,7 +2053,7 @@ export default function TimetableViewClassroom() {
                                             Section:
                                         </span>
                                         <span className="text-sm font-medium">
-                                            {selectedCourse.sectionId}
+                                            {selectedCourse.section}
                                         </span>
                                     </div>
                                 </div>
