@@ -216,7 +216,7 @@ export default function TimeConstraintView() {
         try {
             const scheduleId = params.id;
             const response = await fetch(
-                `/api/schedules?scheduleId=${scheduleId}`
+                `/api/schedule-time-slots?scheduleId=${scheduleId}`
             );
 
             if (!response.ok) {
@@ -225,7 +225,16 @@ export default function TimeConstraintView() {
 
             const data = await response.json();
 
-            setApiTimeSlots(data);
+            // FIXED: Extract timeSlots from the response format
+            // The API returns an array with an object containing timeSlots
+            if (Array.isArray(data) && data.length > 0 && data[0].timeSlots) {
+                // Extract the timeSlots array from the first object
+                const timeSlotData = data[0].timeSlots;
+                setApiTimeSlots(timeSlotData);
+            } else {
+                console.warn("No time slots found in response:", data);
+                setApiTimeSlots([]);
+            }
         } catch (error) {
             console.error("Error fetching time slots:", error);
             setStatusMessage({

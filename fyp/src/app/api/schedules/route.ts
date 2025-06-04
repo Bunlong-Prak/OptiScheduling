@@ -6,7 +6,7 @@ import {
     deleteScheduleSchema,
     editScheduleSchema,
 } from "@/lib/validations/schedules";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -15,92 +15,92 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const scheduleId = searchParams.get("scheduleId");
-        const userId = searchParams.get("userId"); // Add userId parameter
+        const userId = searchParams.get("userId");
 
         if (!scheduleId) {
             // Check if userId is provided
-            if (!userId) {
-                return NextResponse.json(
-                    {
-                        error: "userId is required when scheduleId is not provided",
-                    },
-                    { status: 400 }
-                );
-            }
-
-            const allScheduleData = await db
-                .select({
-                    id: schedules.id,
-                    name: schedules.name,
-                    academicYear: schedules.academicYear,
-                    timeSlotId: scheduleTimeSlots.id,
-                    startTime: scheduleTimeSlots.startTime,
-                    endTime: scheduleTimeSlots.endTime,
-                    scheduleId: scheduleTimeSlots.scheduleId,
-                })
-                .from(schedules)
-                .where(eq(schedules.userId, userId)) // Filter by specific userId
-                .innerJoin(
-                    scheduleTimeSlots,
-                    eq(scheduleTimeSlots.scheduleId, schedules.id)
-                );
-
-            const scheduleMap = new Map();
-            allScheduleData.forEach((item) => {
-                if (!scheduleMap.has(item.id)) {
-                    scheduleMap.set(item.id, {
-                        id: item.id,
-                        name: item.name,
-                        academic_year: item.academicYear,
-                        timeSlots: [],
-                    });
-                }
-                // Add this time slot to the schedule
-                const schedule = scheduleMap.get(item.id);
-                schedule.timeSlots.push({
-                    id: item.timeSlotId,
-                    startTime: item.startTime,
-                    endTime: item.endTime,
-                });
-            });
-
-            const formattedSchedules = Array.from(scheduleMap.values());
-            console.log("Formatted schedules:", formattedSchedules);
-            return NextResponse.json(formattedSchedules);
-        } else {
-            // When scheduleId is provided, optionally check if it belongs to the user
-            let query = db
-                .select({
-                    id: scheduleTimeSlots.id,
-                    startTime: scheduleTimeSlots.startTime,
-                    endTime: scheduleTimeSlots.endTime,
-                })
-                .from(scheduleTimeSlots);
-
             if (userId) {
-                // If userId is provided, ensure the schedule belongs to that user
-                query
+                // Fetch all schedules for the user with their time slots
+                const allScheduleData = await db
+                    .select({
+                        id: schedules.id,
+                        name: schedules.name,
+                        academicYear: schedules.academicYear,
+                        timeSlotId: scheduleTimeSlots.id,
+                        startTime: scheduleTimeSlots.startTime,
+                        endTime: scheduleTimeSlots.endTime,
+                        scheduleId: scheduleTimeSlots.scheduleId,
+                    })
+                    .from(schedules)
+                    .where(eq(schedules.userId, userId))
                     .innerJoin(
-                        schedules,
-                        eq(schedules.id, scheduleTimeSlots.scheduleId)
-                    )
-                    .where(
-                        and(
-                            eq(
-                                scheduleTimeSlots.scheduleId,
-                                parseInt(scheduleId)
-                            ),
-                            eq(schedules.userId, userId)
-                        )
+                        scheduleTimeSlots,
+                        eq(scheduleTimeSlots.scheduleId, schedules.id)
                     );
-            } else {
-                query.where(
-                    eq(scheduleTimeSlots.scheduleId, parseInt(scheduleId))
-                );
-            }
 
-            const allScheduleData = await query;
-            return NextResponse.json(allScheduleData);
+                const scheduleMap = new Map();
+                allScheduleData.forEach((item) => {
+                    if (!scheduleMap.has(item.id)) {
+                        scheduleMap.set(item.id, {
+                            id: item.id,
+                            name: item.name,
+                            academic_year: item.academicYear,
+                            timeSlots: [],
+                        });
+                    }
+                    // Add this time slot to the schedule
+                    const schedule = scheduleMap.get(item.id);
+                    schedule.timeSlots.push({
+                        id: item.timeSlotId,
+                        startTime: item.startTime,
+                        endTime: item.endTime,
+                    });
+                });
+
+                const formattedSchedules = Array.from(scheduleMap.values());
+                console.log("Formatted schedules:", formattedSchedules);
+                return NextResponse.json(formattedSchedules);
+            } else {
+                let query = db
+                    .select({
+                        id: schedules.id,
+                        name: schedules.name,
+                        academicYear: schedules.academicYear,
+                        userId: schedules.userId,
+                        timeSlotId: scheduleTimeSlots.id,
+                        startTime: scheduleTimeSlots.startTime,
+                        endTime: scheduleTimeSlots.endTime,
+                    })
+                    .from(schedules)
+                    .innerJoin(
+                        scheduleTimeSlots,
+                        eq(scheduleTimeSlots.scheduleId, schedules.id)
+                    );
+
+                const scheduleData = await query;
+
+                if (scheduleData.length === 0) {
+                    return NextResponse.json(
+                        { error: "Schedule not found" },
+                        { status: 404 }
+                    );
+                }
+
+                // Format the response for a single schedule
+                const schedule = {
+                    id: scheduleData[0].id,
+                    name: scheduleData[0].name,
+                    academic_year: scheduleData[0].academicYear,
+                    userId: scheduleData[0].userId,
+                    timeSlots: scheduleData.map((item) => ({
+                        id: item.timeSlotId,
+                        startTime: item.startTime,
+                        endTime: item.endTime,
+                    })),
+                };
+
+                return NextResponse.json(schedule);
+            }
         }
     } catch (error: unknown) {
         console.error("Error fetching schedules:", error);

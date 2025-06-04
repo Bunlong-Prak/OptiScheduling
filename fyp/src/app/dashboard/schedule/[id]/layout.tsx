@@ -1,7 +1,6 @@
 "use client";
-import { useParams } from "next/navigation";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Schedule } from "@/app/types";
@@ -14,7 +13,7 @@ export default function ScheduleLayout({
     const params = useParams();
     const pathname = usePathname();
     const scheduleId = params.id as string;
-    
+
     // State to hold the actual schedule data
     const [schedule, setSchedule] = useState<Schedule | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -23,24 +22,22 @@ export default function ScheduleLayout({
     useEffect(() => {
         const fetchSchedule = async () => {
             if (!scheduleId) return;
-            
+
             try {
                 // Fetch all schedules first, then find the one we need
-                const response = await fetch('/api/schedules');
+                const response = await fetch(
+                    `/api/schedules?=scheduleId=${scheduleId}`
+                );
                 if (!response.ok) {
                     throw new Error("Failed to fetch schedules");
                 }
-                const allSchedules = await response.json();
-                
-                // Find the schedule with matching ID
-                const currentSchedule = allSchedules.find(
-                    (s: any) => s.id.toString() === scheduleId
-                );
-                
+                const currentSchedule = await response.json();
+
                 if (currentSchedule) {
                     // Parse the academic_year string if it contains both start and end dates
-                    const [startDateStr, endDateStr] = currentSchedule.academic_year.split(" - ");
-                    
+                    const [startDateStr, endDateStr] =
+                        currentSchedule.academic_year.split(" - ");
+
                     setSchedule({
                         id: currentSchedule.id.toString(),
                         name: currentSchedule.name,
@@ -71,12 +68,12 @@ export default function ScheduleLayout({
 
     const navigationItems = [
         { name: "Timetable", href: "timetable" },
-        { name: "Courses", href: "courses" },
         { name: "Instructors", href: "instructors" },
+        { name: "Classroom Type", href: "classroom-type" },
         { name: "Classroom", href: "classroom" },
         { name: "Major", href: "major" },
+        { name: "Courses", href: "courses" },
         { name: "Time Constraints", href: "time-constraints" },
-        { name: "Classroom Type", href: "classroom-type" },
     ];
 
     // Show loading state while fetching data
@@ -86,7 +83,9 @@ export default function ScheduleLayout({
                 <div className="w-full flex justify-between items-center mb-6">
                     <div>
                         <h1 className="text-2xl font-bold">Loading...</h1>
-                        <p className="text-gray-500">Loading schedule details...</p>
+                        <p className="text-gray-500">
+                            Loading schedule details...
+                        </p>
                     </div>
                 </div>
                 <div className="border-b mb-4">
@@ -110,17 +109,18 @@ export default function ScheduleLayout({
         <div>
             <div className="w-full flex justify-between items-center mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold">{schedule?.name || "Schedule"}</h1>
+                    <h1 className="text-2xl font-bold">
+                        {schedule?.name || "Schedule"}
+                    </h1>
                     <p className="text-gray-500">
                         {schedule?.startDate}
-                        {schedule?.endDate && schedule.endDate !== schedule.startDate 
-                            ? ` - ${schedule.endDate}` 
-                            : ""
-                        }
+                        {schedule?.endDate &&
+                        schedule.endDate !== schedule.startDate
+                            ? ` - ${schedule.endDate}`
+                            : ""}
                     </p>
                 </div>
-                <div className="flex gap-2">
-                </div>
+                <div className="flex gap-2"></div>
             </div>
             <div className="border-b mb-4">
                 <nav className="flex space-x-4">

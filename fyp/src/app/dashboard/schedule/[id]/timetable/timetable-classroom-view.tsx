@@ -167,7 +167,9 @@ export default function TimetableViewClassroom() {
         const fetchTimeSlots = async () => {
             try {
                 const scheduleId = params.id;
-                const response = await fetch(`/api/schedules`);
+                const response = await fetch(
+                    `/api/schedule-time-slots?scheduleId=${scheduleId}`
+                );
 
                 if (response.ok) {
                     const schedulesData = await response.json();
@@ -263,7 +265,12 @@ export default function TimetableViewClassroom() {
     }, [params.id]);
 
     // Fetch real courses from API
-    // Fetch real courses from API
+    // Add this new state to store original course colors
+    const [originalCourseColors, setOriginalCourseColors] = useState<
+        Map<string, { color: string; originalColor?: string }>
+    >(new Map());
+
+    // Update the courses fetch useEffect to store original colors
     useEffect(() => {
         const fetchCourses = async () => {
             setIsLoading(true);
@@ -279,43 +286,53 @@ export default function TimetableViewClassroom() {
                     const coursesBySectionId: { [sectionId: string]: Course } =
                         {};
 
+                    // NEW: Create color map to preserve original colors
+                    const colorMap = new Map<
+                        string,
+                        { color: string; originalColor?: string }
+                    >();
+
                     coursesData.forEach((course) => {
                         const sectionId = course.sectionId;
 
                         if (!coursesBySectionId[sectionId]) {
-                            // First time seeing this section, create a new entry
                             coursesBySectionId[sectionId] = { ...course };
-                        } else {
-                            // We've seen this section before, combine the majors
-                            const existingCourse =
-                                coursesBySectionId[sectionId];
                         }
                     });
 
                     // Transform for timetable
                     const transformedCourses = Object.values(
                         coursesBySectionId
-                    ).map((course: any) => ({
-                        code: course.code,
-                        sectionId: course.sectionId,
-                        name: course.title,
-                        // CHANGE THIS LINE:
-                        color:
+                    ).map((course: any) => {
+                        const colorClassName =
                             colors_class[course.color] ||
-                            getConsistentCourseColor(course.code),
+                            getConsistentCourseColor(course.code);
 
-                        duration: course.duration,
-                        instructor: `${course.firstName || ""} ${
-                            course.lastName || ""
-                        }`.trim(),
-                        section: course.section,
-                        room: course.classroom || "TBA",
-                        uniqueId: `${course.code}-${course.section}`,
-                        majors: course.major || [],
-                        // Add this line to store the original color name:
-                        originalColor: course.color,
-                    }));
+                        // Store the color mapping for later use
+                        colorMap.set(course.code, {
+                            color: colorClassName,
+                            originalColor: course.color,
+                        });
 
+                        return {
+                            code: course.code,
+                            sectionId: course.sectionId,
+                            name: course.title,
+                            color: colorClassName,
+                            duration: course.duration,
+                            instructor: `${course.firstName || ""} ${
+                                course.lastName || ""
+                            }`.trim(),
+                            section: course.section,
+                            room: course.classroom || "TBA",
+                            uniqueId: `${course.code}-${course.section}`,
+                            majors: course.major || [],
+                            originalColor: course.color,
+                        };
+                    });
+
+                    // Store the color mapping
+                    setOriginalCourseColors(colorMap);
                     setAvailableCourses(transformedCourses);
                 } else {
                     console.error("Failed to fetch courses");
@@ -870,191 +887,201 @@ export default function TimetableViewClassroom() {
         setIsDialogOpen(true);
     };
 
-// Replace your existing generateSchedule function with this fixed version
-// Replace your existing generateSchedule function with this fixed version
-const generateSchedule = async () => {
-    if (!params.id) {
-        alert("Schedule ID is missing");
-        return;
-    }
+    // Updated generateSchedule function with fixed color logic
+    const generateSchedule = async () => {
+        if (!params.id) {
+            alert("Schedule ID is missing");
+            return;
+        }
 
-    setIsGeneratingSchedule(true);
+        setIsGeneratingSchedule(true);
 
-    try {
-        const scheduleId = params.id.toString();
+        try {
+            const scheduleId = params.id.toString();
 
-        // Call the generate-schedule API endpoint with POST method
-        const response = await fetch(
-            `/api/generate-schedule?scheduleId=${scheduleId}`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+            const response = await fetch(
+                `/api/generate-schedule?scheduleId=${scheduleId}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    `Failed to generate schedule: ${response.status} ${response.statusText}`
+                );
             }
-        );
 
-        if (!response.ok) {
-            throw new Error(
-                `Failed to generate schedule: ${response.status} ${response.statusText}`
+            const data: ScheduleResponse = await response.json();
+
+            if (data.stats) {
+                setGenerationStats(data.stats);
+            }
+
+            if (data.schedule && Array.isArray(data.schedule)) {
+                setSchedule({});
+
+                const newSchedule: TimetableGrid = {};
+                const newAssignedCourses: TimetableCourse[] = [];
+
+                const transformedSchedule: ScheduleAssignment[] =
+                    data.schedule.map((item: any) => ({
+                        sectionId: item.section_id,
+                        courseCode: item.course_code,
+                        courseTitle: item.course_title,
+                        courseColor: item.course_color || "",
+                        instructorName: item.instructor_name,
+                        day: item.day,
+                        startTime: item.start_time,
+                        endTime: item.end_time,
+                        classroomCode: item.classroom_code,
+                    }));
+
+                transformedSchedule.forEach(
+                    (assignment: ScheduleAssignment) => {
+                        const {
+                            sectionId,
+                            courseCode,
+                            courseTitle,
+                            courseColor,
+                            instructorName,
+                            day,
+                            startTime,
+                            endTime,
+                            classroomCode,
+                        } = assignment;
+
+                        const classroom = classrooms.find(
+                            (c) => c.code === classroomCode
+                        );
+                        if (!classroom) {
+                            console.warn(
+                                `Classroom with code ${classroomCode} not found`
+                            );
+                            return;
+                        }
+
+                        // FIXED COLOR LOGIC: Use stored original colors first
+                        let colorClassName: string;
+                        let originalColorName: string | undefined;
+
+                        // 1. First try to get the original color from our stored map
+                        const storedColor =
+                            originalCourseColors.get(courseCode);
+                        if (storedColor) {
+                            colorClassName = storedColor.color;
+                            originalColorName = storedColor.originalColor;
+                        }
+                        // 2. Then try API color if it exists in our color mapping
+                        else if (courseColor && colors_class[courseColor]) {
+                            colorClassName = colors_class[courseColor];
+                            originalColorName = courseColor;
+                        }
+                        // 3. Try to find in available courses (though this might be empty)
+                        else {
+                            const originalCourse = [
+                                ...availableCourses,
+                                ...assignedCourses,
+                            ].find((c) => c.code === courseCode);
+                            if (originalCourse) {
+                                colorClassName = originalCourse.color;
+                                originalColorName =
+                                    originalCourse.originalColor;
+                            } else {
+                                // 4. Last resort: generate consistent color
+                                colorClassName =
+                                    getConsistentCourseColor(courseCode);
+                                originalColorName = courseColor;
+                            }
+                        }
+
+                        const startIndex = timeSlots.findIndex(
+                            (ts) =>
+                                getTimeSlotKey(ts) === startTime ||
+                                ts.startTime === startTime
+                        );
+                        if (startIndex === -1) {
+                            console.warn(`Time slot ${startTime} not found`);
+                            return;
+                        }
+
+                        const endIndex = timeSlots.findIndex(
+                            (ts) =>
+                                getTimeSlotKey(ts) === endTime ||
+                                ts.endTime === endTime ||
+                                (ts.time_slot &&
+                                    ts.time_slot.endsWith(`-${endTime}`))
+                        );
+
+                        const duration =
+                            endIndex !== -1 ? endIndex - startIndex + 1 : 1;
+
+                        const course: TimetableCourse = {
+                            sectionId: sectionId,
+                            code: courseCode,
+                            name: courseTitle,
+                            instructor: instructorName,
+                            duration,
+                            day,
+                            startTime: startTime,
+                            endTime: endTime,
+                            classroom: classroom.id.toString(),
+                            color: colorClassName, // This will now be consistent
+                            originalColor: originalColorName,
+                            section: sectionId.toString(),
+                            room: classroomCode,
+                        };
+
+                        newAssignedCourses.push(course);
+
+                        for (let i = 0; i < duration; i++) {
+                            if (startIndex + i >= timeSlots.length) break;
+
+                            const currentTimeSlot = getTimeSlotKey(
+                                timeSlots[startIndex + i]
+                            );
+                            const key = `${day}-${classroom.id}-${currentTimeSlot}`;
+
+                            newSchedule[key] = {
+                                ...course,
+                                isStart: i === 0,
+                                isMiddle: i > 0 && i < duration - 1,
+                                isEnd: i === duration - 1,
+                                colspan: i === 0 ? duration : 0,
+                            };
+                        }
+                    }
+                );
+
+                setSchedule(newSchedule);
+                setAssignedCourses(newAssignedCourses);
+
+                const assignedIds = new Set(
+                    newAssignedCourses.map((c) => c.sectionId)
+                );
+                setAvailableCourses((prev) =>
+                    prev.filter((c) => !assignedIds.has(c.sectionId))
+                );
+
+                setScheduleGenerated(true);
+            } else {
+                console.error("Invalid schedule data format", data);
+                alert("Failed to process the generated schedule data.");
+            }
+        } catch (error) {
+            console.error("Error generating schedule:", error);
+            alert(
+                `Error generating schedule: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`
             );
+        } finally {
+            setIsGeneratingSchedule(false);
         }
-
-        const data: ScheduleResponse = await response.json();
-
-        // Save stats for potential display
-        if (data.stats) {
-            setGenerationStats(data.stats);
-        }
-
-        // Process the generated schedule and update the timetable
-        if (data.schedule && Array.isArray(data.schedule)) {
-            // Clear the current schedule
-            setSchedule({});
-
-            // Create new schedule data structures
-            const newSchedule: TimetableGrid = {};
-            const newAssignedCourses: TimetableCourse[] = [];
-
-            // Transform snake_case API response to camelCase to match our types
-            const transformedSchedule: ScheduleAssignment[] = data.schedule.map((item: any) => ({
-                sectionId: item.section_id,
-                courseCode: item.course_code,
-                courseTitle: item.course_title,
-                courseColor: item.course_color || '', // Handle missing color
-                instructorName: item.instructor_name,
-                day: item.day,
-                startTime: item.start_time,
-                endTime: item.end_time,
-                classroomCode: item.classroom_code,
-            }));
-
-            // Process each assignment from the transformed data
-            transformedSchedule.forEach((assignment: ScheduleAssignment) => {
-                const {
-                    sectionId,
-                    courseCode,
-                    courseTitle,
-                    courseColor,
-                    instructorName,
-                    day,
-                    startTime,
-                    endTime,
-                    classroomCode,
-                } = assignment;
-
-                // Find the classroom by code
-                const classroom = classrooms.find(
-                    (c) => c.code === classroomCode
-                );
-                if (!classroom) {
-                    console.warn(
-                        `Classroom with code ${classroomCode} not found`
-                    );
-                    return;
-                }
-
-                // Find the course from available courses to get color info
-                const originalCourse = availableCourses.find(
-                    (c) => c.code === courseCode
-                );
-
-                // Find the start time index
-                const startIndex = timeSlots.findIndex(
-                    (ts) =>
-                        getTimeSlotKey(ts) === startTime ||
-                        ts.startTime === startTime
-                );
-                if (startIndex === -1) {
-                    console.warn(`Time slot ${startTime} not found`);
-                    return;
-                }
-
-                // Find the end time index
-                const endIndex = timeSlots.findIndex(
-                    (ts) =>
-                        getTimeSlotKey(ts) === endTime ||
-                        ts.endTime === endTime ||
-                        (ts.time_slot && ts.time_slot.endsWith(`-${endTime}`))
-                );
-
-                // Calculate duration based on start and end times
-                const duration = endIndex !== -1 ? endIndex - startIndex + 1 : 1;
-
-                // Use the course color from API response, fallback to original course color or generate one
-                const colorClassName = courseColor && colors_class[courseColor]
-                    ? colors_class[courseColor]
-                    : originalCourse
-                    ? originalCourse.color
-                    : getConsistentCourseColor(courseCode);
-
-                // Create course object with consistent color
-                const course: TimetableCourse = {
-                    sectionId: sectionId,
-                    code: courseCode,
-                    name: courseTitle,
-                    instructor: instructorName,
-                    duration,
-                    day,
-                    startTime: startTime,
-                    endTime: endTime,
-                    classroom: classroom.id.toString(),
-                    color: colorClassName,
-                    originalColor: courseColor || originalCourse?.originalColor,
-                    section: sectionId.toString(),
-                    room: classroomCode,
-                };
-
-                // Add to assigned courses
-                newAssignedCourses.push(course);
-
-                // Add to schedule grid for display
-                for (let i = 0; i < duration; i++) {
-                    if (startIndex + i >= timeSlots.length) break;
-
-                    const currentTimeSlot = getTimeSlotKey(
-                        timeSlots[startIndex + i]
-                    );
-                    const key = `${day}-${classroom.id}-${currentTimeSlot}`;
-
-                    newSchedule[key] = {
-                        ...course,
-                        isStart: i === 0,
-                        isMiddle: i > 0 && i < duration - 1,
-                        isEnd: i === duration - 1,
-                        colspan: i === 0 ? duration : 0,
-                    };
-                }
-            });
-
-            // Update state with new schedule and assigned courses
-            setSchedule(newSchedule);
-            setAssignedCourses(newAssignedCourses);
-
-            // Update available courses (remove assigned courses)
-            const assignedIds = new Set(
-                newAssignedCourses.map((c) => c.sectionId)
-            );
-            setAvailableCourses((prev) =>
-                prev.filter((c) => !assignedIds.has(c.sectionId))
-            );
-
-            setScheduleGenerated(true);
-        } else {
-            console.error("Invalid schedule data format", data);
-            alert("Failed to process the generated schedule data.");
-        }
-    } catch (error) {
-        console.error("Error generating schedule:", error);
-        alert(
-            `Error generating schedule: ${
-                error instanceof Error ? error.message : "Unknown error"
-            }`
-        );
-    } finally {
-        setIsGeneratingSchedule(false);
-    }
-};
+    };
 
     // Handle course delete - updated to use sectionId approach
     const handleRemoveCourse = async () => {
