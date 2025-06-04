@@ -20,8 +20,10 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Search, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 // Mock data for the timetable
 const days = [
@@ -85,6 +87,10 @@ export default function TimetableViewClassroom() {
         scheduledAssignments: number;
         constraintsApplied: number;
     } | null>(null);
+
+    // NEW: Search functionality state
+    const [searchQuery, setSearchQuery] = useState("");
+    const [isSearchActive, setIsSearchActive] = useState(false);
 
     const params = useParams();
 
@@ -160,6 +166,44 @@ export default function TimetableViewClassroom() {
             .split("-")
             .map((time) => time.trim());
         return { startTime, endTime };
+    };
+
+    // NEW: Filtered schedule based on search query
+    const filteredSchedule = useMemo(() => {
+        if (!searchQuery.trim()) {
+            return schedule;
+        }
+
+        const query = searchQuery.toLowerCase().trim();
+        const filtered: TimetableGrid = {};
+
+        Object.entries(schedule).forEach(([key, course]) => {
+            const matchesSearch =
+                course.code.toLowerCase().includes(query) ||
+                course.name.toLowerCase().includes(query) ||
+                course.instructor.toLowerCase().includes(query) ||
+                course.section.toLowerCase().includes(query);
+
+            if (matchesSearch) {
+                filtered[key] = course;
+            }
+        });
+
+        return filtered;
+    }, [schedule, searchQuery]);
+
+    // NEW: Check if search has active results
+    useEffect(() => {
+        setIsSearchActive(searchQuery.trim().length > 0);
+    }, [searchQuery]);
+
+    // NEW: Search functionality helpers
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchQuery(e.target.value);
+    };
+
+    const clearSearch = () => {
+        setSearchQuery("");
     };
 
     // Fetch time slots and classrooms from API
@@ -1194,6 +1238,39 @@ export default function TimetableViewClassroom() {
                 </div>
             </div>
 
+            {/* NEW: Search Bar */}
+            <div className="mb-6">
+                <div className="relative max-w-md">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <Input
+                        type="text"
+                        placeholder="Search courses by code, name, instructor, or section..."
+                        value={searchQuery}
+                        onChange={handleSearchChange}
+                        className="pl-10 pr-10"
+                    />
+                    {searchQuery && (
+                        <button
+                            onClick={clearSearch}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        >
+                            <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                        </button>
+                    )}
+                </div>
+                {isSearchActive && (
+                    <div className="mt-2 text-sm text-gray-600">
+                        {Object.keys(filteredSchedule).length > 0 ? (
+                            <>Showing courses matching "{searchQuery}"</>
+                        ) : (
+                            <>No courses found matching "{searchQuery}"</>
+                        )}
+                    </div>
+                )}
+            </div>
+
             {/* Optional: Show generation results */}
             {scheduleGenerated && generationStats && (
                 <div className="bg-green-50 border border-green-200 text-green-800 p-3 mb-4 rounded">
@@ -1268,7 +1345,9 @@ export default function TimetableViewClassroom() {
                                                 const slotKey =
                                                     getTimeSlotKey(slot);
                                                 const key = `${day}-${classroom.id}-${slotKey}`;
-                                                const course = schedule[key];
+                                                // UPDATED: Use filtered schedule instead of full schedule
+                                                const course =
+                                                    filteredSchedule[key];
 
                                                 // Skip cells that are part of a multi-hour course but not the start
                                                 if (course && !course.isStart) {
