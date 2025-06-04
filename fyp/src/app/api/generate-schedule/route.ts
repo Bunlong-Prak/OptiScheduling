@@ -23,7 +23,15 @@ const DAYS = [
     "Friday",
     "Saturday",
 ];
+type InstructorSlot = {
+    day: string;
+    timeSlot: string;
+    instructor_id: number;
+    isAvailable: boolean;
+    assigned_section_id?: number;
+};
 
+type InstructorGrid = Map<string, InstructorSlot>;
 // Function to normalize time slot formats
 function normalizeTimeSlot(timeSlot: string): string {
     // Handle "8:00 AM - 9:00 AM" format
@@ -464,6 +472,9 @@ function generateSchedule(
     const assignments: Assignment[] = [];
     const scheduleGrid = initializeScheduleGrid(classroomsData, timeSlots);
 
+    // NEW: Initialize instructor availability grid
+    const instructorGrid = initializeInstructorGrid(instructorsData, timeSlots);
+
     // Sort sections by course duration (longest first) for better scheduling
     const allSections = coursesData
         .flatMap((course) =>
@@ -481,9 +492,7 @@ function generateSchedule(
             `\nProcessing section ${section.number} of course ${section.course.code}`
         );
 
-        // Step 1: ALWAYS assign a random classroom (regardless of existing assignment)
-        console.log(`Previous classroom_id: ${section.classroom_id}`);
-
+        // Step 1: Assign classroom
         section.classroom_id = assignClassroomToSection(
             section,
             classroomsData
@@ -496,16 +505,15 @@ function generateSchedule(
             continue;
         }
 
-        console.log(`New classroom_id: ${section.classroom_id}`);
-
-        // Step 2: Find available time slots for this section
+        // Step 2: Find available time slots (now checking both classroom and instructor)
         const assignment = scheduleSection(
             section,
             timeConstraints,
             classroomsData,
             instructorsData,
             timeSlots,
-            scheduleGrid
+            scheduleGrid,
+            instructorGrid // NEW: Pass instructor grid
         );
 
         if (assignment) {
@@ -521,7 +529,28 @@ function generateSchedule(
     );
     return assignments;
 }
+function initializeInstructorGrid(
+    instructorsData: any[],
+    timeSlots: string[]
+): InstructorGrid {
+    const grid = new Map<string, InstructorSlot>();
 
+    for (const instructor of instructorsData) {
+        for (const day of DAYS) {
+            for (const timeSlot of timeSlots) {
+                const key = `${day}-${instructor.id}-${timeSlot}`;
+                grid.set(key, {
+                    day,
+                    timeSlot,
+                    instructor_id: instructor.id,
+                    isAvailable: true,
+                });
+            }
+        }
+    }
+
+    return grid;
+}
 // Initialize the schedule grid to track availability
 function initializeScheduleGrid(
     classroomsData: any[],
@@ -587,7 +616,8 @@ function scheduleSection(
     classroomsData: any[],
     instructorsData: any[],
     timeSlots: string[],
-    scheduleGrid: ScheduleGrid
+    scheduleGrid: ScheduleGrid,
+    instructorGrid: InstructorGrid // NEW: Added instructor grid parameter
 ): Assignment | null {
     const course = section.course;
     const duration = course.duration;
@@ -618,11 +648,9 @@ function scheduleSection(
         `Found ${possibleSlots.length} possible time slot combinations for duration ${duration}`
     );
 
-    console.log("possible Slots: ", possibleSlots);
-
     // Try to schedule on each day
     const availableDays = [...DAYS];
-    shuffleArray(availableDays); // Randomize day selection
+    shuffleArray(availableDays);
 
     for (const day of availableDays) {
         console.log(`Trying to schedule on ${day}`);
@@ -643,17 +671,21 @@ function scheduleSection(
                         day,
                         slotCombination,
                         section.classroom_id,
+                        section.instructor_id, // NEW: Pass instructor ID
                         scheduleGrid,
+                        instructorGrid, // NEW: Pass instructor grid
                         availableTimeSlots
                     )
                 ) {
-                    // Mark slots as occupied
+                    // Mark both classroom and instructor slots as occupied
                     markSlotsAsOccupied(
                         day,
                         slotCombination,
                         section.classroom_id,
+                        section.instructor_id, // NEW: Pass instructor ID
                         section.id,
-                        scheduleGrid
+                        scheduleGrid,
+                        instructorGrid // NEW: Pass instructor grid
                     );
 
                     const startTime = getStartTime(slotCombination);
@@ -679,16 +711,20 @@ function scheduleSection(
                         day,
                         slotCombination,
                         section.classroom_id,
-                        scheduleGrid
+                        section.instructor_id, // NEW: Pass instructor ID
+                        scheduleGrid,
+                        instructorGrid // NEW: Pass instructor grid
                     )
                 ) {
-                    // Mark slots as occupied
+                    // Mark both classroom and instructor slots as occupied
                     markSlotsAsOccupied(
                         day,
                         slotCombination,
                         section.classroom_id,
+                        section.instructor_id, // NEW: Pass instructor ID
                         section.id,
-                        scheduleGrid
+                        scheduleGrid,
+                        instructorGrid // NEW: Pass instructor grid
                     );
 
                     const startTime = getStartTime(slotCombination);
@@ -742,15 +778,32 @@ function canScheduleAtTime(
     day: string,
     slotCombination: string[],
     classroomId: number,
+    instructorId: number, // NEW: Added instructor ID parameter
     scheduleGrid: ScheduleGrid,
+    instructorGrid: InstructorGrid, // NEW: Added instructor grid parameter
     instructorAvailableSlots?: string[]
 ): boolean {
     // Check if all required slots are available in the classroom
     for (const timeSlot of slotCombination) {
-        const key = `${day}-${classroomId}-${timeSlot}`;
-        const slot = scheduleGrid.get(key);
+        // Check classroom availability
+        const classroomKey = `${day}-${classroomId}-${timeSlot}`;
+        const classroomSlot = scheduleGrid.get(classroomKey);
 
-        if (!slot || !slot.isAvailable) {
+        if (!classroomSlot || !classroomSlot.isAvailable) {
+            console.log(
+                `❌ Classroom ${classroomId} not available at ${day} ${timeSlot}`
+            );
+            return false;
+        }
+
+        // NEW: Check instructor availability
+        const instructorKey = `${day}-${instructorId}-${timeSlot}`;
+        const instructorSlot = instructorGrid.get(instructorKey);
+
+        if (!instructorSlot || !instructorSlot.isAvailable) {
+            console.log(
+                `❌ Instructor ${instructorId} not available at ${day} ${timeSlot}`
+            );
             return false;
         }
 
@@ -759,10 +812,18 @@ function canScheduleAtTime(
             instructorAvailableSlots &&
             !instructorAvailableSlots.includes(timeSlot)
         ) {
+            console.log(
+                `❌ Instructor ${instructorId} has time constraint at ${day} ${timeSlot}`
+            );
             return false;
         }
     }
 
+    console.log(
+        `✅ Both classroom ${classroomId} and instructor ${instructorId} available for ${day} ${slotCombination.join(
+            ","
+        )}`
+    );
     return true;
 }
 
@@ -771,16 +832,31 @@ function markSlotsAsOccupied(
     day: string,
     slotCombination: string[],
     classroomId: number,
+    instructorId: number, // NEW: Added instructor ID parameter
     sectionId: number,
-    scheduleGrid: ScheduleGrid
+    scheduleGrid: ScheduleGrid,
+    instructorGrid: InstructorGrid // NEW: Added instructor grid parameter
 ): void {
     for (const timeSlot of slotCombination) {
-        const key = `${day}-${classroomId}-${timeSlot}`;
-        const slot = scheduleGrid.get(key);
+        // Mark classroom slot as occupied
+        const classroomKey = `${day}-${classroomId}-${timeSlot}`;
+        const classroomSlot = scheduleGrid.get(classroomKey);
 
-        if (slot) {
-            slot.isAvailable = false;
-            slot.assigned_section_id = sectionId;
+        if (classroomSlot) {
+            classroomSlot.isAvailable = false;
+            classroomSlot.assigned_section_id = sectionId;
+        }
+
+        // NEW: Mark instructor slot as occupied
+        const instructorKey = `${day}-${instructorId}-${timeSlot}`;
+        const instructorSlot = instructorGrid.get(instructorKey);
+
+        if (instructorSlot) {
+            instructorSlot.isAvailable = false;
+            instructorSlot.assigned_section_id = sectionId;
+            console.log(
+                `🔒 Marked instructor ${instructorId} as occupied at ${day} ${timeSlot} for section ${sectionId}`
+            );
         }
     }
 }
