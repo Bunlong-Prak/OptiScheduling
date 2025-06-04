@@ -370,7 +370,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
     const getTimePlaceholder = (index: number, isStartTime: boolean) => {
         const baseHour = 8 + index; // Start from 08:00 and increment by 1 hour for each index
         const hour = isStartTime ? baseHour : baseHour + 1; // End time is start time + 1
-        return hour < 10 ? `0${hour}:00` : `${hour}:00`; // Format with leading zero if needed
+        return hour < 10 ? `${hour}` : `${hour}`; // Format with leading zero if needed
     };
 
     return (
