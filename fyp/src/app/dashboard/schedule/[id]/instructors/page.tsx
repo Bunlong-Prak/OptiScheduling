@@ -19,16 +19,17 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Pencil, Plus, Trash } from "lucide-react";
+import { Download, Pencil, Plus, Trash, Upload } from "lucide-react";
 import { useParams } from "next/navigation";
 import type React from "react";
 import { useEffect, useState } from "react";
+import Papa from 'papaparse';
 
 const ITEMS_PER_PAGE = 10; // Define how many items to show per page
 
 export default function InstructorsView() {
     const [instructors, setInstructors] = useState<Instructor[]>([]);
-
+   
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -70,6 +71,317 @@ export default function InstructorsView() {
         }
     };
 
+    // Add these to your existing state variables
+const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+const [importFile, setImportFile] = useState<File | null>(null);
+const [importProgress, setImportProgress] = useState<{
+    total: number;
+    completed: number;
+    errors: string[];
+    isImporting: boolean;
+}>({
+    total: 0,
+    completed: 0,
+    errors: [],
+    isImporting: false,
+});
+
+    // Types for CSV data
+interface CSVInstructorRow {
+    first_name: string;
+    last_name: string;
+    gender: string;
+    email: string;
+    phone_number: string;
+}
+// Validation function
+const validateInstructorData = (row: any, rowIndex: number): CSVInstructorRow | string => {
+    const errors: string[] = [];
+    
+    // Check required fields
+    if (!row.first_name || typeof row.first_name !== 'string' || row.first_name.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: First name is required`);
+    }
+    
+    if (!row.last_name || typeof row.last_name !== 'string' || row.last_name.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Last name is required`);
+    }
+    
+    if (!row.email || typeof row.email !== 'string' || row.email.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Email is required`);
+    } else {
+        // Basic email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(row.email.trim())) {
+            errors.push(`Row ${rowIndex + 1}: Invalid email format`);
+        }
+    }
+    
+    if (!row.gender || typeof row.gender !== 'string' || row.gender.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Gender is required`);
+    } else {
+        const validGenders = ['Male', 'Female', 'male', 'female'];
+        if (!validGenders.includes(row.gender.trim())) {
+            errors.push(`Row ${rowIndex + 1}: Gender must be 'Male' or 'Female'`);
+        }
+    }
+    
+    if (row.phone_number && typeof row.phone_number !== 'string') {
+        errors.push(`Row ${rowIndex + 1}: Phone number must be a string`);
+    }
+    
+    if (errors.length > 0) {
+        return errors.join(', ');
+    }
+    
+    // Return cleaned data
+    return {
+        first_name: row.first_name.trim(),
+        last_name: row.last_name.trim(),
+        gender: row.gender.trim().charAt(0).toUpperCase() + row.gender.trim().slice(1).toLowerCase(), // Normalize to "Male" or "Female"
+        email: row.email.trim().toLowerCase(),
+        phone_number: row.phone_number ? row.phone_number.trim() : '',
+    };
+};
+
+// Main import function
+const handleImportCSV = async () => {
+    if (!importFile) {
+        setStatusMessage({
+            text: "Please select a CSV file to import",
+            type: "error",
+        });
+        return;
+    }
+
+    const scheduleId = params.id;
+    
+    setImportProgress({
+        total: 0,
+        completed: 0,
+        errors: [],
+        isImporting: true,
+    });
+
+    try {
+        // Parse CSV file
+        Papa.parse(importFile, {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: (header) => header.trim().toLowerCase().replace(/\s+/g, '_'),
+            complete: async (results) => {
+                const csvData = results.data as any[];
+                const validInstructors: CSVInstructorRow[] = [];
+                const errors: string[] = [];
+
+                // Validate each row
+                csvData.forEach((row, index) => {
+                    const validationResult = validateInstructorData(row, index);
+                    if (typeof validationResult === 'string') {
+                        errors.push(validationResult);
+                    } else {
+                        validInstructors.push(validationResult);
+                    }
+                });
+
+                setImportProgress(prev => ({
+                    ...prev,
+                    total: validInstructors.length,
+                    errors: errors,
+                }));
+
+                if (validInstructors.length === 0) {
+                    setStatusMessage({
+                        text: "No valid instructors found in the CSV file",
+                        type: "error",
+                    });
+                    setImportProgress(prev => ({ ...prev, isImporting: false }));
+                    return;
+                }
+
+                // Import valid instructors
+                let completed = 0;
+                const importErrors: string[] = [...errors];
+
+                for (const instructor of validInstructors) {
+                    try {
+                        const apiData = {
+                            firstName: instructor.first_name,
+                            lastName: instructor.last_name,
+                            gender: instructor.gender,
+                            email: instructor.email,
+                            phoneNumber: instructor.phone_number,
+                            scheduleId: Number(scheduleId),
+                        };
+
+                        const response = await fetch("/api/instructors", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(apiData),
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            importErrors.push(
+                                `Failed to import ${instructor.first_name} ${instructor.last_name}: ${
+                                    errorData.error || 'Unknown error'
+                                }`
+                            );
+                        } else {
+                            completed++;
+                        }
+                    } catch (error) {
+                        importErrors.push(
+                            `Failed to import ${instructor.first_name} ${instructor.last_name}: ${
+                                error instanceof Error ? error.message : 'Unknown error'
+                            }`
+                        );
+                    }
+
+                    // Update progress
+                    setImportProgress(prev => ({
+                        ...prev,
+                        completed: completed,
+                        errors: importErrors,
+                    }));
+
+                    // Small delay to prevent overwhelming the server
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                // Final update
+                setImportProgress(prev => ({ ...prev, isImporting: false }));
+
+                // Refresh the instructor list
+                await fetchInstructors();
+
+                // Show completion message
+                if (completed > 0) {
+                    setStatusMessage({
+                        text: `Successfully imported ${completed} instructor(s)${
+                            importErrors.length > 0 ? ` with ${importErrors.length} error(s)` : ''
+                        }`,
+                        type: completed === validInstructors.length ? "success" : "error",
+                    });
+                } else {
+                    setStatusMessage({
+                        text: "Failed to import any instructors",
+                        type: "error",
+                    });
+                }
+            },
+            error: (error) => {
+                console.error("CSV parsing error:", error);
+                setStatusMessage({
+                    text: "Failed to parse CSV file. Please check the file format.",
+                    type: "error",
+                });
+                setImportProgress(prev => ({ ...prev, isImporting: false }));
+            },
+        });
+    } catch (error) {
+        console.error("Import error:", error);
+        setStatusMessage({
+            text: "Failed to import instructors. Please try again.",
+            type: "error",
+        });
+        setImportProgress(prev => ({ ...prev, isImporting: false }));
+    }
+};
+
+// File selection handler
+const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'text/csv') {
+        setImportFile(file);
+    } else {
+        setStatusMessage({
+            text: "Please select a valid CSV file",
+            type: "error",
+        });
+        event.target.value = ''; // Reset file input
+    }
+};
+
+// Reset import state
+const resetImportState = () => {
+    setImportFile(null);
+    setImportProgress({
+        total: 0,
+        completed: 0,
+        errors: [],
+        isImporting: false,
+    });
+};
+
+// Download CSV with current instructors data
+const downloadInstructorsCSV = () => {
+    // Create CSV header
+    const headers = ['first_name', 'last_name', 'gender', 'email', 'phone_number'];
+    
+    // Convert instructors data to CSV rows
+    const csvRows = instructors.map(instructor => [
+        instructor.first_name,
+        instructor.last_name,
+        instructor.gender,
+        instructor.email,
+        instructor.phone_number || ''
+    ]);
+    
+    // Combine headers and data
+    const allRows = [headers, ...csvRows];
+    
+    // Convert to CSV string
+    const csvContent = allRows.map(row => 
+        row.map(field => {
+            // Escape quotes and wrap in quotes if field contains comma, quote, or newline
+            const fieldStr = String(field || '');
+            if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n')) {
+                return `"${fieldStr.replace(/"/g, '""')}"`;
+            }
+            return fieldStr;
+        }).join(',')
+    ).join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    
+    // Generate filename with current date
+    const today = new Date().toISOString().split('T')[0];
+    link.setAttribute('download', `instructors_export_${today}.csv`);
+    
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setStatusMessage({
+        text: `Exported ${instructors.length} instructors to CSV`,
+        type: "success",
+    });
+};
+
+// Download empty CSV template for new imports
+const downloadEmptyTemplate = () => {
+    const csvContent = `first_name,last_name,gender,email,phone_number
+John,Smith,Male,john.smith@email.com,555-123-4567
+Jane,Doe,Female,jane.doe@email.com,555-987-6543`;
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'instructors_template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
     // Load instructors on component mount
     useEffect(() => {
         fetchInstructors();
@@ -292,15 +604,33 @@ export default function InstructorsView() {
                     {statusMessage.text}
                 </div>
             )}
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold">Instructors</h2>
-                <Button
-                    onClick={openAddDialog}
-                    className="bg-green-600 hover:bg-green-700"
-                >
-                    <Plus className="mr-2 h-4 w-4" /> New Instructor
-                </Button>
-            </div>
+           
+           <div className="flex justify-between items-center mb-6">
+    <h2 className="text-xl font-bold">Instructors</h2>
+    <div className="flex gap-2">
+        <Button
+            onClick={downloadInstructorsCSV}
+            variant="outline"
+            className="border-green-600 text-green-600 hover:bg-green-50"
+            disabled={instructors.length === 0}
+        >
+            <Download className="mr-2 h-4 w-4" /> Export CSV
+        </Button>
+        <Button
+            onClick={() => setIsImportDialogOpen(true)}
+            variant="outline"
+            className="border-blue-600 text-blue-600 hover:bg-blue-50"
+        >
+            <Upload className="mr-2 h-4 w-4" /> Import CSV
+        </Button>
+        <Button
+            onClick={openAddDialog}
+            className="bg-green-600 hover:bg-green-700"
+        >
+            <Plus className="mr-2 h-4 w-4" /> New Instructor
+        </Button>
+    </div>
+</div>
 
             <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
@@ -633,6 +963,97 @@ export default function InstructorsView() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+        
+{/* Import CSV Dialog */}
+<Dialog
+    open={isImportDialogOpen}
+    onOpenChange={(open) => {
+        if (!open) resetImportState();
+        setIsImportDialogOpen(open);
+    }}
+>
+    <DialogContent className="max-w-md">
+        <DialogHeader>
+            <DialogTitle>Import Instructors from CSV</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+
+        <div className="flex justify-between items-center">
+    <div className="flex-1">
+        <Label htmlFor="csv-file">Select CSV File</Label>
+        <Input
+            id="csv-file"
+            type="file"
+            accept=".csv"
+            onChange={handleFileSelect}
+            disabled={importProgress.isImporting}
+        />
+        <p className="text-sm text-gray-600 mt-1">
+            CSV should contain columns: first_name, last_name, gender, email, phone_number
+        </p>
+    </div>
+  
+</div>
+
+            {importFile && (
+                <div className="text-sm">
+                    <p><strong>Selected file:</strong> {importFile.name}</p>
+                    <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
+                </div>
+            )}
+
+            {importProgress.isImporting && (
+                <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                        <span>Progress:</span>
+                        <span>{importProgress.completed} / {importProgress.total}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{ 
+                                width: importProgress.total > 0 
+                                    ? `${(importProgress.completed / importProgress.total) * 100}%` 
+                                    : '0%' 
+                            }}
+                        ></div>
+                    </div>
+                </div>
+            )}
+
+            {importProgress.errors.length > 0 && (
+                <div className="max-h-32 overflow-y-auto">
+                    <p className="text-sm font-medium text-red-600 mb-1">Errors:</p>
+                    <div className="text-xs space-y-1">
+                        {importProgress.errors.map((error, index) => (
+                            <p key={index} className="text-red-600">{error}</p>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+
+        <DialogFooter>
+            <Button
+                variant="outline"
+                onClick={() => {
+                    resetImportState();
+                    setIsImportDialogOpen(false);
+                }}
+                disabled={importProgress.isImporting}
+            >
+                Cancel
+            </Button>
+            <Button
+                onClick={handleImportCSV}
+                disabled={!importFile || importProgress.isImporting}
+            >
+                {importProgress.isImporting ? 'Importing...' : 'Import'}
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
         </div>
     );
 }
