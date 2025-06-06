@@ -605,15 +605,7 @@ const downloadClassroomsCSV = () => {
 <div className="flex justify-between items-center mb-6">
     <h2 className="text-xl font-bold">Classrooms</h2>
     <div className="flex gap-2">
-        <Button
-            onClick={downloadClassroomsCSV}
-            variant="outline"
-            className="border-green-600 text-green-600 hover:bg-green-50"
-            disabled={classrooms.length === 0 || isLoading}
-        >
-            <Download className="mr-2 h-4 w-4" /> Export CSV
-        </Button>
-        <Button
+    <Button
             onClick={() => setIsImportDialogOpen(true)}
             variant="outline"
             className="border-blue-600 text-blue-600 hover:bg-blue-50"
@@ -622,6 +614,15 @@ const downloadClassroomsCSV = () => {
             <Upload className="mr-2 h-4 w-4" /> Import CSV
         </Button>
   
+        <Button
+            onClick={downloadClassroomsCSV}
+            variant="outline"
+            className="border-green-600 text-green-600 hover:bg-green-50"
+            disabled={classrooms.length === 0 || isLoading}
+        >
+            <Download className="mr-2 h-4 w-4" /> Export CSV
+        </Button>
+      
         <Button
             onClick={() => setIsAddDialogOpen(true)}
             className="bg-green-600 hover:bg-green-700"

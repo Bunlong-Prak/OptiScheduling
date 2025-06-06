@@ -608,6 +608,13 @@ Jane,Doe,Female,jane.doe@email.com,555-987-6543`;
            <div className="flex justify-between items-center mb-6">
     <h2 className="text-xl font-bold">Instructors</h2>
     <div className="flex gap-2">
+    <Button
+            onClick={() => setIsImportDialogOpen(true)}
+            variant="outline"
+            className="border-blue-600 text-blue-600 hover:bg-blue-50"
+        >
+            <Upload className="mr-2 h-4 w-4" /> Import CSV
+        </Button>
         <Button
             onClick={downloadInstructorsCSV}
             variant="outline"
@@ -616,13 +623,7 @@ Jane,Doe,Female,jane.doe@email.com,555-987-6543`;
         >
             <Download className="mr-2 h-4 w-4" /> Export CSV
         </Button>
-        <Button
-            onClick={() => setIsImportDialogOpen(true)}
-            variant="outline"
-            className="border-blue-600 text-blue-600 hover:bg-blue-50"
-        >
-            <Upload className="mr-2 h-4 w-4" /> Import CSV
-        </Button>
+      
         <Button
             onClick={openAddDialog}
             className="bg-green-600 hover:bg-green-700"
