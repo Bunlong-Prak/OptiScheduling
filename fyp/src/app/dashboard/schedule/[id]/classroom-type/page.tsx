@@ -21,7 +21,7 @@ interface ClassroomType {
     name: string;
 }
 
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 15;
 
 export default function ClassroomTypeView() {
     const [classroomTypes, setClassroomTypes] = useState<ClassroomType[]>([]);
@@ -38,7 +38,6 @@ export default function ClassroomTypeView() {
         name: "",
     });
     const [currentPage, setCurrentPage] = useState(1);
-    // const [isLoading, setIsLoading] = useState(false);
 
     // Load classroom types on component mount
     useEffect(() => {
@@ -66,7 +65,6 @@ export default function ClassroomTypeView() {
 
     const fetchClassroomTypes = async () => {
         try {
-          
             const scheduleId = params.id;
             const response = await fetch(
                 `/api/classroom-types?scheduleId=${scheduleId}`,
@@ -84,7 +82,6 @@ export default function ClassroomTypeView() {
 
             const data = await response.json();
             setClassroomTypes(data);
-            // Reset to first page when data changes
             setCurrentPage(1);
         } catch (error) {
             console.error("Error fetching classroom types:", error);
@@ -103,15 +100,13 @@ export default function ClassroomTypeView() {
         });
     };
 
-    // Function to handle opening the add dialog
     const openAddDialog = () => {
-        resetForm(); // Ensure form is clean before opening
+        resetForm();
         setIsAddDialogOpen(true);
     };
 
     const handleAddClassroomType = async () => {
         try {
-            // Prepare data for API
             const scheduleId = params.id;
             const apiData = {
                 name: formData.name,
@@ -130,10 +125,7 @@ export default function ClassroomTypeView() {
                 throw new Error("Failed to create classroom type");
             }
 
-            // Refresh the classroom types list
             await fetchClassroomTypes();
-
-            // Close dialog and reset form
             setIsAddDialogOpen(false);
             resetForm();
 
@@ -159,8 +151,6 @@ export default function ClassroomTypeView() {
                 name: formData.name,
             };
 
-            console.log("Sending update data:", apiData);
-
             const response = await fetch("/api/classroom-types", {
                 method: "PATCH",
                 headers: {
@@ -177,8 +167,6 @@ export default function ClassroomTypeView() {
                     responseData.error || "Failed to update classroom type"
                 );
             }
-
-            console.log("Update successful:", responseData);
 
             await fetchClassroomTypes();
             setIsEditDialogOpen(false);
@@ -218,10 +206,7 @@ export default function ClassroomTypeView() {
                 throw new Error("Failed to delete classroom type");
             }
 
-            // Refresh the classroom type list
             await fetchClassroomTypes();
-
-            // Close dialog
             setIsDeleteDialogOpen(false);
             setSelectedClassroomType(null);
 
@@ -246,7 +231,7 @@ export default function ClassroomTypeView() {
     };
 
     const openEditDialog = (classroomType: ClassroomType) => {
-        resetForm(); // Reset first to clear any previous data
+        resetForm();
         setSelectedClassroomType(classroomType);
         setFormData({
             name: classroomType.name,
@@ -260,106 +245,118 @@ export default function ClassroomTypeView() {
     };
 
     return (
-        <div>
+        <div className="space-y-4">
+            {/* Status Message */}
             {statusMessage && (
                 <div
-                    className={`mb-4 p-3 rounded ${
+                    className={`p-3 rounded border text-sm ${
                         statusMessage.type === "success"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
+                            ? "bg-green-50 text-green-800 border-green-200"
+                            : "bg-red-50 text-red-800 border-red-200"
                     }`}
                 >
                     {statusMessage.text}
                 </div>
             )}
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold">Classroom Types</h2>
+
+            {/* Page Header */}
+            <div className="flex justify-between items-center">
+                <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Classroom Types</h2>
+                    <p className="text-xs text-gray-600">Manage classroom type categories</p>
+                </div>
                 <Button
                     onClick={openAddDialog}
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors inline-flex items-center gap-1"
                 >
-                    <Plus className="mr-2 h-4 w-4" /> New Classroom Type
+                    <Plus className="h-3 w-3" /> New Classroom Type
                 </Button>
             </div>
 
-            <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                    <thead>
-                        <tr>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                ID
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                NAME
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {classroomTypes.length === 0 ? (
-                            <tr>
-                                <td
-                                    colSpan={3}
-                                    className="border p-4 text-center"
-                                >
-                                    No classroom types found. Add a new
-                                    classroom type to get started.
-                                </td>
+            {/* Compact Table Container */}
+            <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="bg-[#2F2F85] text-white">
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                    No.
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Name
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
+                                    Actions
+                                </th>
                             </tr>
-                        ) : (
-                            paginatedClassroomTypes.map((classroomType) => (
-                                <tr key={classroomType.id}>
-                                    <td className="border p-2">
-                                        {classroomType.id}
-                                    </td>
-                                    <td className="border p-2">
-                                        {classroomType.name}
-                                    </td>
-                                    <td className="border p-2">
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    openEditDialog(
-                                                        classroomType
-                                                    )
-                                                }
-                                            >
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    openDeleteDialog(
-                                                        classroomType
-                                                    )
-                                                }
-                                            >
-                                                <Trash className="h-4 w-4" />
-                                            </Button>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                            {classroomTypes.length === 0 ? (
+                                <tr>
+                                    <td
+                                        colSpan={3}
+                                        className="px-3 py-8 text-center text-gray-500 text-sm"
+                                    >
+                                        <div className="space-y-1">
+                                            <div>No classroom types found</div>
+                                            <div className="text-xs">Add a new classroom type to get started.</div>
                                         </div>
                                     </td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                            ) : (
+                                paginatedClassroomTypes.map((classroomType, index) => (
+                                    <tr 
+                                        key={classroomType.id}
+                                        className={`hover:bg-gray-50 transition-colors ${
+                                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                                        }`}
+                                    >
+                                        <td className="px-3 py-2 text-xs text-gray-600 font-medium">
+                                            {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
+                                        </td>
+                                        <td className="px-3 py-2 text-xs text-gray-900">
+                                            {classroomType.name}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <div className="flex gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                    onClick={() => openEditDialog(classroomType)}
+                                                >
+                                                    <Pencil className="h-3 w-3" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                    onClick={() => openDeleteDialog(classroomType)}
+                                                >
+                                                    <Trash className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            {/* Add pagination if we have classroom types */}
+            {/* Pagination */}
             {classroomTypes.length > 0 && (
-                <CustomPagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={setCurrentPage}
-                />
+                <div className="flex justify-center">
+                    <CustomPagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                    />
+                </div>
             )}
 
-            {/* Add Classroom Type Dialog */}
+            {/* Add Dialog */}
             <Dialog
                 open={isAddDialogOpen}
                 onOpenChange={(open) => {
@@ -367,44 +364,48 @@ export default function ClassroomTypeView() {
                     setIsAddDialogOpen(open);
                 }}
             >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Add New Classroom Type</DialogTitle>
+                <DialogContent className="bg-white max-w-md">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">Add New Classroom Type</DialogTitle>
                     </DialogHeader>
 
-                    <div className="grid gap-4 py-4">
+                    <div className="py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="name">Name</Label>
+                            <Label htmlFor="name" className="text-sm font-medium text-gray-700">Name</Label>
                             <Input
                                 id="name"
                                 name="name"
                                 value={formData.name}
                                 onChange={handleInputChange}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                placeholder="Enter classroom type name"
                             />
                         </div>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="border-t border-gray-200 pt-3">
                         <Button
                             variant="outline"
                             onClick={() => {
                                 resetForm();
                                 setIsAddDialogOpen(false);
                             }}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                         >
                             Cancel
                         </Button>
                         <Button
                             onClick={handleAddClassroomType}
                             disabled={!formData.name}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white disabled:bg-gray-300 text-sm px-3 py-1.5"
                         >
-                            Add Classroom Type
+                            Add
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* Edit Classroom Type Dialog */}
+            {/* Edit Dialog */}
             <Dialog
                 open={isEditDialogOpen}
                 onOpenChange={(open) => {
@@ -412,44 +413,48 @@ export default function ClassroomTypeView() {
                     setIsEditDialogOpen(open);
                 }}
             >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Edit Classroom Type</DialogTitle>
+                <DialogContent className="bg-white max-w-md">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">Edit Classroom Type</DialogTitle>
                     </DialogHeader>
 
-                    <div className="grid gap-4 py-4">
+                    <div className="py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="edit-name">Name</Label>
+                            <Label htmlFor="edit-name" className="text-sm font-medium text-gray-700">Name</Label>
                             <Input
                                 id="edit-name"
                                 name="name"
                                 value={formData.name}
                                 onChange={handleInputChange}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                placeholder="Enter classroom type name"
                             />
                         </div>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="border-t border-gray-200 pt-3">
                         <Button
                             variant="outline"
                             onClick={() => {
                                 resetForm();
                                 setIsEditDialogOpen(false);
                             }}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                         >
                             Cancel
                         </Button>
                         <Button
                             onClick={handleEditClassroomType}
                             disabled={!formData.name}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white disabled:bg-gray-300 text-sm px-3 py-1.5"
                         >
-                            Save Changes
+                            Save
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* Delete Classroom Type Dialog */}
+            {/* Delete Dialog */}
             <Dialog
                 open={isDeleteDialogOpen}
                 onOpenChange={(open) => {
@@ -457,33 +462,35 @@ export default function ClassroomTypeView() {
                     setIsDeleteDialogOpen(open);
                 }}
             >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Delete Classroom Type</DialogTitle>
+                <DialogContent className="bg-white max-w-md">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">Delete Classroom Type</DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4">
-                        <p>
+                        <p className="text-sm text-gray-600 mb-2">
                             Are you sure you want to delete this classroom type?
                         </p>
-                        <p className="font-medium mt-2">
+                        <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
                             {selectedClassroomType?.name}
                         </p>
+                        <p className="text-xs text-gray-500 mt-2">This action cannot be undone.</p>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="border-t border-gray-200 pt-3">
                         <Button
                             variant="outline"
                             onClick={() => {
                                 setSelectedClassroomType(null);
                                 setIsDeleteDialogOpen(false);
                             }}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                         >
                             Cancel
                         </Button>
                         <Button
-                            variant="destructive"
                             onClick={handleDeleteClassroomType}
+                            className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
                         >
                             Delete
                         </Button>
