@@ -1,12 +1,29 @@
 import { classrooms, classroomTypes } from "@/drizzle/schema";
 import { db } from "@/lib/db";
-import {
-    createClassroomSchema,
-    editClassroomSchema,
-    deleteClassroomSchema,
-} from "@/lib/validations/classrooms";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { z } from "zod";
+
+// Updated validation schemas to include scheduleId
+const createClassroomSchema = z.object({
+    code: z.string().min(1, "Classroom code is required"),
+    type: z.string().min(1, "Classroom type is required"),
+    capacity: z.number().min(1, "Capacity must be greater than 0"),
+    scheduleId: z.string().min(1, "Schedule ID is required"),
+});
+
+const editClassroomSchema = z.object({
+    id: z.number(),
+    code: z.string().min(1, "Classroom code is required"),
+    type: z.string().min(1, "Classroom type is required"),
+    capacity: z.number().min(1, "Capacity must be greater than 0"),
+    scheduleId: z.string().min(1, "Schedule ID is required"),
+});
+
+const deleteClassroomSchema = z.object({
+    id: z.number(),
+    scheduleId: z.string().min(1, "Schedule ID is required"),
+});
 
 // GET all classrooms
 export async function GET(request: Request) {
@@ -51,28 +68,45 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const validatedData = createClassroomSchema.parse(body);
-        const { code, type, capacity } = validatedData;
 
+        // Validate request body and extract scheduleId
+        const validatedData = createClassroomSchema.parse(body);
+        const { code, type, capacity, scheduleId } = validatedData;
+
+        // Find classroom type in the specific schedule
         const classroomType = await db.query.classroomTypes.findFirst({
-            where: eq(classroomTypes.name, type),
+            where: and(
+                eq(classroomTypes.name, type),
+                eq(classroomTypes.scheduleId, parseInt(scheduleId))
+            ),
         });
+
         if (!classroomType) {
             return NextResponse.json(
-                { error: "Classroom type not found" },
+                { error: "Classroom type not found in this schedule" },
                 { status: 404 }
             );
         }
 
+        // Create classroom with the correct classroomTypeId
         const newClassroom = await db.insert(classrooms).values({
             code,
-            classroomTypeId: classroomType?.id,
+            classroomTypeId: classroomType.id,
             capacity,
         });
 
         return NextResponse.json(newClassroom);
     } catch (error: unknown) {
         console.error("Error creating classroom:", error);
+
+        // Handle Zod validation errors
+        if (error instanceof z.ZodError) {
+            return NextResponse.json(
+                { error: "Validation error", details: error.errors },
+                { status: 400 }
+            );
+        }
+
         return NextResponse.json(
             { error: "Failed to create classroom" },
             { status: 500 }
@@ -80,34 +114,74 @@ export async function POST(request: Request) {
     }
 }
 
-// PUT update classroom
+// PATCH update classroom
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
-        const validatedData = editClassroomSchema.parse(body);
-        const { id, code, type, capacity } = validatedData;
 
-        const classroomType = await db.query.classroomTypes.findFirst({
-            where: eq(classroomTypes.name, type),
-        });
-        if (!classroomType) {
+        // Validate request body and extract scheduleId
+        const validatedData = editClassroomSchema.parse(body);
+        const { id, code, type, capacity, scheduleId } = validatedData;
+
+        // Security check: Verify the classroom belongs to the specified schedule
+        const existingClassroom = await db
+            .select()
+            .from(classrooms)
+            .innerJoin(
+                classroomTypes,
+                eq(classrooms.classroomTypeId, classroomTypes.id)
+            )
+            .where(
+                and(
+                    eq(classrooms.id, id),
+                    eq(classroomTypes.scheduleId, parseInt(scheduleId))
+                )
+            );
+
+        if (existingClassroom.length === 0) {
             return NextResponse.json(
-                { error: "Classroom type not found" },
+                { error: "Classroom not found in this schedule" },
                 { status: 404 }
             );
         }
 
+        // Find classroom type in the specific schedule
+        const classroomType = await db.query.classroomTypes.findFirst({
+            where: and(
+                eq(classroomTypes.name, type),
+                eq(classroomTypes.scheduleId, parseInt(scheduleId))
+            ),
+        });
+
+        if (!classroomType) {
+            return NextResponse.json(
+                { error: "Classroom type not found in this schedule" },
+                { status: 404 }
+            );
+        }
+
+        // Update classroom with the correct classroomTypeId
         const updatedClassroom = await db
             .update(classrooms)
             .set({
                 code,
-                classroomTypeId: classroomType?.id,
+                classroomTypeId: classroomType.id,
                 capacity,
             })
             .where(eq(classrooms.id, id));
+
         return NextResponse.json(updatedClassroom);
     } catch (error: unknown) {
         console.error("Error updating classroom:", error);
+
+        // Handle Zod validation errors
+        if (error instanceof z.ZodError) {
+            return NextResponse.json(
+                { error: "Validation error", details: error.errors },
+                { status: 400 }
+            );
+        }
+
         return NextResponse.json(
             { error: "Failed to update classroom" },
             { status: 500 }
@@ -119,15 +193,39 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
     try {
         const body = await request.json();
+
+        // Validate request body
         const validatedData = deleteClassroomSchema.safeParse(body);
         if (!validatedData.success) {
             return NextResponse.json(
-                { error: "Invalid data" },
+                { error: "Invalid data", details: validatedData.error.errors },
                 { status: 400 }
             );
         }
 
-        const { id } = validatedData.data;
+        const { id, scheduleId } = validatedData.data;
+
+        // Security check: Verify the classroom belongs to the specified schedule
+        const classroomExists = await db
+            .select()
+            .from(classrooms)
+            .innerJoin(
+                classroomTypes,
+                eq(classrooms.classroomTypeId, classroomTypes.id)
+            )
+            .where(
+                and(
+                    eq(classrooms.id, id),
+                    eq(classroomTypes.scheduleId, parseInt(scheduleId))
+                )
+            );
+
+        if (classroomExists.length === 0) {
+            return NextResponse.json(
+                { error: "Classroom not found in this schedule" },
+                { status: 404 }
+            );
+        }
 
         await db.delete(classrooms).where(eq(classrooms.id, id));
         return NextResponse.json({ message: "Classroom deleted successfully" });
