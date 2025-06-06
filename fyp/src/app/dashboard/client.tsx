@@ -374,47 +374,55 @@ export default function Dashboard({ authUser }: DashboardProps) {
     };
 
     return (
-        <div className="space-y-6 max-w-full">
-            <div className="flex items-center justify-between">
-                <h1 className="text-xl font-semibold">Schedules</h1>
-                <Button
-                    className=""
-                    onClick={() => {
-                        resetForm();
-                        setIsCreateDialogOpen(true);
-                    }}
-                >
-                    <Plus className="mr-2 h-4 w-4" /> New Schedule
-                </Button>
+        <div className="space-y-8">
+            {/* Page Header */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-semibold text-gray-900">Schedules</h1>
+                        <p className="text-sm text-gray-600 mt-1">Manage your academic schedules and time slots</p>
+                    </div>
+                    <Button
+                        className="bg-blue-900 hover:bg-blue-800 text-white px-6 py-2.5 rounded font-medium transition-colors"
+                        onClick={() => {
+                            resetForm();
+                            setIsCreateDialogOpen(true);
+                        }}
+                    >
+                        <Plus className="mr-2 h-4 w-4" /> New Schedule
+                    </Button>
+                </div>
             </div>
 
             {isLoading ? (
-                <div className="text-center p-8">Loading schedules...</div>
+                <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
+                    <div className="text-gray-600">Loading schedules...</div>
+                </div>
             ) : (
                 <div className="space-y-4">
                     {schedules.map((schedule) => (
                         <div
                             key={schedule.id}
-                            className="border rounded-md p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                            className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:bg-gray-50 transition-colors shadow-sm"
                             onClick={() => navigateToSchedule(schedule.id)}
                         >
-                            <div className="flex items-start justify-between ">
-                                <div>
-                                    <h2 className="text-lg font-medium">
+                            <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                    <h2 className="text-lg font-semibold text-gray-900 mb-2">
                                         {schedule.name}
                                     </h2>
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-sm text-gray-600 mb-4">
                                         {schedule.startDate}{" "}
                                         {schedule.endDate
                                             ? `- ${schedule.endDate}`
                                             : ""}
                                     </p>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 ml-4">
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8"
+                                        className="h-9 w-9 text-gray-500 hover:text-blue-900 hover:bg-blue-50"
                                         onClick={(e) =>
                                             openEditDialog(schedule.id, e)
                                         }
@@ -424,7 +432,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8"
+                                        className="h-9 w-9 text-gray-500 hover:text-red-600 hover:bg-red-50"
                                         onClick={(e) =>
                                             openDeleteDialog(schedule.id, e)
                                         }
@@ -434,24 +442,25 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 </div>
                             </div>
 
-                            <div className="mt-4 flex items-center gap-6">
-                                <div className="flex items-center gap-2 text-sm text-gray-500">
-                                    <BookOpen className="h-4 w-4" />
-                                    <span>{schedule.courses} Courses</span>
+                            <div className="flex items-center gap-8 pt-4 border-t border-gray-100">
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <BookOpen className="h-4 w-4 text-teal-600" />
+                                    <span className="font-medium">{schedule.courses}</span>
+                                    <span>Courses</span>
                                 </div>
-                                <div className="flex items-center gap-2 text-sm text-gray-500">
-                                    <Users className="h-4 w-4" />
-                                    <span>
-                                        {schedule.instructors} Instructors
-                                    </span>
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <Users className="h-4 w-4 text-purple-600" />
+                                    <span className="font-medium">{schedule.instructors}</span>
+                                    <span>Instructors</span>
                                 </div>
                                 {schedule.timeSlots &&
                                     schedule.timeSlots.length > 0 && (
-                                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                                            <span>
-                                                {schedule.timeSlots.length}{" "}
-                                                TimeSlots
+                                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                                            <span className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
+                                                <span className="text-white text-xs">⏰</span>
                                             </span>
+                                            <span className="font-medium">{schedule.timeSlots.length}</span>
+                                            <span>TimeSlots</span>
                                         </div>
                                     )}
                             </div>
@@ -459,9 +468,9 @@ export default function Dashboard({ authUser }: DashboardProps) {
                     ))}
 
                     {schedules.length === 0 && (
-                        <div className="text-center p-8 text-gray-500">
-                            No schedules found. Create a new schedule to get
-                            started.
+                        <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
+                            <div className="text-gray-500 mb-2">No schedules found</div>
+                            <div className="text-sm text-gray-400">Create a new schedule to get started.</div>
                         </div>
                     )}
                 </div>
@@ -472,50 +481,53 @@ export default function Dashboard({ authUser }: DashboardProps) {
                 open={isCreateDialogOpen}
                 onOpenChange={setIsCreateDialogOpen}
             >
-                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>Create New Schedule</DialogTitle>
+                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-white">
+                    <DialogHeader className="border-b border-gray-200 pb-4">
+                        <DialogTitle className="text-xl font-semibold text-gray-900">Create New Schedule</DialogTitle>
                     </DialogHeader>
 
-                    <div className="grid gap-4 py-4">
+                    <div className="grid gap-6 py-6">
                         <div className="space-y-2">
-                            <Label htmlFor="name">Schedule Name</Label>
+                            <Label htmlFor="name" className="text-sm font-medium text-gray-700">Schedule Name</Label>
                             <Input
                                 id="name"
                                 name="name"
                                 placeholder="Schedule 1"
                                 value={formData.name}
                                 onChange={handleInputChange}
+                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
                             />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="startDate">Start Date</Label>
+                                <Label htmlFor="startDate" className="text-sm font-medium text-gray-700">Start Date</Label>
                                 <Input
                                     id="startDate"
                                     name="startDate"
                                     placeholder="5 May 2025"
                                     value={formData.startDate}
                                     onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="endDate">End Date</Label>
+                                <Label htmlFor="endDate" className="text-sm font-medium text-gray-700">End Date</Label>
                                 <Input
                                     id="endDate"
                                     name="endDate"
                                     placeholder="5 May 2026"
                                     value={formData.endDate}
                                     onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
                                 />
                             </div>
                         </div>
 
                         {/* TimeSlot input */}
                         <div className="space-y-2">
-                            <Label htmlFor="numTimeSlots">
+                            <Label htmlFor="numTimeSlots" className="text-sm font-medium text-gray-700">
                                 Number of TimeSlots
                             </Label>
                             <Input
@@ -526,23 +538,25 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 placeholder="Enter number of timeSlots needed"
                                 value={formData.numTimeSlots}
                                 onChange={handleInputChange}
+                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
                             />
                         </div>
 
                         {/* Dynamic timeSlot inputs */}
                         {formData.timeSlots.length > 0 && (
                             <div className="space-y-4">
-                                <h3 className="font-medium text-sm">
-                                    TimeSlots
+                                <h3 className="font-semibold text-gray-900 border-b border-gray-200 pb-2">
+                                    TimeSlots Configuration
                                 </h3>
                                 {formData.timeSlots.map((timeSlot, index) => (
                                     <div
                                         key={index}
-                                        className="grid grid-cols-2 gap-4 p-3 border rounded-md"
+                                        className="grid grid-cols-2 gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50"
                                     >
                                         <div className="space-y-2">
                                             <Label
                                                 htmlFor={`startTime-${index}`}
+                                                className="text-sm font-medium text-gray-700"
                                             >
                                                 Start Time #{index + 1}
                                             </Label>
@@ -560,10 +574,11 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         e.target.value
                                                     )
                                                 }
+                                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900 bg-white"
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label htmlFor={`endTime-${index}`}>
+                                            <Label htmlFor={`endTime-${index}`} className="text-sm font-medium text-gray-700">
                                                 End Time #{index + 1}
                                             </Label>
                                             <Input
@@ -580,6 +595,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         e.target.value
                                                     )
                                                 }
+                                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900 bg-white"
                                             />
                                         </div>
                                     </div>
@@ -588,14 +604,18 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         )}
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="border-t border-gray-200 pt-4">
                         <Button
                             variant="outline"
                             onClick={() => setIsCreateDialogOpen(false)}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50"
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleCreateSchedule}>
+                        <Button 
+                            onClick={handleCreateSchedule}
+                            className="bg-blue-900 hover:bg-blue-800 text-white"
+                        >
                             Create Schedule
                         </Button>
                     </DialogFooter>
@@ -604,26 +624,27 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
             {/* Edit Schedule Dialog */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>Edit Schedule</DialogTitle>
+                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-white">
+                    <DialogHeader className="border-b border-gray-200 pb-4">
+                        <DialogTitle className="text-xl font-semibold text-gray-900">Edit Schedule</DialogTitle>
                     </DialogHeader>
 
-                    <div className="grid gap-4 py-4">
+                    <div className="grid gap-6 py-6">
                         <div className="space-y-2">
-                            <Label htmlFor="edit-name">Schedule Name</Label>
+                            <Label htmlFor="edit-name" className="text-sm font-medium text-gray-700">Schedule Name</Label>
                             <Input
                                 id="edit-name"
                                 name="name"
                                 placeholder="Schedule 1"
                                 value={formData.name}
                                 onChange={handleInputChange}
+                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
                             />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="edit-startDate">
+                                <Label htmlFor="edit-startDate" className="text-sm font-medium text-gray-700">
                                     Start Date
                                 </Label>
                                 <Input
@@ -632,24 +653,26 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                     placeholder="10 May 2025"
                                     value={formData.startDate}
                                     onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="edit-endDate">End Date</Label>
+                                <Label htmlFor="edit-endDate" className="text-sm font-medium text-gray-700">End Date</Label>
                                 <Input
                                     id="edit-endDate"
                                     name="endDate"
                                     placeholder="10 May 2026"
                                     value={formData.endDate}
                                     onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
                                 />
                             </div>
                         </div>
 
                         {/* TimeSlot input */}
                         <div className="space-y-2">
-                            <Label htmlFor="edit-numTimeSlots">
+                            <Label htmlFor="edit-numTimeSlots" className="text-sm font-medium text-gray-700">
                                 Number of TimeSlots
                             </Label>
                             <Input
@@ -660,23 +683,25 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 placeholder="Enter number of timeSlots needed"
                                 value={formData.numTimeSlots}
                                 onChange={handleInputChange}
+                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
                             />
                         </div>
 
                         {/* Dynamic timeSlot inputs */}
                         {formData.timeSlots.length > 0 && (
                             <div className="space-y-4">
-                                <h3 className="font-medium text-sm">
-                                    TimeSlots
+                                <h3 className="font-semibold text-gray-900 border-b border-gray-200 pb-2">
+                                    TimeSlots Configuration
                                 </h3>
                                 {formData.timeSlots.map((timeSlot, index) => (
                                     <div
                                         key={index}
-                                        className="grid grid-cols-2 gap-4 p-3 border rounded-md"
+                                        className="grid grid-cols-2 gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50"
                                     >
                                         <div className="space-y-2">
                                             <Label
                                                 htmlFor={`edit-startTime-${index}`}
+                                                className="text-sm font-medium text-gray-700"
                                             >
                                                 Start Time #{index + 1}
                                             </Label>
@@ -694,11 +719,13 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         e.target.value
                                                     )
                                                 }
+                                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900 bg-white"
                                             />
                                         </div>
                                         <div className="space-y-2">
                                             <Label
                                                 htmlFor={`edit-endTime-${index}`}
+                                                className="text-sm font-medium text-gray-700"
                                             >
                                                 End Time #{index + 1}
                                             </Label>
@@ -716,6 +743,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         e.target.value
                                                     )
                                                 }
+                                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900 bg-white"
                                             />
                                         </div>
                                     </div>
@@ -724,14 +752,18 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         )}
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="border-t border-gray-200 pt-4">
                         <Button
                             variant="outline"
                             onClick={() => setIsEditDialogOpen(false)}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50"
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleEditSchedule}>
+                        <Button 
+                            onClick={handleEditSchedule}
+                            className="bg-blue-900 hover:bg-blue-800 text-white"
+                        >
                             Save Changes
                         </Button>
                     </DialogFooter>
@@ -743,19 +775,19 @@ export default function Dashboard({ authUser }: DashboardProps) {
                 open={isDeleteDialogOpen}
                 onOpenChange={setIsDeleteDialogOpen}
             >
-                <AlertDialogContent>
+                <AlertDialogContent className="bg-white">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Schedule</AlertDialogTitle>
-                        <AlertDialogDescription>
+                        <AlertDialogTitle className="text-xl font-semibold text-gray-900">Delete Schedule</AlertDialogTitle>
+                        <AlertDialogDescription className="text-gray-600">
                             Are you sure you want to delete this schedule? This
                             action cannot be undone.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel className="border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleDeleteSchedule}
-                            className="bg-red-500 hover:bg-red-600"
+                            className="bg-red-600 hover:bg-red-700 text-white"
                         >
                             Delete
                         </AlertDialogAction>
