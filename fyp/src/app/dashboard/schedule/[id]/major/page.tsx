@@ -17,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Pencil, Plus, Trash } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import Papa from 'papaparse';
+import { Download, Upload } from "lucide-react";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -321,6 +323,311 @@ export default function MajorView() {
         setIsDeleteDialogOpen(true);
     };
 
+
+    //import and export start from here
+
+
+// Add these state variables to your existing state in MajorView component
+const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+const [importFile, setImportFile] = useState<File | null>(null);
+const [importProgress, setImportProgress] = useState<{
+    total: number;
+    completed: number;
+    errors: string[];
+    isImporting: boolean;
+}>({
+    total: 0,
+    completed: 0,
+    errors: [],
+    isImporting: false,
+});
+
+// Types for CSV data
+interface CSVMajorRow {
+    name: string;
+    shortTag: string;
+}
+
+// Validation function for major CSV data
+const validateMajorData = (row: any, rowIndex: number): CSVMajorRow | string => {
+    const errors: string[] = [];
+    
+    // Check required fields
+    if (!row.name || typeof row.name !== 'string' || row.name.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Major name is required`);
+    }
+    
+    if (!row.short_tag || typeof row.short_tag !== 'string' || row.short_tag.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Short tag is required`);
+    }
+    
+    if (errors.length > 0) {
+        return errors.join(', ');
+    }
+    
+    // Return cleaned data
+    return {
+        name: row.name.trim(),
+        shortTag: row.short_tag.trim(),
+    };
+};
+
+// Main import function
+const handleImportCSV = async () => {
+    if (!importFile) {
+        setStatusMessage({
+            text: "Please select a CSV file to import",
+            type: "error",
+        });
+        return;
+    }
+
+    const scheduleId = params.id;
+    
+    setImportProgress({
+        total: 0,
+        completed: 0,
+        errors: [],
+        isImporting: true,
+    });
+
+    try {
+        // Parse CSV file
+        Papa.parse(importFile, {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: (header) => header.trim().toLowerCase().replace(/\s+/g, '_'),
+            complete: async (results) => {
+                const csvData = results.data as any[];
+                const validMajors: CSVMajorRow[] = [];
+                const errors: string[] = [];
+
+                // Validate each row
+                csvData.forEach((row, index) => {
+                    const validationResult = validateMajorData(row, index);
+                    if (typeof validationResult === 'string') {
+                        errors.push(validationResult);
+                    } else {
+                        // Check for duplicate names in the CSV
+                        const duplicateInCsv = validMajors.some(major => 
+                            major.name.toLowerCase() === validationResult.name.toLowerCase()
+                        );
+                        if (duplicateInCsv) {
+                            errors.push(`Row ${index + 1}: Duplicate major name "${validationResult.name}" in CSV`);
+                        } else {
+                            // Check for duplicate short tags in the CSV
+                            const duplicateTagInCsv = validMajors.some(major => 
+                                major.shortTag.toLowerCase() === validationResult.shortTag.toLowerCase()
+                            );
+                            if (duplicateTagInCsv) {
+                                errors.push(`Row ${index + 1}: Duplicate short tag "${validationResult.shortTag}" in CSV`);
+                            } else {
+                                // Check for existing names in database
+                                const existingMajorName = majors.some(major => 
+                                    major.name.toLowerCase() === validationResult.name.toLowerCase()
+                                );
+                                if (existingMajorName) {
+                                    errors.push(`Row ${index + 1}: Major name "${validationResult.name}" already exists in the system`);
+                                } else {
+                                    // Check for existing short tags in database
+                                    const existingMajorTag = majors.some(major => 
+                                        major.shortTag.toLowerCase() === validationResult.shortTag.toLowerCase()
+                                    );
+                                    if (existingMajorTag) {
+                                        errors.push(`Row ${index + 1}: Short tag "${validationResult.shortTag}" already exists in the system`);
+                                    } else {
+                                        validMajors.push(validationResult);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                setImportProgress(prev => ({
+                    ...prev,
+                    total: validMajors.length,
+                    errors: errors,
+                }));
+
+                if (validMajors.length === 0) {
+                    setStatusMessage({
+                        text: "No valid majors found in the CSV file",
+                        type: "error",
+                    });
+                    setImportProgress(prev => ({ ...prev, isImporting: false }));
+                    return;
+                }
+
+                // Import valid majors
+                let completed = 0;
+                const importErrors: string[] = [...errors];
+
+                for (const major of validMajors) {
+                    try {
+                        const apiData: MajorCreatePayload = {
+                            name: major.name,
+                            shortTag: major.shortTag,
+                            scheduleId: Number(scheduleId),
+                        };
+
+                        const response = await fetch("/api/majors", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(apiData),
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.text();
+                            importErrors.push(
+                                `Failed to import ${major.name}: ${
+                                    errorData || 'Unknown error'
+                                }`
+                            );
+                        } else {
+                            completed++;
+                        }
+                    } catch (error) {
+                        importErrors.push(
+                            `Failed to import ${major.name}: ${
+                                error instanceof Error ? error.message : 'Unknown error'
+                            }`
+                        );
+                    }
+
+                    // Update progress
+                    setImportProgress(prev => ({
+                        ...prev,
+                        completed: completed,
+                        errors: importErrors,
+                    }));
+
+                    // Small delay to prevent overwhelming the server
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                // Final update
+                setImportProgress(prev => ({ ...prev, isImporting: false }));
+
+                // Refresh the major list
+                await fetchMajors();
+
+                // Show completion message
+                if (completed > 0) {
+                    setStatusMessage({
+                        text: `Successfully imported ${completed} major(s)${
+                            importErrors.length > 0 ? ` with ${importErrors.length} error(s)` : ''
+                        }`,
+                        type: completed === validMajors.length ? "success" : "error",
+                    });
+                } else {
+                    setStatusMessage({
+                        text: "Failed to import any majors",
+                        type: "error",
+                    });
+                }
+            },
+            error: (error) => {
+                console.error("CSV parsing error:", error);
+                setStatusMessage({
+                    text: "Failed to parse CSV file. Please check the file format.",
+                    type: "error",
+                });
+                setImportProgress(prev => ({ ...prev, isImporting: false }));
+            },
+        });
+    } catch (error) {
+        console.error("Import error:", error);
+        setStatusMessage({
+            text: "Failed to import majors. Please try again.",
+            type: "error",
+        });
+        setImportProgress(prev => ({ ...prev, isImporting: false }));
+    }
+};
+
+// File selection handler
+const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'text/csv') {
+        setImportFile(file);
+    } else {
+        setStatusMessage({
+            text: "Please select a valid CSV file",
+            type: "error",
+        });
+        event.target.value = ''; // Reset file input
+    }
+};
+
+// Reset import state
+const resetImportState = () => {
+    setImportFile(null);
+    setImportProgress({
+        total: 0,
+        completed: 0,
+        errors: [],
+        isImporting: false,
+    });
+};
+
+// Download CSV with current majors data
+const downloadMajorsCSV = () => {
+    try {
+        // Create CSV header
+        const headers = ['name', 'short_tag'];
+        
+        // Convert majors data to CSV rows
+        const csvRows = majors.map(major => [
+            major.name,
+            major.shortTag
+        ]);
+        
+        // Combine headers and data
+        const allRows = [headers, ...csvRows];
+        
+        // Convert to CSV string
+        const csvContent = allRows.map(row => 
+            row.map(field => {
+                // Escape quotes and wrap in quotes if field contains comma, quote, or newline
+                const fieldStr = String(field || '');
+                if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n')) {
+                    return `"${fieldStr.replace(/"/g, '""')}"`;
+                }
+                return fieldStr;
+            }).join(',')
+        ).join('\n');
+
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        
+        // Generate filename with current date
+        const today = new Date().toISOString().split('T')[0];
+        link.setAttribute('download', `majors_export_${today}.csv`);
+        
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setStatusMessage({
+            text: `Exported ${majors.length} majors to CSV`,
+            type: "success",
+        });
+    } catch (error) {
+        console.error('Error exporting CSV:', error);
+        setStatusMessage({
+            text: "Failed to export majors. Please try again.",
+            type: "error",
+        });
+    }
+};
+
     return (
         <div>
             <>
@@ -335,15 +642,34 @@ export default function MajorView() {
                         {statusMessage.text}
                     </div>
                 )}
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold">Majors</h2>
-                    <Button
-                        onClick={openAddDialog}
-                        className="bg-green-600 hover:bg-green-700"
-                    >
-                        <Plus className="mr-2 h-4 w-4" /> New Major
-                    </Button>
-                </div>
+             <div className="flex justify-between items-center mb-6">
+    <h2 className="text-xl font-bold">Majors</h2>
+    <div className="flex gap-2">
+    <Button
+            onClick={() => setIsImportDialogOpen(true)}
+            variant="outline"
+            className="border-blue-600 text-blue-600 hover:bg-blue-50"
+        >
+            <Upload className="mr-2 h-4 w-4" /> Import CSV
+        </Button>
+        <Button
+            onClick={downloadMajorsCSV}
+            variant="outline"
+            className="border-green-600 text-green-600 hover:bg-green-50"
+            disabled={majors.length === 0}
+        >
+            <Download className="mr-2 h-4 w-4" /> Export CSV
+        </Button>
+      
+     
+        <Button
+            onClick={openAddDialog}
+            className="bg-green-600 hover:bg-green-700"
+        >
+            <Plus className="mr-2 h-4 w-4" /> New Major
+        </Button>
+    </div>
+</div>
 
                 <div className="overflow-x-auto">
                     <table className="w-full border-collapse">
@@ -570,6 +896,101 @@ export default function MajorView() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            {/* Import CSV Dialog */}
+<Dialog
+    open={isImportDialogOpen}
+    onOpenChange={(open) => {
+        if (!open) resetImportState();
+        setIsImportDialogOpen(open);
+    }}
+>
+    <DialogContent className="max-w-md">
+        <DialogHeader>
+            <DialogTitle>Import Majors from CSV</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+            <div className="flex justify-between items-center">
+                <div className="flex-1">
+                    <Label htmlFor="csv-file">Select CSV File</Label>
+                    <Input
+                        id="csv-file"
+                        type="file"
+                        accept=".csv"
+                        onChange={handleFileSelect}
+                        disabled={importProgress.isImporting}
+                    />
+                    <p className="text-sm text-gray-600 mt-1">
+                        CSV should contain columns: name, short_tag
+                    </p>
+                </div>
+            </div>
+
+            {importFile && (
+                <div className="text-sm">
+                    <p><strong>Selected file:</strong> {importFile.name}</p>
+                    <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
+                </div>
+            )}
+
+            {importProgress.isImporting && (
+                <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                        <span>Progress:</span>
+                        <span>{importProgress.completed} / {importProgress.total}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{ 
+                                width: importProgress.total > 0 
+                                    ? `${(importProgress.completed / importProgress.total) * 100}%` 
+                                    : '0%' 
+                            }}
+                        ></div>
+                    </div>
+                </div>
+            )}
+
+            {importProgress.errors.length > 0 && (
+                <div className="max-h-32 overflow-y-auto">
+                    <p className="text-sm font-medium text-red-600 mb-1">
+                        Errors ({importProgress.errors.length}):
+                    </p>
+                    <div className="text-xs space-y-1">
+                        {importProgress.errors.slice(0, 10).map((error, index) => (
+                            <p key={index} className="text-red-600">{error}</p>
+                        ))}
+                        {importProgress.errors.length > 10 && (
+                            <p className="text-red-600 font-medium">
+                                ... and {importProgress.errors.length - 10} more errors
+                            </p>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+
+        <DialogFooter>
+            <Button
+                variant="outline"
+                onClick={() => {
+                    resetImportState();
+                    setIsImportDialogOpen(false);
+                }}
+                disabled={importProgress.isImporting}
+            >
+                Cancel
+            </Button>
+            <Button
+                onClick={handleImportCSV}
+                disabled={!importFile || importProgress.isImporting}
+            >
+                {importProgress.isImporting ? 'Importing...' : 'Import'}
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
         </div>
     );
 }
