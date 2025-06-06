@@ -135,12 +135,16 @@ export default function ClassroomView() {
     const handleAddClassroom = async () => {
         setIsLoading(true);
         try {
-            // Prepare data for API
+            const scheduleId = params.id; // Get the current schedule ID
+            
+            // Prepare data for API - NOW INCLUDING scheduleId
             const apiData = {
                 code: formData.code,
                 type: formData.type,
                 capacity: Number.parseInt(formData.capacity),
+                scheduleId: scheduleId, // Add this line!
             };
+            
             const response = await fetch("/api/classrooms", {
                 method: "POST",
                 headers: {
@@ -148,9 +152,11 @@ export default function ClassroomView() {
                 },
                 body: JSON.stringify(apiData),
             });
+            
             if (!response.ok) {
                 throw new Error("Failed to create classroom");
             }
+            
             // Refresh the classroom list
             await fetchClassrooms();
             // Close dialog and reset form
@@ -170,19 +176,23 @@ export default function ClassroomView() {
             setIsLoading(false);
         }
     };
-
+    
     const handleEditClassroom = async () => {
         if (!selectedClassroom) return;
-
+    
         setIsLoading(true);
         try {
-            // Prepare data for API
+            const scheduleId = params.id; // Get the current schedule ID
+            
+            // Prepare data for API - NOW INCLUDING scheduleId
             const apiData = {
                 id: selectedClassroom.id,
                 code: formData.code,
                 type: formData.type,
                 capacity: Number.parseInt(formData.capacity),
+                scheduleId: scheduleId, // Add this line!
             };
+            
             const response = await fetch(`/api/classrooms/`, {
                 method: "PATCH",
                 headers: {
@@ -190,9 +200,11 @@ export default function ClassroomView() {
                 },
                 body: JSON.stringify(apiData),
             });
+            
             if (!response.ok) {
                 throw new Error("Failed to update classroom");
             }
+            
             // Refresh the classroom list
             await fetchClassrooms();
             // Close dialog and reset form
@@ -212,15 +224,20 @@ export default function ClassroomView() {
             setIsLoading(false);
         }
     };
+    
 
     const handleDeleteClassroom = async () => {
         if (!selectedClassroom) return;
-
+    
         setIsLoading(true);
         try {
+            const scheduleId = params.id; // Get the current schedule ID
+            
             const apiData = {
                 id: selectedClassroom.id,
+                scheduleId: scheduleId, // Add this line!
             };
+            
             const response = await fetch(`/api/classrooms/`, {
                 method: "DELETE",
                 headers: {
@@ -228,9 +245,11 @@ export default function ClassroomView() {
                 },
                 body: JSON.stringify(apiData),
             });
+            
             if (!response.ok) {
                 throw new Error("Failed to delete classroom");
             }
+            
             // Refresh the classroom list
             await fetchClassrooms();
             // Close dialog
@@ -424,6 +443,7 @@ const handleImportCSV = async () => {
                             code: classroom.code,
                             type: classroom.type,
                             capacity: Number.parseInt(classroom.capacity),
+                            scheduleId: scheduleId,
                         };
 
                         const response = await fetch("/api/classrooms", {

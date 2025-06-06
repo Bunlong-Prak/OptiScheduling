@@ -80,71 +80,92 @@ export default function ScheduleLayout({
     // Show loading state while fetching data
     if (isLoading) {
         return (
-            <div>
-                <div className="w-full flex justify-between items-center mb-6">
-                    <div>
-                        <h1 className="text-2xl font-bold">Loading...</h1>
-                        <p className="text-gray-500">
-                            Loading schedule details...
-                        </p>
+            <div className="space-y-6">
+                {/* Loading Header */}
+                <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+                    <div className="w-full flex justify-between items-center">
+                        <div>
+                            <h1 className="text-2xl font-semibold text-gray-900">Loading...</h1>
+                            <p className="text-sm text-gray-600 mt-1">
+                                Loading schedule details...
+                            </p>
+                        </div>
                     </div>
                 </div>
-                <div className="border-b mb-4">
-                    <nav className="flex space-x-4">
-                        {navigationItems.map((item) => (
-                            <div
-                                key={item.href}
-                                className="px-3 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400"
-                            >
-                                {item.name}
-                            </div>
-                        ))}
-                    </nav>
+                
+                {/* Loading Navigation */}
+                <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+                    <div className="border-b border-gray-200">
+                        <nav className="flex">
+                            {navigationItems.map((item) => (
+                                <div
+                                    key={item.href}
+                                    className="px-6 py-4 text-sm font-medium text-gray-400 border-b-2 border-transparent"
+                                >
+                                    {item.name}
+                                </div>
+                            ))}
+                        </nav>
+                    </div>
+                    <div className="p-6">
+                        {children}
+                    </div>
                 </div>
-                {children}
             </div>
         );
     }
 
     return (
-        <div>
-            <div className="w-full flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold">
-                        {schedule?.name || "Schedule"}
-                    </h1>
-                    <p className="text-gray-500">
-                        {schedule?.startDate}
-                        {schedule?.endDate &&
-                        schedule.endDate !== schedule.startDate
-                            ? ` - ${schedule.endDate}`
-                            : ""}
-                    </p>
+        <div className="space-y-6">
+            {/* Page Header */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+                <div className="w-full flex justify-between items-center">
+                    <div>
+                        <h1 className="text-2xl font-semibold text-gray-900">
+                            {schedule?.name || "Schedule"}
+                        </h1>
+                        <p className="text-sm text-gray-600 mt-1">
+                            {schedule?.startDate}
+                            {schedule?.endDate &&
+                            schedule.endDate !== schedule.startDate
+                                ? ` - ${schedule.endDate}`
+                                : ""}
+                        </p>
+                    </div>
+                    <div className="flex gap-2"></div>
                 </div>
-                <div className="flex gap-2"></div>
             </div>
-            <div className="border-b mb-4">
-                <nav className="flex space-x-4">
-                    {navigationItems.map((item) => {
-                        const href = `/dashboard/schedule/${scheduleId}/${item.href}`;
-                        const isActive = pathname === href;
-                        return (
-                            <Link
-                                key={item.href}
-                                href={href}
-                                className={`px-3 py-2 text-sm font-medium border-b-2 ${
-                                    isActive
-                                        ? "border-indigo-600 text-indigo-600"
-                                        : "border-transparent hover:border-gray-300"
-                                }`}
-                            >
-                                {item.name}
-                            </Link>
-                        );
-                    })}
-                </nav>
+            
+            {/* Navigation and Content Container */}
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                {/* Navigation Tabs */}
+                <div className="border-b border-gray-200 bg-gray-50">
+                    <nav className="flex">
+                        {navigationItems.map((item) => {
+                            const href = `/dashboard/schedule/${scheduleId}/${item.href}`;
+                            const isActive = pathname === href;
+                            return (
+                                <Link
+                                    key={item.href}
+                                    href={href}
+                                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors relative ${
+                                        isActive
+                                            ? "border-[#2F2F85] text-[#2F2F85] bg-white"
+                                            : "border-transparent text-gray-600 hover:text-[#2F2F85] hover:border-gray-300 hover:bg-white"
+                                    }`}
+                                >
+                                    {item.name}
+                                </Link>
+                            );
+                        })}
+                    </nav>
+                </div>
+                
+                {/* Content Area */}
+                <div className="p-6">
+                    {children}
+                </div>
             </div>
-            {children}
         </div>
     );
 }
