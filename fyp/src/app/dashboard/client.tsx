@@ -383,7 +383,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         <p className="text-sm text-gray-600 mt-1">Manage your academic schedules and time slots</p>
                     </div>
                     <Button
-                        className="bg-blue-900 hover:bg-blue-800 text-white px-6 py-2.5 rounded font-medium transition-colors"
+                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors"
                         onClick={() => {
                             resetForm();
                             setIsCreateDialogOpen(true);
@@ -422,7 +422,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-9 w-9 text-gray-500 hover:text-blue-900 hover:bg-blue-50"
+                                        className="h-9 w-9 text-gray-500 hover:text-[#2F2F85] hover:bg-blue-50"
                                         onClick={(e) =>
                                             openEditDialog(schedule.id, e)
                                         }
@@ -495,7 +495,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 placeholder="Schedule 1"
                                 value={formData.name}
                                 onChange={handleInputChange}
-                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
+                                className="border-gray-300 focus:border-[#2F2F85] focus:border-[#2F2F85]"
                             />
                         </div>
 
@@ -508,7 +508,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                     placeholder="5 May 2025"
                                     value={formData.startDate}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:border-[#2F2F85]"
                                 />
                             </div>
 
@@ -520,7 +520,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                     placeholder="5 May 2026"
                                     value={formData.endDate}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
                                 />
                             </div>
                         </div>
@@ -538,7 +538,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 placeholder="Enter number of timeSlots needed"
                                 value={formData.numTimeSlots}
                                 onChange={handleInputChange}
-                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
                             />
                         </div>
 
@@ -574,7 +574,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900 bg-white"
+                                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white"
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -595,7 +595,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900 bg-white"
+                                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white"
                                             />
                                         </div>
                                     </div>
@@ -614,7 +614,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         </Button>
                         <Button 
                             onClick={handleCreateSchedule}
-                            className="bg-blue-900 hover:bg-blue-800 text-white"
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
                         >
                             Create Schedule
                         </Button>
@@ -638,7 +638,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 placeholder="Schedule 1"
                                 value={formData.name}
                                 onChange={handleInputChange}
-                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
                             />
                         </div>
 
@@ -653,7 +653,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                     placeholder="10 May 2025"
                                     value={formData.startDate}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
                                 />
                             </div>
 
@@ -665,7 +665,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                     placeholder="10 May 2026"
                                     value={formData.endDate}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
                                 />
                             </div>
                         </div>
@@ -683,7 +683,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 placeholder="Enter number of timeSlots needed"
                                 value={formData.numTimeSlots}
                                 onChange={handleInputChange}
-                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900"
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
                             />
                         </div>
 
@@ -719,7 +719,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900 bg-white"
+                                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white"
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -743,7 +743,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="border-gray-300 focus:border-blue-900 focus:ring-blue-900 bg-white"
+                                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white"
                                             />
                                         </div>
                                     </div>
@@ -762,7 +762,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         </Button>
                         <Button 
                             onClick={handleEditSchedule}
-                            className="bg-blue-900 hover:bg-blue-800 text-white"
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
                         >
                             Save Changes
                         </Button>
