@@ -25,6 +25,8 @@ import { useEffect, useState } from "react";
 // import type { Classroom, ClassroomFormData } from "../../../types;
 import { ClassroomFormData } from "@/app/types";
 import { useParams } from "next/navigation";
+import Papa from 'papaparse';
+import { Download, Upload } from "lucide-react";
 
 interface ClassroomType {
     id: number;
@@ -277,6 +279,313 @@ export default function ClassroomView() {
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
+    // Add these state variables to your existing state in ClassroomView component
+const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+const [importFile, setImportFile] = useState<File | null>(null);
+const [importProgress, setImportProgress] = useState<{
+    total: number;
+    completed: number;
+    errors: string[];
+    isImporting: boolean;
+}>({
+    total: 0,
+    completed: 0,
+    errors: [],
+    isImporting: false,
+});
+
+// Types for CSV data
+interface CSVClassroomRow {
+    code: string;
+    type: string;
+    capacity: string;
+}
+
+// Validation function for classroom CSV data
+const validateClassroomData = (row: any, rowIndex: number): CSVClassroomRow | string => {
+    const errors: string[] = [];
+    
+    // Check required fields
+    if (!row.code || typeof row.code !== 'string' || row.code.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Classroom code is required`);
+    }
+    
+    if (!row.type || typeof row.type !== 'string' || row.type.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Classroom type is required`);
+    } else {
+        // Check if classroom type exists in the system
+        const typeExists = classroomTypes.some(type => 
+            type.name.toLowerCase() === row.type.trim().toLowerCase()
+        );
+        if (!typeExists) {
+            errors.push(`Row ${rowIndex + 1}: Classroom type "${row.type.trim()}" does not exist in the system`);
+        }
+    }
+    
+    if (!row.capacity) {
+        errors.push(`Row ${rowIndex + 1}: Capacity is required`);
+    } else {
+        const capacityNum = Number(row.capacity);
+        if (isNaN(capacityNum) || capacityNum <= 0) {
+            errors.push(`Row ${rowIndex + 1}: Capacity must be a valid positive number`);
+        }
+    }
+    
+    if (errors.length > 0) {
+        return errors.join(', ');
+    }
+    
+    // Return cleaned data
+    return {
+        code: row.code.trim(),
+        type: row.type.trim(),
+        capacity: row.capacity.toString(),
+    };
+};
+
+// Main import function
+const handleImportCSV = async () => {
+    if (!importFile) {
+        setStatusMessage({
+            text: "Please select a CSV file to import",
+            type: "error",
+        });
+        return;
+    }
+
+    const scheduleId = params.id;
+    
+    setImportProgress({
+        total: 0,
+        completed: 0,
+        errors: [],
+        isImporting: true,
+    });
+
+    try {
+        // Parse CSV file
+        Papa.parse(importFile, {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: (header) => header.trim().toLowerCase().replace(/\s+/g, '_'),
+            complete: async (results) => {
+                const csvData = results.data as any[];
+                const validClassrooms: CSVClassroomRow[] = [];
+                const errors: string[] = [];
+
+                // Validate each row
+                csvData.forEach((row, index) => {
+                    const validationResult = validateClassroomData(row, index);
+                    if (typeof validationResult === 'string') {
+                        errors.push(validationResult);
+                    } else {
+                        // Check for duplicate codes in the CSV
+                        const duplicateInCsv = validClassrooms.some(classroom => 
+                            classroom.code.toLowerCase() === validationResult.code.toLowerCase()
+                        );
+                        if (duplicateInCsv) {
+                            errors.push(`Row ${index + 1}: Duplicate classroom code "${validationResult.code}" in CSV`);
+                        } else {
+                            // Check for existing codes in database
+                            const existingClassroom = classrooms.some(classroom => 
+                                classroom.code.toLowerCase() === validationResult.code.toLowerCase()
+                            );
+                            if (existingClassroom) {
+                                errors.push(`Row ${index + 1}: Classroom code "${validationResult.code}" already exists in the system`);
+                            } else {
+                                validClassrooms.push(validationResult);
+                            }
+                        }
+                    }
+                });
+
+                setImportProgress(prev => ({
+                    ...prev,
+                    total: validClassrooms.length,
+                    errors: errors,
+                }));
+
+                if (validClassrooms.length === 0) {
+                    setStatusMessage({
+                        text: "No valid classrooms found in the CSV file",
+                        type: "error",
+                    });
+                    setImportProgress(prev => ({ ...prev, isImporting: false }));
+                    return;
+                }
+
+                // Import valid classrooms
+                let completed = 0;
+                const importErrors: string[] = [...errors];
+
+                for (const classroom of validClassrooms) {
+                    try {
+                        const apiData = {
+                            code: classroom.code,
+                            type: classroom.type,
+                            capacity: Number.parseInt(classroom.capacity),
+                        };
+
+                        const response = await fetch("/api/classrooms", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(apiData),
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            importErrors.push(
+                                `Failed to import ${classroom.code}: ${
+                                    errorData.error || 'Unknown error'
+                                }`
+                            );
+                        } else {
+                            completed++;
+                        }
+                    } catch (error) {
+                        importErrors.push(
+                            `Failed to import ${classroom.code}: ${
+                                error instanceof Error ? error.message : 'Unknown error'
+                            }`
+                        );
+                    }
+
+                    // Update progress
+                    setImportProgress(prev => ({
+                        ...prev,
+                        completed: completed,
+                        errors: importErrors,
+                    }));
+
+                    // Small delay to prevent overwhelming the server
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                // Final update
+                setImportProgress(prev => ({ ...prev, isImporting: false }));
+
+                // Refresh the classroom list
+                await fetchClassrooms();
+
+                // Show completion message
+                if (completed > 0) {
+                    setStatusMessage({
+                        text: `Successfully imported ${completed} classroom(s)${
+                            importErrors.length > 0 ? ` with ${importErrors.length} error(s)` : ''
+                        }`,
+                        type: completed === validClassrooms.length ? "success" : "error",
+                    });
+                } else {
+                    setStatusMessage({
+                        text: "Failed to import any classrooms",
+                        type: "error",
+                    });
+                }
+            },
+            error: (error) => {
+                console.error("CSV parsing error:", error);
+                setStatusMessage({
+                    text: "Failed to parse CSV file. Please check the file format.",
+                    type: "error",
+                });
+                setImportProgress(prev => ({ ...prev, isImporting: false }));
+            },
+        });
+    } catch (error) {
+        console.error("Import error:", error);
+        setStatusMessage({
+            text: "Failed to import classrooms. Please try again.",
+            type: "error",
+        });
+        setImportProgress(prev => ({ ...prev, isImporting: false }));
+    }
+};
+
+// File selection handler
+const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'text/csv') {
+        setImportFile(file);
+    } else {
+        setStatusMessage({
+            text: "Please select a valid CSV file",
+            type: "error",
+        });
+        event.target.value = ''; // Reset file input
+    }
+};
+
+// Reset import state
+const resetImportState = () => {
+    setImportFile(null);
+    setImportProgress({
+        total: 0,
+        completed: 0,
+        errors: [],
+        isImporting: false,
+    });
+};
+
+// Download CSV with current classrooms data
+const downloadClassroomsCSV = () => {
+    try {
+        // Create CSV header
+        const headers = ['code', 'type', 'capacity'];
+        
+        // Convert classrooms data to CSV rows
+        const csvRows = classrooms.map(classroom => [
+            classroom.code,
+            classroom.type,
+            classroom.capacity.toString()
+        ]);
+        
+        // Combine headers and data
+        const allRows = [headers, ...csvRows];
+        
+        // Convert to CSV string
+        const csvContent = allRows.map(row => 
+            row.map(field => {
+                // Escape quotes and wrap in quotes if field contains comma, quote, or newline
+                const fieldStr = String(field || '');
+                if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n')) {
+                    return `"${fieldStr.replace(/"/g, '""')}"`;
+                }
+                return fieldStr;
+            }).join(',')
+        ).join('\n');
+
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        
+        // Generate filename with current date
+        const today = new Date().toISOString().split('T')[0];
+        link.setAttribute('download', `classrooms_export_${today}.csv`);
+        
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setStatusMessage({
+            text: `Exported ${classrooms.length} classrooms to CSV`,
+            type: "success",
+        });
+    } catch (error) {
+        console.error('Error exporting CSV:', error);
+        setStatusMessage({
+            text: "Failed to export classrooms. Please try again.",
+            type: "error",
+        });
+    }
+};
+
+
+
 
     return (
         <div>
@@ -292,16 +601,36 @@ export default function ClassroomView() {
                 </div>
             )}
 
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold">Classrooms</h2>
-                <Button
-                    onClick={() => setIsAddDialogOpen(true)}
-                    className="bg-green-600 hover:bg-green-700"
-                    disabled={isLoading}
-                >
-                    <Plus className="mr-2 h-4 w-4" /> New Classroom
-                </Button>
-            </div>
+           {/* Updated Header Section */}
+<div className="flex justify-between items-center mb-6">
+    <h2 className="text-xl font-bold">Classrooms</h2>
+    <div className="flex gap-2">
+        <Button
+            onClick={downloadClassroomsCSV}
+            variant="outline"
+            className="border-green-600 text-green-600 hover:bg-green-50"
+            disabled={classrooms.length === 0 || isLoading}
+        >
+            <Download className="mr-2 h-4 w-4" /> Export CSV
+        </Button>
+        <Button
+            onClick={() => setIsImportDialogOpen(true)}
+            variant="outline"
+            className="border-blue-600 text-blue-600 hover:bg-blue-50"
+            disabled={isLoading}
+        >
+            <Upload className="mr-2 h-4 w-4" /> Import CSV
+        </Button>
+  
+        <Button
+            onClick={() => setIsAddDialogOpen(true)}
+            className="bg-green-600 hover:bg-green-700"
+            disabled={isLoading}
+        >
+            <Plus className="mr-2 h-4 w-4" /> New Classroom
+        </Button>
+    </div>
+</div>
 
             <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
@@ -597,6 +926,101 @@ export default function ClassroomView() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            {/* Import CSV Dialog */}
+<Dialog
+    open={isImportDialogOpen}
+    onOpenChange={(open) => {
+        if (!open) resetImportState();
+        setIsImportDialogOpen(open);
+    }}
+>
+    <DialogContent className="max-w-md">
+        <DialogHeader>
+            <DialogTitle>Import Classrooms from CSV</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+            <div className="flex justify-between items-center">
+                <div className="flex-1">
+                    <Label htmlFor="csv-file">Select CSV File</Label>
+                    <Input
+                        id="csv-file"
+                        type="file"
+                        accept=".csv"
+                        onChange={handleFileSelect}
+                        disabled={importProgress.isImporting}
+                    />
+                    <p className="text-sm text-gray-600 mt-1">
+                        CSV should contain columns: code, type, capacity
+                    </p>
+                </div>
+            </div>
+
+            {importFile && (
+                <div className="text-sm">
+                    <p><strong>Selected file:</strong> {importFile.name}</p>
+                    <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
+                </div>
+            )}
+
+            {importProgress.isImporting && (
+                <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                        <span>Progress:</span>
+                        <span>{importProgress.completed} / {importProgress.total}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{ 
+                                width: importProgress.total > 0 
+                                    ? `${(importProgress.completed / importProgress.total) * 100}%` 
+                                    : '0%' 
+                            }}
+                        ></div>
+                    </div>
+                </div>
+            )}
+
+            {importProgress.errors.length > 0 && (
+                <div className="max-h-32 overflow-y-auto">
+                    <p className="text-sm font-medium text-red-600 mb-1">
+                        Errors ({importProgress.errors.length}):
+                    </p>
+                    <div className="text-xs space-y-1">
+                        {importProgress.errors.slice(0, 10).map((error, index) => (
+                            <p key={index} className="text-red-600">{error}</p>
+                        ))}
+                        {importProgress.errors.length > 10 && (
+                            <p className="text-red-600 font-medium">
+                                ... and {importProgress.errors.length - 10} more errors
+                            </p>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+
+        <DialogFooter>
+            <Button
+                variant="outline"
+                onClick={() => {
+                    resetImportState();
+                    setIsImportDialogOpen(false);
+                }}
+                disabled={importProgress.isImporting}
+            >
+                Cancel
+            </Button>
+            <Button
+                onClick={handleImportCSV}
+                disabled={!importFile || importProgress.isImporting}
+            >
+                {importProgress.isImporting ? 'Importing...' : 'Import'}
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
         </div>
     );
 }
