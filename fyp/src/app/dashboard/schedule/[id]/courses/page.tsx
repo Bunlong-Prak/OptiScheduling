@@ -36,6 +36,8 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { colors, getColorName } from "@/components/custom/colors";
+import Papa from 'papaparse';
+import { Download, Upload } from "lucide-react";
 
 // Number of courses to show per page
 const ITEMS_PER_PAGE = 10;
@@ -614,6 +616,421 @@ export default function CoursesView() {
         setSelectedCourse(course);
         setIsDeleteDialogOpen(true);
     };
+    // Add these state variables to your existing state in CoursesView component
+const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+const [importFile, setImportFile] = useState<File | null>(null);
+const [importProgress, setImportProgress] = useState<{
+    total: number;
+    completed: number;
+    errors: string[];
+    isImporting: boolean;
+}>({
+    total: 0,
+    completed: 0,
+    errors: [],
+    isImporting: false,
+});
+
+// Types for CSV data
+interface CSVCourseRow {
+    code: string;
+    title: string;
+    major: string;
+    color: string;
+    status: string;
+    duration: string;
+    capacity: string;
+    section: string;
+    instructor_name?: string;
+}
+
+// Validation function for course CSV data
+const validateCourseData = (row: any, rowIndex: number): CSVCourseRow | string => {
+    const errors: string[] = [];
+    
+    // Check required fields
+    if (!row.code || typeof row.code !== 'string' || row.code.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Course code is required`);
+    }
+    
+    if (!row.title || typeof row.title !== 'string' || row.title.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Course title is required`);
+    }
+    
+    if (!row.major || typeof row.major !== 'string' || row.major.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Major is required`);
+    } else {
+        // Check if major exists in the system
+        const majorExists = majors.some(major => 
+            major.name.toLowerCase() === row.major.trim().toLowerCase()
+        );
+        if (!majorExists) {
+            errors.push(`Row ${rowIndex + 1}: Major "${row.major.trim()}" does not exist in the system`);
+        }
+    }
+    
+    if (!row.color || typeof row.color !== 'string' || row.color.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Color is required`);
+    } else {
+        // Validate color exists in the colors array
+        const colorExists = colors.includes(row.color.trim());
+        if (!colorExists) {
+            errors.push(`Row ${rowIndex + 1}: Color "${row.color.trim()}" is not valid`);
+        }
+    }
+    
+    if (!row.status || typeof row.status !== 'string' || row.status.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Status is required`);
+    } else {
+        const validStatuses = ['online', 'offline'];
+        if (!validStatuses.includes(row.status.trim().toLowerCase())) {
+            errors.push(`Row ${rowIndex + 1}: Status must be 'online' or 'offline'`);
+        }
+    }
+    
+    if (!row.duration) {
+        errors.push(`Row ${rowIndex + 1}: Duration is required`);
+    } else {
+        const durationNum = Number(row.duration);
+        if (isNaN(durationNum) || durationNum <= 0) {
+            errors.push(`Row ${rowIndex + 1}: Duration must be a valid positive number`);
+        }
+    }
+    
+    if (!row.capacity) {
+        errors.push(`Row ${rowIndex + 1}: Capacity is required`);
+    } else {
+        const capacityNum = Number(row.capacity);
+        if (isNaN(capacityNum) || capacityNum <= 0) {
+            errors.push(`Row ${rowIndex + 1}: Capacity must be a valid positive number`);
+        }
+    }
+    
+    if (!row.section || typeof row.section !== 'string' || row.section.trim() === '') {
+        errors.push(`Row ${rowIndex + 1}: Section is required`);
+    }
+    
+    // Validate instructor if provided
+    if (row.instructor_name && typeof row.instructor_name === 'string' && row.instructor_name.trim() !== '') {
+        const instructorExists = instructors.some(instructor => 
+            `${instructor.first_name} ${instructor.last_name}`.toLowerCase() === row.instructor_name.trim().toLowerCase()
+        );
+        if (!instructorExists) {
+            errors.push(`Row ${rowIndex + 1}: Instructor "${row.instructor_name.trim()}" does not exist in the system`);
+        }
+    }
+    
+    if (errors.length > 0) {
+        return errors.join(', ');
+    }
+    
+    // Return cleaned data
+    return {
+        code: row.code.trim(),
+        title: row.title.trim(),
+        major: row.major.trim(),
+        color: row.color.trim(),
+        status: row.status.trim().toLowerCase(),
+        duration: row.duration.toString(),
+        capacity: row.capacity.toString(),
+        section: Number(row.section).toString(),
+        instructor_name: row.instructor_name ? row.instructor_name.trim() : undefined,
+    };
+};
+
+// Group courses by code for import
+const groupCoursesByCode = (validCourses: CSVCourseRow[]) => {
+    const grouped = new Map<string, CSVCourseRow[]>();
+    
+    validCourses.forEach(course => {
+        const key = course.code.toLowerCase();
+        if (!grouped.has(key)) {
+            grouped.set(key, []);
+        }
+        grouped.get(key)!.push(course);
+    });
+    
+    return grouped;
+};
+
+// Main import function
+const handleImportCSV = async () => {
+    if (!importFile) {
+        setStatusMessage({
+            text: "Please select a CSV file to import",
+            type: "error",
+        });
+        return;
+    }
+
+    const scheduleId = params.id;
+    
+    setImportProgress({
+        total: 0,
+        completed: 0,
+        errors: [],
+        isImporting: true,
+    });
+
+    try {
+        // Parse CSV file
+        Papa.parse(importFile, {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: (header) => header.trim().toLowerCase().replace(/\s+/g, '_'),
+            complete: async (results) => {
+                const csvData = results.data as any[];
+                const validCourses: CSVCourseRow[] = [];
+                const errors: string[] = [];
+
+                // Validate each row
+                csvData.forEach((row, index) => {
+                    const validationResult = validateCourseData(row, index);
+                    if (typeof validationResult === 'string') {
+                        errors.push(validationResult);
+                    } else {
+                        validCourses.push(validationResult);
+                    }
+                });
+
+                // Group courses by code to handle multiple sections
+                const groupedCourses = groupCoursesByCode(validCourses);
+                
+                // Check for duplicate codes in existing courses
+                for (const [courseCode, courseSections] of groupedCourses) {
+                    const existingCourse = courses.some(course => 
+                        course.code.toLowerCase() === courseCode
+                    );
+                    if (existingCourse) {
+                        errors.push(`Course code "${courseSections[0].code}" already exists in the system`);
+                        // Remove from valid courses
+                        validCourses.splice(validCourses.findIndex(c => c.code.toLowerCase() === courseCode), courseSections.length);
+                    }
+                }
+
+                setImportProgress(prev => ({
+                    ...prev,
+                    total: groupedCourses.size,
+                    errors: errors,
+                }));
+
+                if (groupedCourses.size === 0) {
+                    setStatusMessage({
+                        text: "No valid courses found in the CSV file",
+                        type: "error",
+                    });
+                    setImportProgress(prev => ({ ...prev, isImporting: false }));
+                    return;
+                }
+
+                // Import valid courses
+                let completed = 0;
+                const importErrors: string[] = [...errors];
+
+                for (const [courseCode, courseSections] of groupedCourses) {
+                    try {
+                        // Use the first section's data as the base course data
+                        const baseCourse = courseSections[0];
+                        
+                        // Create sections list with instructors
+                        const sectionsList = courseSections.map(courseSection => {
+                            let instructorId = null;
+                            if (courseSection.instructor_name) {
+                                const instructor = instructors.find(inst => 
+                                    `${inst.first_name} ${inst.last_name}`.toLowerCase() === courseSection.instructor_name!.toLowerCase()
+                                );
+                                instructorId = instructor ? instructor.id.toString() : null;
+                            }
+                            
+                            return {
+                                section: courseSection.section,
+                                instructorId: instructorId,
+                            };
+                        });
+
+                        const apiData = {
+                            code: baseCourse.code,
+                            title: baseCourse.title,
+                            majorsList: [baseCourse.major],
+                            color: baseCourse.color,
+                            status: baseCourse.status,
+                            duration: Number(baseCourse.duration),
+                            capacity: Number(baseCourse.capacity),
+                            sectionsList: sectionsList,
+                            scheduleId: Number(scheduleId),
+                        };
+
+                        const response = await fetch("/api/courses", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(apiData),
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            importErrors.push(
+                                `Failed to import course ${baseCourse.code}: ${
+                                    errorData.error || 'Unknown error'
+                                }`
+                            );
+                        } else {
+                            completed++;
+                        }
+                    } catch (error) {
+                        importErrors.push(
+                            `Failed to import course ${courseCode}: ${
+                                error instanceof Error ? error.message : 'Unknown error'
+                            }`
+                        );
+                    }
+
+                    // Update progress
+                    setImportProgress(prev => ({
+                        ...prev,
+                        completed: completed,
+                        errors: importErrors,
+                    }));
+
+                    // Small delay to prevent overwhelming the server
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+
+                // Final update
+                setImportProgress(prev => ({ ...prev, isImporting: false }));
+
+                // Refresh the course list
+                await fetchData();
+
+                // Show completion message
+                if (completed > 0) {
+                    setStatusMessage({
+                        text: `Successfully imported ${completed} course(s)${
+                            importErrors.length > 0 ? ` with ${importErrors.length} error(s)` : ''
+                        }`,
+                        type: completed === groupedCourses.size ? "success" : "error",
+                    });
+                } else {
+                    setStatusMessage({
+                        text: "Failed to import any courses",
+                        type: "error",
+                    });
+                }
+            },
+            error: (error) => {
+                console.error("CSV parsing error:", error);
+                setStatusMessage({
+                    text: "Failed to parse CSV file. Please check the file format.",
+                    type: "error",
+                });
+                setImportProgress(prev => ({ ...prev, isImporting: false }));
+            },
+        });
+    } catch (error) {
+        console.error("Import error:", error);
+        setStatusMessage({
+            text: "Failed to import courses. Please try again.",
+            type: "error",
+        });
+        setImportProgress(prev => ({ ...prev, isImporting: false }));
+    }
+};
+
+// File selection handler
+const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'text/csv') {
+        setImportFile(file);
+    } else {
+        setStatusMessage({
+            text: "Please select a valid CSV file",
+            type: "error",
+        });
+        event.target.value = ''; // Reset file input
+    }
+};
+
+// Reset import state
+const resetImportState = () => {
+    setImportFile(null);
+    setImportProgress({
+        total: 0,
+        completed: 0,
+        errors: [],
+        isImporting: false,
+    });
+};
+
+// Download CSV with current courses data
+const downloadCoursesCSV = () => {
+    try {
+        // Create CSV header
+        const headers = ['code', 'title', 'major', 'color', 'status', 'duration', 'capacity', 'section', 'instructor_name'];
+        
+        // Convert courses data to CSV rows (one row per section)
+        const csvRows: string[][] = [];
+        
+        courses.forEach(course => {
+            const instructorName = `${course.firstName || ""} ${course.lastName || ""}`.trim() || "";
+            
+            csvRows.push([
+                course.code,
+                course.title,
+                course.major || "",
+                course.color || "",
+                course.status || "offline",
+                course.duration.toString(),
+                course.capacity.toString(),
+                course.section,
+                instructorName
+            ]);
+        });
+        
+        // Combine headers and data
+        const allRows = [headers, ...csvRows];
+        
+        // Convert to CSV string
+        const csvContent = allRows.map(row => 
+            row.map(field => {
+                // Escape quotes and wrap in quotes if field contains comma, quote, or newline
+                const fieldStr = String(field || '');
+                if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n')) {
+                    return `"${fieldStr.replace(/"/g, '""')}"`;
+                }
+                return fieldStr;
+            }).join(',')
+        ).join('\n');
+
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        
+        // Generate filename with current date
+        const today = new Date().toISOString().split('T')[0];
+        link.setAttribute('download', `courses_export_${today}.csv`);
+        
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setStatusMessage({
+            text: `Exported ${courses.length} courses to CSV`,
+            type: "success",
+        });
+    } catch (error) {
+        console.error('Error exporting CSV:', error);
+        setStatusMessage({
+            text: "Failed to export courses. Please try again.",
+            type: "error",
+        });
+    }
+};
+
+
     return (
         <div>
             {statusMessage && (
@@ -628,15 +1045,34 @@ export default function CoursesView() {
                 </div>
             )}
 
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold">Courses</h2>
-                <Button
-                    onClick={() => setIsAddDialogOpen(true)}
-                    className="bg-green-600 hover:bg-green-700"
-                >
-                    <Plus className="mr-2 h-4 w-4" /> New Course
-                </Button>
-            </div>
+<div className="flex justify-between items-center mb-6">
+    <h2 className="text-xl font-bold">Courses</h2>
+    <div className="flex gap-2">
+    <Button
+            onClick={() => setIsImportDialogOpen(true)}
+            variant="outline"
+            className="border-blue-600 text-blue-600 hover:bg-blue-50"
+        >
+            <Upload className="mr-2 h-4 w-4" /> Import CSV
+        </Button>  
+        <Button
+            onClick={downloadCoursesCSV}
+            variant="outline"
+            className="border-green-600 text-green-600 hover:bg-green-50"
+            disabled={courses.length === 0}
+        >
+            <Download className="mr-2 h-4 w-4" /> Export CSV
+        </Button>
+     
+     
+        <Button
+            onClick={() => setIsAddDialogOpen(true)}
+            className="bg-green-600 hover:bg-green-700"
+        >
+            <Plus className="mr-2 h-4 w-4" /> New Course
+        </Button>
+    </div>
+</div>
 
             <>
                 <div className="overflow-x-auto">
@@ -1532,6 +1968,104 @@ export default function CoursesView() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            {/* Import CSV Dialog */}
+<Dialog
+    open={isImportDialogOpen}
+    onOpenChange={(open) => {
+        if (!open) resetImportState();
+        setIsImportDialogOpen(open);
+    }}
+>
+    <DialogContent className="max-w-lg">
+        <DialogHeader>
+            <DialogTitle>Import Courses from CSV</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+            <div className="flex justify-between items-center">
+                <div className="flex-1">
+                    <Label htmlFor="csv-file">Select CSV File</Label>
+                    <Input
+                        id="csv-file"
+                        type="file"
+                        accept=".csv"
+                        onChange={handleFileSelect}
+                        disabled={importProgress.isImporting}
+                    />
+                   <p className="text-sm text-gray-600 mt-1">
+    CSV should contain columns: code, title, major, color, status, duration, capacity, section (number), instructor_name
+</p>
+<p className="text-xs text-blue-600 mt-1">
+    Note: Section should be a number (1, 2, 3, etc.). Multiple rows with the same course code will be treated as different sections of the same course.
+</p>
+                </div>
+            </div>
+
+            {importFile && (
+                <div className="text-sm">
+                    <p><strong>Selected file:</strong> {importFile.name}</p>
+                    <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
+                </div>
+            )}
+
+            {importProgress.isImporting && (
+                <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                        <span>Progress:</span>
+                        <span>{importProgress.completed} / {importProgress.total}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{ 
+                                width: importProgress.total > 0 
+                                    ? `${(importProgress.completed / importProgress.total) * 100}%` 
+                                    : '0%' 
+                            }}
+                        ></div>
+                    </div>
+                </div>
+            )}
+
+            {importProgress.errors.length > 0 && (
+                <div className="max-h-40 overflow-y-auto">
+                    <p className="text-sm font-medium text-red-600 mb-1">
+                        Errors ({importProgress.errors.length}):
+                    </p>
+                    <div className="text-xs space-y-1">
+                        {importProgress.errors.slice(0, 10).map((error, index) => (
+                            <p key={index} className="text-red-600">{error}</p>
+                        ))}
+                        {importProgress.errors.length > 10 && (
+                            <p className="text-red-600 font-medium">
+                                ... and {importProgress.errors.length - 10} more errors
+                            </p>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+
+        <DialogFooter>
+            <Button
+                variant="outline"
+                onClick={() => {
+                    resetImportState();
+                    setIsImportDialogOpen(false);
+                }}
+                disabled={importProgress.isImporting}
+            >
+                Cancel
+            </Button>
+            <Button
+                onClick={handleImportCSV}
+                disabled={!importFile || importProgress.isImporting}
+            >
+                {importProgress.isImporting ? 'Importing...' : 'Import'}
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
         </div>
     );
 }
