@@ -20,6 +20,7 @@ export default function ScheduleLayout({
 
     // Fetch the actual schedule data
     useEffect(() => {
+        
         const fetchSchedule = async () => {
             if (!scheduleId) return;
 

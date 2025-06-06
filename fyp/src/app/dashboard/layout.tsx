@@ -25,7 +25,7 @@ export default async function DashboardLayout({
               href="/dashboard"
               className="flex items-center space-x-3"
             >
-              <div className="w-10 h-10 bg-blue-900 rounded flex items-center justify-center">
+              <div className="w-10 h-10 bg-[#3F3F8F] rounded flex items-center justify-center">
                 <span className="text-white font-bold text-lg">O</span>
               </div>
               <div>
@@ -38,7 +38,7 @@ export default async function DashboardLayout({
             <nav className="flex items-center space-x-6">
               <Link
                 href="/dashboard"
-                className="text-sm font-medium text-gray-700 hover:text-blue-900 transition-colors"
+                className="text-sm font-medium text-gray-700 hover:text-[#3F3F8F] transition-colors"
               >
                 Dashboard
               </Link>
