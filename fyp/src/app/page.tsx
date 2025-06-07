@@ -71,23 +71,7 @@ export default async function Home() {
               </p>
             </div>
             
-            <div className="flex flex-col sm:flex-row gap-4">
-              {!authUser && (
-                <Link href="/api/oauth/google">
-                  <Button className="inline-flex items-center px-6 py-3 text-base font-medium text-white bg-[#2F2F85] hover:bg-[#3F3F8F] rounded-lg transition-colors shadow-sm">
-                    <Image
-                      src="/image/google.png"
-                      alt="Google logo"
-                      width={20}
-                      height={20}
-                      className="mr-3"
-                    />
-                    Get Started Now
-                  </Button>
-                </Link>
-              )}
-             
-            </div>
+         
           </div>
           
           <div className="flex-1 flex justify-center">
