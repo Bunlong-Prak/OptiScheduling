@@ -592,142 +592,155 @@ Jane,Doe,Female,jane.doe@email.com,555-987-6543`;
     );
 
     return (
-        <div>
+        <div className="space-y-4">
             {statusMessage && (
                 <div
-                    className={`mb-4 p-3 rounded ${
+                    className={`p-3 rounded border text-sm ${
                         statusMessage.type === "success"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
+                            ? "bg-green-50 text-green-800 border-green-200"
+                            : "bg-red-50 text-red-800 border-red-200"
                     }`}
                 >
                     {statusMessage.text}
                 </div>
             )}
            
-           <div className="flex justify-between items-center mb-6">
-    <h2 className="text-xl font-bold">Instructors</h2>
-    <div className="flex gap-2">
-    <Button
-            onClick={() => setIsImportDialogOpen(true)}
-            variant="outline"
-            className="border-blue-600 text-blue-600 hover:bg-blue-50"
-        >
-            <Upload className="mr-2 h-4 w-4" /> Import CSV
-        </Button>
-        <Button
-            onClick={downloadInstructorsCSV}
-            variant="outline"
-            className="border-green-600 text-green-600 hover:bg-green-50"
-            disabled={instructors.length === 0}
-        >
-            <Download className="mr-2 h-4 w-4" /> Export CSV
-        </Button>
-      
-        <Button
-            onClick={openAddDialog}
-            className="bg-green-600 hover:bg-green-700"
-        >
-            <Plus className="mr-2 h-4 w-4" /> New Instructor
-        </Button>
-    </div>
-</div>
+            {/* Page Header */}
+            <div className="flex justify-between items-center">
+                <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Instructors</h2>
+                    <p className="text-xs text-gray-600">Manage instructor information and details</p>
+                </div>
+                <div className="flex gap-2">
+                    <Button
+                        onClick={() => setIsImportDialogOpen(true)}
+                        variant="outline"
+                        className="border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md"
+                    >
+                        <Upload className="mr-1 h-3 w-3" /> Import CSV
+                    </Button>
+                    <Button
+                        onClick={downloadInstructorsCSV}
+                        variant="outline"
+                        className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
+                        disabled={instructors.length === 0}
+                    >
+                        <Download className="mr-1 h-3 w-3" /> Export CSV
+                    </Button>
+                    <Button
+                        onClick={openAddDialog}
+                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors"
+                    >
+                        <Plus className="mr-1 h-3 w-3" /> New Instructor
+                    </Button>
+                </div>
+            </div>
 
-            <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                    <thead>
-                        <tr>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                ID
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                FIRST NAME
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                LAST NAME
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                GENDER
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                EMAIL
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                PHONE
-                            </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {instructors.length === 0 ? (
-                            <tr>
-                                <td
-                                    colSpan={7}
-                                    className="border p-4 text-center"
-                                >
-                                    No instructors found. Add a new instructor
-                                    to get started.
-                                </td>
+            {/* Compact Table Container */}
+            <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="bg-[#2F2F85] text-white">
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                    No.
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    First Name
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Last Name
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
+                                    Gender
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Email
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Phone
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
+                                    Actions
+                                </th>
                             </tr>
-                        ) : (
-                            paginatedInstructors.map((instructor) => (
-                                <tr key={instructor.id}>
-                                    <td className="border p-2">
-                                        {instructor.id}
-                                    </td>
-                                    <td className="border p-2">
-                                        {instructor.first_name}
-                                    </td>
-                                    <td className="border p-2">
-                                        {instructor.last_name}
-                                    </td>
-                                    <td className="border p-2">
-                                        {instructor.gender}
-                                    </td>
-                                    <td className="border p-2">
-                                        {instructor.email}
-                                    </td>
-                                    <td className="border p-2">
-                                        {instructor.phone_number}
-                                    </td>
-                                    <td className="border p-2">
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    openEditDialog(instructor)
-                                                }
-                                            >
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    openDeleteDialog(instructor)
-                                                }
-                                            >
-                                                <Trash className="h-4 w-4" />
-                                            </Button>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                            {instructors.length === 0 ? (
+                                <tr>
+                                    <td
+                                        colSpan={7}
+                                        className="px-3 py-8 text-center text-gray-500 text-sm"
+                                    >
+                                        <div className="space-y-1">
+                                            <div>No instructors found</div>
+                                            <div className="text-xs">Add a new instructor to get started.</div>
                                         </div>
                                     </td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                            ) : (
+                                paginatedInstructors.map((instructor, index) => (
+                                    <tr 
+                                        key={instructor.id}
+                                        className={`hover:bg-gray-50 transition-colors ${
+                                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                                        }`}
+                                    >
+                                        <td className="px-3 py-2 text-xs text-gray-600 font-medium">
+                                            {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
+                                        </td>
+                                        <td className="px-3 py-2 text-xs font-medium text-gray-900">
+                                            {instructor.first_name}
+                                        </td>
+                                        <td className="px-3 py-2 text-xs font-medium text-gray-900">
+                                            {instructor.last_name}
+                                        </td>
+                                        <td className="px-3 py-2 text-xs text-gray-900">
+                                            {instructor.gender}
+                                        </td>
+                                        <td className="px-3 py-2 text-xs text-gray-900">
+                                            {instructor.email}
+                                        </td>
+                                        <td className="px-3 py-2 text-xs text-gray-900">
+                                            {instructor.phone_number}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <div className="flex gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                    onClick={() => openEditDialog(instructor)}
+                                                >
+                                                    <Pencil className="h-3 w-3" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                    onClick={() => openDeleteDialog(instructor)}
+                                                >
+                                                    <Trash className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            {/* Add pagination if we have instructors */}
+            {/* Pagination */}
             {instructors.length > 0 && (
-                <CustomPagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={setCurrentPage}
-                />
+                <div className="flex justify-center">
+                    <CustomPagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                    />
+                </div>
             )}
 
             {/* Add Instructor Dialog */}
@@ -738,88 +751,95 @@ Jane,Doe,Female,jane.doe@email.com,555-987-6543`;
                     setIsAddDialogOpen(open);
                 }}
             >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Add New Instructor</DialogTitle>
+                <DialogContent className="bg-white max-w-lg">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">Add New Instructor</DialogTitle>
                     </DialogHeader>
 
-                    <div className="grid gap-4 py-4">
+                    <div className="py-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="first_name">First Name</Label>
+                                <Label htmlFor="first_name" className="text-sm font-medium text-gray-700">First Name</Label>
                                 <Input
                                     id="first_name"
                                     name="first_name"
                                     value={formData.first_name}
                                     onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    placeholder="Enter first name"
                                 />
                             </div>
-
                             <div className="space-y-2">
-                                <Label htmlFor="last_name">Last Name</Label>
+                                <Label htmlFor="last_name" className="text-sm font-medium text-gray-700">Last Name</Label>
                                 <Input
                                     id="last_name"
                                     name="last_name"
                                     value={formData.last_name}
                                     onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    placeholder="Enter last name"
                                 />
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="gender">Gender</Label>
+                            <Label htmlFor="gender" className="text-sm font-medium text-gray-700">Gender</Label>
                             <Select
                                 value={formData.gender}
-                                onValueChange={(value) =>
-                                    handleSelectChange("gender", value)
-                                }
+                                onValueChange={(value) => handleSelectChange("gender", value)}
                             >
-                                <SelectTrigger>
+                                <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
                                     <SelectValue placeholder="Select gender" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Male">Male</SelectItem>
-                                    <SelectItem value="Female">
-                                        Female
-                                    </SelectItem>
+                                    <SelectItem value="Female">Female</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
+                            <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email</Label>
                             <Input
                                 id="email"
                                 name="email"
                                 type="email"
                                 value={formData.email}
                                 onChange={handleInputChange}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                placeholder="Enter email address"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="phone_number">Phone</Label>
+                            <Label htmlFor="phone_number" className="text-sm font-medium text-gray-700">Phone</Label>
                             <Input
                                 id="phone_number"
                                 name="phone_number"
                                 value={formData.phone_number}
                                 onChange={handleInputChange}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                placeholder="Enter phone number"
                             />
                         </div>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="border-t border-gray-200 pt-3">
                         <Button
                             variant="outline"
                             onClick={() => {
                                 resetForm();
                                 setIsAddDialogOpen(false);
                             }}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleAddInstructor}>
-                            Add Instructor
+                        <Button 
+                            onClick={handleAddInstructor}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                        >
+                            Add
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -833,92 +853,91 @@ Jane,Doe,Female,jane.doe@email.com,555-987-6543`;
                     setIsEditDialogOpen(open);
                 }}
             >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Edit Instructor</DialogTitle>
+                <DialogContent className="bg-white max-w-lg">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">Edit Instructor</DialogTitle>
                     </DialogHeader>
 
-                    <div className="grid gap-4 py-4">
+                    <div className="py-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="edit-first_name">
-                                    First Name
-                                </Label>
+                                <Label htmlFor="edit-first_name" className="text-sm font-medium text-gray-700">First Name</Label>
                                 <Input
                                     id="edit-first_name"
                                     name="first_name"
                                     value={formData.first_name}
                                     onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
                                 />
                             </div>
-
                             <div className="space-y-2">
-                                <Label htmlFor="edit-last_name">
-                                    Last Name
-                                </Label>
+                                <Label htmlFor="edit-last_name" className="text-sm font-medium text-gray-700">Last Name</Label>
                                 <Input
                                     id="edit-last_name"
                                     name="last_name"
                                     value={formData.last_name}
                                     onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
                                 />
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="edit-gender">Gender</Label>
+                            <Label htmlFor="edit-gender" className="text-sm font-medium text-gray-700">Gender</Label>
                             <Select
                                 value={formData.gender}
-                                onValueChange={(value) =>
-                                    handleSelectChange("gender", value)
-                                }
+                                onValueChange={(value) => handleSelectChange("gender", value)}
                             >
-                                <SelectTrigger>
+                                <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
                                     <SelectValue placeholder="Select gender" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Male">Male</SelectItem>
-                                    <SelectItem value="Female">
-                                        Female
-                                    </SelectItem>
+                                    <SelectItem value="Female">Female</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="edit-email">Email</Label>
+                            <Label htmlFor="edit-email" className="text-sm font-medium text-gray-700">Email</Label>
                             <Input
                                 id="edit-email"
                                 name="email"
                                 type="email"
                                 value={formData.email}
                                 onChange={handleInputChange}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="edit-phone_number">Phone</Label>
+                            <Label htmlFor="edit-phone_number" className="text-sm font-medium text-gray-700">Phone</Label>
                             <Input
                                 id="edit-phone_number"
                                 name="phone_number"
                                 value={formData.phone_number}
                                 onChange={handleInputChange}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
                             />
                         </div>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="border-t border-gray-200 pt-3">
                         <Button
                             variant="outline"
                             onClick={() => {
                                 resetForm();
                                 setIsEditDialogOpen(false);
                             }}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleEditInstructor}>
-                            Save Changes
+                        <Button 
+                            onClick={handleEditInstructor}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                        >
+                            Save
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -932,32 +951,33 @@ Jane,Doe,Female,jane.doe@email.com,555-987-6543`;
                     setIsDeleteDialogOpen(open);
                 }}
             >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Delete Instructor</DialogTitle>
+                <DialogContent className="bg-white max-w-md">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">Delete Instructor</DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4">
-                        <p>Are you sure you want to delete this instructor?</p>
-                        <p className="font-medium mt-2">
-                            {selectedInstructor?.first_name}{" "}
-                            {selectedInstructor?.last_name}
+                        <p className="text-sm text-gray-600 mb-2">Are you sure you want to delete this instructor?</p>
+                        <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
+                            {selectedInstructor?.first_name} {selectedInstructor?.last_name}
                         </p>
+                        <p className="text-xs text-gray-500 mt-2">This action cannot be undone.</p>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="border-t border-gray-200 pt-3">
                         <Button
                             variant="outline"
                             onClick={() => {
                                 setSelectedInstructor(null);
                                 setIsDeleteDialogOpen(false);
                             }}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                         >
                             Cancel
                         </Button>
                         <Button
-                            variant="destructive"
                             onClick={handleDeleteInstructor}
+                            className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
                         >
                             Delete
                         </Button>
@@ -965,96 +985,95 @@ Jane,Doe,Female,jane.doe@email.com,555-987-6543`;
                 </DialogContent>
             </Dialog>
         
-{/* Import CSV Dialog */}
-<Dialog
-    open={isImportDialogOpen}
-    onOpenChange={(open) => {
-        if (!open) resetImportState();
-        setIsImportDialogOpen(open);
-    }}
->
-    <DialogContent className="max-w-md">
-        <DialogHeader>
-            <DialogTitle>Import Instructors from CSV</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-
-        <div className="flex justify-between items-center">
-    <div className="flex-1">
-        <Label htmlFor="csv-file">Select CSV File</Label>
-        <Input
-            id="csv-file"
-            type="file"
-            accept=".csv"
-            onChange={handleFileSelect}
-            disabled={importProgress.isImporting}
-        />
-        <p className="text-sm text-gray-600 mt-1">
-            CSV should contain columns: first_name, last_name, gender, email, phone_number
-        </p>
-    </div>
-  
-</div>
-
-            {importFile && (
-                <div className="text-sm">
-                    <p><strong>Selected file:</strong> {importFile.name}</p>
-                    <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
-                </div>
-            )}
-
-            {importProgress.isImporting && (
-                <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                        <span>Progress:</span>
-                        <span>{importProgress.completed} / {importProgress.total}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                            style={{ 
-                                width: importProgress.total > 0 
-                                    ? `${(importProgress.completed / importProgress.total) * 100}%` 
-                                    : '0%' 
-                            }}
-                        ></div>
-                    </div>
-                </div>
-            )}
-
-            {importProgress.errors.length > 0 && (
-                <div className="max-h-32 overflow-y-auto">
-                    <p className="text-sm font-medium text-red-600 mb-1">Errors:</p>
-                    <div className="text-xs space-y-1">
-                        {importProgress.errors.map((error, index) => (
-                            <p key={index} className="text-red-600">{error}</p>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
-
-        <DialogFooter>
-            <Button
-                variant="outline"
-                onClick={() => {
-                    resetImportState();
-                    setIsImportDialogOpen(false);
+            {/* Import CSV Dialog */}
+            <Dialog
+                open={isImportDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) resetImportState();
+                    setIsImportDialogOpen(open);
                 }}
-                disabled={importProgress.isImporting}
             >
-                Cancel
-            </Button>
-            <Button
-                onClick={handleImportCSV}
-                disabled={!importFile || importProgress.isImporting}
-            >
-                {importProgress.isImporting ? 'Importing...' : 'Import'}
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
+                <DialogContent className="bg-white max-w-md">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">Import Instructors from CSV</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="py-4 space-y-4">
+                        <div>
+                            <Label htmlFor="csv-file" className="text-sm font-medium text-gray-700">Select CSV File</Label>
+                            <Input
+                                id="csv-file"
+                                type="file"
+                                accept=".csv"
+                                onChange={handleFileSelect}
+                                disabled={importProgress.isImporting}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
+                            />
+                            <p className="text-xs text-gray-600 mt-1">
+                                CSV should contain columns: first_name, last_name, gender, email, phone_number
+                            </p>
+                        </div>
+
+                        {importFile && (
+                            <div className="text-xs bg-gray-50 p-2 rounded border">
+                                <p><strong>Selected file:</strong> {importFile.name}</p>
+                                <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
+                            </div>
+                        )}
+
+                        {importProgress.isImporting && (
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-xs">
+                                    <span>Progress:</span>
+                                    <span>{importProgress.completed} / {importProgress.total}</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div 
+                                        className="bg-[#2F2F85] h-2 rounded-full transition-all duration-300"
+                                        style={{ 
+                                            width: importProgress.total > 0 
+                                                ? `${(importProgress.completed / importProgress.total) * 100}%` 
+                                                : '0%' 
+                                        }}
+                                    ></div>
+                                </div>
+                            </div>
+                        )}
+
+                        {importProgress.errors.length > 0 && (
+                            <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded border border-red-200">
+                                <p className="text-xs font-medium text-red-600 mb-1">Errors:</p>
+                                <div className="text-xs space-y-1">
+                                    {importProgress.errors.map((error, index) => (
+                                        <p key={index} className="text-red-600">{error}</p>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="border-t border-gray-200 pt-3">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                resetImportState();
+                                setIsImportDialogOpen(false);
+                            }}
+                            disabled={importProgress.isImporting}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleImportCSV}
+                            disabled={!importFile || importProgress.isImporting}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                        >
+                            {importProgress.isImporting ? 'Importing...' : 'Import'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
