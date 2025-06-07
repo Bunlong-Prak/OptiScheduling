@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import {
     AlertCircle,
     CheckCircle2,
+    Download,
     Minus,
     Plus,
     Search,
@@ -1608,6 +1609,14 @@ export default function TimetableViewClassroom() {
                             : "Auto-Generate Schedule"}
                     </Button>
                     <Button className= "bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors" onClick={saveAllAssignments}>Save All</Button>
+                    <Button
+                        // onClick={downloadInstructorsCSV}
+                        variant="outline"
+                        className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
+                        // disabled={}
+                    >
+                        <Download className="mr-1 h-3 w-3" /> Export CSV
+                    </Button>
                 </div>
             </div>
 
