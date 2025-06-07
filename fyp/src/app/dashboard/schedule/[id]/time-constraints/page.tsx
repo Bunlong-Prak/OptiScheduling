@@ -828,309 +828,430 @@ export default function TimeConstraintView() {
             )}
     
             {/* Add Constraint Dialog */}
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogContent className="bg-white max-w-4xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Add Time Constraint</DialogTitle>
-                    </DialogHeader>
-    
-                    <div className="py-4 space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="instructor_id" className="text-sm font-medium text-gray-700">Instructor</Label>
-                            <Select
-                                value={
-                                    enhancedFormData.instructor_id
-                                        ? enhancedFormData.instructor_id.toString()
-                                        : ""
-                                }
-                                onValueChange={handleInstructorChange}
+         {/* Add Constraint Dialog - Complete with improved time slot selection */}
+<Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+    <DialogContent className="bg-white max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader className="border-b border-gray-200 pb-3">
+            <DialogTitle className="text-lg font-semibold text-gray-900">Add Time Constraint</DialogTitle>
+        </DialogHeader>
+
+        <div className="py-4 space-y-4">
+            <div className="space-y-2">
+                <Label htmlFor="instructor_id" className="text-sm font-medium text-gray-700">Instructor</Label>
+                <Select
+                    value={
+                        enhancedFormData.instructor_id
+                            ? enhancedFormData.instructor_id.toString()
+                            : ""
+                    }
+                    onValueChange={handleInstructorChange}
+                >
+                    <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                        <SelectValue placeholder="Select instructor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {instructors.map((instructor) => (
+                            <SelectItem
+                                key={instructor.id}
+                                value={instructor.id.toString()}
                             >
-                                <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
-                                    <SelectValue placeholder="Select instructor" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {instructors.map((instructor) => (
-                                        <SelectItem
-                                            key={instructor.id}
-                                            value={instructor.id.toString()}
-                                        >
-                                            {instructor.first_name} {instructor.last_name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                {instructor.first_name} {instructor.last_name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {/* Day selection with checkboxes */}
+            <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Days</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 border border-gray-200 rounded p-3 bg-gray-50">
+                    {enhancedFormData.dayConstraints.map((dayConstraint, index) => (
+                        <div
+                            key={dayConstraint.day}
+                            className="flex items-center space-x-2"
+                        >
+                            <Checkbox
+                                id={`day-${dayConstraint.day}`}
+                                checked={dayConstraint.selected}
+                                onCheckedChange={(checked) =>
+                                    handleDaySelection(index, checked as boolean)
+                                }
+                            />
+                            <label
+                                htmlFor={`day-${dayConstraint.day}`}
+                                className="text-xs font-medium text-gray-700"
+                            >
+                                {dayConstraint.day}
+                            </label>
                         </div>
-    
-                        {/* Day selection with checkboxes */}
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-gray-700">Days</Label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 border border-gray-200 rounded p-3 bg-gray-50">
-                                {enhancedFormData.dayConstraints.map((dayConstraint, index) => (
-                                    <div
-                                        key={dayConstraint.day}
-                                        className="flex items-center space-x-2"
+                    ))}
+                </div>
+            </div>
+
+            {/* Tabs for each selected day */}
+            {enhancedFormData.dayConstraints.some((day) => day.selected) && (
+                <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Time Slots by Day</Label>
+                    <Tabs
+                        defaultValue={
+                            enhancedFormData.dayConstraints.find((d) => d.selected)?.day
+                        }
+                    >
+                        <TabsList className="w-full flex overflow-x-auto bg-gray-100">
+                            {enhancedFormData.dayConstraints
+                                .filter((day) => day.selected)
+                                .map((day) => (
+                                    <TabsTrigger
+                                        key={day.day}
+                                        value={day.day}
+                                        className="flex-1 text-xs"
                                     >
-                                        <Checkbox
-                                            id={`day-${dayConstraint.day}`}
-                                            checked={dayConstraint.selected}
-                                            onCheckedChange={(checked) =>
-                                                handleDaySelection(index, checked as boolean)
-                                            }
-                                        />
-                                        <label
-                                            htmlFor={`day-${dayConstraint.day}`}
-                                            className="text-xs font-medium text-gray-700"
-                                        >
-                                            {dayConstraint.day}
-                                        </label>
-                                    </div>
+                                        {day.day}
+                                        {day.timeSlots.length > 0 && (
+                                            <Badge
+                                                variant="secondary"
+                                                className="ml-1 text-xs"
+                                            >
+                                                {day.timeSlots.length}
+                                            </Badge>
+                                        )}
+                                    </TabsTrigger>
                                 ))}
-                            </div>
-                        </div>
-    
-                        {/* Tabs for each selected day */}
-                        {enhancedFormData.dayConstraints.some((day) => day.selected) && (
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-gray-700">Time Slots by Day</Label>
-                                <Tabs
-                                    defaultValue={
-                                        enhancedFormData.dayConstraints.find((d) => d.selected)?.day
-                                    }
-                                >
-                                    <TabsList className="w-full flex overflow-x-auto bg-gray-100">
-                                        {enhancedFormData.dayConstraints
-                                            .filter((day) => day.selected)
-                                            .map((day) => (
-                                                <TabsTrigger
-                                                    key={day.day}
-                                                    value={day.day}
-                                                    className="flex-1 text-xs"
-                                                >
-                                                    {day.day}
-                                                    {day.timeSlots.length > 0 && (
-                                                        <Badge
-                                                            variant="secondary"
-                                                            className="ml-1 text-xs"
+                        </TabsList>
+
+                        {enhancedFormData.dayConstraints
+                            .filter((day) => day.selected)
+                            .map((day) => {
+                                const actualDayIndex =
+                                    enhancedFormData.dayConstraints.findIndex(
+                                        (d) => d.day === day.day
+                                    );
+
+                                return (
+                                    <TabsContent
+                                        key={day.day}
+                                        value={day.day}
+                                        className="mt-2"
+                                    >
+                                        <div className="border border-gray-200 rounded p-3 bg-white">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {timeSlots.map((slot) => {
+                                                    const isAvailable = isTimeSlotAvailable(slot, day.day);
+                                                    const isSelected = day.timeSlots.includes(slot);
+                                                    const isDisabled =
+                                                        enhancedFormData.instructor_id > 0 &&
+                                                        !isAvailable &&
+                                                        !isSelected;
+
+                                                    return (
+                                                        <div
+                                                            key={slot}
+                                                            className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                                                                isDisabled
+                                                                    ? "bg-gray-100 opacity-60 border-gray-200 cursor-not-allowed"
+                                                                    : isSelected
+                                                                    ? "bg-blue-50 border-blue-200 shadow-sm"
+                                                                    : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+                                                            }`}
+                                                            onClick={() => !isDisabled && toggleDayTimeSlot(actualDayIndex, slot)}
                                                         >
-                                                            {day.timeSlots.length}
-                                                        </Badge>
-                                                    )}
-                                                </TabsTrigger>
-                                            ))}
-                                    </TabsList>
-    
-                                    {enhancedFormData.dayConstraints
-                                        .filter((day) => day.selected)
-                                        .map((day) => {
-                                            const actualDayIndex =
-                                                enhancedFormData.dayConstraints.findIndex(
-                                                    (d) => d.day === day.day
-                                                );
-    
-                                            return (
-                                                <TabsContent
-                                                    key={day.day}
-                                                    value={day.day}
-                                                    className="mt-2"
-                                                >
-                                                    <div className="border border-gray-200 rounded p-3 bg-white">
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            {timeSlots.map((slot) => {
-                                                                const isAvailable = isTimeSlotAvailable(slot, day.day);
-                                                                const isSelected = day.timeSlots.includes(slot);
-                                                                const isDisabled =
-                                                                    enhancedFormData.instructor_id > 0 &&
-                                                                    !isAvailable &&
-                                                                    !isSelected;
-    
-                                                                return (
-                                                                    <div
-                                                                        key={slot}
-                                                                        className={`flex items-center space-x-2 p-1.5 rounded text-xs ${
-                                                                            isDisabled
-                                                                                ? "bg-gray-100 opacity-60"
-                                                                                : isSelected
-                                                                                ? "bg-blue-50"
-                                                                                : ""
-                                                                        }`}
-                                                                    >
-                                                                        <Checkbox
-                                                                            id={`time-${day.day}-${slot}`}
-                                                                            checked={isSelected}
-                                                                            disabled={!!isDisabled}
-                                                                            onCheckedChange={() =>
-                                                                                toggleDayTimeSlot(actualDayIndex, slot)
-                                                                            }
-                                                                        />
-                                                                        <label
-                                                                            htmlFor={`time-${day.day}-${slot}`}
-                                                                            className={`text-xs ${
-                                                                                isDisabled ? "text-gray-400" : ""
-                                                                            }`}
-                                                                        >
-                                                                            {slot}
-                                                                        </label>
-                                                                    </div>
-                                                                );
-                                                            })}
+                                                            <Checkbox
+                                                                id={`time-${day.day}-${slot}`}
+                                                                checked={isSelected}
+                                                                disabled={!!isDisabled}
+                                                                onCheckedChange={() =>
+                                                                    toggleDayTimeSlot(actualDayIndex, slot)
+                                                                }
+                                                            />
+                                                            <label
+                                                                htmlFor={`time-${day.day}-${slot}`}
+                                                                className={`text-sm font-medium cursor-pointer flex-1 ${
+                                                                    isDisabled ? "text-gray-400" : "text-gray-700"
+                                                                }`}
+                                                            >
+                                                                {slot}
+                                                            </label>
+                                                            {isSelected && (
+                                                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                                            )}
                                                         </div>
-    
-                                                        {/* Show selected time slots */}
-                                                        {day.timeSlots.length > 0 && (
-                                                            <div className="mt-3 pt-3 border-t border-gray-200">
-                                                                <Label className="text-xs text-gray-600">
-                                                                    Selected Time Slots:
-                                                                </Label>
-                                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                                    {day.timeSlots.map((slot, index) => (
-                                                                        <Badge
-                                                                            key={index}
-                                                                            className="flex items-center gap-1 pr-1 text-xs"
-                                                                        >
-                                                                            {slot}
-                                                                            <X
-                                                                                className="h-2 w-2 cursor-pointer ml-1"
-                                                                                onClick={() =>
-                                                                                    removeTimeSlot(actualDayIndex, slot)
-                                                                                }
-                                                                            />
-                                                                        </Badge>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* Show selected time slots */}
+                                            {day.timeSlots.length > 0 && (
+                                                <div className="mt-4 pt-4 border-t border-gray-200">
+                                                    <Label className="text-xs text-gray-600">
+                                                        Selected Time Slots:
+                                                    </Label>
+                                                    <div className="flex flex-wrap gap-1 mt-2">
+                                                        {day.timeSlots.map((slot, index) => (
+                                                            <Badge
+                                                                key={index}
+                                                                className="flex items-center gap-1 pr-1 text-xs bg-[#2F2F85] hover:bg-[#3F3F8F]"
+                                                            >
+                                                                {slot}
+                                                                <X
+                                                                    className="h-2 w-2 cursor-pointer ml-1 hover:text-red-200"
+                                                                    onClick={() =>
+                                                                        removeTimeSlot(actualDayIndex, slot)
+                                                                    }
+                                                                />
+                                                            </Badge>
+                                                        ))}
                                                     </div>
-                                                </TabsContent>
-                                            );
-                                        })}
-                                </Tabs>
-                            </div>
-                        )}
-                    </div>
-    
-                    <DialogFooter className="border-t border-gray-200 pt-3">
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setIsAddDialogOpen(false);
-                                resetForm();
-                            }}
-                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleAddConstraint}
-                            disabled={
-                                isLoading ||
-                                !enhancedFormData.instructor_id ||
-                                getSelectedDaysCount() === 0
-                            }
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
-                        >
-                            {isLoading
-                                ? "Adding..."
-                                : `Add Constraint${getSelectedDaysCount() > 1 ? "s" : ""}`}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </TabsContent>
+                                );
+                            })}
+                    </Tabs>
+                </div>
+            )}
+        </div>
+
+        <DialogFooter className="border-t border-gray-200 pt-3">
+            <Button
+                variant="outline"
+                onClick={() => {
+                    setIsAddDialogOpen(false);
+                    resetForm();
+                }}
+                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+            >
+                Cancel
+            </Button>
+            <Button
+                onClick={handleAddConstraint}
+                disabled={
+                    isLoading ||
+                    !enhancedFormData.instructor_id ||
+                    getSelectedDaysCount() === 0
+                }
+                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+            >
+                {isLoading
+                    ? "Adding..."
+                    : `Add Constraint${getSelectedDaysCount() > 1 ? "s" : ""}`}
+            </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
     
             {/* Edit Constraint Dialog */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogContent className="bg-white max-w-4xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Edit Time Constraint</DialogTitle>
-                    </DialogHeader>
-    
-                    <div className="py-4 space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-instructor_id" className="text-sm font-medium text-gray-700">
-                                Instructor
-                            </Label>
-                            <Select
-                                value={enhancedFormData.instructor_id.toString()}
-                                onValueChange={handleInstructorChange}
-                                disabled={true}
+          {/* Edit Constraint Dialog - Complete */}
+<Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+    <DialogContent className="bg-white max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader className="border-b border-gray-200 pb-3">
+            <DialogTitle className="text-lg font-semibold text-gray-900">Edit Time Constraint</DialogTitle>
+        </DialogHeader>
+
+        <div className="py-4 space-y-4">
+            <div className="space-y-2">
+                <Label htmlFor="edit-instructor_id" className="text-sm font-medium text-gray-700">
+                    Instructor
+                </Label>
+                <Select
+                    value={enhancedFormData.instructor_id.toString()}
+                    onValueChange={handleInstructorChange}
+                    disabled={true}
+                >
+                    <SelectTrigger className="border-gray-300 text-sm bg-gray-50">
+                        <SelectValue placeholder="Select instructor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {instructors.map((instructor) => (
+                            <SelectItem
+                                key={instructor.id}
+                                value={instructor.id.toString()}
                             >
-                                <SelectTrigger className="border-gray-300 text-sm bg-gray-50">
-                                    <SelectValue placeholder="Select instructor" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {instructors.map((instructor) => (
-                                        <SelectItem
-                                            key={instructor.id}
-                                            value={instructor.id.toString()}
-                                        >
-                                            {instructor.first_name} {instructor.last_name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                {instructor.first_name} {instructor.last_name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {/* Day selection with checkboxes */}
+            <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Days</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 border border-gray-200 rounded p-3 bg-gray-50">
+                    {enhancedFormData.dayConstraints.map((dayConstraint, index) => (
+                        <div
+                            key={dayConstraint.day}
+                            className="flex items-center space-x-2"
+                        >
+                            <Checkbox
+                                id={`edit-day-${dayConstraint.day}`}
+                                checked={dayConstraint.selected}
+                                onCheckedChange={(checked) =>
+                                    handleDaySelection(index, checked as boolean)
+                                }
+                            />
+                            <label
+                                htmlFor={`edit-day-${dayConstraint.day}`}
+                                className="text-xs font-medium text-gray-700"
+                            >
+                                {dayConstraint.day}
+                            </label>
                         </div>
-    
-                        {/* Same day selection and tabs structure as Add dialog with same styling */}
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-gray-700">Days</Label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 border border-gray-200 rounded p-3 bg-gray-50">
-                                {enhancedFormData.dayConstraints.map((dayConstraint, index) => (
-                                    <div
-                                        key={dayConstraint.day}
-                                        className="flex items-center space-x-2"
+                    ))}
+                </div>
+            </div>
+
+            {/* Tabs for each selected day */}
+            {enhancedFormData.dayConstraints.some((day) => day.selected) && (
+                <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">Time Slots by Day</Label>
+                    <Tabs
+                        defaultValue={
+                            enhancedFormData.dayConstraints.find((d) => d.selected)?.day
+                        }
+                    >
+                        <TabsList className="w-full flex overflow-x-auto bg-gray-100">
+                            {enhancedFormData.dayConstraints
+                                .filter((day) => day.selected)
+                                .map((day) => (
+                                    <TabsTrigger
+                                        key={day.day}
+                                        value={day.day}
+                                        className="flex-1 text-xs"
                                     >
-                                        <Checkbox
-                                            id={`edit-day-${dayConstraint.day}`}
-                                            checked={dayConstraint.selected}
-                                            onCheckedChange={(checked) =>
-                                                handleDaySelection(index, checked as boolean)
-                                            }
-                                        />
-                                        <label
-                                            htmlFor={`edit-day-${dayConstraint.day}`}
-                                            className="text-xs font-medium text-gray-700"
-                                        >
-                                            {dayConstraint.day}
-                                        </label>
-                                    </div>
+                                        {day.day}
+                                        {day.timeSlots.length > 0 && (
+                                            <Badge
+                                                variant="secondary"
+                                                className="ml-1 text-xs"
+                                            >
+                                                {day.timeSlots.length}
+                                            </Badge>
+                                        )}
+                                    </TabsTrigger>
                                 ))}
-                            </div>
-                        </div>
-    
-                        {/* Same tabs structure as Add dialog */}
-                        {enhancedFormData.dayConstraints.some((day) => day.selected) && (
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-gray-700">Time Slots by Day</Label>
-                                {/* Same tab content as Add dialog... */}
-                            </div>
-                        )}
-                    </div>
-    
-                    <DialogFooter className="border-t border-gray-200 pt-3">
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setIsEditDialogOpen(false);
-                                resetForm();
-                            }}
-                            disabled={isLoading}
-                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleEditConstraint}
-                            disabled={
-                                isLoading ||
-                                !enhancedFormData.instructor_id ||
-                                getSelectedDaysCount() === 0
+                        </TabsList>
+
+                        {enhancedFormData.dayConstraints
+                            .filter((day) => day.selected)
+                            .map((day) => {
+                                const actualDayIndex =
+                                    enhancedFormData.dayConstraints.findIndex(
+                                        (d) => d.day === day.day
+                                    );
+
+                                return (
+                                    <TabsContent
+                                        key={day.day}
+                                        value={day.day}
+                                        className="mt-2"
+                                    >
+                                       <div className="border border-gray-200 rounded p-3 bg-white">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {timeSlots.map((slot) => {
+            const isAvailable = isTimeSlotAvailable(slot, day.day);
+            const isSelected = day.timeSlots.includes(slot);
+            const isDisabled =
+                enhancedFormData.instructor_id > 0 &&
+                !isAvailable &&
+                !isSelected;
+
+            return (
+                <div
+                    key={slot}
+                    className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                        isDisabled
+                            ? "bg-gray-100 opacity-60 border-gray-200 cursor-not-allowed"
+                            : isSelected
+                            ? "bg-blue-50 border-blue-200 shadow-sm"
+                            : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+                    }`}
+                    onClick={() => !isDisabled && toggleDayTimeSlot(actualDayIndex, slot)}
+                >
+                    <Checkbox
+                        id={`time-${day.day}-${slot}`}
+                        checked={isSelected}
+                        disabled={!!isDisabled}
+                        onCheckedChange={() =>
+                            toggleDayTimeSlot(actualDayIndex, slot)
+                        }
+                    />
+                    <label
+                        htmlFor={`time-${day.day}-${slot}`}
+                        className={`text-sm font-medium cursor-pointer flex-1 ${
+                            isDisabled ? "text-gray-400" : "text-gray-700"
+                        }`}
+                    >
+                        {slot}
+                    </label>
+                    {isSelected && (
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    )}
+                </div>
+            );
+        })}
+    </div>
+
+    {/* Show selected time slots */}
+    {day.timeSlots.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+            <Label className="text-xs text-gray-600">
+                Selected Time Slots:
+            </Label>
+            <div className="flex flex-wrap gap-1 mt-2">
+                {day.timeSlots.map((slot, index) => (
+                    <Badge
+                        key={index}
+                        className="flex items-center gap-1 pr-1 text-xs bg-[#2F2F85] hover:bg-[#3F3F8F]"
+                    >
+                        {slot}
+                        <X
+                            className="h-2 w-2 cursor-pointer ml-1 hover:text-red-200"
+                            onClick={() =>
+                                removeTimeSlot(actualDayIndex, slot)
                             }
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
-                        >
-                            {isLoading ? "Saving..." : "Save Changes"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                        />
+                    </Badge>
+                ))}
+            </div>
+        </div>
+    )}
+</div>
+                                    </TabsContent>
+                                );
+                            })}
+                    </Tabs>
+                </div>
+            )}
+        </div>
+
+        <DialogFooter className="border-t border-gray-200 pt-3">
+            <Button
+                variant="outline"
+                onClick={() => {
+                    setIsEditDialogOpen(false);
+                    resetForm();
+                }}
+                disabled={isLoading}
+                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+            >
+                Cancel
+            </Button>
+            <Button
+                onClick={handleEditConstraint}
+                disabled={
+                    isLoading ||
+                    !enhancedFormData.instructor_id ||
+                    getSelectedDaysCount() === 0
+                }
+                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+            >
+                {isLoading ? "Saving..." : "Save Changes"}
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
     
             {/* Delete Constraint Dialog */}
             <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
