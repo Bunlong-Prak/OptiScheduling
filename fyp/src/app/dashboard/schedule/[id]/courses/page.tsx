@@ -34,11 +34,9 @@ import {
 import { Check, ChevronsUpDown, Pencil, Plus, Trash } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-
-import { colors, getColorName } from "@/components/custom/colors";
 import Papa from 'papaparse';
 import { Download, Upload } from "lucide-react";
-
+import { colors, getColorName, ColorSelectItem, ColorSelectTrigger } from "@/components/custom/colors";
 // Number of courses to show per page
 const ITEMS_PER_PAGE = 15;
 
@@ -1278,23 +1276,24 @@ return (
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="color" className="text-sm font-medium text-gray-700">Color</Label>
-                            <Select
-                                value={formData?.color || ""}
-                                onValueChange={(value) => handleSelectChange("color", value)}
-                            >
-                                <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
-                                    <SelectValue placeholder="Select color" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {colors.map((color) => (
-                                        <SelectItem key={color} value={color}>
-                                            {getColorName(color)}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+    <Label htmlFor="color" className="text-sm font-medium text-gray-700">Color</Label>
+    <Select
+        value={formData?.color || ""}
+        onValueChange={(value) => handleSelectChange("color", value)}
+    >
+        <ColorSelectTrigger 
+            value={formData?.color} 
+            placeholder="Select color" 
+        />
+        <SelectContent>
+            {colors.map((color) => (
+                <ColorSelectItem key={color} color={color}>
+                    {getColorName(color)}
+                </ColorSelectItem>
+            ))}
+        </SelectContent>
+    </Select>
+</div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -1494,7 +1493,7 @@ return (
             </DialogContent>
         </Dialog>
 
-        {/* Edit Course Dialog - Similar styling applied */}
+        
        {/* Edit Course Dialog - Complete */}
 <Dialog
     open={isEditDialogOpen}
@@ -1565,23 +1564,24 @@ return (
                     </Select>
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="edit-color" className="text-sm font-medium text-gray-700">Color</Label>
-                    <Select
-                        value={formData?.color || ""}
-                        onValueChange={(value) => handleSelectChange("color", value)}
-                    >
-                        <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
-                            <SelectValue placeholder="Select color" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {colors.map((color) => (
-                                <SelectItem key={color} value={color}>
-                                    {getColorName(color)}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+    <Label htmlFor="edit-color" className="text-sm font-medium text-gray-700">Color</Label>
+    <Select
+        value={formData?.color || ""}
+        onValueChange={(value) => handleSelectChange("color", value)}
+    >
+        <ColorSelectTrigger 
+            value={formData?.color} 
+            placeholder="Select color" 
+        />
+        <SelectContent>
+            {colors.map((color) => (
+                <ColorSelectItem key={color} color={color}>
+                    {getColorName(color)}
+                </ColorSelectItem>
+            ))}
+        </SelectContent>
+    </Select>
+</div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

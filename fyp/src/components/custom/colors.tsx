@@ -1,3 +1,4 @@
+import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 export const colors = [
     "blue",
     "green",
@@ -110,4 +111,40 @@ export const getCourseColor = getConsistentCourseColor;
 
 
 
+export const getColorClass = (color: string): string => {
+    // Extract just the background color class from your colors_class
+    const fullClass = colors_class[color];
+    if (!fullClass) return 'bg-gray-200'; // fallback
+    
+    // Extract the first bg-* class (before any hover or border classes)
+    const bgClass = fullClass.split(' ')[0];
+    return bgClass;
+};
 
+// Color Selection Component using your existing color system
+export const ColorSelectItem = ({ color, children }: { color: string, children: React.ReactNode }) => (
+    <SelectItem key={color} value={color}>
+        <div className="flex items-center gap-2">
+            <div 
+                className={`w-4 h-4 rounded border border-gray-300 flex-shrink-0 ${getColorClass(color)}`}
+            />
+            <span>{children}</span>
+        </div>
+    </SelectItem>
+);
+
+// Color Select Trigger with color indicator
+export const ColorSelectTrigger = ({ value, placeholder }: { value?: string, placeholder: string }) => (
+    <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+        {value ? (
+            <div className="flex items-center gap-2 w-full">
+                <div 
+                    className={`w-4 h-4 rounded border border-gray-300 flex-shrink-0 ${getColorClass(value)}`}
+                />
+                <span className="capitalize">{value}</span>
+            </div>
+        ) : (
+            <SelectValue placeholder={placeholder} />
+        )}
+    </SelectTrigger>
+);
