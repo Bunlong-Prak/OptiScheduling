@@ -24,7 +24,7 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import { ClassroomFormData } from "@/app/types";
 import { useParams } from "next/navigation";
-import Papa from 'papaparse';
+import Papa from "papaparse";
 import { Download, Upload } from "lucide-react";
 
 interface ClassroomType {
@@ -47,7 +47,8 @@ export default function ClassroomView() {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [selectedClassroom, setSelectedClassroom] = useState<Classroom | null>(null);
+    const [selectedClassroom, setSelectedClassroom] =
+        useState<Classroom | null>(null);
     const [formData, setFormData] = useState<ClassroomFormData>({
         code: "",
         type: "",
@@ -67,14 +68,14 @@ export default function ClassroomView() {
     const sortClassrooms = (classroomList: Classroom[]): Classroom[] => {
         return [...classroomList].sort((a, b) => {
             // Extract numeric parts for proper sorting
-            const aNumeric = parseInt(a.code.replace(/\D/g, '')) || 0;
-            const bNumeric = parseInt(b.code.replace(/\D/g, '')) || 0;
-            
+            const aNumeric = parseInt(a.code.replace(/\D/g, "")) || 0;
+            const bNumeric = parseInt(b.code.replace(/\D/g, "")) || 0;
+
             // If numeric parts are different, sort by number
             if (aNumeric !== bNumeric) {
                 return aNumeric - bNumeric;
             }
-            
+
             // If numeric parts are same, sort alphabetically
             return a.code.localeCompare(b.code);
         });
@@ -86,51 +87,55 @@ export default function ClassroomView() {
     }, [classrooms]);
 
     // Validate classroom code for duplicates
-    const validateClassroomCode = (code: string, excludeId?: number): string | null => {
+    const validateClassroomCode = (
+        code: string,
+        excludeId?: number
+    ): string | null => {
         if (!code.trim()) {
             return "Classroom code is required";
         }
-        
+
         if (code.length > 255) {
             return "Classroom code cannot exceed 255 characters";
         }
-        
+
         const codeRegex = /^[A-Za-z0-9\-_\.]+$/;
         if (!codeRegex.test(code)) {
             return "Classroom code can only contain letters, numbers, hyphens, underscores, and periods";
         }
-        
+
         // Check for duplicates in current classroom list
-        const isDuplicate = classrooms.some(classroom => 
-            classroom.code.toLowerCase().trim() === code.toLowerCase().trim() && 
-            classroom.id !== excludeId
+        const isDuplicate = classrooms.some(
+            (classroom) =>
+                classroom.code.toLowerCase().trim() ===
+                    code.toLowerCase().trim() && classroom.id !== excludeId
         );
-        
+
         if (isDuplicate) {
             return "This classroom code already exists";
         }
-        
+
         return null;
     };
 
     // Validate form data
     const validateForm = (isEdit: boolean = false): boolean => {
         const errors: FormErrors = {};
-        
+
         // Validate code
         const codeError = validateClassroomCode(
-            formData.code, 
+            formData.code,
             isEdit ? selectedClassroom?.id : undefined
         );
         if (codeError) {
             errors.code = codeError;
         }
-        
+
         // Validate type
         if (!formData.type.trim()) {
             errors.type = "Classroom type is required";
         }
-        
+
         // Validate capacity
         const capacity = Number.parseInt(formData.capacity);
         if (!formData.capacity.trim()) {
@@ -140,7 +145,7 @@ export default function ClassroomView() {
         } else if (capacity > 100) {
             errors.capacity = "Capacity cannot exceed 100";
         }
-        
+
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -211,7 +216,7 @@ export default function ClassroomView() {
             ...formData,
             [name]: value,
         });
-        
+
         // Clear specific field error when user starts typing
         if (formErrors[name as keyof FormErrors]) {
             setFormErrors({
@@ -219,11 +224,11 @@ export default function ClassroomView() {
                 [name]: undefined,
             });
         }
-        
+
         // Real-time validation for classroom code
-        if (name === 'code') {
+        if (name === "code") {
             const codeError = validateClassroomCode(
-                value, 
+                value,
                 isEditDialogOpen ? selectedClassroom?.id : undefined
             );
             if (codeError) {
@@ -240,7 +245,7 @@ export default function ClassroomView() {
             ...formData,
             [name]: value,
         });
-        
+
         // Clear field error when user makes a selection
         if (formErrors[name as keyof FormErrors]) {
             setFormErrors({
@@ -254,18 +259,18 @@ export default function ClassroomView() {
         if (!validateForm()) {
             return;
         }
-        
+
         setIsLoading(true);
         try {
             const scheduleId = params.id;
-            
+
             const apiData = {
                 code: formData.code.trim(),
                 type: formData.type,
                 capacity: Number.parseInt(formData.capacity),
                 scheduleId: scheduleId,
             };
-            
+
             const response = await fetch("/api/classrooms", {
                 method: "POST",
                 headers: {
@@ -273,12 +278,14 @@ export default function ClassroomView() {
                 },
                 body: JSON.stringify(apiData),
             });
-            
+
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to create classroom");
+                throw new Error(
+                    errorData.error || "Failed to create classroom"
+                );
             }
-            
+
             await fetchClassrooms();
             setIsAddDialogOpen(false);
             resetForm();
@@ -289,23 +296,26 @@ export default function ClassroomView() {
         } catch (error) {
             console.error("Error adding classroom:", error);
             setStatusMessage({
-                text: error instanceof Error ? error.message : "Failed to add classroom. Please try again.",
+                text:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to add classroom. Please try again.",
                 type: "error",
             });
         } finally {
             setIsLoading(false);
         }
     };
-    
+
     const handleEditClassroom = async () => {
         if (!selectedClassroom || !validateForm(true)) {
             return;
         }
-    
+
         setIsLoading(true);
         try {
             const scheduleId = params.id;
-            
+
             const apiData = {
                 id: selectedClassroom.id,
                 code: formData.code.trim(),
@@ -313,7 +323,7 @@ export default function ClassroomView() {
                 capacity: Number.parseInt(formData.capacity),
                 scheduleId: scheduleId,
             };
-            
+
             const response = await fetch(`/api/classrooms/`, {
                 method: "PATCH",
                 headers: {
@@ -321,12 +331,14 @@ export default function ClassroomView() {
                 },
                 body: JSON.stringify(apiData),
             });
-            
+
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to update classroom");
+                throw new Error(
+                    errorData.error || "Failed to update classroom"
+                );
             }
-            
+
             await fetchClassrooms();
             setIsEditDialogOpen(false);
             resetForm();
@@ -337,7 +349,10 @@ export default function ClassroomView() {
         } catch (error) {
             console.error("Error updating classroom:", error);
             setStatusMessage({
-                text: error instanceof Error ? error.message : "Failed to update classroom. Please try again.",
+                text:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to update classroom. Please try again.",
                 type: "error",
             });
         } finally {
@@ -347,16 +362,16 @@ export default function ClassroomView() {
 
     const handleDeleteClassroom = async () => {
         if (!selectedClassroom) return;
-    
+
         setIsLoading(true);
         try {
             const scheduleId = params.id;
-            
+
             const apiData = {
                 id: selectedClassroom.id,
                 scheduleId: scheduleId,
             };
-            
+
             const response = await fetch(`/api/classrooms/`, {
                 method: "DELETE",
                 headers: {
@@ -364,12 +379,14 @@ export default function ClassroomView() {
                 },
                 body: JSON.stringify(apiData),
             });
-            
+
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to delete classroom");
+                throw new Error(
+                    errorData.error || "Failed to delete classroom"
+                );
             }
-            
+
             await fetchClassrooms();
             setIsDeleteDialogOpen(false);
             setStatusMessage({
@@ -379,7 +396,10 @@ export default function ClassroomView() {
         } catch (error) {
             console.error("Error deleting classroom:", error);
             setStatusMessage({
-                text: error instanceof Error ? error.message : "Failed to delete classroom. Please try again.",
+                text:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to delete classroom. Please try again.",
                 type: "error",
             });
         } finally {
@@ -440,10 +460,17 @@ export default function ClassroomView() {
         capacity: string;
     }
 
-    const validateClassroomData = (row: any, rowIndex: number): CSVClassroomRow | string => {
+    const validateClassroomData = (
+        row: any,
+        rowIndex: number
+    ): CSVClassroomRow | string => {
         const errors: string[] = [];
-        
-        if (!row.code || typeof row.code !== 'string' || row.code.trim() === '') {
+
+        if (
+            !row.code ||
+            typeof row.code !== "string" ||
+            row.code.trim() === ""
+        ) {
             errors.push(`Row ${rowIndex + 1}: Classroom code is required`);
         } else {
             const codeError = validateClassroomCode(row.code.trim());
@@ -451,33 +478,46 @@ export default function ClassroomView() {
                 errors.push(`Row ${rowIndex + 1}: ${codeError}`);
             }
         }
-        
-        if (!row.type || typeof row.type !== 'string' || row.type.trim() === '') {
+
+        if (
+            !row.type ||
+            typeof row.type !== "string" ||
+            row.type.trim() === ""
+        ) {
             errors.push(`Row ${rowIndex + 1}: Classroom type is required`);
         } else {
-            const typeExists = classroomTypes.some(type => 
-                type.name.toLowerCase() === row.type.trim().toLowerCase()
+            const typeExists = classroomTypes.some(
+                (type) =>
+                    type.name.toLowerCase() === row.type.trim().toLowerCase()
             );
             if (!typeExists) {
-                errors.push(`Row ${rowIndex + 1}: Classroom type "${row.type.trim()}" does not exist in the system`);
+                errors.push(
+                    `Row ${
+                        rowIndex + 1
+                    }: Classroom type "${row.type.trim()}" does not exist in the system`
+                );
             }
         }
-        
+
         if (!row.capacity) {
             errors.push(`Row ${rowIndex + 1}: Capacity is required`);
         } else {
             const capacityNum = Number(row.capacity);
             if (isNaN(capacityNum) || capacityNum <= 0) {
-                errors.push(`Row ${rowIndex + 1}: Capacity must be a valid positive number`);
+                errors.push(
+                    `Row ${
+                        rowIndex + 1
+                    }: Capacity must be a valid positive number`
+                );
             } else if (capacityNum > 100) {
                 errors.push(`Row ${rowIndex + 1}: Capacity cannot exceed 100`);
             }
         }
-        
+
         if (errors.length > 0) {
-            return errors.join(', ');
+            return errors.join(", ");
         }
-        
+
         return {
             code: row.code.trim(),
             type: row.type.trim(),
@@ -495,7 +535,7 @@ export default function ClassroomView() {
         }
 
         const scheduleId = params.id;
-        
+
         setImportProgress({
             total: 0,
             completed: 0,
@@ -507,29 +547,41 @@ export default function ClassroomView() {
             Papa.parse(importFile, {
                 header: true,
                 skipEmptyLines: true,
-                transformHeader: (header) => header.trim().toLowerCase().replace(/\s+/g, '_'),
+                transformHeader: (header) =>
+                    header.trim().toLowerCase().replace(/\s+/g, "_"),
                 complete: async (results) => {
                     const csvData = results.data as any[];
                     const validClassrooms: CSVClassroomRow[] = [];
                     const errors: string[] = [];
 
                     csvData.forEach((row, index) => {
-                        const validationResult = validateClassroomData(row, index);
-                        if (typeof validationResult === 'string') {
+                        const validationResult = validateClassroomData(
+                            row,
+                            index
+                        );
+                        if (typeof validationResult === "string") {
                             errors.push(validationResult);
                         } else {
-                            const duplicateInCsv = validClassrooms.some(classroom => 
-                                classroom.code.toLowerCase() === validationResult.code.toLowerCase()
+                            const duplicateInCsv = validClassrooms.some(
+                                (classroom) =>
+                                    classroom.code.toLowerCase() ===
+                                    validationResult.code.toLowerCase()
                             );
                             if (duplicateInCsv) {
-                                errors.push(`Row ${index + 1}: Duplicate classroom code "${validationResult.code}" in CSV`);
+                                errors.push(
+                                    `Row ${
+                                        index + 1
+                                    }: Duplicate classroom code "${
+                                        validationResult.code
+                                    }" in CSV`
+                                );
                             } else {
                                 validClassrooms.push(validationResult);
                             }
                         }
                     });
 
-                    setImportProgress(prev => ({
+                    setImportProgress((prev) => ({
                         ...prev,
                         total: validClassrooms.length,
                         errors: errors,
@@ -540,7 +592,10 @@ export default function ClassroomView() {
                             text: "No valid classrooms found in the CSV file",
                             type: "error",
                         });
-                        setImportProgress(prev => ({ ...prev, isImporting: false }));
+                        setImportProgress((prev) => ({
+                            ...prev,
+                            isImporting: false,
+                        }));
                         return;
                     }
 
@@ -568,7 +623,7 @@ export default function ClassroomView() {
                                 const errorData = await response.json();
                                 importErrors.push(
                                     `Failed to import ${classroom.code}: ${
-                                        errorData.error || 'Unknown error'
+                                        errorData.error || "Unknown error"
                                     }`
                                 );
                             } else {
@@ -577,29 +632,41 @@ export default function ClassroomView() {
                         } catch (error) {
                             importErrors.push(
                                 `Failed to import ${classroom.code}: ${
-                                    error instanceof Error ? error.message : 'Unknown error'
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Unknown error"
                                 }`
                             );
                         }
 
-                        setImportProgress(prev => ({
+                        setImportProgress((prev) => ({
                             ...prev,
                             completed: completed,
                             errors: importErrors,
                         }));
 
-                        await new Promise(resolve => setTimeout(resolve, 100));
+                        await new Promise((resolve) =>
+                            setTimeout(resolve, 100)
+                        );
                     }
 
-                    setImportProgress(prev => ({ ...prev, isImporting: false }));
+                    setImportProgress((prev) => ({
+                        ...prev,
+                        isImporting: false,
+                    }));
                     await fetchClassrooms();
 
                     if (completed > 0) {
                         setStatusMessage({
                             text: `Successfully imported ${completed} classroom(s)${
-                                importErrors.length > 0 ? ` with ${importErrors.length} error(s)` : ''
+                                importErrors.length > 0
+                                    ? ` with ${importErrors.length} error(s)`
+                                    : ""
                             }`,
-                            type: completed === validClassrooms.length ? "success" : "error",
+                            type:
+                                completed === validClassrooms.length
+                                    ? "success"
+                                    : "error",
                         });
                     } else {
                         setStatusMessage({
@@ -614,7 +681,10 @@ export default function ClassroomView() {
                         text: "Failed to parse CSV file. Please check the file format.",
                         type: "error",
                     });
-                    setImportProgress(prev => ({ ...prev, isImporting: false }));
+                    setImportProgress((prev) => ({
+                        ...prev,
+                        isImporting: false,
+                    }));
                 },
             });
         } catch (error) {
@@ -623,20 +693,20 @@ export default function ClassroomView() {
                 text: "Failed to import classrooms. Please try again.",
                 type: "error",
             });
-            setImportProgress(prev => ({ ...prev, isImporting: false }));
+            setImportProgress((prev) => ({ ...prev, isImporting: false }));
         }
     };
 
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file && file.type === 'text/csv') {
+        if (file && file.type === "text/csv") {
             setImportFile(file);
         } else {
             setStatusMessage({
                 text: "Please select a valid CSV file",
                 type: "error",
             });
-            event.target.value = '';
+            event.target.value = "";
         }
     };
 
@@ -652,45 +722,55 @@ export default function ClassroomView() {
 
     const downloadClassroomsCSV = () => {
         try {
-            const headers = ['code', 'type', 'capacity'];
-            
-            const csvRows = sortedClassrooms.map(classroom => [
+            const headers = ["code", "type", "capacity"];
+
+            const csvRows = sortedClassrooms.map((classroom) => [
                 classroom.code,
                 classroom.type,
-                classroom.capacity.toString()
+                classroom.capacity.toString(),
             ]);
-            
-            const allRows = [headers, ...csvRows];
-            
-            const csvContent = allRows.map(row => 
-                row.map(field => {
-                    const fieldStr = String(field || '');
-                    if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n')) {
-                        return `"${fieldStr.replace(/"/g, '""')}"`;
-                    }
-                    return fieldStr;
-                }).join(',')
-            ).join('\n');
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
+            const allRows = [headers, ...csvRows];
+
+            const csvContent = allRows
+                .map((row) =>
+                    row
+                        .map((field) => {
+                            const fieldStr = String(field || "");
+                            if (
+                                fieldStr.includes(",") ||
+                                fieldStr.includes('"') ||
+                                fieldStr.includes("\n")
+                            ) {
+                                return `"${fieldStr.replace(/"/g, '""')}"`;
+                            }
+                            return fieldStr;
+                        })
+                        .join(",")
+                )
+                .join("\n");
+
+            const blob = new Blob([csvContent], {
+                type: "text/csv;charset=utf-8;",
+            });
+            const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            
-            const today = new Date().toISOString().split('T')[0];
-            link.setAttribute('download', `classrooms_export_${today}.csv`);
-            
-            link.style.visibility = 'hidden';
+            link.setAttribute("href", url);
+
+            const today = new Date().toISOString().split("T")[0];
+            link.setAttribute("download", `classrooms_export_${today}.csv`);
+
+            link.style.visibility = "hidden";
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            
+
             setStatusMessage({
                 text: `Exported ${sortedClassrooms.length} classrooms to CSV`,
                 type: "success",
             });
         } catch (error) {
-            console.error('Error exporting CSV:', error);
+            console.error("Error exporting CSV:", error);
             setStatusMessage({
                 text: "Failed to export classrooms. Please try again.",
                 type: "error",
@@ -717,9 +797,12 @@ export default function ClassroomView() {
             {/* Page Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Classrooms</h2>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                        Classrooms
+                    </h2>
                     <p className="text-xs text-gray-600">
-                        Manage classroom details and capacity (sorted by room number)
+                        Manage classroom details and capacity (sorted by room
+                        number)
                     </p>
                 </div>
                 <div className="flex gap-2">
@@ -790,20 +873,28 @@ export default function ClassroomView() {
                                     >
                                         <div className="space-y-1">
                                             <div>No classrooms found</div>
-                                            <div className="text-xs">Add a new classroom to get started.</div>
+                                            <div className="text-xs">
+                                                Add a new classroom to get
+                                                started.
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
                             ) : (
                                 paginatedClassrooms.map((classroom, index) => (
-                                    <tr 
+                                    <tr
                                         key={classroom.id}
                                         className={`hover:bg-gray-50 transition-colors ${
-                                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                                            index % 2 === 0
+                                                ? "bg-white"
+                                                : "bg-gray-50"
                                         }`}
                                     >
                                         <td className="px-3 py-2 text-xs text-gray-600 font-medium">
-                                            {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
+                                            {(currentPage - 1) *
+                                                ITEMS_PER_PAGE +
+                                                index +
+                                                1}
                                         </td>
                                         <td className="px-3 py-2 text-xs font-medium text-gray-900">
                                             {classroom.code}
@@ -820,7 +911,11 @@ export default function ClassroomView() {
                                                     variant="ghost"
                                                     size="icon"
                                                     className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
-                                                    onClick={() => openEditDialog(classroom)}
+                                                    onClick={() =>
+                                                        openEditDialog(
+                                                            classroom
+                                                        )
+                                                    }
                                                     disabled={isLoading}
                                                 >
                                                     <Pencil className="h-3 w-3" />
@@ -829,7 +924,11 @@ export default function ClassroomView() {
                                                     variant="ghost"
                                                     size="icon"
                                                     className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
-                                                    onClick={() => openDeleteDialog(classroom)}
+                                                    onClick={() =>
+                                                        openDeleteDialog(
+                                                            classroom
+                                                        )
+                                                    }
                                                     disabled={isLoading}
                                                 >
                                                     <Trash className="h-3 w-3" />
@@ -858,13 +957,19 @@ export default function ClassroomView() {
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogContent className="bg-white max-w-md">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Add New Classroom</DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Add New Classroom
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4 space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="code" className="text-sm font-medium text-gray-700">
-                                Classroom Code <span className="text-red-500">*</span>
+                            <Label
+                                htmlFor="code"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Classroom Code{" "}
+                                <span className="text-red-500">*</span>
                             </Label>
                             <Input
                                 id="code"
@@ -872,26 +977,39 @@ export default function ClassroomView() {
                                 value={formData.code}
                                 onChange={handleInputChange}
                                 className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.code ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
+                                    formErrors.code
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
                                 }`}
                                 placeholder="Enter classroom code (e.g., 101, 119)"
                             />
                             {formErrors.code && (
-                                <p className="text-xs text-red-600">{formErrors.code}</p>
+                                <p className="text-xs text-red-600">
+                                    {formErrors.code}
+                                </p>
                             )}
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="type" className="text-sm font-medium text-gray-700">
+                            <Label
+                                htmlFor="type"
+                                className="text-sm font-medium text-gray-700"
+                            >
                                 Type <span className="text-red-500">*</span>
                             </Label>
                             <Select
                                 value={formData.type}
-                                onValueChange={(value) => handleSelectChange("type", value)}
+                                onValueChange={(value) =>
+                                    handleSelectChange("type", value)
+                                }
                             >
-                                <SelectTrigger className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.type ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
-                                }`}>
+                                <SelectTrigger
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        formErrors.type
+                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                    }`}
+                                >
                                     <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -905,7 +1023,10 @@ export default function ClassroomView() {
                                         </SelectItem>
                                     ) : (
                                         classroomTypes.map((type) => (
-                                            <SelectItem key={type.id} value={type.name}>
+                                            <SelectItem
+                                                key={type.id}
+                                                value={type.name}
+                                            >
                                                 {type.name}
                                             </SelectItem>
                                         ))
@@ -913,12 +1034,17 @@ export default function ClassroomView() {
                                 </SelectContent>
                             </Select>
                             {formErrors.type && (
-                                <p className="text-xs text-red-600">{formErrors.type}</p>
+                                <p className="text-xs text-red-600">
+                                    {formErrors.type}
+                                </p>
                             )}
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="capacity" className="text-sm font-medium text-gray-700">
+                            <Label
+                                htmlFor="capacity"
+                                className="text-sm font-medium text-gray-700"
+                            >
                                 Capacity <span className="text-red-500">*</span>
                             </Label>
                             <Input
@@ -928,14 +1054,18 @@ export default function ClassroomView() {
                                 value={formData.capacity}
                                 onChange={handleInputChange}
                                 className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.capacity ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
+                                    formErrors.capacity
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
                                 }`}
                                 placeholder="Enter capacity (1-100)"
                                 min="1"
                                 max="100"
                             />
                             {formErrors.capacity && (
-                                <p className="text-xs text-red-600">{formErrors.capacity}</p>
+                                <p className="text-xs text-red-600">
+                                    {formErrors.capacity}
+                                </p>
                             )}
                         </div>
                     </div>
@@ -954,7 +1084,12 @@ export default function ClassroomView() {
                         </Button>
                         <Button
                             onClick={handleAddClassroom}
-                            disabled={isLoading || Object.values(formErrors).some(error => error !== undefined)}
+                            disabled={
+                                isLoading ||
+                                Object.values(formErrors).some(
+                                    (error) => error !== undefined
+                                )
+                            }
                             className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
                         >
                             {isLoading ? "Adding..." : "Add"}
@@ -967,13 +1102,19 @@ export default function ClassroomView() {
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent className="bg-white max-w-md">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Edit Classroom</DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Edit Classroom
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4 space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="edit-code" className="text-sm font-medium text-gray-700">
-                                Classroom Code <span className="text-red-500">*</span>
+                            <Label
+                                htmlFor="edit-code"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Classroom Code{" "}
+                                <span className="text-red-500">*</span>
                             </Label>
                             <Input
                                 id="edit-code"
@@ -981,26 +1122,39 @@ export default function ClassroomView() {
                                 value={formData.code}
                                 onChange={handleInputChange}
                                 className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.code ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
+                                    formErrors.code
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
                                 }`}
                                 placeholder="Enter classroom code (e.g., 101, 2A1)"
                             />
                             {formErrors.code && (
-                                <p className="text-xs text-red-600">{formErrors.code}</p>
+                                <p className="text-xs text-red-600">
+                                    {formErrors.code}
+                                </p>
                             )}
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="edit-type" className="text-sm font-medium text-gray-700">
+                            <Label
+                                htmlFor="edit-type"
+                                className="text-sm font-medium text-gray-700"
+                            >
                                 Type <span className="text-red-500">*</span>
                             </Label>
                             <Select
                                 value={formData.type}
-                                onValueChange={(value) => handleSelectChange("type", value)}
+                                onValueChange={(value) =>
+                                    handleSelectChange("type", value)
+                                }
                             >
-                                <SelectTrigger className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.type ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
-                                }`}>
+                                <SelectTrigger
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        formErrors.type
+                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                    }`}
+                                >
                                     <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1014,7 +1168,10 @@ export default function ClassroomView() {
                                         </SelectItem>
                                     ) : (
                                         classroomTypes.map((type) => (
-                                            <SelectItem key={type.id} value={type.name}>
+                                            <SelectItem
+                                                key={type.id}
+                                                value={type.name}
+                                            >
                                                 {type.name}
                                             </SelectItem>
                                         ))
@@ -1022,12 +1179,17 @@ export default function ClassroomView() {
                                 </SelectContent>
                             </Select>
                             {formErrors.type && (
-                                <p className="text-xs text-red-600">{formErrors.type}</p>
+                                <p className="text-xs text-red-600">
+                                    {formErrors.type}
+                                </p>
                             )}
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="edit-capacity" className="text-sm font-medium text-gray-700">
+                            <Label
+                                htmlFor="edit-capacity"
+                                className="text-sm font-medium text-gray-700"
+                            >
                                 Capacity <span className="text-red-500">*</span>
                             </Label>
                             <Input
@@ -1037,14 +1199,18 @@ export default function ClassroomView() {
                                 value={formData.capacity}
                                 onChange={handleInputChange}
                                 className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.capacity ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''
+                                    formErrors.capacity
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
                                 }`}
                                 placeholder="Enter capacity (1-100)"
                                 min="1"
                                 max="100"
                             />
                             {formErrors.capacity && (
-                                <p className="text-xs text-red-600">{formErrors.capacity}</p>
+                                <p className="text-xs text-red-600">
+                                    {formErrors.capacity}
+                                </p>
                             )}
                         </div>
                     </div>
@@ -1063,7 +1229,12 @@ export default function ClassroomView() {
                         </Button>
                         <Button
                             onClick={handleEditClassroom}
-                            disabled={isLoading || Object.values(formErrors).some(error => error !== undefined)}
+                            disabled={
+                                isLoading ||
+                                Object.values(formErrors).some(
+                                    (error) => error !== undefined
+                                )
+                            }
                             className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
                         >
                             {isLoading ? "Saving..." : "Save"}
@@ -1073,18 +1244,28 @@ export default function ClassroomView() {
             </Dialog>
 
             {/* Delete Classroom Dialog */}
-            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <Dialog
+                open={isDeleteDialogOpen}
+                onOpenChange={setIsDeleteDialogOpen}
+            >
                 <DialogContent className="bg-white max-w-md">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Delete Classroom</DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Delete Classroom
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4">
-                        <p className="text-sm text-gray-600 mb-2">Are you sure you want to delete this classroom?</p>
-                        <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
-                            {selectedClassroom?.code} ({selectedClassroom?.type})
+                        <p className="text-sm text-gray-600 mb-2">
+                            Are you sure you want to delete this classroom?
                         </p>
-                        <p className="text-xs text-gray-500 mt-2">This action cannot be undone.</p>
+                        <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
+                            {selectedClassroom?.code} ({selectedClassroom?.type}
+                            )
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">
+                            This action cannot be undone.
+                        </p>
                     </div>
 
                     <DialogFooter className="border-t border-gray-200 pt-3">
@@ -1117,12 +1298,19 @@ export default function ClassroomView() {
             >
                 <DialogContent className="bg-white max-w-md">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Import Classrooms from CSV</DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Import Classrooms from CSV
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4 space-y-4">
                         <div>
-                            <Label htmlFor="csv-file" className="text-sm font-medium text-gray-700">Select CSV File</Label>
+                            <Label
+                                htmlFor="csv-file"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Select CSV File
+                            </Label>
                             <Input
                                 id="csv-file"
                                 type="file"
@@ -1138,8 +1326,14 @@ export default function ClassroomView() {
 
                         {importFile && (
                             <div className="text-xs bg-gray-50 p-2 rounded border">
-                                <p><strong>Selected file:</strong> {importFile.name}</p>
-                                <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
+                                <p>
+                                    <strong>Selected file:</strong>{" "}
+                                    {importFile.name}
+                                </p>
+                                <p>
+                                    <strong>Size:</strong>{" "}
+                                    {(importFile.size / 1024).toFixed(2)} KB
+                                </p>
                             </div>
                         )}
 
@@ -1147,15 +1341,23 @@ export default function ClassroomView() {
                             <div className="space-y-2">
                                 <div className="flex justify-between text-xs">
                                     <span>Progress:</span>
-                                    <span>{importProgress.completed} / {importProgress.total}</span>
+                                    <span>
+                                        {importProgress.completed} /{" "}
+                                        {importProgress.total}
+                                    </span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2">
-                                    <div 
+                                    <div
                                         className="bg-[#2F2F85] h-2 rounded-full transition-all duration-300"
-                                        style={{ 
-                                            width: importProgress.total > 0 
-                                                ? `${(importProgress.completed / importProgress.total) * 100}%` 
-                                                : '0%' 
+                                        style={{
+                                            width:
+                                                importProgress.total > 0
+                                                    ? `${
+                                                          (importProgress.completed /
+                                                              importProgress.total) *
+                                                          100
+                                                      }%`
+                                                    : "0%",
                                         }}
                                     ></div>
                                 </div>
@@ -1168,12 +1370,21 @@ export default function ClassroomView() {
                                     Errors ({importProgress.errors.length}):
                                 </p>
                                 <div className="text-xs space-y-1">
-                                    {importProgress.errors.slice(0, 10).map((error, index) => (
-                                        <p key={index} className="text-red-600">{error}</p>
-                                    ))}
+                                    {importProgress.errors
+                                        .slice(0, 10)
+                                        .map((error, index) => (
+                                            <p
+                                                key={index}
+                                                className="text-red-600"
+                                            >
+                                                {error}
+                                            </p>
+                                        ))}
                                     {importProgress.errors.length > 10 && (
                                         <p className="text-red-600 font-medium">
-                                            ... and {importProgress.errors.length - 10} more errors
+                                            ... and{" "}
+                                            {importProgress.errors.length - 10}{" "}
+                                            more errors
                                         </p>
                                     )}
                                 </div>
@@ -1198,7 +1409,9 @@ export default function ClassroomView() {
                             disabled={!importFile || importProgress.isImporting}
                             className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
                         >
-                            {importProgress.isImporting ? 'Importing...' : 'Import'}
+                            {importProgress.isImporting
+                                ? "Importing..."
+                                : "Import"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
