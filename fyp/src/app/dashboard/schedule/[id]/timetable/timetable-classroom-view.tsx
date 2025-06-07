@@ -1742,7 +1742,7 @@ const exportOldSystemFormat = () => {
                             ? "Generating..."
                             : "Auto-Generate Schedule"}
                     </Button>
-                    <Button className= "bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors" onClick={saveAllAssignments}>Save All</Button>
+                    <Button className= " text-white px-6 py-2.5 rounded font-medium transition-colors" onClick={saveAllAssignments}>Save All</Button>
                     <Button
     onClick={exportOldSystemFormat}
     variant="outline"
@@ -1755,37 +1755,37 @@ const exportOldSystemFormat = () => {
             </div>
 
             {/* NEW: Search Bar */}
-            <div className="mb-6">
-                <div className="relative max-w-md">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Search className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <Input
-                        type="text"
-                        placeholder="Search courses by code, name, instructor, or section..."
-                        value={searchQuery}
-                        onChange={handleSearchChange}
-                        className="pl-10 pr-10"
-                    />
-                    {searchQuery && (
-                        <button
-                            onClick={clearSearch}
-                            className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                        >
-                            <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                        </button>
-                    )}
-                </div>
-                {isSearchActive && (
-                    <div className="mt-2 text-sm text-gray-600">
-                        {Object.keys(filteredSchedule).length > 0 ? (
-                            <>Showing courses matching "{searchQuery}"</>
-                        ) : (
-                            <>No courses found matching "{searchQuery}"</>
-                        )}
-                    </div>
-                )}
-            </div>
+            <div className="mb-6 ">
+  <div className="relative max-w-md">
+    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none ">
+      <Search className="h-5 w-5 text-gray-400" />
+    </div>
+    <Input
+      type="text"
+      placeholder="Search courses by code, name, instructor, or section..."
+      value={searchQuery}
+      onChange={handleSearchChange}
+      className="pl-10 pr-10 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+    />
+    {searchQuery && (
+      <button
+        onClick={clearSearch}
+        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+      >
+        <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+      </button>
+    )}
+  </div>
+  {isSearchActive && (
+    <div className="mt-2 text-sm text-gray-600">
+      {Object.keys(filteredSchedule).length > 0 ? (
+        <>Showing courses matching "{searchQuery}"</>
+      ) : (
+        <>No courses found matching "{searchQuery}"</>
+      )}
+    </div>
+  )}
+</div>
 
             {/* NEW: Message Display Area */}
             {messages.length > 0 && (
