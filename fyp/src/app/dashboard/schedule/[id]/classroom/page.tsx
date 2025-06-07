@@ -607,79 +607,82 @@ const downloadClassroomsCSV = () => {
 
 
 
-    return (
-        <div>
-            {statusMessage && (
-                <div
-                    className={`mb-4 p-3 rounded-md ${
-                        statusMessage.type === "success"
-                            ? "bg-green-100 text-green-700 border border-green-200"
-                            : "bg-red-100 text-red-700 border border-red-200"
-                    }`}
+return (
+    <div className="space-y-4">
+        {statusMessage && (
+            <div
+                className={`p-3 rounded border text-sm ${
+                    statusMessage.type === "success"
+                        ? "bg-green-50 text-green-800 border-green-200"
+                        : "bg-red-50 text-red-800 border-red-200"
+                }`}
+            >
+                {statusMessage.text}
+            </div>
+        )}
+
+        {/* Page Header */}
+        <div className="flex justify-between items-center">
+            <div>
+                <h2 className="text-lg font-semibold text-gray-900">Classrooms</h2>
+                <p className="text-xs text-gray-600">Manage classroom details and capacity</p>
+            </div>
+            <div className="flex gap-2">
+                <Button
+                    onClick={() => setIsImportDialogOpen(true)}
+                    variant="outline"
+                    className="border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md"
+                    disabled={isLoading}
                 >
-                    {statusMessage.text}
-                </div>
-            )}
+                    <Upload className="mr-1 h-3 w-3" /> Import CSV
+                </Button>
+                <Button
+                    onClick={downloadClassroomsCSV}
+                    variant="outline"
+                    className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
+                    disabled={classrooms.length === 0 || isLoading}
+                >
+                    <Download className="mr-1 h-3 w-3" /> Export CSV
+                </Button>
+                <Button
+                    onClick={() => setIsAddDialogOpen(true)}
+                    className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors"
+                    disabled={isLoading}
+                >
+                    <Plus className="mr-1 h-3 w-3" /> New Classroom
+                </Button>
+            </div>
+        </div>
 
-           {/* Updated Header Section */}
-<div className="flex justify-between items-center mb-6">
-    <h2 className="text-xl font-bold">Classrooms</h2>
-    <div className="flex gap-2">
-    <Button
-            onClick={() => setIsImportDialogOpen(true)}
-            variant="outline"
-            className="border-blue-600 text-blue-600 hover:bg-blue-50"
-            disabled={isLoading}
-        >
-            <Upload className="mr-2 h-4 w-4" /> Import CSV
-        </Button>
-  
-        <Button
-            onClick={downloadClassroomsCSV}
-            variant="outline"
-            className="border-green-600 text-green-600 hover:bg-green-50"
-            disabled={classrooms.length === 0 || isLoading}
-        >
-            <Download className="mr-2 h-4 w-4" /> Export CSV
-        </Button>
-      
-        <Button
-            onClick={() => setIsAddDialogOpen(true)}
-            className="bg-green-600 hover:bg-green-700"
-            disabled={isLoading}
-        >
-            <Plus className="mr-2 h-4 w-4" /> New Classroom
-        </Button>
-    </div>
-</div>
-
+        {/* Compact Table Container */}
+        <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+                <table className="w-full text-sm">
                     <thead>
-                        <tr>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                ID
+                        <tr className="bg-[#2F2F85] text-white">
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                No.
                             </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                NAME
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                Code
                             </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                TYPE
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                Type
                             </th>
-                            <th className="border p-2 bg-gray-100 text-left">
-                                CAPACITY
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
+                                Capacity
                             </th>
-                            <th className="border p-2 bg-gray-100 text-left">
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
                                 Actions
                             </th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-gray-200">
                         {isLoading ? (
                             <tr>
                                 <td
                                     colSpan={5}
-                                    className="border p-2 text-center"
+                                    className="px-3 py-8 text-center text-gray-500 text-sm"
                                 >
                                     Loading...
                                 </td>
@@ -688,47 +691,53 @@ const downloadClassroomsCSV = () => {
                             <tr>
                                 <td
                                     colSpan={5}
-                                    className="border p-2 text-center"
+                                    className="px-3 py-8 text-center text-gray-500 text-sm"
                                 >
-                                    No classrooms found
+                                    <div className="space-y-1">
+                                        <div>No classrooms found</div>
+                                        <div className="text-xs">Add a new classroom to get started.</div>
+                                    </div>
                                 </td>
                             </tr>
                         ) : (
-                            paginatedClassrooms.map((classroom) => (
-                                <tr key={classroom.id}>
-                                    <td className="border p-2">
-                                        {classroom.id}
+                            paginatedClassrooms.map((classroom, index) => (
+                                <tr 
+                                    key={classroom.id}
+                                    className={`hover:bg-gray-50 transition-colors ${
+                                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                                    }`}
+                                >
+                                    <td className="px-3 py-2 text-xs text-gray-600 font-medium">
+                                        {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
                                     </td>
-                                    <td className="border p-2">
+                                    <td className="px-3 py-2 text-xs font-medium text-gray-900">
                                         {classroom.code}
                                     </td>
-                                    <td className="border p-2">
+                                    <td className="px-3 py-2 text-xs text-gray-900">
                                         {classroom.type}
                                     </td>
-                                    <td className="border p-2">
+                                    <td className="px-3 py-2 text-xs text-gray-900">
                                         {classroom.capacity}
                                     </td>
-                                    <td className="border p-2">
-                                        <div className="flex gap-2">
+                                    <td className="px-3 py-2">
+                                        <div className="flex gap-1">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() =>
-                                                    openEditDialog(classroom)
-                                                }
+                                                className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                onClick={() => openEditDialog(classroom)}
                                                 disabled={isLoading}
                                             >
-                                                <Pencil className="h-4 w-4" />
+                                                <Pencil className="h-3 w-3" />
                                             </Button>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() =>
-                                                    openDeleteDialog(classroom)
-                                                }
+                                                className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                onClick={() => openDeleteDialog(classroom)}
                                                 disabled={isLoading}
                                             >
-                                                <Trash className="h-4 w-4" />
+                                                <Trash className="h-3 w-3" />
                                             </Button>
                                         </div>
                                     </td>
@@ -738,310 +747,313 @@ const downloadClassroomsCSV = () => {
                     </tbody>
                 </table>
             </div>
+        </div>
 
-            {classrooms.length > 0 && (
+        {classrooms.length > 0 && (
+            <div className="flex justify-center">
                 <CustomPagination
                     currentPage={currentPage}
                     totalPages={totalPages}
                     onPageChange={setCurrentPage}
                 />
-            )}
+            </div>
+        )}
 
-            {/* Add Classroom Dialog */}
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Add New Classroom</DialogTitle>
-                    </DialogHeader>
+        {/* Add Classroom Dialog */}
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogContent className="bg-white max-w-md">
+                <DialogHeader className="border-b border-gray-200 pb-3">
+                    <DialogTitle className="text-lg font-semibold text-gray-900">Add New Classroom</DialogTitle>
+                </DialogHeader>
 
-                    <div className="grid gap-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="code">Classroom Code</Label>
-                            <Input
-                                id="code"
-                                name="code"
-                                value={formData.code}
-                                onChange={handleInputChange}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="type">Type</Label>
-                            <Select
-                                value={formData.type}
-                                onValueChange={(value) =>
-                                    handleSelectChange("type", value)
-                                }
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {isTypesLoading ? (
-                                        <SelectItem value="loading" disabled>
-                                            Loading classroom types...
-                                        </SelectItem>
-                                    ) : classroomTypes.length === 0 ? (
-                                        <SelectItem value="none" disabled>
-                                            No classroom types available
-                                        </SelectItem>
-                                    ) : (
-                                        classroomTypes.map((type) => (
-                                            <SelectItem
-                                                key={type.id}
-                                                value={type.name}
-                                            >
-                                                {type.name}
-                                            </SelectItem>
-                                        ))
-                                    )}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="capacity">Capacity</Label>
-                            <Input
-                                id="capacity"
-                                name="capacity"
-                                type="number"
-                                value={formData.capacity}
-                                onChange={handleInputChange}
-                            />
-                        </div>
+                <div className="py-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="code" className="text-sm font-medium text-gray-700">Classroom Code</Label>
+                        <Input
+                            id="code"
+                            name="code"
+                            value={formData.code}
+                            onChange={handleInputChange}
+                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                            placeholder="Enter classroom code"
+                        />
                     </div>
 
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsAddDialogOpen(false)}
-                            disabled={isLoading}
+                    <div className="space-y-2">
+                        <Label htmlFor="type" className="text-sm font-medium text-gray-700">Type</Label>
+                        <Select
+                            value={formData.type}
+                            onValueChange={(value) => handleSelectChange("type", value)}
                         >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleAddClassroom}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? "Adding..." : "Add Classroom"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Edit Classroom Dialog */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Edit Classroom</DialogTitle>
-                    </DialogHeader>
-
-                    <div className="grid gap-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-code">Classroom Code</Label>
-                            <Input
-                                id="edit-code"
-                                name="code"
-                                value={formData.code}
-                                onChange={handleInputChange}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-type">Type</Label>
-                            <Select
-                                value={formData.type}
-                                onValueChange={(value) =>
-                                    handleSelectChange("type", value)
-                                }
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {isTypesLoading ? (
-                                        <SelectItem value="loading" disabled>
-                                            Loading classroom types...
+                            <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                                <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {isTypesLoading ? (
+                                    <SelectItem value="loading" disabled>
+                                        Loading classroom types...
+                                    </SelectItem>
+                                ) : classroomTypes.length === 0 ? (
+                                    <SelectItem value="none" disabled>
+                                        No classroom types available
+                                    </SelectItem>
+                                ) : (
+                                    classroomTypes.map((type) => (
+                                        <SelectItem key={type.id} value={type.name}>
+                                            {type.name}
                                         </SelectItem>
-                                    ) : classroomTypes.length === 0 ? (
-                                        <SelectItem value="none" disabled>
-                                            No classroom types available
-                                        </SelectItem>
-                                    ) : (
-                                        classroomTypes.map((type) => (
-                                            <SelectItem
-                                                key={type.id}
-                                                value={type.name}
-                                            >
-                                                {type.name}
-                                            </SelectItem>
-                                        ))
-                                    )}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-capacity">Capacity</Label>
-                            <Input
-                                id="edit-capacity"
-                                name="capacity"
-                                type="number"
-                                value={formData.capacity}
-                                onChange={handleInputChange}
-                            />
-                        </div>
+                                    ))
+                                )}
+                            </SelectContent>
+                        </Select>
                     </div>
 
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsEditDialogOpen(false)}
-                            disabled={isLoading}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleEditClassroom}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? "Saving..." : "Save Changes"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                    <div className="space-y-2">
+                        <Label htmlFor="capacity" className="text-sm font-medium text-gray-700">Capacity</Label>
+                        <Input
+                            id="capacity"
+                            name="capacity"
+                            type="number"
+                            value={formData.capacity}
+                            onChange={handleInputChange}
+                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                            placeholder="Enter capacity"
+                        />
+                    </div>
+                </div>
 
-            {/* Delete Classroom Dialog */}
-            <Dialog
-                open={isDeleteDialogOpen}
-                onOpenChange={setIsDeleteDialogOpen}
-            >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Delete Classroom</DialogTitle>
-                    </DialogHeader>
+                <DialogFooter className="border-t border-gray-200 pt-3">
+                    <Button
+                        variant="outline"
+                        onClick={() => setIsAddDialogOpen(false)}
+                        disabled={isLoading}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleAddClassroom}
+                        disabled={isLoading}
+                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                    >
+                        {isLoading ? "Adding..." : "Add"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
-                    <div className="py-4">
-                        <p>Are you sure you want to delete this classroom?</p>
-                        <p className="font-medium mt-2">
-                            {selectedClassroom?.code} ({selectedClassroom?.type}
-                            )
+        {/* Edit Classroom Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="bg-white max-w-md">
+                <DialogHeader className="border-b border-gray-200 pb-3">
+                    <DialogTitle className="text-lg font-semibold text-gray-900">Edit Classroom</DialogTitle>
+                </DialogHeader>
+
+                <div className="py-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-code" className="text-sm font-medium text-gray-700">Classroom Code</Label>
+                        <Input
+                            id="edit-code"
+                            name="code"
+                            value={formData.code}
+                            onChange={handleInputChange}
+                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-type" className="text-sm font-medium text-gray-700">Type</Label>
+                        <Select
+                            value={formData.type}
+                            onValueChange={(value) => handleSelectChange("type", value)}
+                        >
+                            <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                                <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {isTypesLoading ? (
+                                    <SelectItem value="loading" disabled>
+                                        Loading classroom types...
+                                    </SelectItem>
+                                ) : classroomTypes.length === 0 ? (
+                                    <SelectItem value="none" disabled>
+                                        No classroom types available
+                                    </SelectItem>
+                                ) : (
+                                    classroomTypes.map((type) => (
+                                        <SelectItem key={type.id} value={type.name}>
+                                            {type.name}
+                                        </SelectItem>
+                                    ))
+                                )}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-capacity" className="text-sm font-medium text-gray-700">Capacity</Label>
+                        <Input
+                            id="edit-capacity"
+                            name="capacity"
+                            type="number"
+                            value={formData.capacity}
+                            onChange={handleInputChange}
+                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                        />
+                    </div>
+                </div>
+
+                <DialogFooter className="border-t border-gray-200 pt-3">
+                    <Button
+                        variant="outline"
+                        onClick={() => setIsEditDialogOpen(false)}
+                        disabled={isLoading}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleEditClassroom}
+                        disabled={isLoading}
+                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                    >
+                        {isLoading ? "Saving..." : "Save"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        {/* Delete Classroom Dialog */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <DialogContent className="bg-white max-w-md">
+                <DialogHeader className="border-b border-gray-200 pb-3">
+                    <DialogTitle className="text-lg font-semibold text-gray-900">Delete Classroom</DialogTitle>
+                </DialogHeader>
+
+                <div className="py-4">
+                    <p className="text-sm text-gray-600 mb-2">Are you sure you want to delete this classroom?</p>
+                    <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
+                        {selectedClassroom?.code} ({selectedClassroom?.type})
+                    </p>
+                    <p className="text-xs text-gray-500 mt-2">This action cannot be undone.</p>
+                </div>
+
+                <DialogFooter className="border-t border-gray-200 pt-3">
+                    <Button
+                        variant="outline"
+                        onClick={() => setIsDeleteDialogOpen(false)}
+                        disabled={isLoading}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleDeleteClassroom}
+                        disabled={isLoading}
+                        className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                    >
+                        {isLoading ? "Deleting..." : "Delete"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        {/* Import CSV Dialog */}
+        <Dialog
+            open={isImportDialogOpen}
+            onOpenChange={(open) => {
+                if (!open) resetImportState();
+                setIsImportDialogOpen(open);
+            }}
+        >
+            <DialogContent className="bg-white max-w-md">
+                <DialogHeader className="border-b border-gray-200 pb-3">
+                    <DialogTitle className="text-lg font-semibold text-gray-900">Import Classrooms from CSV</DialogTitle>
+                </DialogHeader>
+
+                <div className="py-4 space-y-4">
+                    <div>
+                        <Label htmlFor="csv-file" className="text-sm font-medium text-gray-700">Select CSV File</Label>
+                        <Input
+                            id="csv-file"
+                            type="file"
+                            accept=".csv"
+                            onChange={handleFileSelect}
+                            disabled={importProgress.isImporting}
+                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
+                        />
+                        <p className="text-xs text-gray-600 mt-1">
+                            CSV should contain columns: code, type, capacity
                         </p>
                     </div>
 
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsDeleteDialogOpen(false)}
-                            disabled={isLoading}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={handleDeleteClassroom}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? "Deleting..." : "Delete"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-            {/* Import CSV Dialog */}
-<Dialog
-    open={isImportDialogOpen}
-    onOpenChange={(open) => {
-        if (!open) resetImportState();
-        setIsImportDialogOpen(open);
-    }}
->
-    <DialogContent className="max-w-md">
-        <DialogHeader>
-            <DialogTitle>Import Classrooms from CSV</DialogTitle>
-        </DialogHeader>
+                    {importFile && (
+                        <div className="text-xs bg-gray-50 p-2 rounded border">
+                            <p><strong>Selected file:</strong> {importFile.name}</p>
+                            <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
+                        </div>
+                    )}
 
-        <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <div className="flex-1">
-                    <Label htmlFor="csv-file">Select CSV File</Label>
-                    <Input
-                        id="csv-file"
-                        type="file"
-                        accept=".csv"
-                        onChange={handleFileSelect}
-                        disabled={importProgress.isImporting}
-                    />
-                    <p className="text-sm text-gray-600 mt-1">
-                        CSV should contain columns: code, type, capacity
-                    </p>
-                </div>
-            </div>
+                    {importProgress.isImporting && (
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-xs">
+                                <span>Progress:</span>
+                                <span>{importProgress.completed} / {importProgress.total}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div 
+                                    className="bg-[#2F2F85] h-2 rounded-full transition-all duration-300"
+                                    style={{ 
+                                        width: importProgress.total > 0 
+                                            ? `${(importProgress.completed / importProgress.total) * 100}%` 
+                                            : '0%' 
+                                    }}
+                                ></div>
+                            </div>
+                        </div>
+                    )}
 
-            {importFile && (
-                <div className="text-sm">
-                    <p><strong>Selected file:</strong> {importFile.name}</p>
-                    <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
-                </div>
-            )}
-
-            {importProgress.isImporting && (
-                <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                        <span>Progress:</span>
-                        <span>{importProgress.completed} / {importProgress.total}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                            style={{ 
-                                width: importProgress.total > 0 
-                                    ? `${(importProgress.completed / importProgress.total) * 100}%` 
-                                    : '0%' 
-                            }}
-                        ></div>
-                    </div>
-                </div>
-            )}
-
-            {importProgress.errors.length > 0 && (
-                <div className="max-h-32 overflow-y-auto">
-                    <p className="text-sm font-medium text-red-600 mb-1">
-                        Errors ({importProgress.errors.length}):
-                    </p>
-                    <div className="text-xs space-y-1">
-                        {importProgress.errors.slice(0, 10).map((error, index) => (
-                            <p key={index} className="text-red-600">{error}</p>
-                        ))}
-                        {importProgress.errors.length > 10 && (
-                            <p className="text-red-600 font-medium">
-                                ... and {importProgress.errors.length - 10} more errors
+                    {importProgress.errors.length > 0 && (
+                        <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded border border-red-200">
+                            <p className="text-xs font-medium text-red-600 mb-1">
+                                Errors ({importProgress.errors.length}):
                             </p>
-                        )}
-                    </div>
+                            <div className="text-xs space-y-1">
+                                {importProgress.errors.slice(0, 10).map((error, index) => (
+                                    <p key={index} className="text-red-600">{error}</p>
+                                ))}
+                                {importProgress.errors.length > 10 && (
+                                    <p className="text-red-600 font-medium">
+                                        ... and {importProgress.errors.length - 10} more errors
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
-            )}
-        </div>
 
-        <DialogFooter>
-            <Button
-                variant="outline"
-                onClick={() => {
-                    resetImportState();
-                    setIsImportDialogOpen(false);
-                }}
-                disabled={importProgress.isImporting}
-            >
-                Cancel
-            </Button>
-            <Button
-                onClick={handleImportCSV}
-                disabled={!importFile || importProgress.isImporting}
-            >
-                {importProgress.isImporting ? 'Importing...' : 'Import'}
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
-        </div>
-    );
+                <DialogFooter className="border-t border-gray-200 pt-3">
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            resetImportState();
+                            setIsImportDialogOpen(false);
+                        }}
+                        disabled={importProgress.isImporting}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleImportCSV}
+                        disabled={!importFile || importProgress.isImporting}
+                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                    >
+                        {importProgress.isImporting ? 'Importing...' : 'Import'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    </div>
+);
 }
