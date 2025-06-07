@@ -711,8 +711,12 @@ export default function TimeConstraintView() {
             {/* Page Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Time Constraints</h2>
-                    <p className="text-xs text-gray-600">Manage instructor availability and time restrictions</p>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                        Time Constraints
+                    </h2>
+                    <p className="text-xs text-gray-600">
+                        Manage instructor availability and time restrictions
+                    </p>
                 </div>
                 <Button
                     onClick={() => setIsAddDialogOpen(true)}
@@ -721,99 +725,121 @@ export default function TimeConstraintView() {
                     <Plus className="mr-1 h-3 w-3" /> Add Constraint
                 </Button>
             </div>
-    
+
             {/* Display status message */}
             <StatusMessageDisplay />
-    
+
             {!isLoading && groupedConstraints.length === 0 ? (
                 <div className="bg-white rounded border border-gray-200 p-12 text-center shadow-sm">
-                    <div className="text-gray-500 mb-2">No time constraints added yet</div>
-                    <div className="text-sm text-gray-400">Add constraints to manage instructor availability.</div>
+                    <div className="text-gray-500 mb-2">
+                        No time constraints added yet
+                    </div>
+                    <div className="text-sm text-gray-400">
+                        Add constraints to manage instructor availability.
+                    </div>
                 </div>
             ) : (
                 <>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {paginatedGroupedConstraints.map((groupedConstraint) => (
-                            <Card
-                                key={groupedConstraint.instructor_id}
-                                className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
-                            >
-                                <CardContent className="p-4">
-                                    {/* Instructor header */}
-                                    <div className="mb-3 pb-2 border-b border-gray-200">
-                                        <h3 className="font-semibold text-sm text-gray-900">
-                                            {groupedConstraint.firstName} {groupedConstraint.lastName}
-                                        </h3>
-                                    </div>
-    
-                                    {/* Day constraints */}
-                                    <div className="space-y-3">
-                                        {groupedConstraint.dayConstraints
-                                            .slice()
-                                            .sort(
-                                                (a, b) =>
-                                                    DAYS_OF_WEEK.indexOf(a.day) -
-                                                    DAYS_OF_WEEK.indexOf(b.day)
-                                            )
-                                            .map((dayConstraint) => (
-                                                <div
-                                                    key={`${groupedConstraint.instructor_id}-${dayConstraint.day}`}
-                                                    className="flex justify-between items-start p-2 bg-gray-50 rounded border"
-                                                >
-                                                    <div className="flex-1">
-                                                        <p className="text-xs font-semibold text-gray-700 mb-2">
-                                                            {dayConstraint.day}
-                                                        </p>
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {dayConstraint.timeSlots.map((time, index) => (
-                                                                <Badge
-                                                                    key={index}
-                                                                    variant="outline"
-                                                                    className="text-xs bg-white border-gray-300"
-                                                                >
-                                                                    <Clock className="h-2 w-2 mr-1" />
-                                                                    {time}
-                                                                </Badge>
-                                                            ))}
+                        {paginatedGroupedConstraints.map(
+                            (groupedConstraint) => (
+                                <Card
+                                    key={groupedConstraint.instructor_id}
+                                    className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                                >
+                                    <CardContent className="p-4">
+                                        {/* Instructor header */}
+                                        <div className="mb-3 pb-2 border-b border-gray-200">
+                                            <h3 className="font-semibold text-sm text-gray-900">
+                                                {groupedConstraint.firstName}{" "}
+                                                {groupedConstraint.lastName}
+                                            </h3>
+                                        </div>
+
+                                        {/* Day constraints */}
+                                        <div className="space-y-3">
+                                            {groupedConstraint.dayConstraints
+                                                .slice()
+                                                .sort(
+                                                    (a, b) =>
+                                                        DAYS_OF_WEEK.indexOf(
+                                                            a.day
+                                                        ) -
+                                                        DAYS_OF_WEEK.indexOf(
+                                                            b.day
+                                                        )
+                                                )
+                                                .map((dayConstraint) => (
+                                                    <div
+                                                        key={`${groupedConstraint.instructor_id}-${dayConstraint.day}`}
+                                                        className="flex justify-between items-start p-2 bg-gray-50 rounded border"
+                                                    >
+                                                        <div className="flex-1">
+                                                            <p className="text-xs font-semibold text-gray-700 mb-2">
+                                                                {
+                                                                    dayConstraint.day
+                                                                }
+                                                            </p>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {dayConstraint.timeSlots.map(
+                                                                    (
+                                                                        time,
+                                                                        index
+                                                                    ) => (
+                                                                        <Badge
+                                                                            key={
+                                                                                index
+                                                                            }
+                                                                            variant="outline"
+                                                                            className="text-xs bg-white border-gray-300"
+                                                                        >
+                                                                            <Clock className="h-2 w-2 mr-1" />
+                                                                            {
+                                                                                time
+                                                                            }
+                                                                        </Badge>
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-1 ml-2">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                                onClick={() =>
+                                                                    openEditDialog(
+                                                                        groupedConstraint.instructor_id,
+                                                                        dayConstraint.day,
+                                                                        dayConstraint.timeSlots
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Pencil className="h-3 w-3" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                                onClick={() =>
+                                                                    openDeleteDialog(
+                                                                        groupedConstraint,
+                                                                        dayConstraint.day
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Trash className="h-3 w-3" />
+                                                            </Button>
                                                         </div>
                                                     </div>
-                                                    <div className="flex gap-1 ml-2">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
-                                                            onClick={() =>
-                                                                openEditDialog(
-                                                                    groupedConstraint.instructor_id,
-                                                                    dayConstraint.day,
-                                                                    dayConstraint.timeSlots
-                                                                )
-                                                            }
-                                                        >
-                                                            <Pencil className="h-3 w-3" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
-                                                            onClick={() =>
-                                                                openDeleteDialog(
-                                                                    groupedConstraint,
-                                                                    dayConstraint.day
-                                                                )
-                                                            }
-                                                        >
-                                                            <Trash className="h-3 w-3" />
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
+                                                ))}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )
+                        )}
                     </div>
-    
+
                     {/* Pagination */}
                     {groupedConstraints.length > 0 && (
                         <div className="flex justify-center">
@@ -826,463 +852,613 @@ export default function TimeConstraintView() {
                     )}
                 </>
             )}
-    
+
             {/* Add Constraint Dialog */}
-         {/* Add Constraint Dialog - Complete with improved time slot selection */}
-<Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-    <DialogContent className="bg-white max-w-4xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader className="border-b border-gray-200 pb-3">
-            <DialogTitle className="text-lg font-semibold text-gray-900">Add Time Constraint</DialogTitle>
-        </DialogHeader>
+            {/* Add Constraint Dialog - Complete with improved time slot selection */}
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogContent className="bg-white max-w-4xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Add Time Constraint
+                        </DialogTitle>
+                    </DialogHeader>
 
-        <div className="py-4 space-y-4">
-            <div className="space-y-2">
-                <Label htmlFor="instructor_id" className="text-sm font-medium text-gray-700">Instructor</Label>
-                <Select
-                    value={
-                        enhancedFormData.instructor_id
-                            ? enhancedFormData.instructor_id.toString()
-                            : ""
-                    }
-                    onValueChange={handleInstructorChange}
-                >
-                    <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
-                        <SelectValue placeholder="Select instructor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {instructors.map((instructor) => (
-                            <SelectItem
-                                key={instructor.id}
-                                value={instructor.id.toString()}
+                    <div className="py-4 space-y-4">
+                        <div className="space-y-2">
+                            <Label
+                                htmlFor="instructor_id"
+                                className="text-sm font-medium text-gray-700"
                             >
-                                {instructor.first_name} {instructor.last_name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-
-            {/* Day selection with checkboxes */}
-            <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Days</Label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 border border-gray-200 rounded p-3 bg-gray-50">
-                    {enhancedFormData.dayConstraints.map((dayConstraint, index) => (
-                        <div
-                            key={dayConstraint.day}
-                            className="flex items-center space-x-2"
-                        >
-                            <Checkbox
-                                id={`day-${dayConstraint.day}`}
-                                checked={dayConstraint.selected}
-                                onCheckedChange={(checked) =>
-                                    handleDaySelection(index, checked as boolean)
+                                Instructor
+                            </Label>
+                            <Select
+                                value={
+                                    enhancedFormData.instructor_id
+                                        ? enhancedFormData.instructor_id.toString()
+                                        : ""
                                 }
-                            />
-                            <label
-                                htmlFor={`day-${dayConstraint.day}`}
-                                className="text-xs font-medium text-gray-700"
+                                onValueChange={handleInstructorChange}
                             >
-                                {dayConstraint.day}
-                            </label>
+                                <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                                    <SelectValue placeholder="Select instructor" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {instructors.map((instructor) => (
+                                        <SelectItem
+                                            key={instructor.id}
+                                            value={instructor.id.toString()}
+                                        >
+                                            {instructor.first_name}{" "}
+                                            {instructor.last_name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
-                    ))}
-                </div>
-            </div>
 
-            {/* Tabs for each selected day */}
-            {enhancedFormData.dayConstraints.some((day) => day.selected) && (
-                <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Time Slots by Day</Label>
-                    <Tabs
-                        defaultValue={
-                            enhancedFormData.dayConstraints.find((d) => d.selected)?.day
-                        }
-                    >
-                        <TabsList className="w-full flex overflow-x-auto bg-gray-100">
-                            {enhancedFormData.dayConstraints
-                                .filter((day) => day.selected)
-                                .map((day) => (
-                                    <TabsTrigger
-                                        key={day.day}
-                                        value={day.day}
-                                        className="flex-1 text-xs"
-                                    >
-                                        {day.day}
-                                        {day.timeSlots.length > 0 && (
-                                            <Badge
-                                                variant="secondary"
-                                                className="ml-1 text-xs"
+                        {/* Day selection with checkboxes */}
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium text-gray-700">
+                                Days
+                            </Label>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 border border-gray-200 rounded p-3 bg-gray-50">
+                                {enhancedFormData.dayConstraints.map(
+                                    (dayConstraint, index) => (
+                                        <div
+                                            key={dayConstraint.day}
+                                            className="flex items-center space-x-2"
+                                        >
+                                            <Checkbox
+                                                id={`day-${dayConstraint.day}`}
+                                                checked={dayConstraint.selected}
+                                                onCheckedChange={(checked) =>
+                                                    handleDaySelection(
+                                                        index,
+                                                        checked as boolean
+                                                    )
+                                                }
+                                            />
+                                            <label
+                                                htmlFor={`day-${dayConstraint.day}`}
+                                                className="text-xs font-medium text-gray-700"
                                             >
-                                                {day.timeSlots.length}
-                                            </Badge>
-                                        )}
-                                    </TabsTrigger>
-                                ))}
-                        </TabsList>
+                                                {dayConstraint.day}
+                                            </label>
+                                        </div>
+                                    )
+                                )}
+                            </div>
+                        </div>
 
-                        {enhancedFormData.dayConstraints
-                            .filter((day) => day.selected)
-                            .map((day) => {
-                                const actualDayIndex =
-                                    enhancedFormData.dayConstraints.findIndex(
-                                        (d) => d.day === day.day
-                                    );
-
-                                return (
-                                    <TabsContent
-                                        key={day.day}
-                                        value={day.day}
-                                        className="mt-2"
-                                    >
-                                        <div className="border border-gray-200 rounded p-3 bg-white">
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                {timeSlots.map((slot) => {
-                                                    const isAvailable = isTimeSlotAvailable(slot, day.day);
-                                                    const isSelected = day.timeSlots.includes(slot);
-                                                    const isDisabled =
-                                                        enhancedFormData.instructor_id > 0 &&
-                                                        !isAvailable &&
-                                                        !isSelected;
-
-                                                    return (
-                                                        <div
-                                                            key={slot}
-                                                            className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-colors ${
-                                                                isDisabled
-                                                                    ? "bg-gray-100 opacity-60 border-gray-200 cursor-not-allowed"
-                                                                    : isSelected
-                                                                    ? "bg-blue-50 border-blue-200 shadow-sm"
-                                                                    : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300"
-                                                            }`}
-                                                            onClick={() => !isDisabled && toggleDayTimeSlot(actualDayIndex, slot)}
+                        {/* Tabs for each selected day */}
+                        {enhancedFormData.dayConstraints.some(
+                            (day) => day.selected
+                        ) && (
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium text-gray-700">
+                                    Time Slots by Day
+                                </Label>
+                                <Tabs
+                                    defaultValue={
+                                        enhancedFormData.dayConstraints.find(
+                                            (d) => d.selected
+                                        )?.day
+                                    }
+                                >
+                                    <TabsList className="w-full flex overflow-x-auto bg-gray-100">
+                                        {enhancedFormData.dayConstraints
+                                            .filter((day) => day.selected)
+                                            .map((day) => (
+                                                <TabsTrigger
+                                                    key={day.day}
+                                                    value={day.day}
+                                                    className="flex-1 text-xs"
+                                                >
+                                                    {day.day}
+                                                    {day.timeSlots.length >
+                                                        0 && (
+                                                        <Badge
+                                                            variant="secondary"
+                                                            className="ml-1 text-xs"
                                                         >
-                                                            <Checkbox
-                                                                id={`time-${day.day}-${slot}`}
-                                                                checked={isSelected}
-                                                                disabled={!!isDisabled}
-                                                                onCheckedChange={() =>
-                                                                    toggleDayTimeSlot(actualDayIndex, slot)
+                                                            {
+                                                                day.timeSlots
+                                                                    .length
+                                                            }
+                                                        </Badge>
+                                                    )}
+                                                </TabsTrigger>
+                                            ))}
+                                    </TabsList>
+
+                                    {enhancedFormData.dayConstraints
+                                        .filter((day) => day.selected)
+                                        .map((day) => {
+                                            const actualDayIndex =
+                                                enhancedFormData.dayConstraints.findIndex(
+                                                    (d) => d.day === day.day
+                                                );
+
+                                            return (
+                                                <TabsContent
+                                                    key={day.day}
+                                                    value={day.day}
+                                                    className="mt-2"
+                                                >
+                                                    <div className="border border-gray-200 rounded p-3 bg-white">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                            {timeSlots.map(
+                                                                (slot) => {
+                                                                    const isAvailable =
+                                                                        isTimeSlotAvailable(
+                                                                            slot,
+                                                                            day.day
+                                                                        );
+                                                                    const isSelected =
+                                                                        day.timeSlots.includes(
+                                                                            slot
+                                                                        );
+                                                                    const isDisabled =
+                                                                        enhancedFormData.instructor_id >
+                                                                            0 &&
+                                                                        !isAvailable &&
+                                                                        !isSelected;
+
+                                                                    return (
+                                                                        <div
+                                                                            key={
+                                                                                slot
+                                                                            }
+                                                                            className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                                                                                isDisabled
+                                                                                    ? "bg-gray-100 opacity-60 border-gray-200 cursor-not-allowed"
+                                                                                    : isSelected
+                                                                                    ? "bg-blue-50 border-blue-200 shadow-sm"
+                                                                                    : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+                                                                            }`}
+                                                                            onClick={() =>
+                                                                                !isDisabled &&
+                                                                                toggleDayTimeSlot(
+                                                                                    actualDayIndex,
+                                                                                    slot
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            <Checkbox
+                                                                                id={`time-${day.day}-${slot}`}
+                                                                                checked={
+                                                                                    isSelected
+                                                                                }
+                                                                                disabled={
+                                                                                    !!isDisabled
+                                                                                }
+                                                                                onCheckedChange={() =>
+                                                                                    toggleDayTimeSlot(
+                                                                                        actualDayIndex,
+                                                                                        slot
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                            <label
+                                                                                htmlFor={`time-${day.day}-${slot}`}
+                                                                                className={`text-sm font-medium cursor-pointer flex-1 ${
+                                                                                    isDisabled
+                                                                                        ? "text-gray-400"
+                                                                                        : "text-gray-700"
+                                                                                }`}
+                                                                            >
+                                                                                {
+                                                                                    slot
+                                                                                }
+                                                                            </label>
+                                                                            {isSelected && (
+                                                                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
                                                                 }
-                                                            />
-                                                            <label
-                                                                htmlFor={`time-${day.day}-${slot}`}
-                                                                className={`text-sm font-medium cursor-pointer flex-1 ${
-                                                                    isDisabled ? "text-gray-400" : "text-gray-700"
-                                                                }`}
-                                                            >
-                                                                {slot}
-                                                            </label>
-                                                            {isSelected && (
-                                                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                                                             )}
                                                         </div>
-                                                    );
-                                                })}
-                                            </div>
 
-                                            {/* Show selected time slots */}
-                                            {day.timeSlots.length > 0 && (
-                                                <div className="mt-4 pt-4 border-t border-gray-200">
-                                                    <Label className="text-xs text-gray-600">
-                                                        Selected Time Slots:
-                                                    </Label>
-                                                    <div className="flex flex-wrap gap-1 mt-2">
-                                                        {day.timeSlots.map((slot, index) => (
-                                                            <Badge
-                                                                key={index}
-                                                                className="flex items-center gap-1 pr-1 text-xs bg-[#2F2F85] hover:bg-[#3F3F8F]"
-                                                            >
-                                                                {slot}
-                                                                <X
-                                                                    className="h-2 w-2 cursor-pointer ml-1 hover:text-red-200"
-                                                                    onClick={() =>
-                                                                        removeTimeSlot(actualDayIndex, slot)
-                                                                    }
-                                                                />
-                                                            </Badge>
-                                                        ))}
+                                                        {/* Show selected time slots */}
+                                                        {day.timeSlots.length >
+                                                            0 && (
+                                                            <div className="mt-4 pt-4 border-t border-gray-200">
+                                                                <Label className="text-xs text-gray-600">
+                                                                    Selected
+                                                                    Time Slots:
+                                                                </Label>
+                                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                                    {day.timeSlots.map(
+                                                                        (
+                                                                            slot,
+                                                                            index
+                                                                        ) => (
+                                                                            <Badge
+                                                                                key={
+                                                                                    index
+                                                                                }
+                                                                                className="flex items-center gap-1 pr-1 text-xs bg-[#2F2F85] hover:bg-[#3F3F8F]"
+                                                                            >
+                                                                                {
+                                                                                    slot
+                                                                                }
+                                                                                <X
+                                                                                    className="h-2 w-2 cursor-pointer ml-1 hover:text-red-200"
+                                                                                    onClick={() =>
+                                                                                        removeTimeSlot(
+                                                                                            actualDayIndex,
+                                                                                            slot
+                                                                                        )
+                                                                                    }
+                                                                                />
+                                                                            </Badge>
+                                                                        )
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </TabsContent>
-                                );
-                            })}
-                    </Tabs>
-                </div>
-            )}
-        </div>
+                                                </TabsContent>
+                                            );
+                                        })}
+                                </Tabs>
+                            </div>
+                        )}
+                    </div>
 
-        <DialogFooter className="border-t border-gray-200 pt-3">
-            <Button
-                variant="outline"
-                onClick={() => {
-                    setIsAddDialogOpen(false);
-                    resetForm();
-                }}
-                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
-            >
-                Cancel
-            </Button>
-            <Button
-                onClick={handleAddConstraint}
-                disabled={
-                    isLoading ||
-                    !enhancedFormData.instructor_id ||
-                    getSelectedDaysCount() === 0
-                }
-                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
-            >
-                {isLoading
-                    ? "Adding..."
-                    : `Add Constraint${getSelectedDaysCount() > 1 ? "s" : ""}`}
-            </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-    
-            {/* Edit Constraint Dialog */}
-          {/* Edit Constraint Dialog - Complete */}
-<Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-    <DialogContent className="bg-white max-w-4xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader className="border-b border-gray-200 pb-3">
-            <DialogTitle className="text-lg font-semibold text-gray-900">Edit Time Constraint</DialogTitle>
-        </DialogHeader>
-
-        <div className="py-4 space-y-4">
-            <div className="space-y-2">
-                <Label htmlFor="edit-instructor_id" className="text-sm font-medium text-gray-700">
-                    Instructor
-                </Label>
-                <Select
-                    value={enhancedFormData.instructor_id.toString()}
-                    onValueChange={handleInstructorChange}
-                    disabled={true}
-                >
-                    <SelectTrigger className="border-gray-300 text-sm bg-gray-50">
-                        <SelectValue placeholder="Select instructor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {instructors.map((instructor) => (
-                            <SelectItem
-                                key={instructor.id}
-                                value={instructor.id.toString()}
-                            >
-                                {instructor.first_name} {instructor.last_name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-
-            {/* Day selection with checkboxes */}
-            <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Days</Label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 border border-gray-200 rounded p-3 bg-gray-50">
-                    {enhancedFormData.dayConstraints.map((dayConstraint, index) => (
-                        <div
-                            key={dayConstraint.day}
-                            className="flex items-center space-x-2"
+                    <DialogFooter className="border-t border-gray-200 pt-3">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setIsAddDialogOpen(false);
+                                resetForm();
+                            }}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                         >
-                            <Checkbox
-                                id={`edit-day-${dayConstraint.day}`}
-                                checked={dayConstraint.selected}
-                                onCheckedChange={(checked) =>
-                                    handleDaySelection(index, checked as boolean)
-                                }
-                            />
-                            <label
-                                htmlFor={`edit-day-${dayConstraint.day}`}
-                                className="text-xs font-medium text-gray-700"
-                            >
-                                {dayConstraint.day}
-                            </label>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Tabs for each selected day */}
-            {enhancedFormData.dayConstraints.some((day) => day.selected) && (
-                <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Time Slots by Day</Label>
-                    <Tabs
-                        defaultValue={
-                            enhancedFormData.dayConstraints.find((d) => d.selected)?.day
-                        }
-                    >
-                        <TabsList className="w-full flex overflow-x-auto bg-gray-100">
-                            {enhancedFormData.dayConstraints
-                                .filter((day) => day.selected)
-                                .map((day) => (
-                                    <TabsTrigger
-                                        key={day.day}
-                                        value={day.day}
-                                        className="flex-1 text-xs"
-                                    >
-                                        {day.day}
-                                        {day.timeSlots.length > 0 && (
-                                            <Badge
-                                                variant="secondary"
-                                                className="ml-1 text-xs"
-                                            >
-                                                {day.timeSlots.length}
-                                            </Badge>
-                                        )}
-                                    </TabsTrigger>
-                                ))}
-                        </TabsList>
-
-                        {enhancedFormData.dayConstraints
-                            .filter((day) => day.selected)
-                            .map((day) => {
-                                const actualDayIndex =
-                                    enhancedFormData.dayConstraints.findIndex(
-                                        (d) => d.day === day.day
-                                    );
-
-                                return (
-                                    <TabsContent
-                                        key={day.day}
-                                        value={day.day}
-                                        className="mt-2"
-                                    >
-                                       <div className="border border-gray-200 rounded p-3 bg-white">
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {timeSlots.map((slot) => {
-            const isAvailable = isTimeSlotAvailable(slot, day.day);
-            const isSelected = day.timeSlots.includes(slot);
-            const isDisabled =
-                enhancedFormData.instructor_id > 0 &&
-                !isAvailable &&
-                !isSelected;
-
-            return (
-                <div
-                    key={slot}
-                    className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-colors ${
-                        isDisabled
-                            ? "bg-gray-100 opacity-60 border-gray-200 cursor-not-allowed"
-                            : isSelected
-                            ? "bg-blue-50 border-blue-200 shadow-sm"
-                            : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300"
-                    }`}
-                    onClick={() => !isDisabled && toggleDayTimeSlot(actualDayIndex, slot)}
-                >
-                    <Checkbox
-                        id={`time-${day.day}-${slot}`}
-                        checked={isSelected}
-                        disabled={!!isDisabled}
-                        onCheckedChange={() =>
-                            toggleDayTimeSlot(actualDayIndex, slot)
-                        }
-                    />
-                    <label
-                        htmlFor={`time-${day.day}-${slot}`}
-                        className={`text-sm font-medium cursor-pointer flex-1 ${
-                            isDisabled ? "text-gray-400" : "text-gray-700"
-                        }`}
-                    >
-                        {slot}
-                    </label>
-                    {isSelected && (
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    )}
-                </div>
-            );
-        })}
-    </div>
-
-    {/* Show selected time slots */}
-    {day.timeSlots.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-            <Label className="text-xs text-gray-600">
-                Selected Time Slots:
-            </Label>
-            <div className="flex flex-wrap gap-1 mt-2">
-                {day.timeSlots.map((slot, index) => (
-                    <Badge
-                        key={index}
-                        className="flex items-center gap-1 pr-1 text-xs bg-[#2F2F85] hover:bg-[#3F3F8F]"
-                    >
-                        {slot}
-                        <X
-                            className="h-2 w-2 cursor-pointer ml-1 hover:text-red-200"
-                            onClick={() =>
-                                removeTimeSlot(actualDayIndex, slot)
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleAddConstraint}
+                            disabled={
+                                isLoading ||
+                                !enhancedFormData.instructor_id ||
+                                getSelectedDaysCount() === 0
                             }
-                        />
-                    </Badge>
-                ))}
-            </div>
-        </div>
-    )}
-</div>
-                                    </TabsContent>
-                                );
-                            })}
-                    </Tabs>
-                </div>
-            )}
-        </div>
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                        >
+                            {isLoading
+                                ? "Adding..."
+                                : `Add Constraint${
+                                      getSelectedDaysCount() > 1 ? "s" : ""
+                                  }`}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
-        <DialogFooter className="border-t border-gray-200 pt-3">
-            <Button
-                variant="outline"
-                onClick={() => {
-                    setIsEditDialogOpen(false);
-                    resetForm();
-                }}
-                disabled={isLoading}
-                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
-            >
-                Cancel
-            </Button>
-            <Button
-                onClick={handleEditConstraint}
-                disabled={
-                    isLoading ||
-                    !enhancedFormData.instructor_id ||
-                    getSelectedDaysCount() === 0
-                }
-                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
-            >
-                {isLoading ? "Saving..." : "Save Changes"}
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
-    
+            {/* Edit Constraint Dialog */}
+            {/* Edit Constraint Dialog - Complete */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogContent className="bg-white max-w-4xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Edit Time Constraint
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="py-4 space-y-4">
+                        <div className="space-y-2">
+                            <Label
+                                htmlFor="edit-instructor_id"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Instructor
+                            </Label>
+                            <Select
+                                value={enhancedFormData.instructor_id.toString()}
+                                onValueChange={handleInstructorChange}
+                                disabled={true}
+                            >
+                                <SelectTrigger className="border-gray-300 text-sm bg-gray-50">
+                                    <SelectValue placeholder="Select instructor" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {instructors.map((instructor) => (
+                                        <SelectItem
+                                            key={instructor.id}
+                                            value={instructor.id.toString()}
+                                        >
+                                            {instructor.first_name}{" "}
+                                            {instructor.last_name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Day selection with checkboxes */}
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium text-gray-700">
+                                Days
+                            </Label>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 border border-gray-200 rounded p-3 bg-gray-50">
+                                {enhancedFormData.dayConstraints.map(
+                                    (dayConstraint, index) => (
+                                        <div
+                                            key={dayConstraint.day}
+                                            className="flex items-center space-x-2"
+                                        >
+                                            <Checkbox
+                                                id={`edit-day-${dayConstraint.day}`}
+                                                checked={dayConstraint.selected}
+                                                onCheckedChange={(checked) =>
+                                                    handleDaySelection(
+                                                        index,
+                                                        checked as boolean
+                                                    )
+                                                }
+                                            />
+                                            <label
+                                                htmlFor={`edit-day-${dayConstraint.day}`}
+                                                className="text-xs font-medium text-gray-700"
+                                            >
+                                                {dayConstraint.day}
+                                            </label>
+                                        </div>
+                                    )
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Tabs for each selected day */}
+                        {enhancedFormData.dayConstraints.some(
+                            (day) => day.selected
+                        ) && (
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium text-gray-700">
+                                    Time Slots by Day
+                                </Label>
+                                <Tabs
+                                    defaultValue={
+                                        enhancedFormData.dayConstraints.find(
+                                            (d) => d.selected
+                                        )?.day
+                                    }
+                                >
+                                    <TabsList className="w-full flex overflow-x-auto bg-gray-100">
+                                        {enhancedFormData.dayConstraints
+                                            .filter((day) => day.selected)
+                                            .map((day) => (
+                                                <TabsTrigger
+                                                    key={day.day}
+                                                    value={day.day}
+                                                    className="flex-1 text-xs"
+                                                >
+                                                    {day.day}
+                                                    {day.timeSlots.length >
+                                                        0 && (
+                                                        <Badge
+                                                            variant="secondary"
+                                                            className="ml-1 text-xs"
+                                                        >
+                                                            {
+                                                                day.timeSlots
+                                                                    .length
+                                                            }
+                                                        </Badge>
+                                                    )}
+                                                </TabsTrigger>
+                                            ))}
+                                    </TabsList>
+
+                                    {enhancedFormData.dayConstraints
+                                        .filter((day) => day.selected)
+                                        .map((day) => {
+                                            const actualDayIndex =
+                                                enhancedFormData.dayConstraints.findIndex(
+                                                    (d) => d.day === day.day
+                                                );
+
+                                            return (
+                                                <TabsContent
+                                                    key={day.day}
+                                                    value={day.day}
+                                                    className="mt-2"
+                                                >
+                                                    <div className="border border-gray-200 rounded p-3 bg-white">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                            {timeSlots.map(
+                                                                (slot) => {
+                                                                    const isAvailable =
+                                                                        isTimeSlotAvailable(
+                                                                            slot,
+                                                                            day.day
+                                                                        );
+                                                                    const isSelected =
+                                                                        day.timeSlots.includes(
+                                                                            slot
+                                                                        );
+                                                                    const isDisabled =
+                                                                        enhancedFormData.instructor_id >
+                                                                            0 &&
+                                                                        !isAvailable &&
+                                                                        !isSelected;
+
+                                                                    return (
+                                                                        <div
+                                                                            key={
+                                                                                slot
+                                                                            }
+                                                                            className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                                                                                isDisabled
+                                                                                    ? "bg-gray-100 opacity-60 border-gray-200 cursor-not-allowed"
+                                                                                    : isSelected
+                                                                                    ? "bg-blue-50 border-blue-200 shadow-sm"
+                                                                                    : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+                                                                            }`}
+                                                                            onClick={() =>
+                                                                                !isDisabled &&
+                                                                                toggleDayTimeSlot(
+                                                                                    actualDayIndex,
+                                                                                    slot
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            <Checkbox
+                                                                                id={`time-${day.day}-${slot}`}
+                                                                                checked={
+                                                                                    isSelected
+                                                                                }
+                                                                                disabled={
+                                                                                    !!isDisabled
+                                                                                }
+                                                                                onCheckedChange={() =>
+                                                                                    toggleDayTimeSlot(
+                                                                                        actualDayIndex,
+                                                                                        slot
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                            <label
+                                                                                htmlFor={`time-${day.day}-${slot}`}
+                                                                                className={`text-sm font-medium cursor-pointer flex-1 ${
+                                                                                    isDisabled
+                                                                                        ? "text-gray-400"
+                                                                                        : "text-gray-700"
+                                                                                }`}
+                                                                            >
+                                                                                {
+                                                                                    slot
+                                                                                }
+                                                                            </label>
+                                                                            {isSelected && (
+                                                                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                            )}
+                                                        </div>
+
+                                                        {/* Show selected time slots */}
+                                                        {day.timeSlots.length >
+                                                            0 && (
+                                                            <div className="mt-4 pt-4 border-t border-gray-200">
+                                                                <Label className="text-xs text-gray-600">
+                                                                    Selected
+                                                                    Time Slots:
+                                                                </Label>
+                                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                                    {day.timeSlots.map(
+                                                                        (
+                                                                            slot,
+                                                                            index
+                                                                        ) => (
+                                                                            <Badge
+                                                                                key={
+                                                                                    index
+                                                                                }
+                                                                                className="flex items-center gap-1 pr-1 text-xs bg-[#2F2F85] hover:bg-[#3F3F8F]"
+                                                                            >
+                                                                                {
+                                                                                    slot
+                                                                                }
+                                                                                <X
+                                                                                    className="h-2 w-2 cursor-pointer ml-1 hover:text-red-200"
+                                                                                    onClick={() =>
+                                                                                        removeTimeSlot(
+                                                                                            actualDayIndex,
+                                                                                            slot
+                                                                                        )
+                                                                                    }
+                                                                                />
+                                                                            </Badge>
+                                                                        )
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </TabsContent>
+                                            );
+                                        })}
+                                </Tabs>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="border-t border-gray-200 pt-3">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setIsEditDialogOpen(false);
+                                resetForm();
+                            }}
+                            disabled={isLoading}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleEditConstraint}
+                            disabled={
+                                isLoading ||
+                                !enhancedFormData.instructor_id ||
+                                getSelectedDaysCount() === 0
+                            }
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                        >
+                            {isLoading ? "Saving..." : "Save Changes"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Delete Constraint Dialog */}
-            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <Dialog
+                open={isDeleteDialogOpen}
+                onOpenChange={setIsDeleteDialogOpen}
+            >
                 <DialogContent className="bg-white max-w-md">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Delete Time Constraint</DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Delete Time Constraint
+                        </DialogTitle>
                     </DialogHeader>
-    
+
                     <div className="py-4">
                         <p className="text-sm text-gray-600 mb-2">
-                            Are you sure you want to delete this time constraint?
+                            Are you sure you want to delete this time
+                            constraint?
                         </p>
                         {selectedGroupedConstraint && selectedDay && (
                             <div className="bg-gray-50 p-3 rounded border">
                                 <p className="font-medium text-sm text-gray-900 mb-2">
-                                    {selectedGroupedConstraint.firstName} {selectedGroupedConstraint.lastName} - {selectedDay}
+                                    {selectedGroupedConstraint.firstName}{" "}
+                                    {selectedGroupedConstraint.lastName} -{" "}
+                                    {selectedDay}
                                 </p>
                                 <div className="flex flex-wrap gap-1">
                                     {selectedGroupedConstraint.dayConstraints
                                         .find((dc) => dc.day === selectedDay)
                                         ?.timeSlots.map((time, index) => (
-                                            <Badge key={index} variant="outline" className="text-xs">
+                                            <Badge
+                                                key={index}
+                                                variant="outline"
+                                                className="text-xs"
+                                            >
                                                 {time}
                                             </Badge>
                                         ))}
                                 </div>
                             </div>
                         )}
-                        <p className="text-xs text-gray-500 mt-2">This action cannot be undone.</p>
+                        <p className="text-xs text-gray-500 mt-2">
+                            This action cannot be undone.
+                        </p>
                     </div>
-    
+
                     <DialogFooter className="border-t border-gray-200 pt-3">
                         <Button
                             variant="outline"
