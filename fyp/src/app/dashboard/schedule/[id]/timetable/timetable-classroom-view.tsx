@@ -1590,7 +1590,11 @@ export default function TimetableViewClassroom() {
     return (
         <div className="relative min-h-screen">
             <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-bold">Classroom View Timetable</h2>
+              <div>
+            <h2 className="text-lg font-semibold text-gray-900">Classroom View Timetable</h2>
+            <p className="text-xs text-gray-600 mt-1">Manage and generate classroom schedules</p>
+        </div>
+        
                 <div className="flex gap-4">
                     <Button
                         onClick={generateSchedule}
