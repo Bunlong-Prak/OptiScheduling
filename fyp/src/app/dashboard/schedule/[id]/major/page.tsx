@@ -20,7 +20,7 @@ import { useEffect, useState } from "react";
 import Papa from 'papaparse';
 import { Download, Upload } from "lucide-react";
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 15;
 
 // Define a more specific type for majors being added to the DB
 type MajorCreatePayload = {
@@ -628,369 +628,404 @@ const downloadMajorsCSV = () => {
     }
 };
 
-    return (
-        <div>
-            <>
-                {statusMessage && (
-                    <div
-                        className={`mb-4 p-3 rounded ${
-                            statusMessage.type === "success"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-red-100 text-red-800"
-                        }`}
-                    >
-                        {statusMessage.text}
-                    </div>
-                )}
-             <div className="flex justify-between items-center mb-6">
-    <h2 className="text-xl font-bold">Majors</h2>
-    <div className="flex gap-2">
-    <Button
-            onClick={() => setIsImportDialogOpen(true)}
-            variant="outline"
-            className="border-blue-600 text-blue-600 hover:bg-blue-50"
-        >
-            <Upload className="mr-2 h-4 w-4" /> Import CSV
-        </Button>
-        <Button
-            onClick={downloadMajorsCSV}
-            variant="outline"
-            className="border-green-600 text-green-600 hover:bg-green-50"
-            disabled={majors.length === 0}
-        >
-            <Download className="mr-2 h-4 w-4" /> Export CSV
-        </Button>
-      
-     
-        <Button
-            onClick={openAddDialog}
-            className="bg-green-600 hover:bg-green-700"
-        >
-            <Plus className="mr-2 h-4 w-4" /> New Major
-        </Button>
-    </div>
-</div>
+return (
+    <div className="space-y-4">
+        {statusMessage && (
+            <div
+                className={`p-3 rounded border text-sm ${
+                    statusMessage.type === "success"
+                        ? "bg-green-50 text-green-800 border-green-200"
+                        : "bg-red-50 text-red-800 border-red-200"
+                }`}
+            >
+                {statusMessage.text}
+            </div>
+        )}
 
-                <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                        <thead>
+        {/* Page Header */}
+        <div className="flex justify-between items-center">
+            <div>
+                <h2 className="text-lg font-semibold text-gray-900">Majors</h2>
+                <p className="text-xs text-gray-600">Manage academic majors and programs</p>
+            </div>
+            <div className="flex gap-2">
+                <Button
+                    onClick={() => setIsImportDialogOpen(true)}
+                    variant="outline"
+                    className="border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md"
+                >
+                    <Upload className="mr-1 h-3 w-3" /> Import CSV
+                </Button>
+                <Button
+                    onClick={downloadMajorsCSV}
+                    variant="outline"
+                    className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
+                    disabled={majors.length === 0}
+                >
+                    <Download className="mr-1 h-3 w-3" /> Export CSV
+                </Button>
+                <Button
+                    onClick={openAddDialog}
+                    className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors"
+                >
+                    <Plus className="mr-1 h-3 w-3" /> New Major
+                </Button>
+            </div>
+        </div>
+
+        {/* Compact Table Container */}
+        <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="bg-[#2F2F85] text-white">
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                No.
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                Name
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-24">
+                                Short Tag
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                        {majors.length === 0 ? (
                             <tr>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    ID
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    NAME
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    SHORT TAG
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    Actions
-                                </th>
+                                <td
+                                    colSpan={4}
+                                    className="px-3 py-8 text-center text-gray-500 text-sm"
+                                >
+                                    <div className="space-y-1">
+                                        <div>No majors found</div>
+                                        <div className="text-xs">Add a new major to get started.</div>
+                                    </div>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {majors.length === 0 ? (
-                                <tr>
-                                    <td
-                                        colSpan={4}
-                                        className="border p-4 text-center"
-                                    >
-                                        No majors found. Add a new major to get
-                                        started.
+                        ) : (
+                            paginatedMajors.map((major, index) => (
+                                <tr 
+                                    key={major.id}
+                                    className={`hover:bg-gray-50 transition-colors ${
+                                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                                    }`}
+                                >
+                                    <td className="px-3 py-2 text-xs text-gray-600 font-medium">
+                                        {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs font-medium text-gray-900">
+                                        {major.name}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-gray-900">
+                                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                            {major.shortTag}
+                                        </span>
+                                    </td>
+                                    <td className="px-3 py-2">
+                                        <div className="flex gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                onClick={() => openEditDialog(major)}
+                                            >
+                                                <Pencil className="h-3 w-3" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                onClick={() => openDeleteDialog(major)}
+                                            >
+                                                <Trash className="h-3 w-3" />
+                                            </Button>
+                                        </div>
                                     </td>
                                 </tr>
-                            ) : (
-                                paginatedMajors.map((major) => (
-                                    <tr key={major.id}>
-                                        <td className="border p-2">
-                                            {major.id}
-                                        </td>
-                                        <td className="border p-2">
-                                            {major.name}
-                                        </td>
-                                        <td className="border p-2">
-                                            {major.shortTag}
-                                        </td>
-                                        <td className="border p-2">
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        openEditDialog(major)
-                                                    }
-                                                >
-                                                    <Pencil className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        openDeleteDialog(major)
-                                                    }
-                                                >
-                                                    <Trash className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-
-                {majors.length > 0 && (
-                    <CustomPagination
-                        currentPage={currentPage}
-                        totalPages={totalPages}
-                        onPageChange={setCurrentPage}
-                    />
-                )}
-            </>
-
-            {/* Add Major Dialog */}
-            <Dialog
-                open={isAddDialogOpen}
-                onOpenChange={(open) => {
-                    if (!open) resetForm();
-                    setIsAddDialogOpen(open);
-                }}
-            >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Add New Major</DialogTitle>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="name">Major Name</Label>
-                            <Input
-                                id="name"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleInputChange}
-                                placeholder="Computer Science"
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="shortTag">Short Tag</Label>
-                            <Input
-                                id="shortTag"
-                                name="shortTag"
-                                value={formData.shortTag}
-                                onChange={handleInputChange}
-                                placeholder="CS"
-                            />
-                            <span className="text-sm text-gray-500">
-                                Enter a short code for the major (e.g., CS for
-                                Computer Science).
-                            </span>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                resetForm();
-                                setIsAddDialogOpen(false);
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button onClick={handleAddMajor}>Add Major</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Edit Major Dialog */}
-            <Dialog
-                open={isEditDialogOpen}
-                onOpenChange={(open) => {
-                    if (!open) resetForm();
-                    setIsEditDialogOpen(open);
-                }}
-            >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Edit Major</DialogTitle>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-name">Major Name</Label>
-                            <Input
-                                id="edit-name"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleInputChange}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-shortTag">Short Tag</Label>
-                            <Input
-                                id="edit-shortTag"
-                                name="shortTag"
-                                value={formData.shortTag}
-                                onChange={handleInputChange}
-                            />
-                            <span className="text-sm text-gray-500">
-                                Enter a short code for the major (e.g., CS for
-                                Computer Science).
-                            </span>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                resetForm();
-                                setIsEditDialogOpen(false);
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button onClick={handleEditMajor}>Save Changes</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Delete Major Dialog */}
-            <Dialog
-                open={isDeleteDialogOpen}
-                onOpenChange={(open) => {
-                    if (!open) setSelectedMajor(null);
-                    setIsDeleteDialogOpen(open);
-                }}
-            >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Delete Major</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <p>Are you sure you want to delete this major?</p>
-                        <p className="font-medium mt-2">
-                            {selectedMajor?.name}
-                        </p>
-                        <p className="text-sm text-gray-500 mt-1">
-                            This action cannot be undone.
-                        </p>
-                    </div>
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setSelectedMajor(null);
-                                setIsDeleteDialogOpen(false);
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={handleDeleteMajor}
-                        >
-                            Delete
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-            {/* Import CSV Dialog */}
-<Dialog
-    open={isImportDialogOpen}
-    onOpenChange={(open) => {
-        if (!open) resetImportState();
-        setIsImportDialogOpen(open);
-    }}
->
-    <DialogContent className="max-w-md">
-        <DialogHeader>
-            <DialogTitle>Import Majors from CSV</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <div className="flex-1">
-                    <Label htmlFor="csv-file">Select CSV File</Label>
-                    <Input
-                        id="csv-file"
-                        type="file"
-                        accept=".csv"
-                        onChange={handleFileSelect}
-                        disabled={importProgress.isImporting}
-                    />
-                    <p className="text-sm text-gray-600 mt-1">
-                        CSV should contain columns: name, short_tag
-                    </p>
-                </div>
-            </div>
-
-            {importFile && (
-                <div className="text-sm">
-                    <p><strong>Selected file:</strong> {importFile.name}</p>
-                    <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
-                </div>
-            )}
-
-            {importProgress.isImporting && (
-                <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                        <span>Progress:</span>
-                        <span>{importProgress.completed} / {importProgress.total}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                            style={{ 
-                                width: importProgress.total > 0 
-                                    ? `${(importProgress.completed / importProgress.total) * 100}%` 
-                                    : '0%' 
-                            }}
-                        ></div>
-                    </div>
-                </div>
-            )}
-
-            {importProgress.errors.length > 0 && (
-                <div className="max-h-32 overflow-y-auto">
-                    <p className="text-sm font-medium text-red-600 mb-1">
-                        Errors ({importProgress.errors.length}):
-                    </p>
-                    <div className="text-xs space-y-1">
-                        {importProgress.errors.slice(0, 10).map((error, index) => (
-                            <p key={index} className="text-red-600">{error}</p>
-                        ))}
-                        {importProgress.errors.length > 10 && (
-                            <p className="text-red-600 font-medium">
-                                ... and {importProgress.errors.length - 10} more errors
-                            </p>
+                            ))
                         )}
-                    </div>
-                </div>
-            )}
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        <DialogFooter>
-            <Button
-                variant="outline"
-                onClick={() => {
-                    resetImportState();
-                    setIsImportDialogOpen(false);
-                }}
-                disabled={importProgress.isImporting}
-            >
-                Cancel
-            </Button>
-            <Button
-                onClick={handleImportCSV}
-                disabled={!importFile || importProgress.isImporting}
-            >
-                {importProgress.isImporting ? 'Importing...' : 'Import'}
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
-        </div>
-    );
+        {/* Pagination */}
+        {majors.length > 0 && (
+            <div className="flex justify-center">
+                <CustomPagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                />
+            </div>
+        )}
+
+        {/* Add Major Dialog */}
+        <Dialog
+            open={isAddDialogOpen}
+            onOpenChange={(open) => {
+                if (!open) resetForm();
+                setIsAddDialogOpen(open);
+            }}
+        >
+            <DialogContent className="bg-white max-w-md">
+                <DialogHeader className="border-b border-gray-200 pb-3">
+                    <DialogTitle className="text-lg font-semibold text-gray-900">Add New Major</DialogTitle>
+                </DialogHeader>
+                
+                <div className="py-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="name" className="text-sm font-medium text-gray-700">Major Name</Label>
+                        <Input
+                            id="name"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleInputChange}
+                            placeholder="Computer Science"
+                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="shortTag" className="text-sm font-medium text-gray-700">Short Tag</Label>
+                        <Input
+                            id="shortTag"
+                            name="shortTag"
+                            value={formData.shortTag}
+                            onChange={handleInputChange}
+                            placeholder="CS"
+                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                        />
+                        <span className="text-xs text-gray-500">
+                            Enter a short code for the major (e.g., CS for Computer Science).
+                        </span>
+                    </div>
+                </div>
+                
+                <DialogFooter className="border-t border-gray-200 pt-3">
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            resetForm();
+                            setIsAddDialogOpen(false);
+                        }}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                    >
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={handleAddMajor}
+                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                    >
+                        Add
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        {/* Edit Major Dialog */}
+        <Dialog
+            open={isEditDialogOpen}
+            onOpenChange={(open) => {
+                if (!open) resetForm();
+                setIsEditDialogOpen(open);
+            }}
+        >
+            <DialogContent className="bg-white max-w-md">
+                <DialogHeader className="border-b border-gray-200 pb-3">
+                    <DialogTitle className="text-lg font-semibold text-gray-900">Edit Major</DialogTitle>
+                </DialogHeader>
+                
+                <div className="py-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-name" className="text-sm font-medium text-gray-700">Major Name</Label>
+                        <Input
+                            id="edit-name"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleInputChange}
+                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-shortTag" className="text-sm font-medium text-gray-700">Short Tag</Label>
+                        <Input
+                            id="edit-shortTag"
+                            name="shortTag"
+                            value={formData.shortTag}
+                            onChange={handleInputChange}
+                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                        />
+                        <span className="text-xs text-gray-500">
+                            Enter a short code for the major (e.g., CS for Computer Science).
+                        </span>
+                    </div>
+                </div>
+                
+                <DialogFooter className="border-t border-gray-200 pt-3">
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            resetForm();
+                            setIsEditDialogOpen(false);
+                        }}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                    >
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={handleEditMajor}
+                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                    >
+                        Save
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        {/* Delete Major Dialog */}
+        <Dialog
+            open={isDeleteDialogOpen}
+            onOpenChange={(open) => {
+                if (!open) setSelectedMajor(null);
+                setIsDeleteDialogOpen(open);
+            }}
+        >
+            <DialogContent className="bg-white max-w-md">
+                <DialogHeader className="border-b border-gray-200 pb-3">
+                    <DialogTitle className="text-lg font-semibold text-gray-900">Delete Major</DialogTitle>
+                </DialogHeader>
+                
+                <div className="py-4">
+                    <p className="text-sm text-gray-600 mb-2">Are you sure you want to delete this major?</p>
+                    <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
+                        {selectedMajor?.name}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-2">This action cannot be undone.</p>
+                </div>
+                
+                <DialogFooter className="border-t border-gray-200 pt-3">
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            setSelectedMajor(null);
+                            setIsDeleteDialogOpen(false);
+                        }}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleDeleteMajor}
+                        className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                    >
+                        Delete
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        {/* Import CSV Dialog */}
+        <Dialog
+            open={isImportDialogOpen}
+            onOpenChange={(open) => {
+                if (!open) resetImportState();
+                setIsImportDialogOpen(open);
+            }}
+        >
+            <DialogContent className="bg-white max-w-md">
+                <DialogHeader className="border-b border-gray-200 pb-3">
+                    <DialogTitle className="text-lg font-semibold text-gray-900">Import Majors from CSV</DialogTitle>
+                </DialogHeader>
+
+                <div className="py-4 space-y-4">
+                    <div>
+                        <Label htmlFor="csv-file" className="text-sm font-medium text-gray-700">Select CSV File</Label>
+                        <Input
+                            id="csv-file"
+                            type="file"
+                            accept=".csv"
+                            onChange={handleFileSelect}
+                            disabled={importProgress.isImporting}
+                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
+                        />
+                        <p className="text-xs text-gray-600 mt-1">
+                            CSV should contain columns: name, short_tag
+                        </p>
+                    </div>
+
+                    {importFile && (
+                        <div className="text-xs bg-gray-50 p-2 rounded border">
+                            <p><strong>Selected file:</strong> {importFile.name}</p>
+                            <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
+                        </div>
+                    )}
+
+                    {importProgress.isImporting && (
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-xs">
+                                <span>Progress:</span>
+                                <span>{importProgress.completed} / {importProgress.total}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div 
+                                    className="bg-[#2F2F85] h-2 rounded-full transition-all duration-300"
+                                    style={{ 
+                                        width: importProgress.total > 0 
+                                            ? `${(importProgress.completed / importProgress.total) * 100}%` 
+                                            : '0%' 
+                                    }}
+                                ></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {importProgress.errors.length > 0 && (
+                        <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded border border-red-200">
+                            <p className="text-xs font-medium text-red-600 mb-1">
+                                Errors ({importProgress.errors.length}):
+                            </p>
+                            <div className="text-xs space-y-1">
+                                {importProgress.errors.slice(0, 10).map((error, index) => (
+                                    <p key={index} className="text-red-600">{error}</p>
+                                ))}
+                                {importProgress.errors.length > 10 && (
+                                    <p className="text-red-600 font-medium">
+                                        ... and {importProgress.errors.length - 10} more errors
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <DialogFooter className="border-t border-gray-200 pt-3">
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            resetImportState();
+                            setIsImportDialogOpen(false);
+                        }}
+                        disabled={importProgress.isImporting}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleImportCSV}
+                        disabled={!importFile || importProgress.isImporting}
+                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                    >
+                        {importProgress.isImporting ? 'Importing...' : 'Import'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    </div>
+);
 }

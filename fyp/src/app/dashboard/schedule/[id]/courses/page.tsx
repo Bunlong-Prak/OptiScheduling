@@ -40,7 +40,7 @@ import Papa from 'papaparse';
 import { Download, Upload } from "lucide-react";
 
 // Number of courses to show per page
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 15;
 
 export default function CoursesView() {
     // State variables
@@ -1031,1041 +1031,895 @@ const downloadCoursesCSV = () => {
 };
 
 
-    return (
-        <div>
-            {statusMessage && (
-                <div
-                    className={`mb-4 p-3 rounded ${
-                        statusMessage.type === "success"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
-                    }`}
+return (
+    <div className="space-y-4">
+        {statusMessage && (
+            <div
+                className={`p-3 rounded border text-sm ${
+                    statusMessage.type === "success"
+                        ? "bg-green-50 text-green-800 border-green-200"
+                        : "bg-red-50 text-red-800 border-red-200"
+                }`}
+            >
+                {statusMessage.text}
+            </div>
+        )}
+
+        {/* Page Header */}
+        <div className="flex justify-between items-center">
+            <div>
+                <h2 className="text-lg font-semibold text-gray-900">Courses</h2>
+                <p className="text-xs text-gray-600">Manage courses, sections, and instructors</p>
+            </div>
+            <div className="flex gap-2">
+                <Button
+                    onClick={() => setIsImportDialogOpen(true)}
+                    variant="outline"
+                    className="border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md"
                 >
-                    {statusMessage.text}
-                </div>
-            )}
+                    <Upload className="mr-1 h-3 w-3" /> Import CSV
+                </Button>
+                <Button
+                    onClick={downloadCoursesCSV}
+                    variant="outline"
+                    className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
+                    disabled={courses.length === 0}
+                >
+                    <Download className="mr-1 h-3 w-3" /> Export CSV
+                </Button>
+                <Button
+                    onClick={() => setIsAddDialogOpen(true)}
+                    className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors"
+                >
+                    <Plus className="mr-1 h-3 w-3" /> New Course
+                </Button>
+            </div>
+        </div>
 
-<div className="flex justify-between items-center mb-6">
-    <h2 className="text-xl font-bold">Courses</h2>
-    <div className="flex gap-2">
-    <Button
-            onClick={() => setIsImportDialogOpen(true)}
-            variant="outline"
-            className="border-blue-600 text-blue-600 hover:bg-blue-50"
-        >
-            <Upload className="mr-2 h-4 w-4" /> Import CSV
-        </Button>  
-        <Button
-            onClick={downloadCoursesCSV}
-            variant="outline"
-            className="border-green-600 text-green-600 hover:bg-green-50"
-            disabled={courses.length === 0}
-        >
-            <Download className="mr-2 h-4 w-4" /> Export CSV
-        </Button>
-     
-     
-        <Button
-            onClick={() => setIsAddDialogOpen(true)}
-            className="bg-green-600 hover:bg-green-700"
-        >
-            <Plus className="mr-2 h-4 w-4" /> New Course
-        </Button>
-    </div>
-</div>
-
-            <>
-                <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                        <thead>
+        {/* Compact Table Container */}
+        <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                    <thead>
+                        <tr className="bg-[#2F2F85] text-white">
+                            <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                Code
+                            </th>
+                            <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                Title
+                            </th>
+                            <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                Section
+                            </th>
+                            <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                Instructor
+                            </th>
+                            <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-25">
+                                Major
+                            </th>
+                            <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                Capacity
+                            </th>
+                            <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                Status
+                            </th>
+                            <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                        {courses.length === 0 ? (
                             <tr>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    CODE
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    TITLE
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    SECTION
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    INSTRUCTOR
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    MAJOR
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    Capacity
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    Status
-                                </th>
-                                <th className="border p-2 bg-gray-100 text-left">
-                                    Actions
-                                </th>
+                                <td
+                                    colSpan={8}
+                                    className="px-3 py-8 text-center text-gray-500 text-sm"
+                                >
+                                    <div className="space-y-1">
+                                        <div>No courses found</div>
+                                        <div className="text-xs">Add a new course to get started.</div>
+                                    </div>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {courses.length === 0 ? (
-                                <tr>
-                                    <td
-                                        colSpan={8}
-                                        className="border p-4 text-center text-gray-500"
-                                    >
-                                        No courses found. Add a new course to
-                                        get started.
+                        ) : paginatedCourses.length === 0 ? (
+                            <tr>
+                                <td
+                                    colSpan={8}
+                                    className="px-3 py-8 text-center text-gray-500 text-sm"
+                                >
+                                    No courses found on this page.
+                                </td>
+                            </tr>
+                        ) : (
+                            paginatedCourses.map((course, index) => (
+                                <tr 
+                                    key={course.sectionId}
+                                    className={`hover:bg-gray-50 transition-colors ${
+                                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                                    }`}
+                                >
+                                    <td className="px-2 py-2 text-xs font-medium text-gray-900">
+                                        {course.code}
                                     </td>
-                                </tr>
-                            ) : paginatedCourses.length === 0 ? (
-                                <tr>
-                                    <td
-                                        colSpan={8}
-                                        className="border p-4 text-center text-gray-500"
-                                    >
-                                        No courses found on this page.
+                                    <td className="px-2 py-2 text-xs text-gray-900">
+                                        {course.title}
                                     </td>
-                                </tr>
-                            ) : (
-                                paginatedCourses.map((course) => (
-                                    <tr key={course.sectionId}>
-                                        <td className="border p-2">
-                                            {course.code}
-                                        </td>
-                                        <td className="border p-2">
-                                            {course.title}
-                                        </td>
-                                        <td className="border p-2">
-                                            {course.section}
-                                        </td>
-                                        <td className="border p-2">
-                                            {`${course.firstName || ""} ${
-                                                course.lastName || ""
-                                            }`.trim() || "—"}
-                                        </td>
-                                        <td className="border p-2">
-                                            {course.major || "—"}
-                                        </td>
-                                        <td className="border p-2">
-                                            {course.capacity}
-                                        </td>
-                                        <td className="border p-2">
+                                    <td className="px-2 py-2 text-xs text-gray-900">
+                                        {course.section}
+                                    </td>
+                                    <td className="px-2 py-2 text-xs text-gray-900">
+                                        {`${course.firstName || ""} ${
+                                            course.lastName || ""
+                                        }`.trim() || "—"}
+                                    </td>
+                                    <td className="px-2 py-2 text-xs text-gray-900">
+                                        {course.major || "—"}
+                                    </td>
+                                    <td className="px-2 py-2 text-xs text-gray-900">
+                                        {course.capacity}
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                            course.status === 'online' 
+                                                ? 'bg-green-100 text-green-800' 
+                                                : 'bg-gray-100 text-gray-800'
+                                        }`}>
                                             {course.status}
-                                        </td>
-                                        <td className="border p-2">
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        openEditDialog(course)
-                                                    }
-                                                >
-                                                    <Pencil className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        openDeleteDialog(course)
-                                                    }
-                                                >
-                                                    <Trash className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                                        </span>
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <div className="flex gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                onClick={() => openEditDialog(course)}
+                                            >
+                                                <Pencil className="h-3 w-3" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                onClick={() => openDeleteDialog(course)}
+                                            >
+                                                <Trash className="h-3 w-3" />
+                                            </Button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {/* Pagination */}
+        {courses.length > 0 && (
+            <div className="flex justify-center">
+                <CustomPagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                />
+            </div>
+        )}
+
+        {/* Add Course Dialog */}
+        <Dialog
+            open={isAddDialogOpen}
+            onOpenChange={(open) => {
+                if (!open) resetForm();
+                setIsAddDialogOpen(open);
+            }}
+        >
+            <DialogContent className="bg-white max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader className="border-b border-gray-200 pb-3">
+                    <DialogTitle className="text-lg font-semibold text-gray-900">Add New Course</DialogTitle>
+                </DialogHeader>
+
+                <div className="py-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="code" className="text-sm font-medium text-gray-700">Course Code</Label>
+                            <Input
+                                id="code"
+                                name="code"
+                                value={formData.code}
+                                onChange={handleInputChange}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                placeholder="CS101"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="title" className="text-sm font-medium text-gray-700">Course Name</Label>
+                            <Input
+                                id="title"
+                                name="title"
+                                value={formData.title}
+                                onChange={handleInputChange}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                placeholder="Introduction to Programming"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="major" className="text-sm font-medium text-gray-700">Major</Label>
+                        <Select value={selectedMajor} onValueChange={setSelectedMajor}>
+                            <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                                <SelectValue placeholder="Select a major" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {majors.map((major) => (
+                                    <SelectItem key={major.id} value={major.name}>
+                                        {major.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="status" className="text-sm font-medium text-gray-700">Status</Label>
+                            <Select
+                                value={formData?.status || ""}
+                                onValueChange={(value) => handleSelectChange("status", value)}
+                            >
+                                <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                                    <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="online">Online</SelectItem>
+                                    <SelectItem value="offline">Offline</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="color" className="text-sm font-medium text-gray-700">Color</Label>
+                            <Select
+                                value={formData?.color || ""}
+                                onValueChange={(value) => handleSelectChange("color", value)}
+                            >
+                                <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                                    <SelectValue placeholder="Select color" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {colors.map((color) => (
+                                        <SelectItem key={color} value={color}>
+                                            {getColorName(color)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="duration" className="text-sm font-medium text-gray-700">Duration (hours)</Label>
+                            <Input
+                                id="duration"
+                                name="duration"
+                                type="number"
+                                min="1"
+                                value={formData.duration}
+                                onChange={handleInputChange}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="capacity" className="text-sm font-medium text-gray-700">Capacity</Label>
+                            <Input
+                                id="capacity"
+                                name="capacity"
+                                type="number"
+                                min="1"
+                                value={formData.capacity}
+                                onChange={handleInputChange}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Sections */}
+                    <div className="space-y-4">
+                        <div>
+                            <Label className="text-sm font-medium text-gray-700">Sections</Label>
+                            <p className="text-xs text-gray-600 mt-1">Add course sections with instructors</p>
+                        </div>
+
+                        {sections.length > 0 && (
+                            <div className="space-y-2">
+                                {sections.map((section) => (
+                                    <div key={section.id} className="p-3 border border-gray-200 rounded bg-gray-50">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                Section {section.section_id}
+                                            </span>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => removeSection(section.id)}
+                                                className="h-6 w-6 text-gray-500 hover:text-red-600"
+                                            >
+                                                <Trash className="h-3 w-3" />
+                                            </Button>
+                                        </div>
+                                        <div className="mt-2">
+                                            <Label className="text-xs text-gray-700">Instructor</Label>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant="outline"
+                                                        role="combobox"
+                                                        className="w-full justify-between mt-1 text-sm border-gray-300"
+                                                    >
+                                                        {section.instructor_name || "Select instructor..."}
+                                                        <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-full p-0">
+                                                    <Command>
+                                                        <CommandInput placeholder="Search instructor..." />
+                                                        <CommandEmpty>No instructor found.</CommandEmpty>
+                                                        <CommandGroup>
+                                                            {instructors.map((instructor) => (
+                                                                <CommandItem
+                                                                    key={instructor.id}
+                                                                    value={`${instructor.first_name} ${instructor.last_name}`}
+                                                                    onSelect={() => {
+                                                                        updateSectionInstructor(
+                                                                            section.id,
+                                                                            instructor.id.toString(),
+                                                                            `${instructor.first_name} ${instructor.last_name}`
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Check
+                                                                        className={`mr-2 h-3 w-3 ${
+                                                                            section.instructor_id === instructor.id.toString()
+                                                                                ? "opacity-100"
+                                                                                : "opacity-0"
+                                                                        }`}
+                                                                    />
+                                                                    {instructor.first_name} {instructor.last_name}
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                    </Command>
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="grid gap-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="section" className="text-sm font-medium text-gray-700">Section Number</Label>
+                                    <Input
+                                        id="section"
+                                        placeholder="Enter section number"
+                                        value={currentSection}
+                                        onChange={(e) => setCurrentSection(e.target.value)}
+                                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="section-instructor" className="text-sm font-medium text-gray-700">Instructor (Optional)</Label>
+                                    <Popover open={currentInstructorOpen} onOpenChange={setCurrentInstructorOpen}>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                className="w-full justify-between border-gray-300 text-sm"
+                                            >
+                                                {currentInstructor?.name || "Select instructor..."}
+                                                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-full p-0">
+                                            <Command>
+                                                <CommandInput placeholder="Search instructor..." />
+                                                <CommandEmpty>No instructor found.</CommandEmpty>
+                                                <CommandGroup>
+                                                    {instructors.map((instructor) => (
+                                                        <CommandItem
+                                                            key={instructor.id}
+                                                            value={`${instructor.first_name} ${instructor.last_name}`}
+                                                            onSelect={() => {
+                                                                setCurrentInstructor({
+                                                                    id: instructor.id.toString(),
+                                                                    name: `${instructor.first_name} ${instructor.last_name}`,
+                                                                });
+                                                                setCurrentInstructorOpen(false);
+                                                            }}
+                                                        >
+                                                            <Check
+                                                                className={`mr-2 h-3 w-3 ${
+                                                                    currentInstructor?.id === instructor.id.toString()
+                                                                        ? "opacity-100"
+                                                                        : "opacity-0"
+                                                                }`}
+                                                            />
+                                                            {instructor.first_name} {instructor.last_name}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+                            </div>
+                            <Button
+                                onClick={addSection}
+                                disabled={!currentSection}
+                                className="w-full bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm"
+                            >
+                                <Plus className="h-3 w-3 mr-2" /> Add Section
+                            </Button>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Add pagination if we have courses */}
-                {courses.length > 0 && (
-                    <div className="mt-4">
-                        <CustomPagination
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            onPageChange={setCurrentPage}
-                        />
-                    </div>
-                )}
-            </>
+                <DialogFooter className="border-t border-gray-200 pt-3">
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            resetForm();
+                            setIsAddDialogOpen(false);
+                        }}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleAddCourse}
+                        disabled={
+                            !formData.title ||
+                            !formData.code ||
+                            !selectedMajor ||
+                            sections.length === 0
+                        }
+                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                    >
+                        Add Course
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
-            {/* Add Course Dialog */}
-            <Dialog
-                open={isAddDialogOpen}
-                onOpenChange={(open) => {
-                    if (!open) resetForm();
-                    setIsAddDialogOpen(open);
-                }}
-            >
-                <DialogContent className="max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>Add New Course</DialogTitle>
-                    </DialogHeader>
-
-                    <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="code">Course Code</Label>
-                                <Input
-                                    id="code"
-                                    name="code"
-                                    value={formData.code}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="title">Course Name</Label>
-                                <Input
-                                    id="title"
-                                    name="title"
-                                    value={formData.title}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Major dropdown - Single select */}
-                        <div className="space-y-2">
-                            <Label htmlFor="major">Major</Label>
-                            <Select
-                                value={selectedMajor}
-                                onValueChange={setSelectedMajor}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a major" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {majors.map((major) => (
-                                        <SelectItem
-                                            key={major.id}
-                                            value={major.name}
-                                        >
-                                            {major.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {/* New Status Input */}
-                        <div className="space-y-2">
-                            <Label htmlFor="status">Status</Label>
-                            <Select
-                                value={formData?.status || ""}
-                                onValueChange={(value) =>
-                                    handleSelectChange("status", value)
-                                }
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="online">
-                                        Online
-                                    </SelectItem>
-                                    <SelectItem value="offline">
-                                        Offline
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="color">Color</Label>
-                            <Select
-                                value={formData?.color || ""}
-                                onValueChange={(value) =>
-                                    handleSelectChange("color", value)
-                                }
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select color" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {colors.map((color) => (
-                                        <SelectItem key={color} value={color}>
-                                            {getColorName(color)}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="duration">
-                                    Duration (hours)
-                                </Label>
-                                <Input
-                                    id="duration"
-                                    name="duration"
-                                    type="number"
-                                    min="1"
-                                    value={formData.duration}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="capacity">Capacity</Label>
-                                <Input
-                                    id="capacity"
-                                    name="capacity"
-                                    type="number"
-                                    min="1"
-                                    value={formData.capacity}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Section list with instructors */}
-                        <div className="space-y-6">
-                            <div>
-                                <Label className="text-base font-medium">
-                                    Sections
-                                </Label>
-                                <p className="text-sm text-gray-500 mt-1">
-                                    Add course sections with instructors
-                                </p>
-                            </div>
-
-                            {sections.length > 0 && (
-                                <div className="space-y-2 mb-2">
-                                    {sections.map((section) => (
-                                        <div
-                                            key={section.id}
-                                            className="p-3 border rounded-md"
-                                        >
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="bg-blue-50 px-2 py-1 rounded-md text-sm">
-                                                    Section {section.section_id}
-                                                </span>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        removeSection(
-                                                            section.id
-                                                        )
-                                                    }
-                                                    className="h-8 w-8"
-                                                >
-                                                    <Trash className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                            <div className="mt-2">
-                                                <Label className="text-sm">
-                                                    Instructor
-                                                </Label>
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <Button
-                                                            variant="outline"
-                                                            role="combobox"
-                                                            className="w-full justify-between mt-1"
-                                                        >
-                                                            {section.instructor_name ||
-                                                                "Select instructor..."}
-                                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-full p-0">
-                                                        <Command>
-                                                            <CommandInput placeholder="Search instructor..." />
-                                                            <CommandEmpty>
-                                                                No instructor
-                                                                found.
-                                                            </CommandEmpty>
-                                                            <CommandGroup>
-                                                                {instructors.map(
-                                                                    (
-                                                                        instructor
-                                                                    ) => (
-                                                                        <CommandItem
-                                                                            key={
-                                                                                instructor.id
-                                                                            }
-                                                                            value={`${instructor.first_name} ${instructor.last_name}`}
-                                                                            onSelect={() => {
-                                                                                updateSectionInstructor(
-                                                                                    section.id,
-                                                                                    instructor.id.toString(),
-                                                                                    `${instructor.first_name} ${instructor.last_name}`
-                                                                                );
-                                                                            }}
-                                                                        >
-                                                                            <Check
-                                                                                className={`mr-2 h-4 w-4 ${
-                                                                                    section.instructor_id ===
-                                                                                    instructor.id.toString()
-                                                                                        ? "opacity-100"
-                                                                                        : "opacity-0"
-                                                                                }`}
-                                                                            />
-                                                                            {
-                                                                                instructor.first_name
-                                                                            }{" "}
-                                                                            {
-                                                                                instructor.last_name
-                                                                            }
-                                                                        </CommandItem>
-                                                                    )
-                                                                )}
-                                                            </CommandGroup>
-                                                        </Command>
-                                                    </PopoverContent>
-                                                </Popover>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            <div className="grid gap-4">
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="section">
-                                            Section Number
-                                        </Label>
-                                        <Input
-                                            id="section"
-                                            placeholder="Enter section number"
-                                            value={currentSection}
-                                            onChange={(e) =>
-                                                setCurrentSection(
-                                                    e.target.value
-                                                )
-                                            }
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="section-instructor">
-                                            Instructor (Optional)
-                                        </Label>
-                                        <Popover
-                                            open={currentInstructorOpen}
-                                            onOpenChange={
-                                                setCurrentInstructorOpen
-                                            }
-                                        >
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    role="combobox"
-                                                    aria-expanded={
-                                                        currentInstructorOpen
-                                                    }
-                                                    className="w-full justify-between"
-                                                >
-                                                    {currentInstructor?.name ||
-                                                        "Select instructor..."}
-                                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-full p-0">
-                                                <Command>
-                                                    <CommandInput placeholder="Search instructor..." />
-                                                    <CommandEmpty>
-                                                        No instructor found.
-                                                    </CommandEmpty>
-                                                    <CommandGroup>
-                                                        {instructors.map(
-                                                            (instructor) => (
-                                                                <CommandItem
-                                                                    key={
-                                                                        instructor.id
-                                                                    }
-                                                                    value={`${instructor.first_name} ${instructor.last_name}`}
-                                                                    onSelect={() => {
-                                                                        setCurrentInstructor(
-                                                                            {
-                                                                                id: instructor.id.toString(),
-                                                                                name: `${instructor.first_name} ${instructor.last_name}`,
-                                                                            }
-                                                                        );
-                                                                        setCurrentInstructorOpen(
-                                                                            false
-                                                                        );
-                                                                    }}
-                                                                >
-                                                                    <Check
-                                                                        className={`mr-2 h-4 w-4 ${
-                                                                            currentInstructor?.id ===
-                                                                            instructor.id.toString()
-                                                                                ? "opacity-100"
-                                                                                : "opacity-0"
-                                                                        }`}
-                                                                    />
-                                                                    {
-                                                                        instructor.first_name
-                                                                    }{" "}
-                                                                    {
-                                                                        instructor.last_name
-                                                                    }
-                                                                </CommandItem>
-                                                            )
-                                                        )}
-                                                    </CommandGroup>
-                                                </Command>
-                                            </PopoverContent>
-                                        </Popover>
-                                    </div>
-                                </div>
-
-                                <Button
-                                    onClick={addSection}
-                                    disabled={!currentSection}
-                                    className="w-full mt-2"
-                                >
-                                    <Plus className="h-4 w-4 mr-2" /> Add
-                                    Section
-                                </Button>
-                            </div>
-                        </div>
-
-                        <DialogFooter>
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    resetForm();
-                                    setIsAddDialogOpen(false);
-                                }}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                onClick={handleAddCourse}
-                                disabled={
-                                    !formData.title ||
-                                    !formData.code ||
-                                    !selectedMajor ||
-                                    sections.length === 0
-                                }
-                            >
-                                Add Course
-                            </Button>
-                        </DialogFooter>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Edit Course Dialog */}
-            <Dialog
-                open={isEditDialogOpen}
-                onOpenChange={(open) => {
-                    if (!open) resetForm();
-                    setIsEditDialogOpen(open);
-                }}
-            >
-                <DialogContent className="max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>Edit Course</DialogTitle>
-                    </DialogHeader>
-
-                    <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-code">Course Code</Label>
-                                <Input
-                                    id="edit-code"
-                                    name="code"
-                                    value={formData.code}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-title">Course Name</Label>
-                                <Input
-                                    id="edit-title"
-                                    name="title"
-                                    value={formData.title}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Major dropdown - Single select for Edit Dialog */}
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-major">Major</Label>
-                            <Select
-                                value={selectedMajor}
-                                onValueChange={setSelectedMajor}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a major" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {majors.map((major) => (
-                                        <SelectItem
-                                            key={major.id}
-                                            value={major.name}
-                                        >
-                                            {major.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {/* Status field */}
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-status">Status</Label>
-                            <Select
-                                value={formData?.status || ""}
-                                onValueChange={(value) =>
-                                    handleSelectChange("status", value)
-                                }
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="online">
-                                        Online
-                                    </SelectItem>
-                                    <SelectItem value="offline">
-                                        Offline
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-color">Color</Label>
-                            <Select
-                                value={formData?.color || ""}
-                                onValueChange={(value) =>
-                                    handleSelectChange("color", value)
-                                }
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select color" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {colors.map((color) => (
-                                        <SelectItem key={color} value={color}>
-                                            {getColorName(color)}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-duration">
-                                    Duration (hours)
-                                </Label>
-                                <Input
-                                    id="edit-duration"
-                                    name="duration"
-                                    type="number"
-                                    min="1"
-                                    value={formData.duration}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-capacity">Capacity</Label>
-                                <Input
-                                    id="edit-capacity"
-                                    name="capacity"
-                                    type="number"
-                                    min="1"
-                                    value={formData.capacity}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Section list with instructors - Edit Dialog */}
-                        <div className="space-y-6">
-                            <div>
-                                <Label className="text-base font-medium">
-                                    Sections
-                                </Label>
-                                <p className="text-sm text-gray-500 mt-1">
-                                    Add course sections with instructors
-                                </p>
-                            </div>
-
-                            {sections.length > 0 && (
-                                <div className="space-y-2 mb-2">
-                                    {sections.map((section) => (
-                                        <div
-                                            key={section.id}
-                                            className="p-3 border rounded-md"
-                                        >
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="bg-blue-50 px-2 py-1 rounded-md text-sm">
-                                                    Section {section.section_id}
-                                                </span>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        removeSection(
-                                                            section.id
-                                                        )
-                                                    }
-                                                    className="h-8 w-8"
-                                                >
-                                                    <Trash className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                            <div className="mt-2">
-                                                <Label className="text-sm">
-                                                    Instructor
-                                                </Label>
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <Button
-                                                            variant="outline"
-                                                            role="combobox"
-                                                            className="w-full justify-between mt-1"
-                                                        >
-                                                            {section.instructor_name ||
-                                                                "Select instructor..."}
-                                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-full p-0">
-                                                        <Command>
-                                                            <CommandInput placeholder="Search instructor..." />
-                                                            <CommandEmpty>
-                                                                No instructor
-                                                                found.
-                                                            </CommandEmpty>
-                                                            <CommandGroup>
-                                                                {instructors.map(
-                                                                    (
-                                                                        instructor
-                                                                    ) => (
-                                                                        <CommandItem
-                                                                            key={
-                                                                                instructor.id
-                                                                            }
-                                                                            value={`${instructor.first_name} ${instructor.last_name}`}
-                                                                            onSelect={() => {
-                                                                                // Make sure this function is being called when clicking an instructor
-                                                                                console.log(
-                                                                                    "Instructor selected:",
-                                                                                    instructor.id,
-                                                                                    instructor.first_name,
-                                                                                    instructor.last_name
-                                                                                );
-                                                                                updateSectionInstructor(
-                                                                                    section.id,
-                                                                                    instructor.id.toString(),
-                                                                                    `${instructor.first_name} ${instructor.last_name}`
-                                                                                );
-                                                                                // Close the popover when selecting an instructor
-                                                                                setCurrentInstructorOpen(
-                                                                                    false
-                                                                                );
-                                                                            }}
-                                                                        >
-                                                                            <Check
-                                                                                className={`mr-2 h-4 w-4 ${
-                                                                                    section.instructor_id ===
-                                                                                    instructor.id.toString()
-                                                                                        ? "opacity-100"
-                                                                                        : "opacity-0"
-                                                                                }`}
-                                                                            />
-                                                                            {
-                                                                                instructor.first_name
-                                                                            }{" "}
-                                                                            {
-                                                                                instructor.last_name
-                                                                            }
-                                                                        </CommandItem>
-                                                                    )
-                                                                )}
-                                                            </CommandGroup>
-                                                        </Command>
-                                                    </PopoverContent>
-                                                </Popover>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            <div className="grid gap-4">
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="edit-section">
-                                            Section Number
-                                        </Label>
-                                        <Input
-                                            id="edit-section"
-                                            placeholder="Enter section number"
-                                            value={currentSection}
-                                            onChange={(e) =>
-                                                setCurrentSection(
-                                                    e.target.value
-                                                )
-                                            }
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="edit-section-instructor">
-                                            Instructor (Optional)
-                                        </Label>
-                                        <Popover
-                                            open={currentInstructorOpen}
-                                            onOpenChange={
-                                                setCurrentInstructorOpen
-                                            }
-                                        >
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    role="combobox"
-                                                    aria-expanded={
-                                                        currentInstructorOpen
-                                                    }
-                                                    className="w-full justify-between"
-                                                >
-                                                    {currentInstructor?.name ||
-                                                        "Select instructor..."}
-                                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-full p-0">
-                                                <Command>
-                                                    <CommandInput placeholder="Search instructor..." />
-                                                    <CommandEmpty>
-                                                        No instructor found.
-                                                    </CommandEmpty>
-                                                    <CommandGroup>
-                                                        {instructors.map(
-                                                            (instructor) => (
-                                                                <CommandItem
-                                                                    key={
-                                                                        instructor.id
-                                                                    }
-                                                                    value={`${instructor.first_name} ${instructor.last_name}`}
-                                                                    onSelect={() => {
-                                                                        setCurrentInstructor(
-                                                                            {
-                                                                                id: instructor.id.toString(),
-                                                                                name: `${instructor.first_name} ${instructor.last_name}`,
-                                                                            }
-                                                                        );
-                                                                        setCurrentInstructorOpen(
-                                                                            false
-                                                                        );
-                                                                    }}
-                                                                >
-                                                                    <Check
-                                                                        className={`mr-2 h-4 w-4 ${
-                                                                            currentInstructor?.id ===
-                                                                            instructor.id.toString()
-                                                                                ? "opacity-100"
-                                                                                : "opacity-0"
-                                                                        }`}
-                                                                    />
-                                                                    {
-                                                                        instructor.first_name
-                                                                    }{" "}
-                                                                    {
-                                                                        instructor.last_name
-                                                                    }
-                                                                </CommandItem>
-                                                            )
-                                                        )}
-                                                    </CommandGroup>
-                                                </Command>
-                                            </PopoverContent>
-                                        </Popover>
-                                    </div>
-                                </div>
-
-                                <Button
-                                    onClick={addSection}
-                                    disabled={!currentSection}
-                                    className="w-full mt-2"
-                                >
-                                    <Plus className="h-4 w-4 mr-2" /> Add
-                                    Section
-                                </Button>
-                            </div>
-                        </div>
-
-                        <DialogFooter>
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    resetForm();
-                                    setIsEditDialogOpen(false);
-                                }}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                onClick={handleEditCourse}
-                                disabled={
-                                    !formData.title ||
-                                    !formData.code ||
-                                    !selectedMajor ||
-                                    sections.length === 0
-                                }
-                            >
-                                Save Changes
-                            </Button>
-                        </DialogFooter>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Delete Course Dialog */}
-            <Dialog
-                open={isDeleteDialogOpen}
-                onOpenChange={(open) => {
-                    if (!open) setSelectedCourse(null);
-                    setIsDeleteDialogOpen(open);
-                }}
-            >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Delete Course</DialogTitle>
-                    </DialogHeader>
-
-                    <div className="py-4">
-                        <p>Are you sure you want to delete this course?</p>
-                        <p className="font-medium mt-2">
-                            {selectedCourse?.code}: {selectedCourse?.title}
-                        </p>
-                    </div>
-
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setSelectedCourse(null);
-                                setIsDeleteDialogOpen(false);
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={handleDeleteCourse}
-                        >
-                            Delete
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-            {/* Import CSV Dialog */}
+        {/* Edit Course Dialog - Similar styling applied */}
+       {/* Edit Course Dialog - Complete */}
 <Dialog
-    open={isImportDialogOpen}
+    open={isEditDialogOpen}
     onOpenChange={(open) => {
-        if (!open) resetImportState();
-        setIsImportDialogOpen(open);
+        if (!open) resetForm();
+        setIsEditDialogOpen(open);
     }}
 >
-    <DialogContent className="max-w-lg">
-        <DialogHeader>
-            <DialogTitle>Import Courses from CSV</DialogTitle>
+    <DialogContent className="bg-white max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader className="border-b border-gray-200 pb-3">
+            <DialogTitle className="text-lg font-semibold text-gray-900">Edit Course</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <div className="flex-1">
-                    <Label htmlFor="csv-file">Select CSV File</Label>
+        <div className="py-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="edit-code" className="text-sm font-medium text-gray-700">Course Code</Label>
                     <Input
-                        id="csv-file"
-                        type="file"
-                        accept=".csv"
-                        onChange={handleFileSelect}
-                        disabled={importProgress.isImporting}
+                        id="edit-code"
+                        name="code"
+                        value={formData.code}
+                        onChange={handleInputChange}
+                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
                     />
-                   <p className="text-sm text-gray-600 mt-1">
-    CSV should contain columns: code, title, major, color, status, duration, capacity, section (number), instructor_name
-</p>
-<p className="text-xs text-blue-600 mt-1">
-    Note: Section should be a number (1, 2, 3, etc.). Multiple rows with the same course code will be treated as different sections of the same course.
-</p>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-title" className="text-sm font-medium text-gray-700">Course Name</Label>
+                    <Input
+                        id="edit-title"
+                        name="title"
+                        value={formData.title}
+                        onChange={handleInputChange}
+                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                    />
                 </div>
             </div>
 
-            {importFile && (
-                <div className="text-sm">
-                    <p><strong>Selected file:</strong> {importFile.name}</p>
-                    <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
-                </div>
-            )}
-
-            {importProgress.isImporting && (
-                <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                        <span>Progress:</span>
-                        <span>{importProgress.completed} / {importProgress.total}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                            style={{ 
-                                width: importProgress.total > 0 
-                                    ? `${(importProgress.completed / importProgress.total) * 100}%` 
-                                    : '0%' 
-                            }}
-                        ></div>
-                    </div>
-                </div>
-            )}
-
-            {importProgress.errors.length > 0 && (
-                <div className="max-h-40 overflow-y-auto">
-                    <p className="text-sm font-medium text-red-600 mb-1">
-                        Errors ({importProgress.errors.length}):
-                    </p>
-                    <div className="text-xs space-y-1">
-                        {importProgress.errors.slice(0, 10).map((error, index) => (
-                            <p key={index} className="text-red-600">{error}</p>
+            <div className="space-y-2">
+                <Label htmlFor="edit-major" className="text-sm font-medium text-gray-700">Major</Label>
+                <Select value={selectedMajor} onValueChange={setSelectedMajor}>
+                    <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                        <SelectValue placeholder="Select a major" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {majors.map((major) => (
+                            <SelectItem key={major.id} value={major.name}>
+                                {major.name}
+                            </SelectItem>
                         ))}
-                        {importProgress.errors.length > 10 && (
-                            <p className="text-red-600 font-medium">
-                                ... and {importProgress.errors.length - 10} more errors
-                            </p>
-                        )}
-                    </div>
+                    </SelectContent>
+                </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="edit-status" className="text-sm font-medium text-gray-700">Status</Label>
+                    <Select
+                        value={formData?.status || ""}
+                        onValueChange={(value) => handleSelectChange("status", value)}
+                    >
+                        <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                            <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="online">Online</SelectItem>
+                            <SelectItem value="offline">Offline</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
-            )}
+                <div className="space-y-2">
+                    <Label htmlFor="edit-color" className="text-sm font-medium text-gray-700">Color</Label>
+                    <Select
+                        value={formData?.color || ""}
+                        onValueChange={(value) => handleSelectChange("color", value)}
+                    >
+                        <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                            <SelectValue placeholder="Select color" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {colors.map((color) => (
+                                <SelectItem key={color} value={color}>
+                                    {getColorName(color)}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="edit-duration" className="text-sm font-medium text-gray-700">Duration (hours)</Label>
+                    <Input
+                        id="edit-duration"
+                        name="duration"
+                        type="number"
+                        min="1"
+                        value={formData.duration}
+                        onChange={handleInputChange}
+                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="edit-capacity" className="text-sm font-medium text-gray-700">Capacity</Label>
+                    <Input
+                        id="edit-capacity"
+                        name="capacity"
+                        type="number"
+                        min="1"
+                        value={formData.capacity}
+                        onChange={handleInputChange}
+                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                    />
+                </div>
+            </div>
+
+            {/* Section list with instructors - Edit Dialog */}
+            <div className="space-y-4">
+                <div>
+                    <Label className="text-sm font-medium text-gray-700">Sections</Label>
+                    <p className="text-xs text-gray-600 mt-1">Add course sections with instructors</p>
+                </div>
+
+                {sections.length > 0 && (
+                    <div className="space-y-2">
+                        {sections.map((section) => (
+                            <div key={section.id} className="p-3 border border-gray-200 rounded bg-gray-50">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                        Section {section.section_id}
+                                    </span>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => removeSection(section.id)}
+                                        className="h-6 w-6 text-gray-500 hover:text-red-600"
+                                    >
+                                        <Trash className="h-3 w-3" />
+                                    </Button>
+                                </div>
+                                <div className="mt-2">
+                                    <Label className="text-xs text-gray-700">Instructor</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                className="w-full justify-between mt-1 text-sm border-gray-300"
+                                            >
+                                                {section.instructor_name || "Select instructor..."}
+                                                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-full p-0">
+                                            <Command>
+                                                <CommandInput placeholder="Search instructor..." />
+                                                <CommandEmpty>No instructor found.</CommandEmpty>
+                                                <CommandGroup>
+                                                    {instructors.map((instructor) => (
+                                                        <CommandItem
+                                                            key={instructor.id}
+                                                            value={`${instructor.first_name} ${instructor.last_name}`}
+                                                            onSelect={() => {
+                                                                console.log("Instructor selected:", instructor.id, instructor.first_name, instructor.last_name);
+                                                                updateSectionInstructor(
+                                                                    section.id,
+                                                                    instructor.id.toString(),
+                                                                    `${instructor.first_name} ${instructor.last_name}`
+                                                                );
+                                                                setCurrentInstructorOpen(false);
+                                                            }}
+                                                        >
+                                                            <Check
+                                                                className={`mr-2 h-3 w-3 ${
+                                                                    section.instructor_id === instructor.id.toString()
+                                                                        ? "opacity-100"
+                                                                        : "opacity-0"
+                                                                }`}
+                                                            />
+                                                            {instructor.first_name} {instructor.last_name}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <div className="grid gap-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-section" className="text-sm font-medium text-gray-700">Section Number</Label>
+                            <Input
+                                id="edit-section"
+                                placeholder="Enter section number"
+                                value={currentSection}
+                                onChange={(e) => setCurrentSection(e.target.value)}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-section-instructor" className="text-sm font-medium text-gray-700">Instructor (Optional)</Label>
+                            <Popover open={currentInstructorOpen} onOpenChange={setCurrentInstructorOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        className="w-full justify-between border-gray-300 text-sm"
+                                    >
+                                        {currentInstructor?.name || "Select instructor..."}
+                                        <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-full p-0">
+                                    <Command>
+                                        <CommandInput placeholder="Search instructor..." />
+                                        <CommandEmpty>No instructor found.</CommandEmpty>
+                                        <CommandGroup>
+                                            {instructors.map((instructor) => (
+                                                <CommandItem
+                                                    key={instructor.id}
+                                                    value={`${instructor.first_name} ${instructor.last_name}`}
+                                                    onSelect={() => {
+                                                        setCurrentInstructor({
+                                                            id: instructor.id.toString(),
+                                                            name: `${instructor.first_name} ${instructor.last_name}`,
+                                                        });
+                                                        setCurrentInstructorOpen(false);
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={`mr-2 h-3 w-3 ${
+                                                            currentInstructor?.id === instructor.id.toString()
+                                                                ? "opacity-100"
+                                                                : "opacity-0"
+                                                        }`}
+                                                    />
+                                                    {instructor.first_name} {instructor.last_name}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                    </div>
+                    <Button
+                        onClick={addSection}
+                        disabled={!currentSection}
+                        className="w-full bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm"
+                    >
+                        <Plus className="h-3 w-3 mr-2" /> Add Section
+                    </Button>
+                </div>
+            </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="border-t border-gray-200 pt-3">
             <Button
                 variant="outline"
                 onClick={() => {
-                    resetImportState();
-                    setIsImportDialogOpen(false);
+                    resetForm();
+                    setIsEditDialogOpen(false);
                 }}
-                disabled={importProgress.isImporting}
+                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
             >
                 Cancel
             </Button>
             <Button
-                onClick={handleImportCSV}
-                disabled={!importFile || importProgress.isImporting}
+                onClick={handleEditCourse}
+                disabled={
+                    !formData.title ||
+                    !formData.code ||
+                    !selectedMajor ||
+                    sections.length === 0
+                }
+                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
             >
-                {importProgress.isImporting ? 'Importing...' : 'Import'}
+                Save Changes
             </Button>
         </DialogFooter>
     </DialogContent>
 </Dialog>
-        </div>
-    );
+
+        {/* Delete Course Dialog */}
+        <Dialog
+            open={isDeleteDialogOpen}
+            onOpenChange={(open) => {
+                if (!open) setSelectedCourse(null);
+                setIsDeleteDialogOpen(open);
+            }}
+        >
+            <DialogContent className="bg-white max-w-md">
+                <DialogHeader className="border-b border-gray-200 pb-3">
+                    <DialogTitle className="text-lg font-semibold text-gray-900">Delete Course</DialogTitle>
+                </DialogHeader>
+                <div className="py-4">
+                    <p className="text-sm text-gray-600 mb-2">Are you sure you want to delete this course?</p>
+                    <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
+                        {selectedCourse?.code}: {selectedCourse?.title}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-2">This action cannot be undone.</p>
+                </div>
+                <DialogFooter className="border-t border-gray-200 pt-3">
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            setSelectedCourse(null);
+                            setIsDeleteDialogOpen(false);
+                        }}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleDeleteCourse}
+                        className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                    >
+                        Delete
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        {/* Import CSV Dialog */}
+        <Dialog
+            open={isImportDialogOpen}
+            onOpenChange={(open) => {
+                if (!open) resetImportState();
+                setIsImportDialogOpen(open);
+            }}
+        >
+            <DialogContent className="bg-white max-w-lg">
+                <DialogHeader className="border-b border-gray-200 pb-3">
+                    <DialogTitle className="text-lg font-semibold text-gray-900">Import Courses from CSV</DialogTitle>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                    <div>
+                        <Label htmlFor="csv-file" className="text-sm font-medium text-gray-700">Select CSV File</Label>
+                        <Input
+                            id="csv-file"
+                            type="file"
+                            accept=".csv"
+                            onChange={handleFileSelect}
+                            disabled={importProgress.isImporting}
+                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
+                        />
+                        <p className="text-xs text-gray-600 mt-1">
+                            CSV should contain columns: code, title, major, color, status, duration, capacity, section (number), instructor_name
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                            Note: Section should be a number (1, 2, 3, etc.). Multiple rows with the same course code will be treated as different sections.
+                        </p>
+                    </div>
+
+                    {importFile && (
+                        <div className="text-xs bg-gray-50 p-2 rounded border">
+                            <p><strong>Selected file:</strong> {importFile.name}</p>
+                            <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
+                        </div>
+                    )}
+
+                    {importProgress.isImporting && (
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-xs">
+                                <span>Progress:</span>
+                                <span>{importProgress.completed} / {importProgress.total}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div 
+                                    className="bg-[#2F2F85] h-2 rounded-full transition-all duration-300"
+                                    style={{ 
+                                        width: importProgress.total > 0 
+                                            ? `${(importProgress.completed / importProgress.total) * 100}%` 
+                                            : '0%' 
+                                    }}
+                                ></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {importProgress.errors.length > 0 && (
+                        <div className="max-h-40 overflow-y-auto bg-red-50 p-2 rounded border border-red-200">
+                            <p className="text-xs font-medium text-red-600 mb-1">
+                                Errors ({importProgress.errors.length}):
+                            </p>
+                            <div className="text-xs space-y-1">
+                                {importProgress.errors.slice(0, 10).map((error, index) => (
+                                    <p key={index} className="text-red-600">{error}</p>
+                                ))}
+                                {importProgress.errors.length > 10 && (
+                                    <p className="text-red-600 font-medium">
+                                        ... and {importProgress.errors.length - 10} more errors
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <DialogFooter className="border-t border-gray-200 pt-3">
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            resetImportState();
+                            setIsImportDialogOpen(false);
+                        }}
+                        disabled={importProgress.isImporting}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleImportCSV}
+                        disabled={!importFile || importProgress.isImporting}
+                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                    >
+                        {importProgress.isImporting ? 'Importing...' : 'Import'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    </div>
+);
 }

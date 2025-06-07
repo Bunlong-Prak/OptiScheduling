@@ -33,7 +33,7 @@ interface ClassroomType {
     name: string;
 }
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 15;
 
 export default function ClassroomView() {
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
