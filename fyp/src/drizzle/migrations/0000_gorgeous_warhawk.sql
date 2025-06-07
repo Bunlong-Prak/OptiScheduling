@@ -28,7 +28,6 @@ CREATE TABLE `courses` (
 	`color` varchar(50),
 	`capacity` int NOT NULL,
 	`duration` int NOT NULL,
-	`status` varchar(50),
 	`schedule_id` int NOT NULL,
 	`major_id` int NOT NULL,
 	CONSTRAINT `courses_id` PRIMARY KEY(`id`)
@@ -94,6 +93,7 @@ CREATE TABLE `schedules` (
 CREATE TABLE `sections` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`number` varchar(50) NOT NULL,
+	`status` varchar(50),
 	`course_id` int NOT NULL,
 	`classroom_id` int,
 	`instructor_id` int NOT NULL,

@@ -11,12 +11,14 @@ import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+// Updated section schema to include status
 const sectionSchema = z.object({
     section: z.string().min(1, { message: "Section number is required" }),
     instructorId: z.string().optional(), // Optional instructor ID
+    status: z.enum(["online", "offline"]).default("offline"), // Status at section level
 });
 
-// Course schema for creating new courses
+// Updated course schema for creating new courses (removed status from course level)
 const courseSchema = z.object({
     // Course Code: Required, alphanumeric with possible spaces/dashes, min 2 chars, max 10 chars
     code: z
@@ -37,14 +39,17 @@ const courseSchema = z.object({
         .array(z.string())
         .min(1, { message: "A Major is required" })
         .max(1, { message: "Only one major can be selected" }),
-    // Color: Required
-    color: z.string().min(1, { message: "Color is required" }),
-
+    // Color: Required (now supports hex colors)
+    color: z
+        .string()
+        .min(1, { message: "Color is required" })
+        .regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, {
+            message: "Color must be a valid hex color (e.g., #FF0000)",
+        }),
     duration: z.number().min(1, { message: "Duration is required" }),
     // Capacity: Required
     capacity: z.number().min(1, { message: "Capacity is required" }),
-    status: z.string().optional(), // Optional status field
-    // Sections array: Required, at least one section
+    // Sections array: Required, at least one section (now includes status per section)
     sectionsList: z
         .array(sectionSchema)
         .min(1, { message: "At least one section is required" }),
@@ -53,7 +58,7 @@ const courseSchema = z.object({
     }),
 });
 
-// Schema for editing courses
+// Updated schema for editing courses (removed status from course level)
 const editCourseSchema = z.object({
     sectionId: z.number({
         required_error: "Section ID is required",
@@ -77,14 +82,17 @@ const editCourseSchema = z.object({
         .array(z.string())
         .min(1, { message: "A Major is required" })
         .max(1, { message: "Only one major can be selected" }),
-    // Color: Required
-    color: z.string().min(1, { message: "Color is required" }),
-    // Instructor: Required - now clearly defined as I
+    // Color: Required (now supports hex colors)
+    color: z
+        .string()
+        .min(1, { message: "Color is required" })
+        .regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, {
+            message: "Color must be a valid hex color (e.g., #FF0000)",
+        }),
     duration: z.number().min(1, { message: "Duration is required" }),
     // Capacity: Required
     capacity: z.number().min(1, { message: "Capacity is required" }),
-    status: z.string().optional(), // Optional status field
-    // Sections array: Required, at least one section
+    // Sections array: Required, at least one section (now includes status per section)
     sectionsList: z
         .array(sectionSchema)
         .min(1, { message: "At least one section is required" }),
@@ -98,12 +106,13 @@ const deleteCourseSchema = z.object({
     }),
 });
 
-// GET all courses
+// GET all courses - updated to include section status
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const scheduleId = searchParams.get("scheduleId");
-        // Base query - directly join with majors using majorId in courses
+
+        // Updated query to include section status
         let query = db
             .select({
                 id: courses.id,
@@ -116,7 +125,7 @@ export async function GET(request: Request) {
                 instructorId: instructors.id, // Include instructor ID
                 duration: courses.duration,
                 capacity: courses.capacity,
-                status: courses.status,
+                status: sections.status, // Get status from sections table
                 sectionId: sections.id,
                 section: sections.number,
                 classroom: classrooms.code,
@@ -124,7 +133,7 @@ export async function GET(request: Request) {
             .from(courses)
             .innerJoin(majors, eq(courses.majorId, majors.id)) // Direct join with majors
             .innerJoin(sections, eq(courses.id, sections.courseId))
-            .innerJoin(instructors, eq(sections.instructorId, instructors.id))
+            .leftJoin(instructors, eq(sections.instructorId, instructors.id)) // Changed to leftJoin to handle sections without instructors
             .leftJoin(classrooms, eq(sections.classroomId, classrooms.id))
             .innerJoin(schedules, eq(courses.scheduleId, schedules.id)) as any;
 
@@ -132,6 +141,7 @@ export async function GET(request: Request) {
         if (scheduleId) {
             query = query.where(eq(courses.scheduleId, parseInt(scheduleId)));
         }
+
         const allCourses = await query;
         return NextResponse.json(allCourses);
     } catch (error: unknown) {
@@ -143,7 +153,7 @@ export async function GET(request: Request) {
     }
 }
 
-// POST - Create a new course
+// POST - Create a new course (updated to handle section-level status)
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -165,10 +175,8 @@ export async function POST(request: Request) {
             title,
             majorsList,
             color,
-
             duration,
             capacity,
-            status,
             sectionsList,
             scheduleId,
         } = validationResult.data;
@@ -207,17 +215,22 @@ export async function POST(request: Request) {
             .where(eq(schedules.id, scheduleId))
             .limit(1);
 
-        // Insert the course with majorId
+        if (scheduleResult.length === 0) {
+            return NextResponse.json(
+                { error: "Schedule not found" },
+                { status: 404 }
+            );
+        }
+
+        // Insert the course with majorId (removed status from course level)
         const insertCourse = await db.insert(courses).values({
             code: code,
             title: title,
             color: color,
             scheduleId: scheduleResult[0].id,
-
             majorId: majorId, // Store majorId directly in the course table
             duration: duration,
             capacity: capacity,
-            status: status,
         });
 
         // Get the inserted course ID
@@ -236,28 +249,34 @@ export async function POST(request: Request) {
         // Array to collect created course sections
         const createdSections = [];
 
-        // Process each section
+        // Process each section (now includes status)
         for (const sectionData of sectionsList) {
-            const { section, instructorId } = sectionData;
+            const { section, instructorId, status } = sectionData;
 
-            // Insert the section
-            if (instructorId !== undefined) {
-                await db.insert(sections).values({
-                    number: section,
-                    courseId: newCourse.id,
-                    instructorId: parseInt(instructorId), // Use the instructor ID directly
-                });
-            } else {
-                console.warn(
-                    `Skipping section ${section} due to missing instructorId`
-                );
+            // Insert the section with status
+            const sectionValues: any = {
+                number: section,
+                courseId: newCourse.id,
+                status: status || "offline", // Default to offline if not provided
+            };
+
+            // Add instructor if provided
+            if (
+                instructorId !== undefined &&
+                instructorId !== null &&
+                instructorId !== ""
+            ) {
+                sectionValues.instructorId = parseInt(instructorId);
             }
+
+            await db.insert(sections).values(sectionValues);
 
             // Fetch the created section data for response
             const sectionDetails = await db
                 .select({
                     id: sections.id,
                     number: sections.number,
+                    status: sections.status,
                 })
                 .from(sections)
                 .where(
@@ -276,6 +295,12 @@ export async function POST(request: Request) {
         // Return course with sections
         return NextResponse.json({
             message: "Course created successfully",
+            course: {
+                id: newCourse.id,
+                code: newCourse.code,
+                title: newCourse.title,
+                sections: createdSections,
+            },
         });
     } catch (error) {
         console.error("Error creating course:", error);
@@ -286,7 +311,7 @@ export async function POST(request: Request) {
     }
 }
 
-// PATCH - Update an existing course
+// PATCH - Update an existing course (updated to handle section-level status)
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
@@ -313,7 +338,6 @@ export async function PATCH(request: Request) {
             color,
             duration,
             capacity,
-            status,
             sectionsList,
             sectionsToDelete,
         } = validationResult.data;
@@ -353,16 +377,14 @@ export async function PATCH(request: Request) {
             );
         }
 
-        // Prepare the update data
+        // Prepare the update data (removed status from course level)
         const updateData: Partial<{
             code: string;
             title: string;
             color: string;
             duration: number;
             capacity: number;
-            status: string;
             majorId: number;
-            instructorId: number;
         }> = {};
 
         if (code !== undefined) updateData.code = code;
@@ -370,7 +392,6 @@ export async function PATCH(request: Request) {
         if (color !== undefined) updateData.color = color;
         if (duration !== undefined) updateData.duration = duration;
         if (capacity !== undefined) updateData.capacity = capacity;
-        if (status !== undefined) updateData.status = status;
 
         // Handle majorsList update if provided - Using the single major
         if (majorsList && majorsList.length === 1) {
@@ -403,50 +424,36 @@ export async function PATCH(request: Request) {
                 .where(eq(courses.id, courseId));
         }
 
-        // Handle section updates if provided
+        // Handle section updates if provided (now includes status)
         if (sectionsList && sectionsList.length > 0) {
-            // Get all existing sections for this course
-            const existingSections = await db
-                .select({ id: sections.id, number: sections.number })
-                .from(sections)
-                .where(eq(sections.courseId, courseId));
+            // Delete all existing sections for this course first
+            await db.delete(sections).where(eq(sections.courseId, courseId));
 
-            // Create a map of existing section numbers for quick lookup
-            const existingSectionMap = new Map();
-            existingSections.forEach((section) => {
-                existingSectionMap.set(section.number, section.id);
-            });
-
-            // Process each section in the request
+            // Create new sections with updated data
             for (const sectionData of sectionsList) {
-                const { section, instructorId } = sectionData;
+                const { section, instructorId, status } = sectionData;
 
-                // Check if section already exists
-                if (existingSectionMap.has(section)) {
-                    // If the section exists but has a different ID than our primary section ID,
-                    // we don't need to do anything as it's already in the database
-                    console.log(
-                        `Section ${section} already exists, skipping creation`
-                    );
-                } else {
-                    // Convert string ID to number
-                    if (instructorId !== undefined) {
-                        await db.insert(sections).values({
-                            number: section,
-                            courseId: courseId,
-                            instructorId: parseInt(instructorId), // Use the provided instructor ID or the existing one
-                        });
-                    } else {
-                        // Optionally handle the missing instructorId case here (e.g., throw error or skip)
-                        console.warn(
-                            `Skipping section ${section} due to missing instructorId`
-                        );
-                    }
+                // Prepare section values
+                const sectionValues: any = {
+                    number: section,
+                    courseId: courseId,
+                    status: status || "offline", // Default to offline if not provided
+                };
+
+                // Add instructor if provided
+                if (
+                    instructorId !== undefined &&
+                    instructorId !== null &&
+                    instructorId !== ""
+                ) {
+                    sectionValues.instructorId = parseInt(instructorId);
                 }
+
+                await db.insert(sections).values(sectionValues);
             }
         }
 
-        // If any sections need to be deleted
+        // If any sections need to be deleted (this might not be needed since we're recreating all sections)
         if (sectionsToDelete && Array.isArray(sectionsToDelete)) {
             for (const sectionIdToDelete of sectionsToDelete) {
                 await db
@@ -467,7 +474,7 @@ export async function PATCH(request: Request) {
     }
 }
 
-// DELETE - Remove a course
+// DELETE - Remove a course (unchanged)
 export async function DELETE(request: Request) {
     try {
         const body = await request.json();
