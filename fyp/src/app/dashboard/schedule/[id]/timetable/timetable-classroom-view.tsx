@@ -87,6 +87,7 @@ export default function TimetableViewClassroom() {
         timeSlot: "",
         timeSlotId: 0, // Related to course hour
     });
+    const [hoveredCell, setHoveredCell] = useState<{day: string; time: string; classroom: string; index: number} | null>(null);
 
     // State for holding real courses from API
     const [availableCourses, setAvailableCourses] = useState<TimetableCourse[]>(
@@ -1706,6 +1707,7 @@ const exportOldSystemFormat = () => {
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
         
+
         const today = new Date().toISOString().split('T')[0];
         link.setAttribute('download', `schedule_export_${today}.csv`);
         
@@ -1902,47 +1904,70 @@ const exportOldSystemFormat = () => {
                                                 }
 
                                                 return (
-                                                    <td
-                                                        key={`${day}-${classroom.id}-${slotKey}`}
-                                                        className="px-1 py-1 whitespace-nowrap text-xs border"
-                                                        colSpan={
-                                                            course?.colspan || 1
-                                                        }
-                                                        onDragOver={
-                                                            handleDragOver
-                                                        }
-                                                        onDrop={() =>
-                                                            handleDrop(
-                                                                day,
-                                                                classroom.id.toString(),
-                                                                slotKey
-                                                            )
-                                                        }
-                                                    >
-                                                        {course ? (
-                                                            <div
-                                                                className={`${course.color} p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium`}
-                                                                onClick={() =>
-                                                                    handleScheduledCourseClick(
-                                                                        day,
-                                                                        classroom.id.toString(),
-                                                                        slotKey,
-                                                                        course
-                                                                    )
-                                                                }
-                                                                draggable
-                                                                onDragStart={() =>
-                                                                    handleDragStart(
-                                                                        course
-                                                                    )
-                                                                }
-                                                            >
-                                                                {course.code}
-                                                            </div>
-                                                        ) : (
-                                                            <div className="h-6 w-full" />
-                                                        )}
-                                                    </td>
+                                                   <td
+    key={`${day}-${classroom.id}-${slotKey}`}
+    className="px-1 py-1 whitespace-nowrap text-xs border relative"
+    colSpan={course?.colspan || 1}
+    onDragOver={handleDragOver}
+    onDrop={() => handleDrop(day, classroom.id.toString(), slotKey)}
+    onMouseEnter={() => draggedCourse && setHoveredCell({
+        day, 
+        time: slotKey, 
+        classroom: classroom.id.toString(),
+        index: timeSlots.findIndex(ts => getTimeSlotKey(ts) === slotKey)
+    })}
+    onMouseLeave={() => setHoveredCell(null)}
+>
+{/* Hover preview - shows conflicts and time slots */}
+{hoveredCell?.day === day && 
+ hoveredCell?.time === slotKey && 
+ hoveredCell?.classroom === classroom.id.toString() && 
+ draggedCourse && 
+ !course && (
+    <div className="absolute z-50 -top-2 left-full ml-1 bg-gray-900 text-white shadow-lg p-2 rounded text-xs whitespace-nowrap">
+        <div className="font-semibold mb-1">{draggedCourse.code} - {draggedCourse.duration}hr{draggedCourse.duration > 1 ? 's' : ''}</div>
+        
+        {/* Check constraints */}
+        {(() => {
+            const check = checkInstructorConstraints(draggedCourse, day, hoveredCell.index, draggedCourse.duration);
+            if (!check.isValid) {
+                return <div className="text-red-400 mb-1">⚠️ {check.conflictMessage}</div>;
+            }
+        })()}
+        
+        {/* Show time slots */}
+        <div className="space-y-0.5">
+            {Array.from({length: draggedCourse.duration}, (_, i) => {
+                const slotIndex = hoveredCell.index + i;
+                if (slotIndex < timeSlots.length) {
+                    const slot = timeSlots[slotIndex];
+                    const occupied = schedule[`${day}-${classroom.id}-${getTimeSlotKey(slot)}`];
+                    return (
+                        <div key={i} className={occupied ? "text-red-400" : "text-green-400"}>
+                            {slot.time_slot || slot.startTime} {occupied ? `(${occupied.code})` : '✓'}
+                        </div>
+                    );
+                }
+                return <div key={i} className="text-red-400">Out of bounds</div>;
+            })}
+        </div>
+    </div>
+)}
+    
+    {/* Existing course display code stays the same */}
+    {course ? (
+        <div
+            className={`${course.color} p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium`}
+            onClick={() => handleScheduledCourseClick(day, classroom.id.toString(), slotKey, course)}
+            draggable
+            onDragStart={() => handleDragStart(course)}
+        >
+            {course.code}
+        </div>
+    ) : (
+        <div className="h-6 w-full" />
+    )}
+</td>
                                                 );
                                             })
                                         )}
