@@ -1588,6 +1588,140 @@ export default function TimetableViewClassroom() {
         }
     };
 
+// Helper function to convert time to period number
+const getTimePeriod = (timeSlot: string): number => {
+    if (!timeSlot) return 0;
+    const timeSlotIndex = timeSlots.findIndex(ts => getTimeSlotKey(ts) === timeSlot);
+    return timeSlotIndex !== -1 ? timeSlotIndex + 1 : 0;
+};
+
+// Helper function to convert full day name to abbreviation
+const getDayAbbreviation = (day: string): string => {
+    const dayMap: Record<string, string> = {
+        'Monday': 'Mon',
+        'Tuesday': 'Tue', 
+        'Wednesday': 'Wed',
+        'Thursday': 'Thu',
+        'Friday': 'Fri',
+        'Saturday': 'Sat',
+        'Sunday': 'Sun'
+    };
+    return dayMap[day] || day;
+};
+
+// FIXED: Main export function for old system format as CSV
+const exportOldSystemFormat = () => {
+    try {
+        console.log('=== EXPORT DEBUG START ===');
+        console.log('Schedule object:', schedule);
+        console.log('Schedule keys:', Object.keys(schedule));
+        console.log('Time slots:', timeSlots);
+        
+        // Check if schedule has data
+        if (!schedule || Object.keys(schedule).length === 0) {
+            showMessage('error', 'No schedule data to export. Please generate or create a schedule first.');
+            return;
+        }
+
+        // Get all assigned courses (only start cells to avoid duplicates)
+        const assignedCourses = Object.values(schedule).filter(course => {
+            const isStart = course.isStart === true || course.isStart === undefined; // Handle both cases
+            console.log(`Course ${course.code}: isStart=${course.isStart}, including=${isStart}`);
+            return isStart;
+        });
+
+        console.log('Assigned courses found:', assignedCourses.length);
+        console.log('Assigned courses:', assignedCourses);
+
+        if (assignedCourses.length === 0) {
+            showMessage('error', 'No assigned courses found to export.');
+            return;
+        }
+
+        // Prepare CSV data
+        const csvData: any[] = [];
+        
+        assignedCourses.forEach(course => {
+            console.log('Processing course:', course);
+            
+            const dayAbbr = getDayAbbreviation(course.day || '');
+            const startPeriod = getTimePeriod(course.startTime || '');
+            const isOnline = !course.room || course.room === 'TBA' || course.room === '';
+            const type = isOnline ? 'online' : 'offline';
+            
+            console.log(`Course ${course.code}: day=${dayAbbr}, startPeriod=${startPeriod}, duration=${course.duration}, type=${type}`);
+            
+            // Generate periods for the course duration
+            const periods: string[] = [];
+            for (let i = 0; i < course.duration; i++) {
+                const period = startPeriod + i;
+                const roomPart = isOnline ? '' : `${course.room}.`;
+                const formatStr = `[${roomPart}${dayAbbr}.${period}.${type}]`;
+                periods.push(formatStr);
+            }
+            
+            // Add to CSV data
+            csvData.push({
+                course_code: course.code,
+                course_name: course.name,
+                instructor: course.instructor,
+                day: course.day,
+                room: course.room || 'Online',
+                start_time: course.startTime,
+                end_time: course.endTime,
+                duration: course.duration,
+                format: periods.join(', ')
+            });
+        });
+
+        console.log('CSV data prepared:', csvData);
+
+        if (csvData.length === 0) {
+            showMessage('error', 'No data to export after processing.');
+            return;
+        }
+
+        // Convert to CSV string
+        const headers = ['course_code', 'course_name', 'instructor', 'day', 'room', 'start_time', 'end_time', 'duration', 'format'];
+        const csvRows = [
+            headers.join(','),
+            ...csvData.map(row => 
+                headers.map(header => {
+                    const value = row[header] || '';
+                    // Escape commas and quotes
+                    if (value.toString().includes(',') || value.toString().includes('"')) {
+                        return `"${value.toString().replace(/"/g, '""')}"`;
+                    }
+                    return value;
+                }).join(',')
+            )
+        ];
+
+        const csvContent = csvRows.join('\n');
+        console.log('Final CSV content:', csvContent);
+
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        
+        const today = new Date().toISOString().split('T')[0];
+        link.setAttribute('download', `schedule_export_${today}.csv`);
+        
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log('=== EXPORT DEBUG END ===');
+        showMessage('success', `Schedule exported successfully! ${csvData.length} courses exported.`);
+        
+    } catch (error) {
+        console.error('Export error:', error);
+        showMessage('error', `Failed to export schedule: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+};
     return (
         <div className="relative min-h-screen">
             <div className="flex justify-between items-center mb-8">
@@ -1610,13 +1744,13 @@ export default function TimetableViewClassroom() {
                     </Button>
                     <Button className= "bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors" onClick={saveAllAssignments}>Save All</Button>
                     <Button
-                        // onClick={downloadInstructorsCSV}
-                        variant="outline"
-                        className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
-                        // disabled={}
-                    >
-                        <Download className="mr-1 h-3 w-3" /> Export CSV
-                    </Button>
+    onClick={exportOldSystemFormat}
+    variant="outline"
+    className="border-purple-600 text-purple-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md"
+    disabled={Object.keys(schedule).length === 0}
+>
+    <Download className="mr-1 h-3 w-3" /> Export CSV
+</Button>
                 </div>
             </div>
 
