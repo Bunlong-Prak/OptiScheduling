@@ -1107,7 +1107,7 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                     course.code,
                     course.title,
                     course.major || "",
-                    colorName, // Now this variable exists
+                    colorName,
                     course.status || "offline",
                     course.duration.toString(),
                     course.capacity.toString(),
