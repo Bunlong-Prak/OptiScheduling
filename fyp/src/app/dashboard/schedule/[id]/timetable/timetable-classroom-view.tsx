@@ -1744,7 +1744,7 @@ const exportOldSystemFormat = () => {
                             ? "Generating..."
                             : "Auto-Generate Schedule"}
                     </Button>
-                    <Button className= " text-white px-6 py-2.5 rounded font-medium transition-colors" onClick={saveAllAssignments}>Save All</Button>
+                    <Button className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors" onClick={saveAllAssignments}>Save All</Button>
                     <Button
     onClick={exportOldSystemFormat}
     variant="outline"

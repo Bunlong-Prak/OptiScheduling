@@ -6,6 +6,8 @@ import {
     ColorSelectItem,
     ColorSelectTrigger,
     getColorName,
+    getHexFromColorName,
+    getColorNameFromHex,  // Add this
 } from "@/components/custom/colors";
 import CustomPagination from "@/components/custom/pagination";
 import { Button } from "@/components/ui/button";
@@ -49,6 +51,7 @@ import {
 import { useParams } from "next/navigation";
 import Papa from "papaparse";
 import { useEffect, useState } from "react";
+
 // Number of courses to show per page
 const ITEMS_PER_PAGE = 15;
 
@@ -69,14 +72,14 @@ export default function CoursesView() {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-    const [sections, setSections] = useState<
-        {
-            id: number;
-            section_id: string;
-            instructor_id?: string;
-            instructor_name?: string;
-        }[]
-    >([]);
+ // Update sections state structure to include status
+const [sections, setSections] = useState<{
+    id: number;
+    section_id: string;
+    instructor_id?: string;
+    instructor_name?: string;
+    status: string; // Add this
+}[]>([]);
     const [currentSection, setCurrentSection] = useState("");
     const [currentInstructor, setCurrentInstructor] = useState<{
         id: string;
@@ -274,17 +277,16 @@ export default function CoursesView() {
     // Function to add a section with instructor
     const addSection = () => {
         if (!currentSection) return;
-
+    
         const newSection = {
-            id: Date.now(), // Using timestamp for unique ID
+            id: Date.now(),
             section_id: currentSection,
             instructor_id: currentInstructor?.id ?? undefined,
             instructor_name: currentInstructor?.name ?? undefined,
+            status: "offline", // Add this line
         };
-
+    
         setSections([...sections, newSection]);
-
-        // Reset inputs
         setCurrentSection("");
         setCurrentInstructor(null);
     };
@@ -314,6 +316,16 @@ export default function CoursesView() {
         );
         setFormData({ ...formData });
     };
+    // Add this function after updateSectionInstructor
+const updateSectionStatus = (sectionId: number, status: string) => {
+    setSections(
+        sections.map((section) =>
+            section.id === sectionId
+                ? { ...section, status: status }
+                : section
+        )
+    );
+};
 
     const removeSection = (id: number) => {
         setSections(sections.filter((section) => section.id !== id));
@@ -339,6 +351,7 @@ export default function CoursesView() {
             const sectionsList = sections.map((item) => ({
                 section: item.section_id,
                 instructorId: item.instructor_id || null,
+                status: item.status || "offline", // CORRECT
             }));
 
             // Create API payload with the base course data, the major, and schedule ID
@@ -346,8 +359,8 @@ export default function CoursesView() {
                 code: formData.code,
                 title: formData.title,
                 majorsList: [selectedMajor], // Send as an array with one element
-                color: formData.color,
-                status: formData.status,
+                color: getHexFromColorName(formData.color), // Convert to hex
+                // status: formData.status,
                 duration: Number(formData.duration),
                 capacity: Number(formData.capacity),
                 sectionsList: sectionsList, // Now includes instructor IDs per section
@@ -431,15 +444,14 @@ export default function CoursesView() {
             const sectionsList = sections.map((item) => ({
                 section: item.section_id,
                 instructorId: item.instructor_id || null,
+                status: item.status || "offline", // CORRECT
             }));
-
             // Pre-validate all required fields
             if (
                 !formData.title ||
                 !formData.code ||
                 !selectedMajor ||
-                !formData.color ||
-                !formData.status
+                !formData.color
             ) {
                 setStatusMessage({
                     text: "All course fields are required",
@@ -454,8 +466,8 @@ export default function CoursesView() {
                 code: formData.code,
                 title: formData.title,
                 majorsList: [selectedMajor], // Send as an array with one element
-                color: formData.color,
-                status: formData.status,
+                color: getHexFromColorName(formData.color), // Convert to hex
+                // status: formData.status,
                 duration: Number(formData.duration) || 1,
                 capacity: Number(formData.capacity) || 1,
                 sectionsList: sectionsList, // Now includes instructor IDs per section
@@ -611,8 +623,8 @@ export default function CoursesView() {
                 id: 1,
                 section_id: course.section,
                 instructor_id: course.instructorId,
-                instructor_name:
-                    instructorName !== "" ? instructorName : undefined,
+                instructor_name: instructorName !== "" ? instructorName : undefined,
+                status: course.status || "offline", // Add this line
             },
         ]);
 
@@ -929,6 +941,7 @@ export default function CoursesView() {
                                     return {
                                         section: courseSection.section,
                                         instructorId: instructorId,
+                                        status: courseSection.status,
                                     };
                                 }
                             );
@@ -937,7 +950,7 @@ export default function CoursesView() {
                                 code: baseCourse.code,
                                 title: baseCourse.title,
                                 majorsList: [baseCourse.major],
-                                color: baseCourse.color,
+                                color: getHexFromColorName(formData.color), // Convert to hex
                                 status: baseCourse.status,
                                 duration: Number(baseCourse.duration),
                                 capacity: Number(baseCourse.capacity),
@@ -1086,12 +1099,15 @@ export default function CoursesView() {
                     `${course.firstName || ""} ${
                         course.lastName || ""
                     }`.trim() || "";
-
+            
+                // Convert hex color back to color name for CSV
+                const colorName = getColorNameFromHex(course.color || "");
+            
                 csvRows.push([
                     course.code,
                     course.title,
                     course.major || "",
-                    course.color || "",
+                    colorName, // Now this variable exists
                     course.status || "offline",
                     course.duration.toString(),
                     course.capacity.toString(),
@@ -1421,32 +1437,7 @@ export default function CoursesView() {
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label
-                                    htmlFor="status"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    Status
-                                </Label>
-                                <Select
-                                    value={formData?.status || ""}
-                                    onValueChange={(value) =>
-                                        handleSelectChange("status", value)
-                                    }
-                                >
-                                    <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
-                                        <SelectValue placeholder="Select status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="online">
-                                            Online
-                                        </SelectItem>
-                                        <SelectItem value="offline">
-                                            Offline
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                      
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="color"
@@ -1589,6 +1580,7 @@ export default function CoursesView() {
                                                                                     instructor.id.toString(),
                                                                                     `${instructor.first_name} ${instructor.last_name}`
                                                                                 );
+                                                                                
                                                                             }}
                                                                         >
                                                                             <Check
@@ -1613,8 +1605,24 @@ export default function CoursesView() {
                                                     </PopoverContent>
                                                 </Popover>
                                             </div>
+                                            <div className="mt-2">
+            <Label className="text-xs text-gray-700">Status</Label>
+            <Select
+                value={section.status || "offline"}
+                onValueChange={(value) => updateSectionStatus(section.id, value)}
+            >
+                <SelectTrigger className="mt-1 text-sm border-gray-300">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="offline">Offline</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
                                         </div>
                                     ))}
+                                    
                                 </div>
                             )}
 
@@ -1711,6 +1719,7 @@ export default function CoursesView() {
                                             </PopoverContent>
                                         </Popover>
                                     </div>
+                                
                                 </div>
                                 <Button
                                     onClick={addSection}
@@ -1828,32 +1837,7 @@ export default function CoursesView() {
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label
-                                    htmlFor="edit-status"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    Status
-                                </Label>
-                                <Select
-                                    value={formData?.status || ""}
-                                    onValueChange={(value) =>
-                                        handleSelectChange("status", value)
-                                    }
-                                >
-                                    <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
-                                        <SelectValue placeholder="Select status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="online">
-                                            Online
-                                        </SelectItem>
-                                        <SelectItem value="offline">
-                                            Offline
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                         
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="edit-color"
@@ -2029,6 +2013,21 @@ export default function CoursesView() {
                                                     </PopoverContent>
                                                 </Popover>
                                             </div>
+                                            <div className="mt-2">
+            <Label className="text-xs text-gray-700">Status</Label>
+            <Select
+                value={section.status || "offline"}
+                onValueChange={(value) => updateSectionStatus(section.id, value)}
+            >
+                <SelectTrigger className="mt-1 text-sm border-gray-300">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="offline">Offline</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
                                         </div>
                                     ))}
                                 </div>
@@ -2126,7 +2125,9 @@ export default function CoursesView() {
                                                 </Command>
                                             </PopoverContent>
                                         </Popover>
+                                        
                                     </div>
+                                    
                                 </div>
                                 <Button
                                     onClick={addSection}

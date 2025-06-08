@@ -33,6 +33,45 @@ export const colors = [
     "tan",
     "khaki",
 ];
+// Add this to your colors.ts file:
+export const colorNameToHex: Record<string, string> = {
+    blue: "#3B82F6",
+    green: "#22C55E", 
+    yellow: "#EAB308",
+    red: "#EF4444",
+    purple: "#A855F7",
+    orange: "#F97316",
+    pink: "#EC4899",
+    indigo: "#6366F1",
+    turquoise: "#14B8A6",
+    teal: "#0D9488",
+    lavender: "#C4B5FD",
+    ivory: "#FFFBEB",
+    mustard: "#CA8A04",
+    white: "#FFFFFF",
+    grey: "#6B7280",
+    coral: "#FB7185",
+    amber: "#F59E0B",
+    mint: "#6EE7B7",
+    emerald: "#10B981",
+    periwinkle: "#93C5FD",
+    cyan: "#22D3EE",
+    magenta: "#EC4899",
+    beige: "#F5F5DC",
+    gold: "#FFD700",
+    silver: "#C0C0C0",
+    peach: "#FFCBA4",
+    rose: "#FB7185",
+    crimson: "#DC143C",
+    lilac: "#DDA0DD",
+    salmon: "#FA8072",
+    tan: "#D2B48C",
+    khaki: "#F0E68C",
+};
+
+export const getHexFromColorName = (colorName: string): string => {
+    return colorNameToHex[colorName] || "#6B7280"; // Default to gray if not found
+};
 
 export const colors_class: Record<string, string> = {
     blue: "bg-blue-200 hover:bg-blue-300 border-blue-400",
@@ -148,3 +187,13 @@ export const ColorSelectTrigger = ({ value, placeholder }: { value?: string, pla
         )}
     </SelectTrigger>
 );
+// Add this to colors.ts
+export const getColorNameFromHex = (hexColor: string): string => {
+    // Reverse lookup: find color name from hex value
+    for (const [colorName, hexValue] of Object.entries(colorNameToHex)) {
+        if (hexValue.toLowerCase() === hexColor.toLowerCase()) {
+            return colorName;
+        }
+    }
+    return "gray"; // Default fallback
+};
