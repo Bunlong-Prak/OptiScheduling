@@ -94,6 +94,7 @@ type Course = {
         number: string;
         classroom_id: number | null;
         instructor_id: number;
+        status?: string | null;
     }[];
 };
 
@@ -275,6 +276,7 @@ async function fetchCourses(schedule_id: number): Promise<Course[]> {
                     number: sections.number,
                     classroom_id: sections.classroomId,
                     instructor_id: sections.instructorId,
+                    status: sections.status,
                 })
                 .from(sections)
                 .where(eq(sections.courseId, course.id));
@@ -558,6 +560,7 @@ function initializeScheduleGrid(
 ): ScheduleGrid {
     const grid = new Map<string, Slot>();
 
+    // Add physical classrooms
     for (const classroom of classroomsData) {
         for (const day of DAYS) {
             for (const timeSlot of timeSlots) {
@@ -566,6 +569,22 @@ function initializeScheduleGrid(
                     day,
                     timeSlot,
                     classroom_id: classroom.id,
+                    isAvailable: true,
+                });
+            }
+        }
+    }
+
+    // Add virtual online classrooms with negative IDs
+    const onlineClassroomIds = [-1, -2, -3];
+    for (const onlineId of onlineClassroomIds) {
+        for (const day of DAYS) {
+            for (const timeSlot of timeSlots) {
+                const key = `${day}-${onlineId}-${timeSlot}`;
+                grid.set(key, {
+                    day,
+                    timeSlot,
+                    classroom_id: onlineId,
                     isAvailable: true,
                 });
             }
@@ -581,13 +600,24 @@ function assignClassroomToSection(
 ): number | null {
     console.log(`Assigning classroom to section ${section.number}`);
 
-    // Filter suitable classrooms based on capacity or other criteria
+    // Check if the section is online
+    if (section.status === "online") {
+        // Randomly assign to one of the 3 online "classrooms" using negative IDs
+        const onlineClassroomIds = [-1, -2, -3];
+        const randomIndex = Math.floor(
+            Math.random() * onlineClassroomIds.length
+        );
+        console.log(
+            `Assigned online section to Online Classroom ${Math.abs(
+                onlineClassroomIds[randomIndex]
+            )}`
+        );
+        return onlineClassroomIds[randomIndex];
+    }
+
+    // For offline courses, proceed with normal classroom assignment
     const suitableClassrooms = classroomsData.filter(
         (classroom) => classroom.capacity >= (section.course.capacity || 0)
-    );
-
-    console.log(
-        `Suitable classrooms: ${suitableClassrooms.length}/${classroomsData.length}`
     );
 
     if (suitableClassrooms.length === 0) {
@@ -595,17 +625,8 @@ function assignClassroomToSection(
         return null;
     }
 
-    // Randomly select from suitable classrooms
     const randomIndex = Math.floor(Math.random() * suitableClassrooms.length);
     const assignedClassroom = suitableClassrooms[randomIndex];
-
-    console.log(
-        `🎲 Randomly assigned suitable classroom: ${
-            assignedClassroom.code
-        } (ID: ${assignedClassroom.id}) - Index ${randomIndex}/${
-            suitableClassrooms.length - 1
-        }`
-    );
 
     return assignedClassroom.id;
 }
@@ -634,7 +655,15 @@ function scheduleSection(
     const classroom = classroomsData.find(
         (cls) => cls.id === section.classroom_id
     );
-    const classroomCode = classroom ? classroom.code : "Unknown";
+    const classroomCode = classroom
+        ? classroom.code
+        : section.classroom_id === -1
+        ? "Online 1"
+        : section.classroom_id === -2
+        ? "Online 2"
+        : section.classroom_id === -3
+        ? "Online 3"
+        : "Unknown";
 
     // Get instructor constraints
     const instructorConstraints = timeConstraints.filter(

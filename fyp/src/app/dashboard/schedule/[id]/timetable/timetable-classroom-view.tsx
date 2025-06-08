@@ -634,15 +634,19 @@ export default function TimetableViewClassroom() {
                 );
                 if (response.ok) {
                     const data = await response.json();
-                    // Use classrooms directly without adding extra fields
-                    setClassrooms(data);
-                } else {
-                    console.error("Failed to fetch classrooms");
-                    setClassrooms([]);
+                    
+                    // Add virtual online classrooms with special negative IDs
+                    const virtualOnlineClassrooms = [
+                        { id: -1, code: 'Online 1', capacity: 999 },
+                        { id: -2, code: 'Online 2', capacity: 999 },
+                        { id: -3, code: 'Online 3', capacity: 999 }
+                    ];
+                    
+                    // Combine physical and virtual classrooms
+                    setClassrooms([...data, ...virtualOnlineClassrooms]);
                 }
             } catch (error) {
                 console.error("Error fetching classrooms:", error);
-                setClassrooms([]);
             }
         };
 
@@ -1116,6 +1120,29 @@ export default function TimetableViewClassroom() {
         if (!draggedCourse || timeSlots.length === 0) return;
 
         console.log("Dropping course on slot:", timeSlot);
+        const isOnlineClassroom = parseInt(classroomId) < 0;
+        const isCourseOnline = draggedCourse.room && (
+            draggedCourse.room.startsWith('Online') || 
+            draggedCourse.room === 'TBA' ||
+            draggedCourse.room === ''
+        );
+// Prevent online courses from being assigned to physical classrooms
+if (isCourseOnline && !isOnlineClassroom) {
+    showMessage(
+        "error",
+        "Online courses cannot be assigned to physical classrooms. Please use the Online rows."
+    );
+    return;
+}
+
+// Prevent offline courses from being assigned to online rows
+if (!isCourseOnline && isOnlineClassroom) {
+    showMessage(
+        "error", 
+        "Physical courses cannot be assigned to online rows. Please use a physical classroom."
+    );
+    return;
+}    
 
         // Find the time slot that matches the drop location
         const matchingTimeSlot = timeSlots.find(
@@ -1886,9 +1913,13 @@ const exportOldSystemFormat = () => {
                                                 : "bg-white"
                                         }
                                     >
-                                        <td className="px-4 py-2 whitespace-nowrap text-sm font-medium border text-gray-700">
-                                            {classroom.code}
-                                        </td>
+                                     <td className={`px-4 py-2 whitespace-nowrap text-sm font-medium border ${
+    classroom.id < 0 
+        ? 'bg-blue-50 text-blue-700 italic' 
+        : 'text-gray-700'
+}`}>
+    {classroom.code}
+</td>
                                         {days.map((day) =>
                                             timeSlots.map((slot) => {
                                                 const slotKey =
@@ -1926,6 +1957,23 @@ const exportOldSystemFormat = () => {
  !course && (
     <div className="absolute z-50 -top-2 left-full ml-1 bg-gray-900 text-white shadow-lg p-2 rounded text-xs whitespace-nowrap">
         <div className="font-semibold mb-1">{draggedCourse.code} - {draggedCourse.duration}hr{draggedCourse.duration > 1 ? 's' : ''}</div>
+        
+        {/* NEW: Check online/offline compatibility */}
+        {(() => {
+            const isOnlineClassroom = classroom.id < 0;
+            const isCourseOnline = draggedCourse.room && (
+                draggedCourse.room.startsWith('Online') || 
+                draggedCourse.room === 'TBA' ||
+                draggedCourse.room === ''
+            );
+            
+            if (isCourseOnline && !isOnlineClassroom) {
+                return <div className="text-red-400 mb-1">⚠️ Online courses cannot be assigned to physical classrooms</div>;
+            }
+            if (!isCourseOnline && isOnlineClassroom) {
+                return <div className="text-red-400 mb-1">⚠️ Physical courses cannot be assigned to online rows</div>;
+            }
+        })()}
         
         {/* Check constraints */}
         {(() => {
