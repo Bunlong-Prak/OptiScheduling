@@ -10,6 +10,7 @@ import {
     ScheduleResponse,
     TimetableCourse,
 } from "@/app/types";
+
 import {
     colors_class,
     getConsistentCourseColor,
@@ -26,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import {
     AlertCircle,
     CheckCircle2,
+    GripVertical, 
     Download,
     Minus,
     Plus,
@@ -66,6 +68,15 @@ interface InstructorTimeConstraint {
     firstName: string;
     lastName: string;
 }
+interface DragState {
+    isDragOver: boolean;
+    isValidDrop: boolean;
+}
+
+interface CellDragState {
+    [key: string]: DragState;
+}
+
 
 // Add type for messages
 interface Message {
@@ -121,7 +132,8 @@ export default function TimetableViewClassroom() {
         scheduledAssignments: number;
         constraintsApplied: number;
     } | null>(null);
-
+// Add this with your other useState declarations:
+const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver: boolean; isValidDrop: boolean}}>({});
     // NEW: Search functionality state
     const [searchQuery, setSearchQuery] = useState("");
     const [isSearchActive, setIsSearchActive] = useState(false);
@@ -400,14 +412,13 @@ export default function TimetableViewClassroom() {
 
     // NEW: Course split dialog functions
     const handleCourseClick = (course: TimetableCourse) => {
+        // Only open split dialog for multi-hour courses, don't set as draggable
         if (course.duration > 1) {
             setCourseSplitConfig({ course, splits: [] });
-            setSplitDurations([course.duration]); // Start with original duration
+            setSplitDurations([course.duration]);
             setIsSplitDialogOpen(true);
-        } else {
-            // For 1-hour courses, directly set as draggable
-            setDraggedCourse(course);
         }
+        // Remove the else clause completely - let drag handle single-hour courses
     };
 
     const addSplit = () => {
@@ -958,14 +969,11 @@ assignmentsData.forEach((assignment: any) => {
     // Handle drag start
     const handleDragStart = (course: TimetableCourse) => {
         setDraggedCourse(course);
+        // Clear any existing cell drag states
+        setCellDragStates({});
     };
 
-    // Handle drag over
-    const handleDragOver = (
-        e: React.DragEvent<HTMLTableCellElement | HTMLDivElement>
-    ) => {
-        e.preventDefault();
-    };
+
 
     // Handle drag over for available courses section
     const handleAvailableDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -1129,6 +1137,7 @@ const saveAllAssignments = async () => {
             draggedCourse.room === 'TBA' ||
             draggedCourse.room === ''
         );
+        
 // Prevent online courses from being assigned to physical classrooms
 if (isCourseOnline && !isOnlineClassroom) {
     showMessage(
@@ -1310,6 +1319,15 @@ if (!isCourseOnline && isOnlineClassroom) {
             // Add to assigned courses
             setAssignedCourses((prev) => [...prev, assignedCourse]);
         }
+        setCellDragStates({});
+        setDraggedCourse(null);
+        setHoveredCell(null);
+        setTimeout(() => {
+            setCellDragStates({});
+            setDraggedCourse(null);
+            setHoveredCell(null);
+        },5);
+        
     };
 
     // Handle course click in timetable - updated to use classroom instead of major
@@ -1639,7 +1657,113 @@ const getDayAbbreviation = (day: string): string => {
     };
     return dayMap[day] || day;
 };
+// 1. Enhanced course card with drag handle
+const checkDropValidity = (day: string, classroomId: string, timeSlot: string): boolean => {
+    if (!draggedCourse || timeSlots.length === 0) return false;
 
+    const key = `${day}-${classroomId}-${timeSlot}`;
+    const existingCourse = schedule[key];
+
+    // If dropping on the same course, allow it
+    if (existingCourse && existingCourse.sectionId === draggedCourse.sectionId) {
+        return true;
+    }
+
+    // If dropping on a different course, don't allow
+    if (existingCourse && existingCourse.sectionId !== draggedCourse.sectionId) {
+        return false;
+    }
+
+    // Check online/offline compatibility
+    const isOnlineClassroom = parseInt(classroomId) < 0;
+    const isCourseOnline = draggedCourse.room && (
+        draggedCourse.room.startsWith('Online') || 
+        draggedCourse.room === 'TBA' ||
+        draggedCourse.room === ''
+    );
+
+    if (isCourseOnline && !isOnlineClassroom) return false;
+    if (!isCourseOnline && isOnlineClassroom) return false;
+
+    // Check if there's enough space for the course duration
+    const matchingTimeSlot = timeSlots.find(ts => getTimeSlotKey(ts) === timeSlot);
+    if (!matchingTimeSlot) return false;
+
+    const timeSlotIndex = timeSlots.indexOf(matchingTimeSlot);
+    const remainingSlots = timeSlots.length - timeSlotIndex;
+
+    if (draggedCourse.duration > remainingSlots) return false;
+
+    // Check for conflicts in subsequent time slots
+    for (let i = 1; i < draggedCourse.duration; i++) {
+        if (timeSlotIndex + i >= timeSlots.length) break;
+        const nextTimeSlot = getTimeSlotKey(timeSlots[timeSlotIndex + i]);
+        const nextKey = `${day}-${classroomId}-${nextTimeSlot}`;
+        if (schedule[nextKey] && schedule[nextKey].sectionId !== draggedCourse.sectionId) {
+            return false;
+        }
+    }
+
+    // *** NEW: Check instructor constraints and conflicts ***
+    const constraintCheck = checkInstructorConstraints(
+        draggedCourse,
+        day,
+        timeSlotIndex,
+        draggedCourse.duration
+    );
+
+    // If instructor constraint check fails, return false
+    if (!constraintCheck.isValid) {
+        return false;
+    }
+
+    return true;
+};
+  // 2. Enhanced drop zone with better feedback
+  const [isDragOver, setIsDragOver] = useState(false);
+  
+ // Enhanced drag over handler (replace your existing handleDragOver function)
+const handleCellDragOver = (
+    e: React.DragEvent<HTMLTableCellElement>,
+    day: string,
+    classroomId: string,
+    timeSlot: string
+) => {
+    e.preventDefault();
+    
+    if (!draggedCourse) return;
+    
+    const cellKey = `${day}-${classroomId}-${timeSlot}`;
+    
+    // Check if drop is valid
+    const isValidDrop = checkDropValidity(day, classroomId, timeSlot);
+    
+    setCellDragStates(prev => ({
+        ...prev,
+        [cellKey]: {
+            isDragOver: true,
+            isValidDrop
+        }
+    }));
+};
+
+const handleCellDragLeave = (
+    e: React.DragEvent<HTMLTableCellElement>,
+    day: string,
+    classroomId: string,
+    timeSlot: string
+) => {
+    const cellKey = `${day}-${classroomId}-${timeSlot}`;
+    
+    setCellDragStates(prev => ({
+        ...prev,
+        [cellKey]: {
+            isDragOver: false,
+            isValidDrop: false
+        }
+    }));
+};
+  
 // FIXED: Main export function for old system format as CSV
 const exportOldSystemFormat = () => {
     try {
@@ -1754,6 +1878,150 @@ const exportOldSystemFormat = () => {
         showMessage('error', `Failed to export schedule: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 };
+// Enhanced table cell rendering (replace your existing table cell code)
+const renderEnhancedTableCell = (day: string, classroom: Classroom, slot: CourseHour) => {
+    const slotKey = getTimeSlotKey(slot);
+    const key = `${day}-${classroom.id}-${slotKey}`;
+    const course = filteredSchedule[key];
+    const cellKey = `${day}-${classroom.id}-${slotKey}`;
+    const dragState = cellDragStates[cellKey] || { isDragOver: false, isValidDrop: false };
+
+    // Skip cells that are part of a multi-hour course but not the start
+    if (course && !course.isStart) {
+        return null;
+    }
+
+    return (
+        <td
+            key={`${day}-${classroom.id}-${slotKey}`}
+            className={`
+                px-1 py-1 whitespace-nowrap text-xs border relative min-h-[60px] transition-all duration-200
+                ${dragState.isDragOver 
+                    ? (dragState.isValidDrop 
+                        ? 'bg-green-50 border-green-300 shadow-inner' 
+                        : 'bg-red-50 border-red-300') 
+                    : 'hover:bg-gray-50'
+                }
+            `}
+            colSpan={course?.colspan || 1}
+            onDragOver={(e) => handleCellDragOver(e, day, classroom.id.toString(), slotKey)}
+            onDragLeave={(e) => handleCellDragLeave(e, day, classroom.id.toString(), slotKey)}
+            onDrop={() => handleDrop(day, classroom.id.toString(), slotKey)}
+            onMouseEnter={() => draggedCourse && setHoveredCell({
+                day, 
+                time: slotKey, 
+                classroom: classroom.id.toString(),
+                index: timeSlots.findIndex(ts => getTimeSlotKey(ts) === slotKey)
+            })}
+            onMouseLeave={() => setHoveredCell(null)}
+        >
+            {/* Drop zone visual indicator */}
+            {dragState.isDragOver && !course && (
+                <div className={`
+                    absolute inset-0 border-2 border-dashed rounded-sm m-1 flex items-center justify-center text-xs font-medium
+                    ${dragState.isValidDrop 
+                        ? 'border-green-400 bg-green-100 text-green-700' 
+                        : 'border-red-400 bg-red-100 text-red-700'
+                    }
+                `}>
+                    {dragState.isValidDrop ? (
+                        <div className="flex items-center">
+                            <span>Drop {draggedCourse?.code}</span>
+                        </div>
+                    ) : (
+                        <span>Cannot drop here</span>
+                    )}
+                </div>
+            )}
+
+            {/* Drag preview for valid drops */}
+            {dragState.isDragOver && dragState.isValidDrop && draggedCourse && !course && (
+                <div className="absolute inset-0 pointer-events-none z-10">
+                    <div className={`${draggedCourse.color} opacity-60 rounded m-1 p-1 border-2 border-dashed border-blue-400`}>
+                        <div className="font-semibold text-xs">{draggedCourse.code}</div>
+                      
+                    </div>
+                </div>
+            )}
+
+            {/* Existing hover preview code */}
+            {hoveredCell?.day === day && 
+ hoveredCell?.time === slotKey && 
+ hoveredCell?.classroom === classroom.id.toString() && 
+ draggedCourse && 
+ !course && 
+ !dragState.isDragOver && (
+    <div className="absolute z-50 -top-2 left-full ml-1 bg-gray-900 text-white shadow-lg p-2 rounded text-xs whitespace-nowrap max-w-xs">
+        <div className="font-semibold mb-1">{draggedCourse.code} - {draggedCourse.duration}hr{draggedCourse.duration > 1 ? 's' : ''}</div>
+        
+        {/* Online/Offline compatibility check */}
+        {(() => {
+            const isOnlineClassroom = classroom.id < 0;
+            const isCourseOnline = draggedCourse.room && (
+                draggedCourse.room.startsWith('Online') || 
+                draggedCourse.room === 'TBA' ||
+                draggedCourse.room === ''
+            );
+            
+            if (isCourseOnline && !isOnlineClassroom) {
+                return <div className="text-red-400 mb-1">⚠️ Online courses cannot be assigned to physical classrooms</div>;
+            }
+            if (!isCourseOnline && isOnlineClassroom) {
+                return <div className="text-red-400 mb-1">⚠️ Physical courses cannot be assigned to online rows</div>;
+            }
+        })()}
+        
+        {/* Instructor constraint check with detailed message */}
+        {(() => {
+            const check = checkInstructorConstraints(draggedCourse, day, hoveredCell.index, draggedCourse.duration);
+            if (!check.isValid) {
+                return (
+                    <div className="text-red-400 mb-1 whitespace-normal">
+                        ⚠️ {check.conflictMessage}
+                    </div>
+                );
+            } else {
+                return <div className="text-green-400 mb-1">✓ Instructor available</div>;
+            }
+        })()}
+        
+        {/* Time slot availability */}
+        <div className="space-y-0.5">
+            <div className="text-xs text-gray-300 mb-1">Time slots:</div>
+            {Array.from({length: draggedCourse.duration}, (_, i) => {
+                const slotIndex = hoveredCell.index + i;
+                if (slotIndex < timeSlots.length) {
+                    const slot = timeSlots[slotIndex];
+                    const occupied = schedule[`${day}-${classroom.id}-${getTimeSlotKey(slot)}`];
+                    return (
+                        <div key={i} className={occupied ? "text-red-400" : "text-green-400"}>
+                            {slot.time_slot || slot.startTime} {occupied ? `(${occupied.code})` : '✓'}
+                        </div>
+                    );
+                }
+                return <div key={i} className="text-red-400">Out of bounds</div>;
+            })}
+        </div>
+    </div>
+)}
+            
+            {/* Existing course display */}
+            {course ? (
+                <div
+                    className={`${course.color} p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium hover:shadow-md`}
+                    onClick={() => handleScheduledCourseClick(day, classroom.id.toString(), slotKey, course)}
+                    draggable
+                    onDragStart={() => handleDragStart(course)}
+                >
+                    {course.code}
+                </div>
+            ) : (
+                <div className="h-6 w-full" />
+            )}
+        </td>
+    );
+};
+
     return (
         <div className="relative min-h-screen">
             <div className="flex justify-between items-center mb-8">
@@ -1907,124 +2175,32 @@ const exportOldSystemFormat = () => {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {classrooms.map((classroom, index) => (
-                                    <tr
-                                        key={classroom.id}
-                                        className={
-                                            index % 2 === 0
-                                                ? "bg-white"
-                                                : "bg-white"
-                                        }
-                                    >
-                                     <td className={`px-4 py-2 whitespace-nowrap text-sm font-medium border ${
-    classroom.id < 0 
-        ? 'bg-blue-50 text-blue-700 italic' 
-        : 'text-gray-700'
-}`}>
-    {classroom.code}
-</td>
-                                        {days.map((day) =>
-                                            timeSlots.map((slot) => {
-                                                const slotKey =
-                                                    getTimeSlotKey(slot);
-                                                const key = `${day}-${classroom.id}-${slotKey}`;
-                                                // UPDATED: Use filtered schedule instead of full schedule
-                                                const course =
-                                                    filteredSchedule[key];
-
-                                                // Skip cells that are part of a multi-hour course but not the start
-                                                if (course && !course.isStart) {
-                                                    return null;
-                                                }
-
-                                                return (
-                                                   <td
-    key={`${day}-${classroom.id}-${slotKey}`}
-    className="px-1 py-1 whitespace-nowrap text-xs border relative"
-    colSpan={course?.colspan || 1}
-    onDragOver={handleDragOver}
-    onDrop={() => handleDrop(day, classroom.id.toString(), slotKey)}
-    onMouseEnter={() => draggedCourse && setHoveredCell({
-        day, 
-        time: slotKey, 
-        classroom: classroom.id.toString(),
-        index: timeSlots.findIndex(ts => getTimeSlotKey(ts) === slotKey)
-    })}
-    onMouseLeave={() => setHoveredCell(null)}
->
-{/* Hover preview - shows conflicts and time slots */}
-{hoveredCell?.day === day && 
- hoveredCell?.time === slotKey && 
- hoveredCell?.classroom === classroom.id.toString() && 
- draggedCourse && 
- !course && (
-    <div className="absolute z-50 -top-2 left-full ml-1 bg-gray-900 text-white shadow-lg p-2 rounded text-xs whitespace-nowrap">
-        <div className="font-semibold mb-1">{draggedCourse.code} - {draggedCourse.duration}hr{draggedCourse.duration > 1 ? 's' : ''}</div>
-        
-        {/* NEW: Check online/offline compatibility */}
-        {(() => {
-            const isOnlineClassroom = classroom.id < 0;
-            const isCourseOnline = draggedCourse.room && (
-                draggedCourse.room.startsWith('Online') || 
-                draggedCourse.room === 'TBA' ||
-                draggedCourse.room === ''
-            );
-            
-            if (isCourseOnline && !isOnlineClassroom) {
-                return <div className="text-red-400 mb-1">⚠️ Online courses cannot be assigned to physical classrooms</div>;
+    {classrooms.map((classroom, index) => (
+        <tr
+            key={classroom.id}
+            className={
+                index % 2 === 0
+                    ? "bg-white"
+                    : "bg-white"
             }
-            if (!isCourseOnline && isOnlineClassroom) {
-                return <div className="text-red-400 mb-1">⚠️ Physical courses cannot be assigned to online rows</div>;
-            }
-        })()}
-        
-        {/* Check constraints */}
-        {(() => {
-            const check = checkInstructorConstraints(draggedCourse, day, hoveredCell.index, draggedCourse.duration);
-            if (!check.isValid) {
-                return <div className="text-red-400 mb-1">⚠️ {check.conflictMessage}</div>;
-            }
-        })()}
-        
-        {/* Show time slots */}
-        <div className="space-y-0.5">
-            {Array.from({length: draggedCourse.duration}, (_, i) => {
-                const slotIndex = hoveredCell.index + i;
-                if (slotIndex < timeSlots.length) {
-                    const slot = timeSlots[slotIndex];
-                    const occupied = schedule[`${day}-${classroom.id}-${getTimeSlotKey(slot)}`];
-                    return (
-                        <div key={i} className={occupied ? "text-red-400" : "text-green-400"}>
-                            {slot.time_slot || slot.startTime} {occupied ? `(${occupied.code})` : '✓'}
-                        </div>
-                    );
-                }
-                return <div key={i} className="text-red-400">Out of bounds</div>;
-            })}
-        </div>
-    </div>
-)}
-    
-    {/* Existing course display code stays the same */}
-    {course ? (
-        <div
-            className={`${course.color} p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium`}
-            onClick={() => handleScheduledCourseClick(day, classroom.id.toString(), slotKey, course)}
-            draggable
-            onDragStart={() => handleDragStart(course)}
         >
-            {course.code}
-        </div>
-    ) : (
-        <div className="h-6 w-full" />
-    )}
-</td>
-                                                );
-                                            })
-                                        )}
-                                    </tr>
-                                ))}
-                            </tbody>
+            <td className={`px-4 py-2 whitespace-nowrap text-sm font-medium border ${
+                classroom.id < 0 
+                    ? 'bg-blue-50 text-blue-700 italic' 
+                    : 'text-gray-700'
+            }`}>
+                {classroom.code}
+            </td>
+            
+            {/* NEW: Replace the old mapping with this */}
+            {days.map((day) =>
+                timeSlots.map((slot) => {
+                    return renderEnhancedTableCell(day, classroom, slot);
+                })
+            )}
+        </tr>
+    ))}
+</tbody>
                         </table>
                     </div>
                 </div>
@@ -2058,7 +2234,7 @@ const exportOldSystemFormat = () => {
                         </div>
                     ) : (
                         <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto p-2">
-                            {availableCourses.map((course) => (
+                       {availableCourses.map((course) => (
                                 <div
                                     key={course.sectionId}
                                     className={`${course.color} p-3 rounded-lg shadow cursor-pointer hover:shadow-md transition-all border`}
