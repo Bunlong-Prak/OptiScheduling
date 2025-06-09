@@ -14,7 +14,9 @@ import { z } from "zod";
 // Updated section schema to include status
 const sectionSchema = z.object({
     section: z.string().min(1, { message: "Section number is required" }),
-    instructorId: z.string().optional(), // Optional instructor ID
+    instructorId: z
+        .string()
+        .min(1, { message: "At least 1 system will be added" }), // Optional instructor ID
     status: z.enum(["online", "offline"]).default("offline"), // Status at section level
 });
 
@@ -377,7 +379,7 @@ export async function PATCH(request: Request) {
             );
         }
 
-        // Prepare the update data (removed status from course level)
+        // Prepare the update data for course
         const updateData: Partial<{
             code: string;
             title: string;
@@ -393,12 +395,9 @@ export async function PATCH(request: Request) {
         if (duration !== undefined) updateData.duration = duration;
         if (capacity !== undefined) updateData.capacity = capacity;
 
-        // Handle majorsList update if provided - Using the single major
+        // Handle majorsList update if provided
         if (majorsList && majorsList.length === 1) {
-            // Get the major name
             const majorName = majorsList[0];
-
-            // Look up the major ID
             const majorResult = await db
                 .select({ id: majors.id })
                 .from(majors)
@@ -412,11 +411,10 @@ export async function PATCH(request: Request) {
                 );
             }
 
-            // Set the majorId for direct update
             updateData.majorId = majorResult[0].id;
         }
 
-        // Update the course
+        // Update the course data
         if (Object.keys(updateData).length > 0) {
             await db
                 .update(courses)
@@ -424,36 +422,37 @@ export async function PATCH(request: Request) {
                 .where(eq(courses.id, courseId));
         }
 
-        // Handle section updates if provided (now includes status)
+        // Handle section updates - ONLY update the sections that are sent
         if (sectionsList && sectionsList.length > 0) {
-            // Delete all existing sections for this course first
-            await db.delete(sections).where(eq(sections.courseId, courseId));
-
-            // Create new sections with updated data
             for (const sectionData of sectionsList) {
                 const { section, instructorId, status } = sectionData;
 
-                // Prepare section values
-                const sectionValues: any = {
+                // Prepare section update values
+                const sectionUpdateData: any = {
                     number: section,
-                    courseId: courseId,
-                    status: status || "offline", // Default to offline if not provided
+                    status: status || "offline",
                 };
 
-                // Add instructor if provided
+                // Handle instructor assignment/removal
                 if (
                     instructorId !== undefined &&
                     instructorId !== null &&
                     instructorId !== ""
                 ) {
-                    sectionValues.instructorId = parseInt(instructorId);
+                    sectionUpdateData.instructorId = parseInt(instructorId);
+                } else {
+                    sectionUpdateData.instructorId = null; // Remove instructor if not provided
                 }
 
-                await db.insert(sections).values(sectionValues);
+                // Update only the specific section being edited
+                await db
+                    .update(sections)
+                    .set(sectionUpdateData)
+                    .where(eq(sections.id, sectionId));
             }
         }
 
-        // If any sections need to be deleted (this might not be needed since we're recreating all sections)
+        // Handle explicit section deletions (if needed)
         if (sectionsToDelete && Array.isArray(sectionsToDelete)) {
             for (const sectionIdToDelete of sectionsToDelete) {
                 await db

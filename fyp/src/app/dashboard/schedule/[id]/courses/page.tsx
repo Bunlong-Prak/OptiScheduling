@@ -6,8 +6,8 @@ import {
     ColorSelectItem,
     ColorSelectTrigger,
     getColorName,
+    getColorNameFromHex,
     getHexFromColorName,
-    getColorNameFromHex,  // Add this
 } from "@/components/custom/colors";
 import CustomPagination from "@/components/custom/pagination";
 import { Button } from "@/components/ui/button";
@@ -72,14 +72,16 @@ export default function CoursesView() {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
- // Update sections state structure to include status
-const [sections, setSections] = useState<{
-    id: number;
-    section_id: string;
-    instructor_id?: string;
-    instructor_name?: string;
-    status: string; // Add this
-}[]>([]);
+    // Update sections state structure to include status
+    const [sections, setSections] = useState<
+        {
+            id: number;
+            section_id: string;
+            instructor_id?: string;
+            instructor_name?: string;
+            status: string; // Add this
+        }[]
+    >([]);
     const [currentSection, setCurrentSection] = useState("");
     const [currentInstructor, setCurrentInstructor] = useState<{
         id: string;
@@ -277,7 +279,7 @@ const [sections, setSections] = useState<{
     // Function to add a section with instructor
     const addSection = () => {
         if (!currentSection) return;
-    
+
         const newSection = {
             id: Date.now(),
             section_id: currentSection,
@@ -285,7 +287,7 @@ const [sections, setSections] = useState<{
             instructor_name: currentInstructor?.name ?? undefined,
             status: "offline", // Add this line
         };
-    
+
         setSections([...sections, newSection]);
         setCurrentSection("");
         setCurrentInstructor(null);
@@ -317,15 +319,15 @@ const [sections, setSections] = useState<{
         setFormData({ ...formData });
     };
     // Add this function after updateSectionInstructor
-const updateSectionStatus = (sectionId: number, status: string) => {
-    setSections(
-        sections.map((section) =>
-            section.id === sectionId
-                ? { ...section, status: status }
-                : section
-        )
-    );
-};
+    const updateSectionStatus = (sectionId: number, status: string) => {
+        setSections(
+            sections.map((section) =>
+                section.id === sectionId
+                    ? { ...section, status: status }
+                    : section
+            )
+        );
+    };
 
     const removeSection = (id: number) => {
         setSections(sections.filter((section) => section.id !== id));
@@ -443,8 +445,10 @@ const updateSectionStatus = (sectionId: number, status: string) => {
             // Create an array of sections with instructors
             const sectionsList = sections.map((item) => ({
                 section: item.section_id,
-                instructorId: item.instructor_id || null,
-                status: item.status || "offline", // CORRECT
+                instructorId: item.instructor_id
+                    ? String(item.instructor_id)
+                    : null,
+                status: item.status || "offline",
             }));
             // Pre-validate all required fields
             if (
@@ -605,32 +609,31 @@ const updateSectionStatus = (sectionId: number, status: string) => {
         setFormData({
             title: course.title,
             code: course.code,
-            color: course.color ? course.color.toString() : "", // Convert to string
+            color: course.color ? course.color.toString() : "",
             duration: course.duration,
             capacity: course.capacity,
             section: course.section,
             status: course.status || "offline",
         });
 
-        // Get the instructor for this section
         const instructorName = `${course.firstName || ""} ${
             course.lastName || ""
         }`.trim();
 
-        // Initialize with the current section and its instructor
         setSections([
             {
                 id: 1,
                 section_id: course.section,
-                instructor_id: course.instructorId,
-                instructor_name: instructorName !== "" ? instructorName : undefined,
-                status: course.status || "offline", // Add this line
+                instructor_id: course.instructorId
+                    ? String(course.instructorId)
+                    : undefined, // Convert to string
+                instructor_name:
+                    instructorName !== "" ? instructorName : undefined,
+                status: course.status || "offline",
             },
         ]);
 
-        // Initialize with the current major
         setSelectedMajor(course.major);
-
         setIsEditDialogOpen(true);
     };
 
@@ -1099,10 +1102,10 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                     `${course.firstName || ""} ${
                         course.lastName || ""
                     }`.trim() || "";
-            
+
                 // Convert hex color back to color name for CSV
                 const colorName = getColorNameFromHex(course.color || "");
-            
+
                 csvRows.push([
                     course.code,
                     course.title,
@@ -1240,6 +1243,9 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                                     Major
                                 </th>
                                 <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                    Duration
+                                </th>
+                                <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
                                     Capacity
                                 </th>
                                 <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
@@ -1300,6 +1306,9 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                                         </td>
                                         <td className="px-2 py-2 text-xs text-gray-900">
                                             {course.major || "—"}
+                                        </td>
+                                        <td className="px-2 py-2 text-xs text-gray-900">
+                                            {course.duration}
                                         </td>
                                         <td className="px-2 py-2 text-xs text-gray-900">
                                             {course.capacity}
@@ -1437,7 +1446,6 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                         </div>
 
                         <div className="grid  gap-4">
-                      
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="color"
@@ -1580,7 +1588,6 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                                                                                     instructor.id.toString(),
                                                                                     `${instructor.first_name} ${instructor.last_name}`
                                                                                 );
-                                                                                
                                                                             }}
                                                                         >
                                                                             <Check
@@ -1606,23 +1613,36 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                                                 </Popover>
                                             </div>
                                             <div className="mt-2">
-            <Label className="text-xs text-gray-700">Status</Label>
-            <Select
-                value={section.status || "offline"}
-                onValueChange={(value) => updateSectionStatus(section.id, value)}
-            >
-                <SelectTrigger className="mt-1 text-sm border-gray-300">
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="online">Online</SelectItem>
-                    <SelectItem value="offline">Offline</SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
+                                                <Label className="text-xs text-gray-700">
+                                                    Status
+                                                </Label>
+                                                <Select
+                                                    value={
+                                                        section.status ||
+                                                        "offline"
+                                                    }
+                                                    onValueChange={(value) =>
+                                                        updateSectionStatus(
+                                                            section.id,
+                                                            value
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger className="mt-1 text-sm border-gray-300">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="online">
+                                                            Online
+                                                        </SelectItem>
+                                                        <SelectItem value="offline">
+                                                            Offline
+                                                        </SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
                                         </div>
                                     ))}
-                                    
                                 </div>
                             )}
 
@@ -1652,7 +1672,7 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                                             htmlFor="section-instructor"
                                             className="text-sm font-medium text-gray-700"
                                         >
-                                            Instructor (Optional)
+                                            Instructor
                                         </Label>
                                         <Popover
                                             open={currentInstructorOpen}
@@ -1719,7 +1739,6 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                                             </PopoverContent>
                                         </Popover>
                                     </div>
-                                
                                 </div>
                                 <Button
                                     onClick={addSection}
@@ -1837,7 +1856,6 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                         
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="edit-color"
@@ -2014,20 +2032,34 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                                                 </Popover>
                                             </div>
                                             <div className="mt-2">
-            <Label className="text-xs text-gray-700">Status</Label>
-            <Select
-                value={section.status || "offline"}
-                onValueChange={(value) => updateSectionStatus(section.id, value)}
-            >
-                <SelectTrigger className="mt-1 text-sm border-gray-300">
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="online">Online</SelectItem>
-                    <SelectItem value="offline">Offline</SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
+                                                <Label className="text-xs text-gray-700">
+                                                    Status
+                                                </Label>
+                                                <Select
+                                                    value={
+                                                        section.status ||
+                                                        "offline"
+                                                    }
+                                                    onValueChange={(value) =>
+                                                        updateSectionStatus(
+                                                            section.id,
+                                                            value
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger className="mt-1 text-sm border-gray-300">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="online">
+                                                            Online
+                                                        </SelectItem>
+                                                        <SelectItem value="offline">
+                                                            Offline
+                                                        </SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -2059,7 +2091,7 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                                             htmlFor="edit-section-instructor"
                                             className="text-sm font-medium text-gray-700"
                                         >
-                                            Instructor (Optional)
+                                            Instructor
                                         </Label>
                                         <Popover
                                             open={currentInstructorOpen}
@@ -2125,9 +2157,7 @@ const updateSectionStatus = (sectionId: number, status: string) => {
                                                 </Command>
                                             </PopoverContent>
                                         </Popover>
-                                        
                                     </div>
-                                    
                                 </div>
                                 <Button
                                     onClick={addSection}

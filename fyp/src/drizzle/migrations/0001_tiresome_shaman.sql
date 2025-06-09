@@ -1,1 +1,0 @@
-ALTER TABLE `classroom_types` ADD `description` varchar(500);

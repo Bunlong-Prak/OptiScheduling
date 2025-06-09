@@ -1,6 +1,7 @@
 CREATE TABLE `classroom_types` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`name` varchar(255) NOT NULL,
+	`description` varchar(500),
 	`schedule_id` int NOT NULL,
 	CONSTRAINT `classroom_types_id` PRIMARY KEY(`id`)
 );
