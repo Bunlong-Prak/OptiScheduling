@@ -516,19 +516,44 @@ const handleImportCSV = async () => {
 
     const handleEditInstructor = async () => {
         if (!selectedInstructor) return;
-
+    
         try {
-            const apiData = {
-                id: selectedInstructor.id,
-                firstName: formData.first_name,
-                lastName: formData.last_name,
+            // Validate form data with Zod
+            const validatedData = instructorSchema.parse({
+                first_name: formData.first_name,
+                last_name: formData.last_name,
                 gender: formData.gender,
                 email: formData.email,
-                phoneNumber: formData.phone_number,
+                phone_number: formData.phone_number,
+            });
+    
+            // Check if email already exists (excluding current instructor)
+            const existingInstructor = instructors.find(
+                instructor => 
+                    instructor.email.toLowerCase() === validatedData.email.toLowerCase() &&
+                    instructor.id !== selectedInstructor.id
+            );
+    
+            if (existingInstructor) {
+                setStatusMessage({
+                    text: "Another instructor with this email already exists",
+                    type: "error",
+                });
+                return;
+            }
+    
+            // Prepare data for API
+            const apiData = {
+                id: selectedInstructor.id,
+                firstName: validatedData.first_name,
+                lastName: validatedData.last_name,
+                gender: validatedData.gender,
+                email: validatedData.email,
+                phoneNumber: validatedData.phone_number || "",
             };
-
+    
             console.log("Sending update data:", apiData);
-
+    
             const response = await fetch("/api/instructors", {
                 method: "PATCH",
                 headers: {
@@ -536,18 +561,16 @@ const handleImportCSV = async () => {
                 },
                 body: JSON.stringify(apiData),
             });
-
+    
             const responseData = await response.json();
-
+    
             if (!response.ok) {
                 console.error("Update failed:", responseData);
-                throw new Error(
-                    responseData.error || "Failed to update instructor"
-                );
+                throw new Error(responseData.error || "Failed to update instructor");
             }
-
+    
             console.log("Update successful:", responseData);
-
+    
             await fetchInstructors();
             setIsEditDialogOpen(false);
             resetForm();
@@ -556,14 +579,19 @@ const handleImportCSV = async () => {
                 type: "success",
             });
         } catch (error) {
-            console.error("Error updating instructor:", error);
-            setStatusMessage({
-                text:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to update instructor. Please try again.",
-                type: "error",
-            });
+            if (error instanceof z.ZodError) {
+                const errorMessage = error.errors.map(err => `${err.path.join('.')}: ${err.message}`).join(', ');
+                setStatusMessage({
+                    text: `Validation error: ${errorMessage}`,
+                    type: "error",
+                });
+            } else {
+                console.error("Error updating instructor:", error);
+                setStatusMessage({
+                    text: error instanceof Error ? error.message : "Failed to update instructor. Please try again.",
+                    type: "error",
+                });
+            }
         }
     };
     const handleDeleteInstructor = async () => {
