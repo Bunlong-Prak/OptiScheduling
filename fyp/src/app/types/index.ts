@@ -132,19 +132,51 @@ export type TimetableCourse = {
     name: string;
     sectionId: number;
     color: string;
-    originalColor?: string; // Add this field
+    originalColor?: string;
     duration: number;
     instructor: string;
+    section: string;
+    room?: string; // Physical room identifier or "Online"
+    uniqueId?: string;
+    majors?: string[];
+
+    // Timetable positioning properties (optional - only present when assigned)
+    day?: string;
+    startTime?: string;
+    endTime?: string;
+    classroom?: string; // Classroom ID as string for UI purposes
+
+    // UI-specific properties for rendering multi-hour courses
     isStart?: boolean;
     isMiddle?: boolean;
     isEnd?: boolean;
     colspan?: number;
-    startTime?: string; // Start time display value
-    endTime?: string; // End time display value
-    courseHoursId?: number; // ID from course_hours table
-    classroom?: string;
-    section: string; // Classroom assigned to
+
+    // Database reference
+    courseHoursId?: number;
+
+    // Online course flag
+    isOnline?: boolean;
 };
+// If you need a more specific type for courses that are definitely assigned to the timetable
+export type AssignedTimetableCourse = TimetableCourse & {
+    day: string;
+    startTime: string;
+    endTime: string;
+    classroom: string;
+};
+
+// Helper type guard to check if a course is assigned
+export function isAssignedCourse(
+    course: TimetableCourse
+): course is AssignedTimetableCourse {
+    return !!(
+        course.day &&
+        course.startTime &&
+        course.endTime &&
+        course.classroom
+    );
+}
 
 export type Schedule = {
     id: string;

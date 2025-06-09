@@ -24,7 +24,8 @@ const saveTimetableSchema = z.object({
     day: z.string(),
     startTime: z.string(),
     endTime: z.string(),
-    classroom: z.string(),
+    classroom: z.string().nullable(), // Allow null for online courses
+    isOnline: z.boolean().optional(), // Flag for online courses
 });
 
 const removeTimetableAssignmentSchema = z.object({
@@ -32,6 +33,7 @@ const removeTimetableAssignmentSchema = z.object({
 });
 
 // GET timetable assignments
+// GET timetable assignments - Updated to handle online courses
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -45,11 +47,13 @@ export async function GET(request: Request) {
         }
 
         // Join sections with courseHours to get all assignments
+        // Use LEFT JOIN for classrooms to include courses without assigned classrooms (online courses)
         const assignments = await db
             .select({
                 sectionId: sections.id,
                 courseHours: courseHours.timeSlot,
-                classroom: classrooms.code,
+                classroom: classrooms.code, // This will be null for online courses
+                classroomId: sections.classroomId, // Include this to check if it's null
                 code: courses.code,
                 title: courses.title,
                 firstName: instructors.firstName,
@@ -63,10 +67,25 @@ export async function GET(request: Request) {
             .innerJoin(sections, eq(sections.courseId, courses.id))
             .innerJoin(courseHours, eq(courseHours.sectionId, sections.id))
             .innerJoin(instructors, eq(instructors.id, sections.instructorId))
-            .innerJoin(classrooms, eq(classrooms.id, sections.classroomId))
+            .leftJoin(classrooms, eq(classrooms.id, sections.classroomId)) // LEFT JOIN to include null classrooms
             .where(eq(courses.scheduleId, parseInt(scheduleId)));
-        console.log("Assignments:", assignments);
-        return NextResponse.json(assignments);
+
+        console.log("Raw assignments from DB:", assignments);
+
+        // Process assignments to handle online courses
+        const processedAssignments = assignments.map((assignment) => {
+            const isOnline = assignment.classroomId === null;
+
+            return {
+                ...assignment,
+                // For online courses, provide a virtual classroom code
+                classroom: isOnline ? "Online" : assignment.classroom,
+                isOnline: isOnline,
+            };
+        });
+
+        console.log("Processed assignments:", processedAssignments);
+        return NextResponse.json(processedAssignments);
     } catch (error: unknown) {
         console.error("Error fetching timetable assignments:", error);
         return NextResponse.json(
@@ -155,12 +174,11 @@ export async function POST(request: Request) {
         // Validate each item in the array
         const results = [];
         const errors = [];
-
+        // In your POST function, update the processing logic:
         for (const assignment of body) {
             const validationResult = saveTimetableSchema.safeParse(assignment);
 
             if (!validationResult.success) {
-                // Log the error but continue processing other items
                 const errorMsg = `Validation error for assignment: ${JSON.stringify(
                     assignment
                 )}`;
@@ -172,7 +190,7 @@ export async function POST(request: Request) {
                 continue;
             }
 
-            const { sectionId, day, startTime, endTime, classroom } =
+            const { sectionId, day, startTime, endTime, classroom, isOnline } =
                 validationResult.data;
 
             try {
@@ -190,7 +208,6 @@ export async function POST(request: Request) {
                         `Course hour already exists for section ${sectionId}, updating...`
                     );
 
-                    // Update existing course hour
                     courseHourId = existingCourseHour[0].id;
                     await db
                         .update(courseHours)
@@ -207,7 +224,6 @@ export async function POST(request: Request) {
                         sectionId: sectionId,
                     });
 
-                    // Get the ID of the newly created course hour
                     const createdCourseHour = await db
                         .select({ id: courseHours.id })
                         .from(courseHours)
@@ -230,10 +246,14 @@ export async function POST(request: Request) {
                 console.log("Processing section:", sectionId);
 
                 // Update the section with the classroom ID
+                // For online courses, set classroomId to null
+                const classroomId =
+                    isOnline || !classroom ? null : parseInt(classroom);
+
                 await db
                     .update(sections)
                     .set({
-                        classroomId: parseInt(classroom),
+                        classroomId: classroomId,
                     })
                     .where(eq(sections.id, sectionId));
 
@@ -244,11 +264,11 @@ export async function POST(request: Request) {
                     .where(eq(sections.id, sectionId))
                     .limit(1);
 
-                // Add this assignment's result to the results array
                 results.push({
                     sectionId,
                     courseHour: { id: courseHourId },
                     section: updatedSection[0],
+                    isOnline: isOnline || false,
                 });
             } catch (assignmentError) {
                 console.error(

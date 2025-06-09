@@ -5,6 +5,7 @@ import {
     Classroom,
     Course,
     CourseHour,
+    isAssignedCourse,
     ScheduleAssignment,
     ScheduleResponse,
     TimetableCourse,
@@ -763,190 +764,172 @@ export default function TimetableViewClassroom() {
                 const newSchedule: TimetableGrid = {};
                 const newAssignedCourses: TimetableCourse[] = [];
 
-                assignmentsData.forEach((assignment: any) => {
-                    // Extract data from the API response
-                    const sectionId = assignment.sectionId;
-                    const classroomCode = assignment.classroom;
-                    const code = assignment.code;
-                    const title = assignment.title || code;
-                    const firstName = assignment.firstName;
-                    const lastName = assignment.lastName;
-                    const day = assignment.day;
-                    const originalColor = assignment.color;
+              // Update the assignment processing in your useEffect
+assignmentsData.forEach((assignment: any) => {
+    // Extract data from the API response
+    const sectionId = assignment.sectionId;
+    const classroomCode = assignment.classroom;
+    const code = assignment.code;
+    const title = assignment.title || code;
+    const firstName = assignment.firstName;
+    const lastName = assignment.lastName;
+    const day = assignment.day;
+    const originalColor = assignment.color;
+    const isOnline = assignment.isOnline || assignment.classroomId === null;
 
-                    const colorClassName =
-                        originalColor && colors_class[originalColor]
-                            ? colors_class[originalColor]
-                            : getConsistentCourseColor(code);
+    const colorClassName =
+        originalColor && colors_class[originalColor]
+            ? colors_class[originalColor]
+            : getConsistentCourseColor(code);
 
-                    // Parse the time slot - handle different formats
-                    let startTime = assignment.startTime; // Direct startTime if available
-                    let endTime = assignment.endTime; // Direct endTime if available
+    // Parse the time slot - handle different formats
+    let startTime = assignment.startTime;
+    let endTime = assignment.endTime;
 
-                    // If startTime/endTime not directly available, parse from timeSlot
-                    if (!startTime && assignment.timeSlot) {
-                        const timeSlot = assignment.timeSlot;
+    if (!startTime && assignment.timeSlot) {
+        const timeSlot = assignment.timeSlot;
+        if (timeSlot.includes(" - ")) {
+            const parts = timeSlot.split(" - ");
+            startTime = parts[0].trim();
+            endTime = parts[1].trim();
+        } else {
+            startTime = timeSlot;
+        }
+    }
 
-                        // Handle format like "13:00 - 15:00"
-                        if (timeSlot.includes(" - ")) {
-                            const parts = timeSlot.split(" - ");
-                            startTime = parts[0].trim();
-                            endTime = parts[1].trim();
-                        } else {
-                            // If it's just a single time or time range without spaces
-                            startTime = timeSlot;
-                        }
-                    }
+    let duration = parseInt(assignment.duration || "1", 10);
 
-                    // Use specified duration or calculate from time slots
-                    let duration = parseInt(assignment.duration || "1", 10);
+    // Skip invalid assignments
+    if (!sectionId || !day || !startTime) {
+        console.warn("Skipping invalid assignment:", assignment);
+        return;
+    }
 
-                    // Skip invalid assignments
-                    if (!sectionId || !day || !startTime) {
-                        console.warn(
-                            "Skipping invalid assignment:",
-                            assignment
-                        );
-                        return;
-                    }
+    // Handle classroom assignment for online vs physical courses
+    let classroom;
+    let classroomId;
 
-                    // Find classroom by code
-                    const classroom = classrooms.find(
-                        (c) => c.code === classroomCode
-                    );
+    if (isOnline) {
+        // For online courses, assign to the first available virtual classroom
+        // or create a mapping strategy
+        const virtualClassroom = classrooms.find(c => c.id < 0);
+        if (virtualClassroom) {
+            classroom = virtualClassroom;
+            classroomId = virtualClassroom.id.toString();
+        } else {
+            // Fallback: create a virtual classroom reference
+            classroomId = "-1"; // Use the first virtual classroom
+            classroom = { id: -1, code: 'Online 1', capacity: 999 };
+        }
+    } else {
+        // Find physical classroom by code
+        classroom = classrooms.find((c) => c.code === classroomCode);
+        if (!classroom) {
+            console.warn(`Classroom with code ${classroomCode} not found.`);
+            return;
+        }
+        classroomId = classroom.id.toString();
+    }
 
-                    if (!classroom) {
-                        console.warn(
-                            `Classroom with code ${classroomCode} not found.`
-                        );
-                        return;
-                    }
+    // Instructor name
+    const instructorName =
+        firstName && lastName ? `${firstName} ${lastName}` : "TBA";
 
-                    const classroomId = classroom.id.toString();
+    // Find the time slot that matches the start time
+    const startIndex = timeSlots.findIndex((ts) => {
+        const tsKey = getTimeSlotKey(ts);
+        return (
+            tsKey === startTime ||
+            ts.startTime === startTime ||
+            ts.time_slot === startTime ||
+            (ts.time_slot && ts.time_slot.startsWith(startTime + "-")) ||
+            (tsKey.includes("-") && tsKey.split("-")[0].trim() === startTime)
+        );
+    });
 
-                    // Instructor name
-                    const instructorName =
-                        firstName && lastName
-                            ? `${firstName} ${lastName}`
-                            : "TBA";
+    if (startIndex === -1) {
+        console.warn(
+            `Time slot "${startTime}" not found for course ${code}. Available time slots:`,
+            timeSlots.map((ts) => ({
+                key: getTimeSlotKey(ts),
+                startTime: ts.startTime,
+                time_slot: ts.time_slot,
+            }))
+        );
+        return;
+    }
 
-                    // Deterministic color based on course code
-                    // const colorIndex =
-                    //     code.charCodeAt(0) % Object.keys(colors_class).length;
-                    // const colorClassName = getConsistentCourseColor(code);
+    // Calculate duration and end time...
+    if (endTime) {
+        const endIndex = timeSlots.findIndex((ts) => {
+            const tsKey = getTimeSlotKey(ts);
+            return (
+                ts.endTime === endTime ||
+                (ts.time_slot && ts.time_slot.endsWith("-" + endTime)) ||
+                (tsKey.includes("-") && tsKey.split("-")[1].trim() === endTime)
+            );
+        });
 
-                    // Find the time slot that matches the start time
-                    // This is crucial: we need to match the exact format
-                    const startIndex = timeSlots.findIndex((ts) => {
-                        const tsKey = getTimeSlotKey(ts);
+        if (endIndex !== -1) {
+            duration = endIndex - startIndex + 1;
+            console.log(
+                `Calculated duration for ${code}: ${duration} hours (${startTime} to ${endTime})`
+            );
+        }
+    }
 
-                        // Try multiple matching strategies
-                        return (
-                            tsKey === startTime || // Exact match
-                            ts.startTime === startTime || // Match startTime property
-                            ts.time_slot === startTime || // Match time_slot property
-                            // If the time slot is a range, check if it starts with our startTime
-                            (ts.time_slot &&
-                                ts.time_slot.startsWith(startTime + "-")) ||
-                            // Try matching just the time part if it's in HH:MM format
-                            (tsKey.includes("-") &&
-                                tsKey.split("-")[0].trim() === startTime)
-                        );
-                    });
+    const actualDuration = Math.min(duration, timeSlots.length - startIndex);
 
-                    if (startIndex === -1) {
-                        console.warn(
-                            `Time slot "${startTime}" not found for course ${code}. Available time slots:`,
-                            timeSlots.map((ts) => ({
-                                key: getTimeSlotKey(ts),
-                                startTime: ts.startTime,
-                                time_slot: ts.time_slot,
-                            }))
-                        );
-                        return;
-                    }
+    // Create the course object
+    const course = {
+        sectionId: sectionId,
+        code: code,
+        name: title,
+        instructor: instructorName,
+        duration: actualDuration,
+        day: day,
+        startTime: startTime,
+        endTime:
+            endTime ||
+            timeSlots[
+                Math.min(startIndex + actualDuration - 1, timeSlots.length - 1)
+            ].endTime,
+        classroom: classroomId,
+        color: colorClassName,
+        section: sectionId.toString(),
+        room: isOnline ? "Online" : classroomCode,
+        originalColor: originalColor,
+        isOnline: isOnline, // Add this flag for future reference
+    };
 
-                    // If we have an endTime, try to calculate duration more accurately
-                    if (endTime) {
-                        const endIndex = timeSlots.findIndex((ts) => {
-                            const tsKey = getTimeSlotKey(ts);
-                            return (
-                                ts.endTime === endTime ||
-                                (ts.time_slot &&
-                                    ts.time_slot.endsWith("-" + endTime)) ||
-                                (tsKey.includes("-") &&
-                                    tsKey.split("-")[1].trim() === endTime)
-                            );
-                        });
+    // Add to assigned courses
+    if (
+        !newAssignedCourses.some(
+            (c) =>
+                c.sectionId === sectionId &&
+                c.day === day &&
+                c.startTime === startTime
+        )
+    ) {
+        newAssignedCourses.push({ ...course });
+    }
 
-                        if (endIndex !== -1) {
-                            duration = endIndex - startIndex + 1;
-                            console.log(
-                                `Calculated duration for ${code}: ${duration} hours (${startTime} to ${endTime})`
-                            );
-                        }
-                    }
+    // Add to schedule grid - this is where the UI display happens
+    for (let i = 0; i < actualDuration; i++) {
+        if (startIndex + i >= timeSlots.length) break;
 
-                    // Calculate actualDuration and endTime
-                    const actualDuration = Math.min(
-                        duration,
-                        timeSlots.length - startIndex
-                    );
+        const currentTimeSlot = getTimeSlotKey(timeSlots[startIndex + i]);
+        const key = `${day}-${classroomId}-${currentTimeSlot}`;
 
-                    // Create the course object
-                    const course = {
-                        sectionId: sectionId,
-                        code: code,
-                        name: title,
-                        instructor: instructorName,
-                        duration: actualDuration,
-                        day: day,
-                        startTime: startTime,
-                        endTime:
-                            endTime ||
-                            timeSlots[
-                                Math.min(
-                                    startIndex + actualDuration - 1,
-                                    timeSlots.length - 1
-                                )
-                            ].endTime,
-                        classroom: classroomId,
-                        color: colorClassName,
-                        section: sectionId.toString(),
-                        room: classroomCode,
-                        originalColor: originalColor, // Store original color name
-                    };
-
-                    // Add to assigned courses
-                    if (
-                        !newAssignedCourses.some(
-                            (c) =>
-                                c.sectionId === sectionId &&
-                                c.day === day &&
-                                c.startTime === startTime
-                        )
-                    ) {
-                        newAssignedCourses.push({ ...course });
-                    }
-
-                    // Add to schedule grid - this is where the UI display happens
-                    for (let i = 0; i < actualDuration; i++) {
-                        if (startIndex + i >= timeSlots.length) break;
-
-                        const currentTimeSlot = getTimeSlotKey(
-                            timeSlots[startIndex + i]
-                        );
-                        const key = `${day}-${classroomId}-${currentTimeSlot}`;
-
-                        newSchedule[key] = {
-                            ...course,
-                            isStart: i === 0,
-                            isMiddle: i > 0 && i < actualDuration - 1,
-                            isEnd: i === actualDuration - 1,
-                            colspan: i === 0 ? actualDuration : 0,
-                        };
-                    }
-                });
+        newSchedule[key] = {
+            ...course,
+            isStart: i === 0,
+            isMiddle: i > 0 && i < actualDuration - 1,
+            isEnd: i === actualDuration - 1,
+            colspan: i === 0 ? actualDuration : 0,
+        };
+    }
+});
 
                 // Update state with assignments
                 setSchedule(newSchedule);
@@ -996,49 +979,69 @@ export default function TimetableViewClassroom() {
         setIsDraggingToAvailable(false);
     };
 
-    // Function to save all assignments to the database
-    const saveAllAssignments = async () => {
-        try {
-            // Prepare data for API - ensure we're saving the right format
-            const assignmentsData = assignedCourses.map((course) => ({
+// Function to save all assignments to the database with type safety
+const saveAllAssignments = async () => {
+    try {
+        // Filter to only assigned courses using type guard
+        const validAssignedCourses = assignedCourses.filter(isAssignedCourse);
+
+        if (validAssignedCourses.length === 0) {
+            showMessage("error", "No valid course assignments to save");
+            return;
+        }
+
+        // Prepare data for API - handle online courses specially
+        const assignmentsData = validAssignedCourses.map((course) => {
+            // Now TypeScript knows these properties exist thanks to the type guard
+            const classroomValue = course.classroom;
+            
+            // Check if it's an online classroom (negative ID)
+            const isOnlineClassroom = !isNaN(parseInt(classroomValue)) && parseInt(classroomValue) < 0;
+            
+            return {
                 sectionId: course.sectionId,
                 day: course.day,
                 startTime: course.startTime,
                 endTime: course.endTime,
-                classroom: course.classroom,
-            }));
-            // Send all assignments to API
-            const response = await fetch("/api/assign-time-slots", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(assignmentsData),
-            });
+                // For online courses, set classroom to null instead of negative ID
+                classroom: isOnlineClassroom ? null : classroomValue,
+                isOnline: isOnlineClassroom,
+            };
+        });
 
-            if (response.ok) {
-                showMessage("success", "All assignments saved successfully!");
-            } else {
-                const errorData = await response.json();
-                console.error("Failed to save assignments:", errorData);
-                showMessage(
-                    "error",
-                    `Failed to save assignments: ${
-                        errorData.error || "Unknown error"
-                    }`
-                );
-            }
-        } catch (error) {
-            console.error("Error saving assignments:", error);
+        console.log('Saving assignments:', assignmentsData);
+
+        // Send all assignments to API
+        const response = await fetch("/api/assign-time-slots", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(assignmentsData),
+        });
+
+        if (response.ok) {
+            showMessage("success", `Successfully saved ${assignmentsData.length} course assignments!`);
+        } else {
+            const errorData = await response.json();
+            console.error("Failed to save assignments:", errorData);
             showMessage(
                 "error",
-                `Error saving assignments: ${
-                    error instanceof Error ? error.message : "Unknown error"
+                `Failed to save assignments: ${
+                    errorData.error || "Unknown error"
                 }`
             );
         }
-    };
-
+    } catch (error) {
+        console.error("Error saving assignments:", error);
+        showMessage(
+            "error",
+            `Error saving assignments: ${
+                error instanceof Error ? error.message : "Unknown error"
+            }`
+        );
+    }
+};
     // // Function to export timetable
     // const exportTimetable = () => {
     //     // Implement export functionality
