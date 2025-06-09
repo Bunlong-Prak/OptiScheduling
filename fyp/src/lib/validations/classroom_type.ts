@@ -10,6 +10,7 @@ export const createClassroomTypeSchema = z.object({
         .max(100, {
             message: "Classroom type name cannot exceed 100 characters",
         }),
+    description: z.string().optional().nullable(), // Changed to match edit schema
     scheduleId: z.number({
         required_error: "Schedule ID is required",
     }),
@@ -27,6 +28,7 @@ export const editClassroomTypeSchema = z.object({
         .max(100, {
             message: "Classroom type name cannot exceed 100 characters",
         }),
+    description: z.string().optional().nullable(), // Made consistent
 });
 
 export const deleteClassroomTypeSchema = z.object({

@@ -22,6 +22,7 @@ export type Classroom = {
 export type ClassroomType = {
     id: number;
     name: string;
+    description?: string;
 };
 
 export type Instructor = {

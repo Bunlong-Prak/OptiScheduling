@@ -14,20 +14,22 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const scheduleId = searchParams.get("scheduleId");
 
-        let classroomTypeQuery;
-        if (scheduleId) {
-            classroomTypeQuery = await db
-                .select({
-                    id: classroomTypes.id,
-                    name: classroomTypes.name,
-                })
-                .from(classroomTypes)
-                .innerJoin(
-                    schedules,
-                    eq(classroomTypes.scheduleId, schedules.id)
-                )
-                .where(eq(classroomTypes.scheduleId, parseInt(scheduleId)));
+        if (!scheduleId) {
+            return NextResponse.json(
+                { error: "Schedule ID is required" },
+                { status: 400 }
+            );
         }
+
+        const classroomTypeQuery = await db
+            .select({
+                id: classroomTypes.id,
+                name: classroomTypes.name,
+                description: classroomTypes.description,
+            })
+            .from(classroomTypes)
+            .where(eq(classroomTypes.scheduleId, parseInt(scheduleId)));
+
         return NextResponse.json(classroomTypeQuery);
     } catch (error: unknown) {
         console.error("Error fetching classroom types:", error);
@@ -43,11 +45,13 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const validatedData = createClassroomTypeSchema.parse(body);
-        const { name, scheduleId } = validatedData;
+
         const newClassroomType = await db.insert(classroomTypes).values({
-            name,
-            scheduleId,
+            name: validatedData.name,
+            description: validatedData.description || null,
+            scheduleId: validatedData.scheduleId,
         });
+
         return NextResponse.json(newClassroomType);
     } catch (error: unknown) {
         console.error("Error creating classroom type:", error);
@@ -58,18 +62,20 @@ export async function POST(request: Request) {
     }
 }
 
-// PUT update classroom type
+// PATCH update classroom type
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
         const validatedData = editClassroomTypeSchema.parse(body);
-        const { id, name } = validatedData;
+
         const updatedClassroomType = await db
             .update(classroomTypes)
             .set({
-                name,
+                name: validatedData.name,
+                description: validatedData.description || null,
             })
-            .where(eq(classroomTypes.id, id));
+            .where(eq(classroomTypes.id, validatedData.id));
+
         return NextResponse.json(updatedClassroomType);
     } catch (error: unknown) {
         console.error("Error updating classroom type:", error);
@@ -86,7 +92,9 @@ export async function DELETE(request: Request) {
         const body = await request.json();
         const validatedData = deleteClassroomTypeSchema.parse(body);
         const { id } = validatedData;
+
         await db.delete(classroomTypes).where(eq(classroomTypes.id, id));
+
         return NextResponse.json({
             message: "Classroom type deleted successfully",
         });

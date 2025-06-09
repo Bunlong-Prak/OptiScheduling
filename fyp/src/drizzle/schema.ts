@@ -161,6 +161,7 @@ export const classrooms = mysqlTable("classrooms", {
 export const classroomTypes = mysqlTable("classroom_types", {
     id: int("id").primaryKey().autoincrement(),
     name: varchar("name", { length: 255 }).notNull(),
+    description: varchar("description", { length: 500 }), // Optional description field
     scheduleId: int("schedule_id")
         .notNull()
         .references(() => schedules.id, {

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Pencil, Plus, Trash } from "lucide-react";
 import { useParams } from "next/navigation";
 import type React from "react";
@@ -21,6 +22,7 @@ import { Download, Upload } from "lucide-react";
 interface ClassroomType {
     id: number;
     name: string;
+    description?: string;
 }
 
 const ITEMS_PER_PAGE = 15;
@@ -38,6 +40,7 @@ export default function ClassroomTypeView() {
         useState<ClassroomType | null>(null);
     const [formData, setFormData] = useState({
         name: "",
+        description: "",
     });
     const [currentPage, setCurrentPage] = useState(1);
 
@@ -94,7 +97,7 @@ export default function ClassroomTypeView() {
         } 
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData({
             ...formData,
@@ -112,6 +115,7 @@ export default function ClassroomTypeView() {
             const scheduleId = params.id;
             const apiData = {
                 name: formData.name,
+                description: formData.description || null,
                 scheduleId: Number(scheduleId),
             };
 
@@ -151,6 +155,7 @@ export default function ClassroomTypeView() {
             const apiData = {
                 id: selectedClassroomType.id,
                 name: formData.name,
+                description: formData.description || null,
             };
 
             const response = await fetch("/api/classroom-types", {
@@ -228,6 +233,7 @@ export default function ClassroomTypeView() {
     const resetForm = () => {
         setFormData({
             name: "",
+            description: "",
         });
         setSelectedClassroomType(null);
     };
@@ -237,6 +243,7 @@ export default function ClassroomTypeView() {
         setSelectedClassroomType(classroomType);
         setFormData({
             name: classroomType.name,
+            description: classroomType.description || "",
         });
         setIsEditDialogOpen(true);
     };
@@ -245,281 +252,287 @@ export default function ClassroomTypeView() {
         setSelectedClassroomType(classroomType);
         setIsDeleteDialogOpen(true);
     };
-// Add these state variables to your existing state in ClassroomTypeView component
-const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
-const [importFile, setImportFile] = useState<File | null>(null);
-const [importProgress, setImportProgress] = useState<{
-    total: number;
-    completed: number;
-    errors: string[];
-    isImporting: boolean;
-}>({
-    total: 0,
-    completed: 0,
-    errors: [],
-    isImporting: false,
-});
 
-// Types for CSV data
-interface CSVClassroomTypeRow {
-    name: string;
-}
-
-// Validation function for classroom type CSV data
-const validateClassroomTypeData = (row: any, rowIndex: number): CSVClassroomTypeRow | string => {
-    const errors: string[] = [];
-    
-    // Check required fields
-    if (!row.name || typeof row.name !== 'string' || row.name.trim() === '') {
-        errors.push(`Row ${rowIndex + 1}: Classroom type name is required`);
-    }
-    
-    if (errors.length > 0) {
-        return errors.join(', ');
-    }
-    
-    // Return cleaned data
-    return {
-        name: row.name.trim(),
-    };
-};
-
-// Main import function
-const handleImportCSV = async () => {
-    if (!importFile) {
-        setStatusMessage({
-            text: "Please select a CSV file to import",
-            type: "error",
-        });
-        return;
-    }
-
-    const scheduleId = params.id;
-    
-    setImportProgress({
-        total: 0,
-        completed: 0,
-        errors: [],
-        isImporting: true,
-    });
-
-    try {
-        // Parse CSV file
-        Papa.parse(importFile, {
-            header: true,
-            skipEmptyLines: true,
-            transformHeader: (header) => header.trim().toLowerCase().replace(/\s+/g, '_'),
-            complete: async (results) => {
-                const csvData = results.data as any[];
-                const validClassroomTypes: CSVClassroomTypeRow[] = [];
-                const errors: string[] = [];
-
-                // Validate each row
-                csvData.forEach((row, index) => {
-                    const validationResult = validateClassroomTypeData(row, index);
-                    if (typeof validationResult === 'string') {
-                        errors.push(validationResult);
-                    } else {
-                        // Check for duplicate names in the CSV
-                        const duplicateInCsv = validClassroomTypes.some(type => 
-                            type.name.toLowerCase() === validationResult.name.toLowerCase()
-                        );
-                        if (duplicateInCsv) {
-                            errors.push(`Row ${index + 1}: Duplicate classroom type name "${validationResult.name}" in CSV`);
-                        } else {
-                            // Check for existing names in database
-                            const existingType = classroomTypes.some(type => 
-                                type.name.toLowerCase() === validationResult.name.toLowerCase()
-                            );
-                            if (existingType) {
-                                errors.push(`Row ${index + 1}: Classroom type name "${validationResult.name}" already exists in the system`);
-                            } else {
-                                validClassroomTypes.push(validationResult);
-                            }
-                        }
-                    }
-                });
-
-                setImportProgress(prev => ({
-                    ...prev,
-                    total: validClassroomTypes.length,
-                    errors: errors,
-                }));
-
-                if (validClassroomTypes.length === 0) {
-                    setStatusMessage({
-                        text: "No valid classroom types found in the CSV file",
-                        type: "error",
-                    });
-                    setImportProgress(prev => ({ ...prev, isImporting: false }));
-                    return;
-                }
-
-                // Import valid classroom types
-                let completed = 0;
-                const importErrors: string[] = [...errors];
-
-                for (const classroomType of validClassroomTypes) {
-                    try {
-                        const apiData = {
-                            name: classroomType.name,
-                            scheduleId: Number(scheduleId),
-                        };
-
-                        const response = await fetch("/api/classroom-types", {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify(apiData),
-                        });
-
-                        if (!response.ok) {
-                            const errorData = await response.text();
-                            importErrors.push(
-                                `Failed to import ${classroomType.name}: ${
-                                    errorData || 'Unknown error'
-                                }`
-                            );
-                        } else {
-                            completed++;
-                        }
-                    } catch (error) {
-                        importErrors.push(
-                            `Failed to import ${classroomType.name}: ${
-                                error instanceof Error ? error.message : 'Unknown error'
-                            }`
-                        );
-                    }
-
-                    // Update progress
-                    setImportProgress(prev => ({
-                        ...prev,
-                        completed: completed,
-                        errors: importErrors,
-                    }));
-
-                    // Small delay to prevent overwhelming the server
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
-
-                // Final update
-                setImportProgress(prev => ({ ...prev, isImporting: false }));
-
-                // Refresh the classroom types list
-                await fetchClassroomTypes();
-
-                // Show completion message
-                if (completed > 0) {
-                    setStatusMessage({
-                        text: `Successfully imported ${completed} classroom type(s)${
-                            importErrors.length > 0 ? ` with ${importErrors.length} error(s)` : ''
-                        }`,
-                        type: completed === validClassroomTypes.length ? "success" : "error",
-                    });
-                } else {
-                    setStatusMessage({
-                        text: "Failed to import any classroom types",
-                        type: "error",
-                    });
-                }
-            },
-            error: (error) => {
-                console.error("CSV parsing error:", error);
-                setStatusMessage({
-                    text: "Failed to parse CSV file. Please check the file format.",
-                    type: "error",
-                });
-                setImportProgress(prev => ({ ...prev, isImporting: false }));
-            },
-        });
-    } catch (error) {
-        console.error("Import error:", error);
-        setStatusMessage({
-            text: "Failed to import classroom types. Please try again.",
-            type: "error",
-        });
-        setImportProgress(prev => ({ ...prev, isImporting: false }));
-    }
-};
-
-// File selection handler
-const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type === 'text/csv') {
-        setImportFile(file);
-    } else {
-        setStatusMessage({
-            text: "Please select a valid CSV file",
-            type: "error",
-        });
-        event.target.value = ''; // Reset file input
-    }
-};
-
-// Reset import state
-const resetImportState = () => {
-    setImportFile(null);
-    setImportProgress({
+    // Add these state variables to your existing state in ClassroomTypeView component
+    const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+    const [importFile, setImportFile] = useState<File | null>(null);
+    const [importProgress, setImportProgress] = useState<{
+        total: number;
+        completed: number;
+        errors: string[];
+        isImporting: boolean;
+    }>({
         total: 0,
         completed: 0,
         errors: [],
         isImporting: false,
     });
-};
 
-// Download CSV with current classroom types data
-const downloadClassroomTypesCSV = () => {
-    try {
-        // Create CSV header
-        const headers = ['name'];
-        
-        // Convert classroom types data to CSV rows
-        const csvRows = classroomTypes.map(type => [type.name]);
-        
-        // Combine headers and data
-        const allRows = [headers, ...csvRows];
-        
-        // Convert to CSV string
-        const csvContent = allRows.map(row => 
-            row.map(field => {
-                // Escape quotes and wrap in quotes if field contains comma, quote, or newline
-                const fieldStr = String(field || '');
-                if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n')) {
-                    return `"${fieldStr.replace(/"/g, '""')}"`;
-                }
-                return fieldStr;
-            }).join(',')
-        ).join('\n');
-
-        // Create and download file
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        
-        // Generate filename with current date
-        const today = new Date().toISOString().split('T')[0];
-        link.setAttribute('download', `classroom_types_export_${today}.csv`);
-        
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        setStatusMessage({
-            text: `Exported ${classroomTypes.length} classroom types to CSV`,
-            type: "success",
-        });
-    } catch (error) {
-        console.error('Error exporting CSV:', error);
-        setStatusMessage({
-            text: "Failed to export classroom types. Please try again.",
-            type: "error",
-        });
+    // Types for CSV data
+    interface CSVClassroomTypeRow {
+        name: string;
+        description?: string;
     }
-};
 
+    // Validation function for classroom type CSV data
+    const validateClassroomTypeData = (row: any, rowIndex: number): CSVClassroomTypeRow | string => {
+        const errors: string[] = [];
+        
+        // Check required fields
+        if (!row.name || typeof row.name !== 'string' || row.name.trim() === '') {
+            errors.push(`Row ${rowIndex + 1}: Classroom type name is required`);
+        }
+        
+        if (errors.length > 0) {
+            return errors.join(', ');
+        }
+        
+        // Return cleaned data
+        return {
+            name: row.name.trim(),
+            description: row.description ? row.description.trim() : undefined,
+        };
+    };
+
+    // Main import function
+    const handleImportCSV = async () => {
+        if (!importFile) {
+            setStatusMessage({
+                text: "Please select a CSV file to import",
+                type: "error",
+            });
+            return;
+        }
+
+        const scheduleId = params.id;
+        
+        setImportProgress({
+            total: 0,
+            completed: 0,
+            errors: [],
+            isImporting: true,
+        });
+
+        try {
+            // Parse CSV file
+            Papa.parse(importFile, {
+                header: true,
+                skipEmptyLines: true,
+                transformHeader: (header) => header.trim().toLowerCase().replace(/\s+/g, '_'),
+                complete: async (results) => {
+                    const csvData = results.data as any[];
+                    const validClassroomTypes: CSVClassroomTypeRow[] = [];
+                    const errors: string[] = [];
+
+                    // Validate each row
+                    csvData.forEach((row, index) => {
+                        const validationResult = validateClassroomTypeData(row, index);
+                        if (typeof validationResult === 'string') {
+                            errors.push(validationResult);
+                        } else {
+                            // Check for duplicate names in the CSV
+                            const duplicateInCsv = validClassroomTypes.some(type => 
+                                type.name.toLowerCase() === validationResult.name.toLowerCase()
+                            );
+                            if (duplicateInCsv) {
+                                errors.push(`Row ${index + 1}: Duplicate classroom type name "${validationResult.name}" in CSV`);
+                            } else {
+                                // Check for existing names in database
+                                const existingType = classroomTypes.some(type => 
+                                    type.name.toLowerCase() === validationResult.name.toLowerCase()
+                                );
+                                if (existingType) {
+                                    errors.push(`Row ${index + 1}: Classroom type name "${validationResult.name}" already exists in the system`);
+                                } else {
+                                    validClassroomTypes.push(validationResult);
+                                }
+                            }
+                        }
+                    });
+
+                    setImportProgress(prev => ({
+                        ...prev,
+                        total: validClassroomTypes.length,
+                        errors: errors,
+                    }));
+
+                    if (validClassroomTypes.length === 0) {
+                        setStatusMessage({
+                            text: "No valid classroom types found in the CSV file",
+                            type: "error",
+                        });
+                        setImportProgress(prev => ({ ...prev, isImporting: false }));
+                        return;
+                    }
+
+                    // Import valid classroom types
+                    let completed = 0;
+                    const importErrors: string[] = [...errors];
+
+                    for (const classroomType of validClassroomTypes) {
+                        try {
+                            const apiData = {
+                                name: classroomType.name,
+                                description: classroomType.description || null,
+                                scheduleId: Number(scheduleId),
+                            };
+
+                            const response = await fetch("/api/classroom-types", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify(apiData),
+                            });
+
+                            if (!response.ok) {
+                                const errorData = await response.text();
+                                importErrors.push(
+                                    `Failed to import ${classroomType.name}: ${
+                                        errorData || 'Unknown error'
+                                    }`
+                                );
+                            } else {
+                                completed++;
+                            }
+                        } catch (error) {
+                            importErrors.push(
+                                `Failed to import ${classroomType.name}: ${
+                                    error instanceof Error ? error.message : 'Unknown error'
+                                }`
+                            );
+                        }
+
+                        // Update progress
+                        setImportProgress(prev => ({
+                            ...prev,
+                            completed: completed,
+                            errors: importErrors,
+                        }));
+
+                        // Small delay to prevent overwhelming the server
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+
+                    // Final update
+                    setImportProgress(prev => ({ ...prev, isImporting: false }));
+
+                    // Refresh the classroom types list
+                    await fetchClassroomTypes();
+
+                    // Show completion message
+                    if (completed > 0) {
+                        setStatusMessage({
+                            text: `Successfully imported ${completed} classroom type(s)${
+                                importErrors.length > 0 ? ` with ${importErrors.length} error(s)` : ''
+                            }`,
+                            type: completed === validClassroomTypes.length ? "success" : "error",
+                        });
+                    } else {
+                        setStatusMessage({
+                            text: "Failed to import any classroom types",
+                            type: "error",
+                        });
+                    }
+                },
+                error: (error) => {
+                    console.error("CSV parsing error:", error);
+                    setStatusMessage({
+                        text: "Failed to parse CSV file. Please check the file format.",
+                        type: "error",
+                    });
+                    setImportProgress(prev => ({ ...prev, isImporting: false }));
+                },
+            });
+        } catch (error) {
+            console.error("Import error:", error);
+            setStatusMessage({
+                text: "Failed to import classroom types. Please try again.",
+                type: "error",
+            });
+            setImportProgress(prev => ({ ...prev, isImporting: false }));
+        }
+    };
+
+    // File selection handler
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file && file.type === 'text/csv') {
+            setImportFile(file);
+        } else {
+            setStatusMessage({
+                text: "Please select a valid CSV file",
+                type: "error",
+            });
+            event.target.value = ''; // Reset file input
+        }
+    };
+
+    // Reset import state
+    const resetImportState = () => {
+        setImportFile(null);
+        setImportProgress({
+            total: 0,
+            completed: 0,
+            errors: [],
+            isImporting: false,
+        });
+    };
+
+    // Download CSV with current classroom types data
+    const downloadClassroomTypesCSV = () => {
+        try {
+            // Create CSV header
+            const headers = ['name', 'description'];
+            
+            // Convert classroom types data to CSV rows
+            const csvRows = classroomTypes.map(type => [
+                type.name,
+                type.description || ''
+            ]);
+            
+            // Combine headers and data
+            const allRows = [headers, ...csvRows];
+            
+            // Convert to CSV string
+            const csvContent = allRows.map(row => 
+                row.map(field => {
+                    // Escape quotes and wrap in quotes if field contains comma, quote, or newline
+                    const fieldStr = String(field || '');
+                    if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n')) {
+                        return `"${fieldStr.replace(/"/g, '""')}"`;
+                    }
+                    return fieldStr;
+                }).join(',')
+            ).join('\n');
+
+            // Create and download file
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            
+            // Generate filename with current date
+            const today = new Date().toISOString().split('T')[0];
+            link.setAttribute('download', `classroom_types_export_${today}.csv`);
+            
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            setStatusMessage({
+                text: `Exported ${classroomTypes.length} classroom types to CSV`,
+                type: "success",
+            });
+        } catch (error) {
+            console.error('Error exporting CSV:', error);
+            setStatusMessage({
+                text: "Failed to export classroom types. Please try again.",
+                type: "error",
+            });
+        }
+    };
 
     return (
         <div className="space-y-4">
@@ -538,36 +551,35 @@ const downloadClassroomTypesCSV = () => {
 
             {/* Page Header */}
             <div className="flex justify-between items-center">
-    <div>
-        <h2 className="text-lg font-semibold text-gray-900">Classroom Types</h2>
-        <p className="text-xs text-gray-600">Manage classroom type categories</p>
-    </div>
-    <div className="flex gap-2">
-    <Button
-            onClick={() => setIsImportDialogOpen(true)}
-            variant="outline"
-            className="border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md"
-        >
-            <Upload className="mr-1 h-3 w-3" /> Import CSV
-        </Button>
-        <Button
-            onClick={downloadClassroomTypesCSV}
-            variant="outline"
-            className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
-            disabled={classroomTypes.length === 0}
-        >
-            <Download className="mr-1 h-3 w-3" /> Export CSV
-        </Button>
-     
-   
-        <Button
-            onClick={openAddDialog}
-            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors inline-flex items-center gap-1"
-        >
-            <Plus className="h-3 w-3" /> New Classroom Type
-        </Button>
-    </div>
-</div>
+                <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Classroom Types</h2>
+                    <p className="text-xs text-gray-600">Manage classroom type categories</p>
+                </div>
+                <div className="flex gap-2">
+                    <Button
+                        onClick={() => setIsImportDialogOpen(true)}
+                        variant="outline"
+                        className="border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md"
+                    >
+                        <Upload className="mr-1 h-3 w-3" /> Import CSV
+                    </Button>
+                    <Button
+                        onClick={downloadClassroomTypesCSV}
+                        variant="outline"
+                        className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
+                        disabled={classroomTypes.length === 0}
+                    >
+                        <Download className="mr-1 h-3 w-3" /> Export CSV
+                    </Button>
+                    
+                    <Button
+                        onClick={openAddDialog}
+                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors inline-flex items-center gap-1"
+                    >
+                        <Plus className="h-3 w-3" /> New Classroom Type
+                    </Button>
+                </div>
+            </div>
 
             {/* Compact Table Container */}
             <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
@@ -581,6 +593,9 @@ const downloadClassroomTypesCSV = () => {
                                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
                                     Name
                                 </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Description
+                                </th>
                                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
                                     Actions
                                 </th>
@@ -590,7 +605,7 @@ const downloadClassroomTypesCSV = () => {
                             {classroomTypes.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={3}
+                                        colSpan={4}
                                         className="px-3 py-8 text-center text-gray-500 text-sm"
                                     >
                                         <div className="space-y-1">
@@ -612,6 +627,9 @@ const downloadClassroomTypesCSV = () => {
                                         </td>
                                         <td className="px-3 py-2 text-xs text-gray-900">
                                             {classroomType.name}
+                                        </td>
+                                        <td className="px-3 py-2 text-xs text-gray-600">
+                                            {classroomType.description || "-"}
                                         </td>
                                         <td className="px-3 py-2">
                                             <div className="flex gap-1">
@@ -666,16 +684,30 @@ const downloadClassroomTypesCSV = () => {
                     </DialogHeader>
 
                     <div className="py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="name" className="text-sm font-medium text-gray-700">Name</Label>
-                            <Input
-                                id="name"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                placeholder="Enter classroom type name"
-                            />
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="name" className="text-sm font-medium text-gray-700">Name</Label>
+                                <Input
+                                    id="name"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    placeholder="Enter classroom type name"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="description" className="text-sm font-medium text-gray-700">Description (Optional)</Label>
+                                <Textarea
+                                    id="description"
+                                    name="description"
+                                    value={formData.description}
+                                    onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    placeholder="Enter classroom type description"
+                                    rows={3}
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -715,16 +747,30 @@ const downloadClassroomTypesCSV = () => {
                     </DialogHeader>
 
                     <div className="py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-name" className="text-sm font-medium text-gray-700">Name</Label>
-                            <Input
-                                id="edit-name"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                placeholder="Enter classroom type name"
-                            />
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-name" className="text-sm font-medium text-gray-700">Name</Label>
+                                <Input
+                                    id="edit-name"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    placeholder="Enter classroom type name"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-description" className="text-sm font-medium text-gray-700">Description (Optional)</Label>
+                                <Textarea
+                                    id="edit-description"
+                                    name="description"
+                                    value={formData.description}
+                                    onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    placeholder="Enter classroom type description"
+                                    rows={3}
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -767,9 +813,16 @@ const downloadClassroomTypesCSV = () => {
                         <p className="text-sm text-gray-600 mb-2">
                             Are you sure you want to delete this classroom type?
                         </p>
-                        <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
-                            {selectedClassroomType?.name}
-                        </p>
+                        <div className="bg-gray-50 p-3 rounded border space-y-1">
+                            <p className="font-medium text-sm text-gray-900">
+                                {selectedClassroomType?.name}
+                            </p>
+                            {selectedClassroomType?.description && (
+                                <p className="text-xs text-gray-600">
+                                    {selectedClassroomType.description}
+                                </p>
+                            )}
+                        </div>
                         <p className="text-xs text-gray-500 mt-2">This action cannot be undone.</p>
                     </div>
 
@@ -793,101 +846,103 @@ const downloadClassroomTypesCSV = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Import Dialog */}
             <Dialog
-    open={isImportDialogOpen}
-    onOpenChange={(open) => {
-        if (!open) resetImportState();
-        setIsImportDialogOpen(open);
-    }}
->
-    <DialogContent className="bg-white max-w-md">
-        <DialogHeader className="border-b border-gray-200 pb-3">
-            <DialogTitle className="text-lg font-semibold text-gray-900">Import Classroom Types from CSV</DialogTitle>
-        </DialogHeader>
+                open={isImportDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) resetImportState();
+                    setIsImportDialogOpen(open);
+                }}
+            >
+                <DialogContent className="bg-white max-w-md">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">Import Classroom Types from CSV</DialogTitle>
+                    </DialogHeader>
 
-        <div className="py-4 space-y-4">
-            <div className="space-y-2">
-                <Label htmlFor="csv-file" className="text-sm font-medium text-gray-700">Select CSV File</Label>
-                <Input
-                    id="csv-file"
-                    type="file"
-                    accept=".csv"
-                    onChange={handleFileSelect}
-                    disabled={importProgress.isImporting}
-                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                />
-                <p className="text-xs text-gray-600">
-                    CSV should contain column: name
-                </p>
-            </div>
-
-            {importFile && (
-                <div className="text-sm bg-gray-50 p-2 rounded border">
-                    <p><strong>Selected file:</strong> {importFile.name}</p>
-                    <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
-                </div>
-            )}
-
-            {importProgress.isImporting && (
-                <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                        <span>Progress:</span>
-                        <span>{importProgress.completed} / {importProgress.total}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                            className="bg-[#2F2F85] h-2 rounded-full transition-all duration-300"
-                            style={{ 
-                                width: importProgress.total > 0 
-                                    ? `${(importProgress.completed / importProgress.total) * 100}%` 
-                                    : '0%' 
-                            }}
-                        ></div>
-                    </div>
-                </div>
-            )}
-
-            {importProgress.errors.length > 0 && (
-                <div className="max-h-32 overflow-y-auto">
-                    <p className="text-sm font-medium text-red-600 mb-1">
-                        Errors ({importProgress.errors.length}):
-                    </p>
-                    <div className="text-xs space-y-1 bg-red-50 p-2 rounded border border-red-200">
-                        {importProgress.errors.slice(0, 10).map((error, index) => (
-                            <p key={index} className="text-red-600">{error}</p>
-                        ))}
-                        {importProgress.errors.length > 10 && (
-                            <p className="text-red-600 font-medium">
-                                ... and {importProgress.errors.length - 10} more errors
+                    <div className="py-4 space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="csv-file" className="text-sm font-medium text-gray-700">Select CSV File</Label>
+                            <Input
+                                id="csv-file"
+                                type="file"
+                                accept=".csv"
+                                onChange={handleFileSelect}
+                                disabled={importProgress.isImporting}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                            />
+                            <p className="text-xs text-gray-600">
+                                CSV should contain columns: name, description (optional)
                             </p>
+                        </div>
+
+                        {importFile && (
+                            <div className="text-sm bg-gray-50 p-2 rounded border">
+                                <p><strong>Selected file:</strong> {importFile.name}</p>
+                                <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
+                            </div>
+                        )}
+
+                        {importProgress.isImporting && (
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-sm">
+                                    <span>Progress:</span>
+                                    <span>{importProgress.completed} / {importProgress.total}</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div 
+                                        className="bg-[#2F2F85] h-2 rounded-full transition-all duration-300"
+                                        style={{ 
+                                            width: importProgress.total > 0 
+                                                ? `${(importProgress.completed / importProgress.total) * 100}%` 
+                                                : '0%' 
+                                        }}
+                                    ></div>
+                                </div>
+                            </div>
+                        )}
+
+                        {importProgress.errors.length > 0 && (
+                            <div className="max-h-32 overflow-y-auto">
+                                <p className="text-sm font-medium text-red-600 mb-1">
+                                    Errors ({importProgress.errors.length}):
+                                </p>
+                                <div className="text-xs space-y-1 bg-red-50 p-2 rounded border border-red-200">
+                                    {importProgress.errors.slice(0, 10).map((error, index) => (
+                                        <p key={index} className="text-red-600">{error}</p>
+                                    ))}
+                                    {importProgress.errors.length > 10 && (
+                                        <p className="text-red-600 font-medium">
+                                            ... and {importProgress.errors.length - 10} more errors
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
                         )}
                     </div>
-                </div>
-            )}
-        </div>
 
-        <DialogFooter className="border-t border-gray-200 pt-3">
-            <Button
-                variant="outline"
-                onClick={() => {
-                    resetImportState();
-                    setIsImportDialogOpen(false);
-                }}
-                disabled={importProgress.isImporting}
-                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
-            >
-                Cancel
-            </Button>
-            <Button
-                onClick={handleImportCSV}
-                disabled={!importFile || importProgress.isImporting}
-                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white disabled:bg-gray-300 text-sm px-3 py-1.5"
-            >
-                {importProgress.isImporting ? 'Importing...' : 'Import'}
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
+                    <DialogFooter className="border-t border-gray-200 pt-3">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                resetImportState();
+                                setIsImportDialogOpen(false);
+                            }}
+                            disabled={importProgress.isImporting}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleImportCSV}
+                            disabled={!importFile || importProgress.isImporting}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white disabled:bg-gray-300 text-sm px-3 py-1.5"
+                        >
+                            {importProgress.isImporting ? 'Importing...' : 'Import'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
