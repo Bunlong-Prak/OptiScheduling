@@ -703,33 +703,28 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
                     });
 
                     // Transform for timetable
-                    const transformedCourses = Object.values(
-                        coursesBySectionId
-                    ).map((course: any) => {
-                        const colorClassName =
-                            colors_class[course.color] ||
-                            getConsistentCourseColor(course.code);
-
+                    const transformedCourses = Object.values(coursesBySectionId).map((course: any) => {
+                        const colorClassName = colors_class[course.color] || getConsistentCourseColor(course.code);
+                    
                         // Store the color mapping for later use
                         colorMap.set(course.code, {
                             color: colorClassName,
                             originalColor: course.color,
                         });
-
+                    
                         return {
                             code: course.code,
                             sectionId: course.sectionId,
                             name: course.title,
                             color: colorClassName,
                             duration: course.duration,
-                            instructor: `${course.firstName || ""} ${
-                                course.lastName || ""
-                            }`.trim(),
+                            instructor: `${course.firstName || ""} ${course.lastName || ""}`.trim(),
                             section: course.section,
-                            room: course.classroom || "TBA",
+                            room: course.status === 'online' ? 'Online' : (course.classroom), // Fix: Set room based on status
                             uniqueId: `${course.code}-${course.section}`,
                             majors: course.major || [],
                             originalColor: course.color,
+                            status: course.status || 'offline', // Fix: Include status property
                         };
                     });
 
@@ -1132,11 +1127,7 @@ const saveAllAssignments = async () => {
 
         console.log("Dropping course on slot:", timeSlot);
         const isOnlineClassroom = parseInt(classroomId) < 0;
-        const isCourseOnline = draggedCourse.room && (
-            draggedCourse.room.startsWith('Online') || 
-            draggedCourse.room === 'TBA' ||
-            draggedCourse.room === ''
-        );
+        const isCourseOnline = draggedCourse.status === 'online';
         
 // Prevent online courses from being assigned to physical classrooms
 if (isCourseOnline && !isOnlineClassroom) {
@@ -1676,11 +1667,7 @@ const checkDropValidity = (day: string, classroomId: string, timeSlot: string): 
 
     // Check online/offline compatibility
     const isOnlineClassroom = parseInt(classroomId) < 0;
-    const isCourseOnline = draggedCourse.room && (
-        draggedCourse.room.startsWith('Online') || 
-        draggedCourse.room === 'TBA' ||
-        draggedCourse.room === ''
-    );
+    const isCourseOnline = draggedCourse.status === 'online';
 
     if (isCourseOnline && !isOnlineClassroom) return false;
     if (!isCourseOnline && isOnlineClassroom) return false;
@@ -1954,14 +1941,10 @@ const renderEnhancedTableCell = (day: string, classroom: Classroom, slot: Course
     <div className="absolute z-50 -top-2 left-full ml-1 bg-gray-900 text-white shadow-lg p-2 rounded text-xs whitespace-nowrap max-w-xs">
         <div className="font-semibold mb-1">{draggedCourse.code} - {draggedCourse.duration}hr{draggedCourse.duration > 1 ? 's' : ''}</div>
         
-        {/* Online/Offline compatibility check */}
+        {/* Online/Offline compatibility check - FIXED */}
         {(() => {
             const isOnlineClassroom = classroom.id < 0;
-            const isCourseOnline = draggedCourse.room && (
-                draggedCourse.room.startsWith('Online') || 
-                draggedCourse.room === 'TBA' ||
-                draggedCourse.room === ''
-            );
+            const isCourseOnline = draggedCourse.status === 'online'; // Use status instead of room
             
             if (isCourseOnline && !isOnlineClassroom) {
                 return <div className="text-red-400 mb-1">⚠️ Online courses cannot be assigned to physical classrooms</div>;

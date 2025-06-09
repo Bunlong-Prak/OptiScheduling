@@ -29,7 +29,7 @@ export const instructorSchema = z.object({
 
     phone_number: z
         .string()
-        .min(1, "Phone number must be maximum 1 characters")
+        .max(9, "Phone number must be maximum 9 characters")
         .optional()
         .or(z.literal(""))
         .transform((val) => (val === "" ? undefined : val)),
