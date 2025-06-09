@@ -687,6 +687,7 @@ export default function ClassroomView() {
                     }));
                 },
             });
+        
         } catch (error) {
             console.error("Import error:", error);
             setStatusMessage({

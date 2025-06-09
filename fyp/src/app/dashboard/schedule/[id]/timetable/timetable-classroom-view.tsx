@@ -881,7 +881,7 @@ assignmentsData.forEach((assignment: any) => {
     const actualDuration = Math.min(duration, timeSlots.length - startIndex);
 
     // Create the course object
-    const course = {
+    let course = {
         sectionId: sectionId,
         code: code,
         name: title,
@@ -896,7 +896,7 @@ assignmentsData.forEach((assignment: any) => {
             ].endTime,
         classroom: classroomId,
         color: colorClassName,
-        section: sectionId.toString(),
+        section: assignment.sectionNumber || assignment.section_number || "N/A", 
         room: isOnline ? "Online" : classroomCode,
         originalColor: originalColor,
         isOnline: isOnline, // Add this flag for future reference
@@ -1457,7 +1457,7 @@ if (!isCourseOnline && isOnlineClassroom) {
                         const duration =
                             endIndex !== -1 ? endIndex - startIndex + 1 : 1;
 
-                        const course: TimetableCourse = {
+                        let course: TimetableCourse = {
                             sectionId: sectionId,
                             code: courseCode,
                             name: courseTitle,

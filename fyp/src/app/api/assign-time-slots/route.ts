@@ -51,6 +51,7 @@ export async function GET(request: Request) {
         const assignments = await db
             .select({
                 sectionId: sections.id,
+                sectionNumber: sections.number,
                 courseHours: courseHours.timeSlot,
                 classroom: classrooms.code, // This will be null for online courses
                 classroomId: sections.classroomId, // Include this to check if it's null
