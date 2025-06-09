@@ -24,7 +24,8 @@ import { useParams } from "next/navigation";
 import type React from "react";
 import { useEffect, useState } from "react";
 import Papa from "papaparse";
-
+import { validateInstructorsWithUniqueEmails, validateAgainstExistingEmails, instructorSchema } from "@/lib/validations/instructors";
+import { z } from "zod";
 const ITEMS_PER_PAGE = 15; // Define how many items to show per page
 
 export default function InstructorsView() {
@@ -168,177 +169,163 @@ export default function InstructorsView() {
     };
 
     // Main import function
-    const handleImportCSV = async () => {
-        if (!importFile) {
-            setStatusMessage({
-                text: "Please select a CSV file to import",
-                type: "error",
-            });
-            return;
-        }
-
-        const scheduleId = params.id;
-
-        setImportProgress({
-            total: 0,
-            completed: 0,
-            errors: [],
-            isImporting: true,
+  
+// Updated CSV import function for your component
+const handleImportCSV = async () => {
+    if (!importFile) {
+        setStatusMessage({
+            text: "Please select a CSV file to import",
+            type: "error",
         });
+        return;
+    }
 
-        try {
-            // Parse CSV file
-            Papa.parse(importFile, {
-                header: true,
-                skipEmptyLines: true,
-                transformHeader: (header) =>
-                    header.trim().toLowerCase().replace(/\s+/g, "_"),
-                complete: async (results) => {
-                    const csvData = results.data as any[];
-                    const validInstructors: CSVInstructorRow[] = [];
-                    const errors: string[] = [];
+    const scheduleId = params.id;
 
-                    // Validate each row
-                    csvData.forEach((row, index) => {
-                        const validationResult = validateInstructorData(
-                            row,
-                            index
-                        );
-                        if (typeof validationResult === "string") {
-                            errors.push(validationResult);
-                        } else {
-                            validInstructors.push(validationResult);
-                        }
-                    });
+    setImportProgress({
+        total: 0,
+        completed: 0,
+        errors: [],
+        isImporting: true,
+    });
 
-                    setImportProgress((prev) => ({
-                        ...prev,
-                        total: validInstructors.length,
-                        errors: errors,
-                    }));
+    try {
+        // Parse CSV file
+        Papa.parse(importFile, {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: (header) =>
+                header.trim().toLowerCase().replace(/\s+/g, "_"),
+            complete: async (results) => {
+                const csvData = results.data as any[];
 
-                    if (validInstructors.length === 0) {
-                        setStatusMessage({
-                            text: "No valid instructors found in the CSV file",
-                            type: "error",
-                        });
-                        setImportProgress((prev) => ({
-                            ...prev,
-                            isImporting: false,
-                        }));
-                        return;
-                    }
+                // Step 1: Validate CSV data with Zod and check for internal duplicates
+                const { validInstructors: csvValidInstructors, errors: csvErrors } = 
+                    validateInstructorsWithUniqueEmails(csvData);
 
-                    // Import valid instructors
-                    let completed = 0;
-                    const importErrors: string[] = [...errors];
+                // Step 2: Check against existing instructors in the system
+                const { validInstructors: finalValidInstructors, errors: existingErrors } = 
+                    validateAgainstExistingEmails(csvValidInstructors, instructors);
 
-                    for (const instructor of validInstructors) {
-                        try {
-                            const apiData = {
-                                firstName: instructor.first_name,
-                                lastName: instructor.last_name,
-                                gender: instructor.gender,
-                                email: instructor.email,
-                                phoneNumber: instructor.phone_number,
-                                scheduleId: Number(scheduleId),
-                            };
+                const allErrors = [...csvErrors, ...existingErrors];
 
-                            const response = await fetch("/api/instructors", {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                },
-                                body: JSON.stringify(apiData),
-                            });
+                setImportProgress((prev) => ({
+                    ...prev,
+                    total: finalValidInstructors.length,
+                    errors: allErrors,
+                }));
 
-                            if (!response.ok) {
-                                const errorData = await response.json();
-                                importErrors.push(
-                                    `Failed to import ${
-                                        instructor.first_name
-                                    } ${instructor.last_name}: ${
-                                        errorData.error || "Unknown error"
-                                    }`
-                                );
-                            } else {
-                                completed++;
-                            }
-                        } catch (error) {
-                            importErrors.push(
-                                `Failed to import ${instructor.first_name} ${
-                                    instructor.last_name
-                                }: ${
-                                    error instanceof Error
-                                        ? error.message
-                                        : "Unknown error"
-                                }`
-                            );
-                        }
-
-                        // Update progress
-                        setImportProgress((prev) => ({
-                            ...prev,
-                            completed: completed,
-                            errors: importErrors,
-                        }));
-
-                        // Small delay to prevent overwhelming the server
-                        await new Promise((resolve) =>
-                            setTimeout(resolve, 100)
-                        );
-                    }
-
-                    // Final update
-                    setImportProgress((prev) => ({
-                        ...prev,
-                        isImporting: false,
-                    }));
-
-                    // Refresh the instructor list
-                    await fetchInstructors();
-
-                    // Show completion message
-                    if (completed > 0) {
-                        setStatusMessage({
-                            text: `Successfully imported ${completed} instructor(s)${
-                                importErrors.length > 0
-                                    ? ` with ${importErrors.length} error(s)`
-                                    : ""
-                            }`,
-                            type:
-                                completed === validInstructors.length
-                                    ? "success"
-                                    : "error",
-                        });
-                    } else {
-                        setStatusMessage({
-                            text: "Failed to import any instructors",
-                            type: "error",
-                        });
-                    }
-                },
-                error: (error) => {
-                    console.error("CSV parsing error:", error);
+                if (finalValidInstructors.length === 0) {
                     setStatusMessage({
-                        text: "Failed to parse CSV file. Please check the file format.",
+                        text: "No valid instructors found in the CSV file",
                         type: "error",
                     });
                     setImportProgress((prev) => ({
                         ...prev,
                         isImporting: false,
                     }));
-                },
-            });
-        } catch (error) {
-            console.error("Import error:", error);
-            setStatusMessage({
-                text: "Failed to import instructors. Please try again.",
-                type: "error",
-            });
-            setImportProgress((prev) => ({ ...prev, isImporting: false }));
-        }
-    };
+                    return;
+                }
+
+                // Step 3: Import valid instructors
+                let completed = 0;
+                const importErrors: string[] = [...allErrors];
+
+                for (const instructor of finalValidInstructors) {
+                    try {
+                        const apiData = {
+                            firstName: instructor.first_name,
+                            lastName: instructor.last_name,
+                            gender: instructor.gender,
+                            email: instructor.email,
+                            phoneNumber: instructor.phone_number || "",
+                            scheduleId: Number(scheduleId),
+                        };
+
+                        const response = await fetch("/api/instructors", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(apiData),
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            importErrors.push(
+                                `Failed to import ${instructor.first_name} ${instructor.last_name}: ${
+                                    errorData.error || "Unknown error"
+                                }`
+                            );
+                        } else {
+                            completed++;
+                        }
+                    } catch (error) {
+                        importErrors.push(
+                            `Failed to import ${instructor.first_name} ${instructor.last_name}: ${
+                                error instanceof Error ? error.message : "Unknown error"
+                            }`
+                        );
+                    }
+
+                    // Update progress
+                    setImportProgress((prev) => ({
+                        ...prev,
+                        completed: completed,
+                        errors: importErrors,
+                    }));
+
+                    // Small delay to prevent overwhelming the server
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+
+                // Final update
+                setImportProgress((prev) => ({
+                    ...prev,
+                    isImporting: false,
+                }));
+
+                // Refresh the instructor list
+                await fetchInstructors();
+
+                // Show completion message
+                if (completed > 0) {
+                    setStatusMessage({
+                        text: `Successfully imported ${completed} instructor(s)${
+                            importErrors.length > 0
+                                ? ` with ${importErrors.length} error(s)`
+                                : ""
+                        }`,
+                        type: completed === finalValidInstructors.length ? "success" : "error",
+                    });
+                } else {
+                    setStatusMessage({
+                        text: "Failed to import any instructors",
+                        type: "error",
+                    });
+                }
+            },
+            error: (error) => {
+                console.error("CSV parsing error:", error);
+                setStatusMessage({
+                    text: "Failed to parse CSV file. Please check the file format.",
+                    type: "error",
+                });
+                setImportProgress((prev) => ({
+                    ...prev,
+                    isImporting: false,
+                }));
+            },
+        });
+    } catch (error) {
+        console.error("Import error:", error);
+        setStatusMessage({
+            text: "Failed to import instructors. Please try again.",
+            type: "error",
+        });
+        setImportProgress((prev) => ({ ...prev, isImporting: false }));
+    }
+};
 
     // File selection handler
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -431,24 +418,7 @@ export default function InstructorsView() {
         });
     };
 
-    // Download empty CSV template for new imports
-    const downloadEmptyTemplate = () => {
-        const csvContent = `first_name,last_name,gender,email,phone_number
-John,Smith,Male,john.smith@email.com,555-123-4567
-Jane,Doe,Female,jane.doe@email.com,555-987-6543`;
 
-        const blob = new Blob([csvContent], {
-            type: "text/csv;charset=utf-8;",
-        });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", "instructors_template.csv");
-        link.style.visibility = "hidden";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
     // Load instructors on component mount
     useEffect(() => {
         fetchInstructors();
@@ -469,20 +439,41 @@ Jane,Doe,Female,jane.doe@email.com,555-987-6543`;
         });
     };
     const params = useParams();
-
     const handleAddInstructor = async () => {
         try {
+            // Validate form data with Zod
+            const validatedData = instructorSchema.parse({
+                first_name: formData.first_name,
+                last_name: formData.last_name,
+                gender: formData.gender,
+                email: formData.email,
+                phone_number: formData.phone_number,
+            });
+    
+            // Check if email already exists
+            const existingInstructor = instructors.find(
+                instructor => instructor.email.toLowerCase() === validatedData.email.toLowerCase()
+            );
+    
+            if (existingInstructor) {
+                setStatusMessage({
+                    text: "An instructor with this email already exists",
+                    type: "error",
+                });
+                return;
+            }
+    
             // Prepare data for API
             const scheduleId = params.id;
             const apiData = {
-                firstName: formData.first_name,
-                lastName: formData.last_name,
-                gender: formData.gender,
-                email: formData.email,
-                phoneNumber: formData.phone_number,
+                firstName: validatedData.first_name,
+                lastName: validatedData.last_name,
+                gender: validatedData.gender,
+                email: validatedData.email,
+                phoneNumber: validatedData.phone_number || "",
                 scheduleId: Number(scheduleId),
             };
-
+    
             const response = await fetch("/api/instructors", {
                 method: "POST",
                 headers: {
@@ -490,28 +481,36 @@ Jane,Doe,Female,jane.doe@email.com,555-987-6543`;
                 },
                 body: JSON.stringify(apiData),
             });
-
+    
             if (!response.ok) {
                 throw new Error("Failed to create instructor");
             }
-
+    
             // Refresh the instructor list
             await fetchInstructors();
-
+    
             // Close dialog and reset form
             setIsAddDialogOpen(false);
             resetForm();
-
+    
             setStatusMessage({
                 text: "Instructor added successfully",
                 type: "success",
             });
         } catch (error) {
-            console.error("Error adding instructor:", error);
-            setStatusMessage({
-                text: "Failed to add instructor. Please try again.",
-                type: "error",
-            });
+            if (error instanceof z.ZodError) {
+                const errorMessage = error.errors.map(err => `${err.path.join('.')}: ${err.message}`).join(', ');
+                setStatusMessage({
+                    text: `Validation error: ${errorMessage}`,
+                    type: "error",
+                });
+            } else {
+                console.error("Error adding instructor:", error);
+                setStatusMessage({
+                    text: error instanceof Error ? error.message : "Failed to add instructor. Please try again.",
+                    type: "error",
+                });
+            }
         }
     };
 
