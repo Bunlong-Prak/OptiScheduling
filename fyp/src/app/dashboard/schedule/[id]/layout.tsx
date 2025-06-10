@@ -20,14 +20,13 @@ export default function ScheduleLayout({
 
     // Fetch the actual schedule data
     useEffect(() => {
-        
         const fetchSchedule = async () => {
             if (!scheduleId) return;
 
             try {
                 // Fetch all schedules first, then find the one we need
                 const response = await fetch(
-                    `/api/schedules?=scheduleId=${scheduleId}`
+                    `/api/schedules?scheduleId=${scheduleId}`
                 );
                 if (!response.ok) {
                     throw new Error("Failed to fetch schedules");
@@ -85,14 +84,16 @@ export default function ScheduleLayout({
                 <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
                     <div className="w-full flex justify-between items-center">
                         <div>
-                            <h1 className="text-2xl font-semibold text-gray-900">Loading...</h1>
+                            <h1 className="text-2xl font-semibold text-gray-900">
+                                Loading...
+                            </h1>
                             <p className="text-sm text-gray-600 mt-1">
                                 Loading schedule details...
                             </p>
                         </div>
                     </div>
                 </div>
-                
+
                 {/* Loading Navigation */}
                 <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
                     <div className="border-b border-gray-200">
@@ -107,9 +108,7 @@ export default function ScheduleLayout({
                             ))}
                         </nav>
                     </div>
-                    <div className="p-6">
-                        {children}
-                    </div>
+                    <div className="p-6">{children}</div>
                 </div>
             </div>
         );
@@ -135,7 +134,7 @@ export default function ScheduleLayout({
                     <div className="flex gap-2"></div>
                 </div>
             </div>
-            
+
             {/* Navigation and Content Container */}
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
                 {/* Navigation Tabs */}
@@ -160,11 +159,9 @@ export default function ScheduleLayout({
                         })}
                     </nav>
                 </div>
-                
+
                 {/* Content Area */}
-                <div className="p-6">
-                    {children}
-                </div>
+                <div className="p-6">{children}</div>
             </div>
         </div>
     );

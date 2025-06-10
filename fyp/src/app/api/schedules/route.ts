@@ -60,47 +60,48 @@ export async function GET(request: Request) {
                 const formattedSchedules = Array.from(scheduleMap.values());
                 console.log("Formatted schedules:", formattedSchedules);
                 return NextResponse.json(formattedSchedules);
-            } else {
-                let query = db
-                    .select({
-                        id: schedules.id,
-                        name: schedules.name,
-                        academicYear: schedules.academicYear,
-                        userId: schedules.userId,
-                        timeSlotId: scheduleTimeSlots.id,
-                        startTime: scheduleTimeSlots.startTime,
-                        endTime: scheduleTimeSlots.endTime,
-                    })
-                    .from(schedules)
-                    .innerJoin(
-                        scheduleTimeSlots,
-                        eq(scheduleTimeSlots.scheduleId, schedules.id)
-                    );
-
-                const scheduleData = await query;
-
-                if (scheduleData.length === 0) {
-                    return NextResponse.json(
-                        { error: "Schedule not found" },
-                        { status: 404 }
-                    );
-                }
-
-                // Format the response for a single schedule
-                const schedule = {
-                    id: scheduleData[0].id,
-                    name: scheduleData[0].name,
-                    academic_year: scheduleData[0].academicYear,
-                    userId: scheduleData[0].userId,
-                    timeSlots: scheduleData.map((item) => ({
-                        id: item.timeSlotId,
-                        startTime: item.startTime,
-                        endTime: item.endTime,
-                    })),
-                };
-
-                return NextResponse.json(schedule);
             }
+        } else {
+            let query = db
+                .select({
+                    id: schedules.id,
+                    name: schedules.name,
+                    academicYear: schedules.academicYear,
+                    userId: schedules.userId,
+                    timeSlotId: scheduleTimeSlots.id,
+                    startTime: scheduleTimeSlots.startTime,
+                    endTime: scheduleTimeSlots.endTime,
+                })
+                .from(schedules)
+                .where(eq(schedules.id, parseInt(scheduleId)))
+                .innerJoin(
+                    scheduleTimeSlots,
+                    eq(scheduleTimeSlots.scheduleId, schedules.id)
+                );
+
+            const scheduleData = await query;
+
+            if (scheduleData.length === 0) {
+                return NextResponse.json(
+                    { error: "Schedule not found" },
+                    { status: 404 }
+                );
+            }
+
+            // Format the response for a single schedule
+            const schedule = {
+                id: scheduleData[0].id,
+                name: scheduleData[0].name,
+                academic_year: scheduleData[0].academicYear,
+                userId: scheduleData[0].userId,
+                timeSlots: scheduleData.map((item) => ({
+                    id: item.timeSlotId,
+                    startTime: item.startTime,
+                    endTime: item.endTime,
+                })),
+            };
+
+            return NextResponse.json(schedule);
         }
     } catch (error: unknown) {
         console.error("Error fetching schedules:", error);
