@@ -897,38 +897,40 @@ export default function TimeConstraintView() {
                         </div>
 
                         {/* Day selection with checkboxes */}
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-gray-700">
-                                Days
-                            </Label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 border border-gray-200 rounded p-3 bg-gray-50">
-                                {enhancedFormData.dayConstraints.map(
-                                    (dayConstraint, index) => (
-                                        <div
-                                            key={dayConstraint.day}
-                                            className="flex items-center space-x-2"
-                                        >
-                                            <Checkbox
-                                                id={`day-${dayConstraint.day}`}
-                                                checked={dayConstraint.selected}
-                                                onCheckedChange={(checked) =>
-                                                    handleDaySelection(
-                                                        index,
-                                                        checked as boolean
-                                                    )
-                                                }
-                                            />
-                                            <label
-                                                htmlFor={`day-${dayConstraint.day}`}
-                                                className="text-xs font-medium text-gray-700"
-                                            >
-                                                {dayConstraint.day}
-                                            </label>
-                                        </div>
-                                    )
-                                )}
-                            </div>
-                        </div>
+                       {/* Day selection with checkboxes */}
+<div className="space-y-2">
+    <Label className="text-sm font-medium text-gray-700">Days</Label>
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+        {enhancedFormData.dayConstraints.map((dayConstraint, index) => (
+            <div
+                key={dayConstraint.day}
+                className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                    dayConstraint.selected
+                        ? "bg-blue-50 border-blue-200 shadow-sm"
+                        : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+                }`}
+                onClick={() => handleDaySelection(index, !dayConstraint.selected)}
+            >
+                <Checkbox
+                    id={`day-${dayConstraint.day}`}
+                    checked={dayConstraint.selected}
+                    onCheckedChange={(checked) =>
+                        handleDaySelection(index, checked as boolean)
+                    }
+                />
+                <label
+                    htmlFor={`day-${dayConstraint.day}`}
+                    className="text-sm font-medium text-gray-700 cursor-pointer flex-1"
+                >
+                    {dayConstraint.day}
+                </label>
+                {dayConstraint.selected && (
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                )}
+            </div>
+        ))}
+    </div>
+</div>
 
                         {/* Tabs for each selected day */}
                         {enhancedFormData.dayConstraints.some(
