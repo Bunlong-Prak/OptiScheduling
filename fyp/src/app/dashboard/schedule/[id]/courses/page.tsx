@@ -53,7 +53,7 @@ import Papa from "papaparse";
 import { useEffect, useState } from "react";
 
 // Number of courses to show per page
-const ITEMS_PER_PAGE = 15;
+const ITEMS_PER_PAGE = 20;
 
 export default function CoursesView() {
     // State variables

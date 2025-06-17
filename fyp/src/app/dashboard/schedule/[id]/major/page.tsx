@@ -20,7 +20,7 @@ import { useEffect, useState } from "react";
 import Papa from 'papaparse';
 import { Download, Upload } from "lucide-react";
 
-const ITEMS_PER_PAGE = 15;
+const ITEMS_PER_PAGE = 20;
 
 // Define a more specific type for majors being added to the DB
 type MajorCreatePayload = {

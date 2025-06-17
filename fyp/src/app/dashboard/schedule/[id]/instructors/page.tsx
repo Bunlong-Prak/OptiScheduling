@@ -30,7 +30,7 @@ import Papa from "papaparse";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-const ITEMS_PER_PAGE = 15; // Define how many items to show per page
+const ITEMS_PER_PAGE = 20; // Define how many items to show per page
 
 export default function InstructorsView() {
     const [instructors, setInstructors] = useState<Instructor[]>([]);

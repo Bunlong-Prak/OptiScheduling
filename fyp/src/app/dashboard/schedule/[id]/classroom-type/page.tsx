@@ -25,7 +25,7 @@ interface ClassroomType {
     description?: string;
 }
 
-const ITEMS_PER_PAGE = 15;
+const ITEMS_PER_PAGE = 20;
 
 export default function ClassroomTypeView() {
     const [classroomTypes, setClassroomTypes] = useState<ClassroomType[]>([]);

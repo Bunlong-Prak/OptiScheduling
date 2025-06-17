@@ -38,7 +38,7 @@ interface FormErrors {
     capacity?: string;
 }
 
-const ITEMS_PER_PAGE = 15;
+const ITEMS_PER_PAGE = 20;
 
 export default function ClassroomView() {
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
