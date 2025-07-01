@@ -116,10 +116,8 @@ export const sections = mysqlTable("sections", {
     courseId: int("course_id")
         .notNull()
         .references(() => courses.id, { onDelete: "cascade" }), // Foreign key to Course
-    classroomId: int("classroom_id").references(() => classrooms.id), // Foreign key to Classroom
-    instructorId: int("instructor_id")
-        .notNull()
-        .references(() => instructors.id), // Foreign key to Instructor
+
+    instructorId: int("instructor_id").references(() => instructors.id), // Foreign key to Instructor
 });
 
 export const sectionRelations = relations(sections, ({ many, one }) => ({
@@ -129,8 +127,10 @@ export const sectionRelations = relations(sections, ({ many, one }) => ({
 
 export const courseHours = mysqlTable("course_hours", {
     id: int("id").primaryKey().autoincrement(),
-    day: varchar("day", { length: 50 }).notNull(),
-    timeSlot: varchar("time_slot", { length: 50 }).notNull(),
+    day: varchar("day", { length: 50 }),
+    timeSlot: varchar("time_slot", { length: 50 }),
+    separatedDuration: int("separated_duration"),
+    classroomId: int("classroom_id").references(() => classrooms.id), // Foreign key to Classrooms
     sectionId: int("section_id")
         .notNull()
         .references(() => sections.id, {

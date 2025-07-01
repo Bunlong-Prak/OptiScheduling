@@ -59,6 +59,7 @@ export type Course = {
     lastName?: string;
     instructorId?: string;
     duration: number;
+    separatedDuration: number; // Duration in minutes, used for scheduling
     capacity: number;
     sectionId: number;
     section: string;
@@ -129,6 +130,7 @@ export type CourseHour = {
 
 export type TimetableCourse = {
     [x: string]: any;
+    capacity: number; // Total capacity of the course
     code: string;
     name: string;
     sectionId: number;

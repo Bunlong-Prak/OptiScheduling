@@ -43,6 +43,7 @@ import {
     Check,
     ChevronsUpDown,
     Download,
+    Minus,
     Pencil,
     Plus,
     Trash,
@@ -72,16 +73,20 @@ export default function CoursesView() {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-    // Update sections state structure to include status
+
+    // Update sections state structure to include status and split durations
     const [sections, setSections] = useState<
         {
             id: number;
             section_id: string;
             instructor_id?: string;
             instructor_name?: string;
-            status: string; // Add this
+            status: string;
+            splitDurations: number[];
+            showSplitControls: boolean;
         }[]
     >([]);
+
     const [currentSection, setCurrentSection] = useState("");
     const [currentInstructor, setCurrentInstructor] = useState<{
         id: string;
@@ -92,7 +97,15 @@ export default function CoursesView() {
     // State for managing major - updated to handle single selection
     const [selectedMajor, setSelectedMajor] = useState<string>("");
 
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<{
+        title: string;
+        code: string;
+        color: string;
+        duration: number;
+        capacity: number;
+        section: string;
+        status: string;
+    }>({
         title: "",
         code: "",
         color: "",
@@ -101,6 +114,99 @@ export default function CoursesView() {
         section: "",
         status: "",
     });
+
+    // Split duration functions for sections
+    const updateSectionSplitDuration = (
+        sectionId: number,
+        index: number,
+        duration: number
+    ) => {
+        console.log(
+            `Updating section ${sectionId}, part ${index} to ${duration}`
+        );
+        const updatedSections = sections.map((section) =>
+            section.id === sectionId
+                ? {
+                      ...section,
+                      splitDurations: section.splitDurations.map((d, i) =>
+                          i === index ? Number(duration) : d
+                      ),
+                  }
+                : section
+        );
+        console.log("Updated sections:", updatedSections);
+        setSections(updatedSections);
+    };
+
+    const addSectionSplit = (sectionId: number) => {
+        setSections(
+            sections.map((section) =>
+                section.id === sectionId
+                    ? {
+                          ...section,
+                          splitDurations: [...section.splitDurations, 1],
+                      }
+                    : section
+            )
+        );
+    };
+
+    const removeSectionSplit = (sectionId: number, index: number) => {
+        setSections(
+            sections.map((section) =>
+                section.id === sectionId
+                    ? {
+                          ...section,
+                          splitDurations: section.splitDurations.filter(
+                              (_, i) => i !== index
+                          ),
+                      }
+                    : section
+            )
+        );
+    };
+
+    const getSectionTotalSplitDuration = (sectionId: number) => {
+        const section = sections.find((s) => s.id === sectionId);
+        const total = section
+            ? section.splitDurations.reduce(
+                  (sum, duration) => sum + Number(duration),
+                  0
+              )
+            : 0;
+        console.log(
+            `Section ${sectionId}: splitDurations =`,
+            section?.splitDurations,
+            `total = ${total}, formData.duration = ${formData.duration}`
+        );
+        return total;
+    };
+
+    const isSectionSplitValid = (sectionId: number) => {
+        const total = getSectionTotalSplitDuration(sectionId);
+        const courseDuration = Number(formData.duration);
+        const isValid = total === courseDuration;
+        console.log(
+            `Section ${sectionId}: ${total} === ${courseDuration} = ${isValid}`
+        );
+        return isValid;
+    };
+
+    const toggleSectionSplitControls = (sectionId: number) => {
+        setSections(
+            sections.map((section) =>
+                section.id === sectionId
+                    ? {
+                          ...section,
+                          showSplitControls: !section.showSplitControls,
+                          splitDurations: section.showSplitControls
+                              ? [formData.duration]
+                              : section.splitDurations,
+                      }
+                    : section
+            )
+        );
+    };
 
     // Clear status message after 5 seconds
     useEffect(() => {
@@ -150,32 +256,55 @@ export default function CoursesView() {
                 throw new Error(errorData.error || "Failed to fetch courses");
             }
 
-            const coursesData = await response.json();
-            console.log("Original API response:", coursesData);
+            const courseHoursData = await response.json();
+            console.log("Original API response:", courseHoursData);
 
-            // Group all courses with the same sectionId
-            const combinedCourses = [];
-            const sectionIdMap = new Map();
+            // Group course hours by sectionId to reconstruct sections
+            const sectionMap = new Map();
 
-            // First, create a map of courses by sectionId
-            coursesData.forEach((course: any) => {
-                const sectionIdKey = course.sectionId.toString();
+            courseHoursData.forEach((courseHour: any) => {
+                const sectionKey = courseHour.id.toString();
 
-                if (!sectionIdMap.has(sectionIdKey)) {
-                    sectionIdMap.set(sectionIdKey, {
-                        ...course,
-                        major: course.major, // Just store the single major
+                if (!sectionMap.has(sectionKey)) {
+                    // Create a new section entry
+                    sectionMap.set(sectionKey, {
+                        id: courseHour.id,
+                        sectionId: courseHour.sectionId,
+                        courseId: courseHour.courseId,
+                        title: courseHour.title,
+                        code: courseHour.code,
+                        major: courseHour.major,
+                        color: courseHour.color,
+                        firstName: courseHour.firstName,
+                        lastName: courseHour.lastName,
+                        instructorId: courseHour.instructorId,
+                        duration: courseHour.duration,
+                        separatedDuration: courseHour.separatedDuration,
+                        capacity: courseHour.capacity,
+                        status: courseHour.status,
+                        section: courseHour.section,
+                        classroom: courseHour.classroom,
+                        // Store all course hours for this section
+                        courseHours: [],
                     });
                 }
+
+                // Add this course hour to the section's course hours
+                sectionMap.get(sectionKey).courseHours.push({
+                    id: courseHour.id, // courseHours.id
+                    separatedDuration: courseHour.separatedDuration,
+                    day: courseHour.day,
+                    timeSlot: courseHour.timeSlot,
+                });
             });
 
             console.log(
                 "Grouped by sectionId:",
-                Array.from(sectionIdMap.values())
+                Array.from(sectionMap.values())
             );
 
             // Convert map to array for state
-            const processedCourses = Array.from(sectionIdMap.values());
+            const processedCourses = Array.from(sectionMap.values());
 
             // Set the processed courses to state
             setCourses(processedCourses);
@@ -256,18 +385,48 @@ export default function CoursesView() {
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
     ) => {
         const { name, value } = e.target;
-        setFormData({
-            ...formData,
-            [name]: value,
-        });
+
+        if (name === "duration") {
+            const newDuration = parseInt(value) || 1;
+            console.log("Duration changed to:", newDuration);
+            setFormData({
+                ...formData,
+                [name]: newDuration,
+            });
+            // Update all section split durations to match new duration
+            setSections(
+                sections.map((section) => ({
+                    ...section,
+                    splitDurations: section.showSplitControls
+                        ? section.splitDurations
+                        : [newDuration],
+                }))
+            );
+        } else {
+            setFormData({
+                ...formData,
+                [name]: value,
+            });
+        }
     };
 
     const handleSelectChange = (name: string, value: string) => {
         if (name === "duration") {
+            const newDuration = parseInt(value) || 1;
+            console.log("Duration changed to:", newDuration);
             setFormData({
                 ...formData,
-                [name]: parseInt(value),
+                [name]: newDuration,
             });
+            // Update all section split durations to match new duration
+            setSections(
+                sections.map((section) => ({
+                    ...section,
+                    splitDurations: section.showSplitControls
+                        ? section.splitDurations
+                        : [newDuration],
+                }))
+            );
         } else {
             setFormData({
                 ...formData,
@@ -278,21 +437,26 @@ export default function CoursesView() {
 
     // Function to add a section with instructor
     const addSection = () => {
-        if (!currentSection) return;
+        if (!currentSection.trim()) return;
 
         const newSection = {
-            id: Date.now(),
+            id: Date.now(), // Simple ID generation
             section_id: currentSection,
-            instructor_id: currentInstructor?.id ?? undefined,
-            instructor_name: currentInstructor?.name ?? undefined,
-            status: "offline", // Add this line
+            instructor_id: currentInstructor?.id || undefined,
+            instructor_name: currentInstructor?.name || undefined,
+            status: "offline",
+            showSplitControls: false,
+            splitDurations: [Number(formData.duration) || 1],
         };
 
-        setSections([...sections, newSection]);
+        // Add to the end of the array instead of the beginning
+        setSections((prevSections) => [...prevSections, newSection]);
+
+        // Reset form
         setCurrentSection("");
         setCurrentInstructor(null);
+        setCurrentInstructorOpen(false);
     };
-
     // Function to update instructor for an existing section
     const updateSectionInstructor = (
         sectionId: number,
@@ -318,6 +482,7 @@ export default function CoursesView() {
         );
         setFormData({ ...formData });
     };
+
     // Add this function after updateSectionInstructor
     const updateSectionStatus = (sectionId: number, status: string) => {
         setSections(
@@ -346,14 +511,30 @@ export default function CoursesView() {
             return;
         }
 
+        // Validate split durations for sections that have split controls enabled
+        for (const section of sections) {
+            if (section.showSplitControls && !isSectionSplitValid(section.id)) {
+                setStatusMessage({
+                    text: `Section ${section.section_id}: Split durations must equal course duration (${formData.duration} hours)`,
+                    type: "error",
+                });
+                return;
+            }
+        }
+
         try {
             const scheduleId = params.id;
 
-            // Create an array of sections with instructors
+            // Create an array of sections with instructors and split durations
             const sectionsList = sections.map((item) => ({
                 section: item.section_id,
                 instructorId: item.instructor_id || null,
-                status: item.status || "offline", // CORRECT
+                status: item.status || "offline",
+                splitDurations: item.showSplitControls
+                    ? item.splitDurations.map((duration) => ({
+                          separatedDuration: duration,
+                      })) // ✅ Create array of objects
+                    : [{ separatedDuration: formData.duration }], // ✅ Already correct
             }));
 
             // Create API payload with the base course data, the major, and schedule ID
@@ -362,10 +543,10 @@ export default function CoursesView() {
                 title: formData.title,
                 majorsList: [selectedMajor], // Send as an array with one element
                 color: getHexFromColorName(formData.color), // Convert to hex
-                // status: formData.status,
                 duration: Number(formData.duration),
                 capacity: Number(formData.capacity),
-                sectionsList: sectionsList, // Now includes instructor IDs per section
+                // Add split duration to API payload
+                sectionsList: sectionsList, // Now includes instructor IDs and split durations per section
                 scheduleId: Number(scheduleId),
             };
 
@@ -418,6 +599,17 @@ export default function CoursesView() {
             return;
         }
 
+        // Validate split durations for sections that have split controls enabled
+        for (const section of sections) {
+            if (section.showSplitControls && !isSectionSplitValid(section.id)) {
+                setStatusMessage({
+                    text: `Section ${section.section_id}: Split durations must equal course duration (${formData.duration} hours)`,
+                    type: "error",
+                });
+                return;
+            }
+        }
+
         try {
             // Ensure all required fields have values and proper types
             if (!selectedCourse?.sectionId) {
@@ -442,14 +634,6 @@ export default function CoursesView() {
                 return;
             }
 
-            // Create an array of sections with instructors
-            const sectionsList = sections.map((item) => ({
-                section: item.section_id,
-                instructorId: item.instructor_id
-                    ? String(item.instructor_id)
-                    : null,
-                status: item.status || "offline",
-            }));
             // Pre-validate all required fields
             if (
                 !formData.title ||
@@ -464,17 +648,29 @@ export default function CoursesView() {
                 return;
             }
 
-            // Create API payload with the base course data and the sectionId from the selectedCourse
+            // Create API payload
+            // Course-level changes will affect ALL sections
+            // Section-level changes will only affect the specific section being edited
             const apiData = {
                 sectionId: sectionId,
+                // Course-level data (affects ALL sections of this course)
                 code: formData.code,
                 title: formData.title,
-                majorsList: [selectedMajor], // Send as an array with one element
-                color: getHexFromColorName(formData.color), // Convert to hex
-                // status: formData.status,
+                majorsList: [selectedMajor],
+                color: getHexFromColorName(formData.color),
                 duration: Number(formData.duration) || 1,
                 capacity: Number(formData.capacity) || 1,
-                sectionsList: sectionsList, // Now includes instructor IDs per section
+                // Section-level data (affects only the specific section being edited)
+                sectionsList: sections.map((item) => ({
+                    section: item.section_id,
+                    instructorId: item.instructor_id || null,
+                    status: item.status || "offline",
+                    splitDurations: item.showSplitControls
+                        ? item.splitDurations.map((duration) => ({
+                              separatedDuration: duration,
+                          }))
+                        : [{ separatedDuration: formData.duration }],
+                })),
             };
 
             console.log("Sending to API:", apiData);
@@ -540,7 +736,6 @@ export default function CoursesView() {
             });
         }
     };
-
     const handleDeleteCourse = async () => {
         if (!selectedCourse?.sectionId) return;
 
@@ -596,21 +791,25 @@ export default function CoursesView() {
             section: "",
             status: "",
         });
-        setSelectedCourse(null);
+        setSelectedMajor("");
         setSections([]);
         setCurrentSection("");
         setCurrentInstructor(null);
-        // Reset major state
-        setSelectedMajor("");
+        setCurrentInstructorOpen(false);
     };
 
     const openEditDialog = (course: Course) => {
         setSelectedCourse(course);
+        const courseDuration = Number(course.duration);
+
+        // Convert hex color to color name for the form
+        const colorName = getColorNameFromHex(course.color || "");
+
         setFormData({
             title: course.title,
             code: course.code,
-            color: course.color ? course.color.toString() : "",
-            duration: course.duration,
+            color: colorName, // Use color name instead of hex
+            duration: courseDuration,
             capacity: course.capacity,
             section: course.section,
             status: course.status || "offline",
@@ -620,20 +819,29 @@ export default function CoursesView() {
             course.lastName || ""
         }`.trim();
 
-        setSections([
-            {
-                id: 1,
-                section_id: course.section,
-                instructor_id: course.instructorId
-                    ? String(course.instructorId)
-                    : undefined, // Convert to string
-                instructor_name:
-                    instructorName !== "" ? instructorName : undefined,
-                status: course.status || "offline",
-            },
-        ]);
+        // Initialize with existing section data
+        const editSection = {
+            id: 1,
+            section_id: course.section,
+            instructor_id: course.instructorId
+                ? String(course.instructorId)
+                : undefined,
+            instructor_name: instructorName !== "" ? instructorName : undefined,
+            status: course.status || "offline",
+            splitDurations: [courseDuration],
+            showSplitControls: false,
+        };
+
+        console.log("Opening edit dialog with section:", editSection);
+        setSections([editSection]);
 
         setSelectedMajor(course.major);
+
+        // Reset the add section form
+        setCurrentSection("");
+        setCurrentInstructor(null);
+        setCurrentInstructorOpen(false);
+
         setIsEditDialogOpen(true);
     };
 
@@ -641,6 +849,7 @@ export default function CoursesView() {
         setSelectedCourse(course);
         setIsDeleteDialogOpen(true);
     };
+
     // Add these state variables to your existing state in CoursesView component
     const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
     const [importFile, setImportFile] = useState<File | null>(null);
@@ -945,6 +1154,9 @@ export default function CoursesView() {
                                         section: courseSection.section,
                                         instructorId: instructorId,
                                         status: courseSection.status,
+                                        splitDurations: [
+                                            Number(courseSection.duration),
+                                        ],
                                     };
                                 }
                             );
@@ -953,8 +1165,7 @@ export default function CoursesView() {
                                 code: baseCourse.code,
                                 title: baseCourse.title,
                                 majorsList: [baseCourse.major],
-                                color: getHexFromColorName(formData.color), // Convert to hex
-                                status: baseCourse.status,
+                                color: getHexFromColorName(baseCourse.color), // Convert to hex
                                 duration: Number(baseCourse.duration),
                                 capacity: Number(baseCourse.capacity),
                                 sectionsList: sectionsList,
@@ -1242,8 +1453,11 @@ export default function CoursesView() {
                                 <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-25">
                                     Major
                                 </th>
-                                <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
-                                    Duration
+                                <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Total Course Duration (per week)
+                                </th>
+                                <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider ">
+                                    Section Duration (per week)
                                 </th>
                                 <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
                                     Capacity
@@ -1283,7 +1497,7 @@ export default function CoursesView() {
                             ) : (
                                 paginatedCourses.map((course, index) => (
                                     <tr
-                                        key={course.sectionId}
+                                        key={course.id}
                                         className={`hover:bg-gray-50 transition-colors ${
                                             index % 2 === 0
                                                 ? "bg-white"
@@ -1309,6 +1523,9 @@ export default function CoursesView() {
                                         </td>
                                         <td className="px-2 py-2 text-xs text-gray-900">
                                             {course.duration}
+                                        </td>
+                                        <td className="px-2 py-2 text-xs text-gray-900">
+                                            {course.separatedDuration}
                                         </td>
                                         <td className="px-2 py-2 text-xs text-gray-900">
                                             {course.capacity}
@@ -1445,7 +1662,7 @@ export default function CoursesView() {
                             </Select>
                         </div>
 
-                        <div className="grid  gap-4">
+                        <div className="grid gap-4">
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="color"
@@ -1521,131 +1738,12 @@ export default function CoursesView() {
                                     Sections
                                 </Label>
                                 <p className="text-xs text-gray-600 mt-1">
-                                    Add course sections with instructors
+                                    Add course sections with instructors and
+                                    split durations
                                 </p>
                             </div>
 
-                            {sections.length > 0 && (
-                                <div className="space-y-2">
-                                    {sections.map((section) => (
-                                        <div
-                                            key={section.id}
-                                            className="p-3 border border-gray-200 rounded bg-gray-50"
-                                        >
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                                    Section {section.section_id}
-                                                </span>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        removeSection(
-                                                            section.id
-                                                        )
-                                                    }
-                                                    className="h-6 w-6 text-gray-500 hover:text-red-600"
-                                                >
-                                                    <Trash className="h-3 w-3" />
-                                                </Button>
-                                            </div>
-                                            <div className="mt-2">
-                                                <Label className="text-xs text-gray-700">
-                                                    Instructor
-                                                </Label>
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <Button
-                                                            variant="outline"
-                                                            role="combobox"
-                                                            className="w-full justify-between mt-1 text-sm border-gray-300"
-                                                        >
-                                                            {section.instructor_name ||
-                                                                "Select instructor..."}
-                                                            <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-full p-0">
-                                                        <Command>
-                                                            <CommandInput placeholder="Search instructor..." />
-                                                            <CommandEmpty>
-                                                                No instructor
-                                                                found.
-                                                            </CommandEmpty>
-                                                            <CommandGroup>
-                                                                {instructors.map(
-                                                                    (
-                                                                        instructor
-                                                                    ) => (
-                                                                        <CommandItem
-                                                                            key={
-                                                                                instructor.id
-                                                                            }
-                                                                            value={`${instructor.first_name} ${instructor.last_name}`}
-                                                                            onSelect={() => {
-                                                                                updateSectionInstructor(
-                                                                                    section.id,
-                                                                                    instructor.id.toString(),
-                                                                                    `${instructor.first_name} ${instructor.last_name}`
-                                                                                );
-                                                                            }}
-                                                                        >
-                                                                            <Check
-                                                                                className={`mr-2 h-3 w-3 ${
-                                                                                    section.instructor_id ===
-                                                                                    instructor.id.toString()
-                                                                                        ? "opacity-100"
-                                                                                        : "opacity-0"
-                                                                                }`}
-                                                                            />
-                                                                            {
-                                                                                instructor.first_name
-                                                                            }{" "}
-                                                                            {
-                                                                                instructor.last_name
-                                                                            }
-                                                                        </CommandItem>
-                                                                    )
-                                                                )}
-                                                            </CommandGroup>
-                                                        </Command>
-                                                    </PopoverContent>
-                                                </Popover>
-                                            </div>
-                                            <div className="mt-2">
-                                                <Label className="text-xs text-gray-700">
-                                                    Status
-                                                </Label>
-                                                <Select
-                                                    value={
-                                                        section.status ||
-                                                        "offline"
-                                                    }
-                                                    onValueChange={(value) =>
-                                                        updateSectionStatus(
-                                                            section.id,
-                                                            value
-                                                        )
-                                                    }
-                                                >
-                                                    <SelectTrigger className="mt-1 text-sm border-gray-300">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="online">
-                                                            Online
-                                                        </SelectItem>
-                                                        <SelectItem value="offline">
-                                                            Offline
-                                                        </SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
+                            {/* Add Section Form */}
                             <div className="grid gap-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
@@ -1749,6 +1847,299 @@ export default function CoursesView() {
                                     Section
                                 </Button>
                             </div>
+
+                            {/* Sections List - Now appears after the add section form */}
+                            {sections.length > 0 && (
+                                <div className="space-y-2">
+                                    {sections.map((section) => (
+                                        <div
+                                            key={section.id}
+                                            className="p-3 border border-gray-200 rounded bg-gray-50"
+                                        >
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                    Section {section.section_id}
+                                                </span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        removeSection(
+                                                            section.id
+                                                        )
+                                                    }
+                                                    className="h-6 w-6 text-gray-500 hover:text-red-600"
+                                                >
+                                                    <Trash className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                            <div className="mt-2">
+                                                <Label className="text-xs text-gray-700">
+                                                    Instructor
+                                                </Label>
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            role="combobox"
+                                                            className="w-full justify-between mt-1 text-sm border-gray-300"
+                                                        >
+                                                            {section.instructor_name ||
+                                                                "Select instructor..."}
+                                                            <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-full p-0">
+                                                        <Command>
+                                                            <CommandInput placeholder="Search instructor..." />
+                                                            <CommandEmpty>
+                                                                No instructor
+                                                                found.
+                                                            </CommandEmpty>
+                                                            <CommandGroup>
+                                                                {instructors.map(
+                                                                    (
+                                                                        instructor
+                                                                    ) => (
+                                                                        <CommandItem
+                                                                            key={
+                                                                                instructor.id
+                                                                            }
+                                                                            value={`${instructor.first_name} ${instructor.last_name}`}
+                                                                            onSelect={() => {
+                                                                                updateSectionInstructor(
+                                                                                    section.id,
+                                                                                    instructor.id.toString(),
+                                                                                    `${instructor.first_name} ${instructor.last_name}`
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <Check
+                                                                                className={`mr-2 h-3 w-3 ${
+                                                                                    section.instructor_id ===
+                                                                                    instructor.id.toString()
+                                                                                        ? "opacity-100"
+                                                                                        : "opacity-0"
+                                                                                }`}
+                                                                            />
+                                                                            {
+                                                                                instructor.first_name
+                                                                            }{" "}
+                                                                            {
+                                                                                instructor.last_name
+                                                                            }
+                                                                        </CommandItem>
+                                                                    )
+                                                                )}
+                                                            </CommandGroup>
+                                                        </Command>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            </div>
+
+                                            {/* Split Duration Controls */}
+                                            <div className="mt-4 mb-4 space-y-3">
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <Label className="text-xs text-gray-700 mr-2">
+                                                        Split Duration
+                                                    </Label>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            toggleSectionSplitControls(
+                                                                section.id
+                                                            )
+                                                        }
+                                                        className="text-xs ml-2"
+                                                    >
+                                                        {section.showSplitControls
+                                                            ? "Hide Split"
+                                                            : "Split Duration"}
+                                                    </Button>
+                                                </div>
+
+                                                {section.showSplitControls && (
+                                                    <div className="mt-4 mb-4">
+                                                        <div className="text-xs text-gray-600 mb-3">
+                                                            Original Duration:{" "}
+                                                            {formData.duration}{" "}
+                                                            hours
+                                                        </div>
+
+                                                        {section.splitDurations.map(
+                                                            (
+                                                                duration,
+                                                                index
+                                                            ) => (
+                                                                <div
+                                                                    key={index}
+                                                                    className="flex items-center gap-2 mb-3"
+                                                                >
+                                                                    <Label className="text-xs w-12 mr-2">
+                                                                        Part{" "}
+                                                                        {index +
+                                                                            1}
+                                                                        :
+                                                                    </Label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        value={
+                                                                            duration
+                                                                        }
+                                                                        onChange={(
+                                                                            e
+                                                                        ) =>
+                                                                            updateSectionSplitDuration(
+                                                                                section.id,
+                                                                                index,
+                                                                                parseInt(
+                                                                                    e
+                                                                                        .target
+                                                                                        .value
+                                                                                ) ||
+                                                                                    1
+                                                                            )
+                                                                        }
+                                                                        className={`w-16 text-xs transition-colors mx-1 ${
+                                                                            isSectionSplitValid(
+                                                                                section.id
+                                                                            )
+                                                                                ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
+                                                                                : "border-red-300 bg-red-50"
+                                                                        }`}
+                                                                    />
+                                                                    <span className="text-xs text-gray-500 mx-1">
+                                                                        hours
+                                                                    </span>
+                                                                    {section
+                                                                        .splitDurations
+                                                                        .length >
+                                                                        1 && (
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() =>
+                                                                                removeSectionSplit(
+                                                                                    section.id,
+                                                                                    index
+                                                                                )
+                                                                            }
+                                                                            className="h-6 w-6 p-0 ml-2"
+                                                                        >
+                                                                            <Minus className="h-3 w-3" />
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
+                                                            )
+                                                        )}
+
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                addSectionSplit(
+                                                                    section.id
+                                                                )
+                                                            }
+                                                            className="w-full text-xs mt-3 mb-4"
+                                                        >
+                                                            <Plus className="h-3 w-3 mr-1" />
+                                                            Add Another Part
+                                                        </Button>
+
+                                                        <div
+                                                            className={`text-xs p-3 rounded transition-colors mt-4 ${
+                                                                isSectionSplitValid(
+                                                                    section.id
+                                                                )
+                                                                    ? "bg-green-100 border border-green-200"
+                                                                    : "bg-red-50 border border-red-200"
+                                                            }`}
+                                                        >
+                                                            <div className="flex justify-between items-center mb-2">
+                                                                <span className="mr-2">
+                                                                    Total
+                                                                    Duration:
+                                                                </span>
+                                                                <span
+                                                                    className={`font-bold text-sm ml-2 ${
+                                                                        isSectionSplitValid(
+                                                                            section.id
+                                                                        )
+                                                                            ? "text-green-700"
+                                                                            : "text-red-700"
+                                                                    }`}
+                                                                >
+                                                                    {getSectionTotalSplitDuration(
+                                                                        section.id
+                                                                    )}{" "}
+                                                                    /{" "}
+                                                                    {
+                                                                        formData.duration
+                                                                    }{" "}
+                                                                    hours
+                                                                </span>
+                                                            </div>
+                                                            {isSectionSplitValid(
+                                                                section.id
+                                                            ) ? (
+                                                                <div className="text-green-700 text-xs mt-2 flex items-center">
+                                                                    <Check className="h-3 w-3 mr-2" />
+                                                                    Duration
+                                                                    split is
+                                                                    valid
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-red-700 text-xs mt-2">
+                                                                    Total must
+                                                                    equal course
+                                                                    duration (
+                                                                    {
+                                                                        formData.duration
+                                                                    }{" "}
+                                                                    hours)
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="mt-2">
+                                                <Label className="text-xs text-gray-700">
+                                                    Status
+                                                </Label>
+                                                <Select
+                                                    value={
+                                                        section.status ||
+                                                        "offline"
+                                                    }
+                                                    onValueChange={(value) =>
+                                                        updateSectionStatus(
+                                                            section.id,
+                                                            value
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger className="mt-1 text-sm border-gray-300">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="online">
+                                                            Online
+                                                        </SelectItem>
+                                                        <SelectItem value="offline">
+                                                            Offline
+                                                        </SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -1780,6 +2171,7 @@ export default function CoursesView() {
             </Dialog>
 
             {/* Edit Course Dialog - Complete */}
+            {/* Edit Course Dialog - Updated to match Add Dialog structure */}
             <Dialog
                 open={isEditDialogOpen}
                 onOpenChange={(open) => {
@@ -1855,7 +2247,7 @@ export default function CoursesView() {
                             </Select>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-4">
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="edit-color"
@@ -1924,147 +2316,19 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        {/* Section list with instructors - Edit Dialog */}
+                        {/* Sections */}
                         <div className="space-y-4">
                             <div>
                                 <Label className="text-sm font-medium text-gray-700">
                                     Sections
                                 </Label>
                                 <p className="text-xs text-gray-600 mt-1">
-                                    Add course sections with instructors
+                                    Add course sections with instructors and
+                                    split durations
                                 </p>
                             </div>
 
-                            {sections.length > 0 && (
-                                <div className="space-y-2">
-                                    {sections.map((section) => (
-                                        <div
-                                            key={section.id}
-                                            className="p-3 border border-gray-200 rounded bg-gray-50"
-                                        >
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                                    Section {section.section_id}
-                                                </span>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        removeSection(
-                                                            section.id
-                                                        )
-                                                    }
-                                                    className="h-6 w-6 text-gray-500 hover:text-red-600"
-                                                >
-                                                    <Trash className="h-3 w-3" />
-                                                </Button>
-                                            </div>
-                                            <div className="mt-2">
-                                                <Label className="text-xs text-gray-700">
-                                                    Instructor
-                                                </Label>
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <Button
-                                                            variant="outline"
-                                                            role="combobox"
-                                                            className="w-full justify-between mt-1 text-sm border-gray-300"
-                                                        >
-                                                            {section.instructor_name ||
-                                                                "Select instructor..."}
-                                                            <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-full p-0">
-                                                        <Command>
-                                                            <CommandInput placeholder="Search instructor..." />
-                                                            <CommandEmpty>
-                                                                No instructor
-                                                                found.
-                                                            </CommandEmpty>
-                                                            <CommandGroup>
-                                                                {instructors.map(
-                                                                    (
-                                                                        instructor
-                                                                    ) => (
-                                                                        <CommandItem
-                                                                            key={
-                                                                                instructor.id
-                                                                            }
-                                                                            value={`${instructor.first_name} ${instructor.last_name}`}
-                                                                            onSelect={() => {
-                                                                                console.log(
-                                                                                    "Instructor selected:",
-                                                                                    instructor.id,
-                                                                                    instructor.first_name,
-                                                                                    instructor.last_name
-                                                                                );
-                                                                                updateSectionInstructor(
-                                                                                    section.id,
-                                                                                    instructor.id.toString(),
-                                                                                    `${instructor.first_name} ${instructor.last_name}`
-                                                                                );
-                                                                                setCurrentInstructorOpen(
-                                                                                    false
-                                                                                );
-                                                                            }}
-                                                                        >
-                                                                            <Check
-                                                                                className={`mr-2 h-3 w-3 ${
-                                                                                    section.instructor_id ===
-                                                                                    instructor.id.toString()
-                                                                                        ? "opacity-100"
-                                                                                        : "opacity-0"
-                                                                                }`}
-                                                                            />
-                                                                            {
-                                                                                instructor.first_name
-                                                                            }{" "}
-                                                                            {
-                                                                                instructor.last_name
-                                                                            }
-                                                                        </CommandItem>
-                                                                    )
-                                                                )}
-                                                            </CommandGroup>
-                                                        </Command>
-                                                    </PopoverContent>
-                                                </Popover>
-                                            </div>
-                                            <div className="mt-2">
-                                                <Label className="text-xs text-gray-700">
-                                                    Status
-                                                </Label>
-                                                <Select
-                                                    value={
-                                                        section.status ||
-                                                        "offline"
-                                                    }
-                                                    onValueChange={(value) =>
-                                                        updateSectionStatus(
-                                                            section.id,
-                                                            value
-                                                        )
-                                                    }
-                                                >
-                                                    <SelectTrigger className="mt-1 text-sm border-gray-300">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="online">
-                                                            Online
-                                                        </SelectItem>
-                                                        <SelectItem value="offline">
-                                                            Offline
-                                                        </SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
+                            {/* Add Section Form */}
                             <div className="grid gap-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
@@ -2168,6 +2432,299 @@ export default function CoursesView() {
                                     Section
                                 </Button>
                             </div>
+
+                            {/* Sections List - Now appears after the add section form */}
+                            {sections.length > 0 && (
+                                <div className="space-y-2">
+                                    {sections.map((section) => (
+                                        <div
+                                            key={section.id}
+                                            className="p-3 border border-gray-200 rounded bg-gray-50"
+                                        >
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                    Section {section.section_id}
+                                                </span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        removeSection(
+                                                            section.id
+                                                        )
+                                                    }
+                                                    className="h-6 w-6 text-gray-500 hover:text-red-600"
+                                                >
+                                                    <Trash className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                            <div className="mt-2">
+                                                <Label className="text-xs text-gray-700">
+                                                    Instructor
+                                                </Label>
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            role="combobox"
+                                                            className="w-full justify-between mt-1 text-sm border-gray-300"
+                                                        >
+                                                            {section.instructor_name ||
+                                                                "Select instructor..."}
+                                                            <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-full p-0">
+                                                        <Command>
+                                                            <CommandInput placeholder="Search instructor..." />
+                                                            <CommandEmpty>
+                                                                No instructor
+                                                                found.
+                                                            </CommandEmpty>
+                                                            <CommandGroup>
+                                                                {instructors.map(
+                                                                    (
+                                                                        instructor
+                                                                    ) => (
+                                                                        <CommandItem
+                                                                            key={
+                                                                                instructor.id
+                                                                            }
+                                                                            value={`${instructor.first_name} ${instructor.last_name}`}
+                                                                            onSelect={() => {
+                                                                                updateSectionInstructor(
+                                                                                    section.id,
+                                                                                    instructor.id.toString(),
+                                                                                    `${instructor.first_name} ${instructor.last_name}`
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <Check
+                                                                                className={`mr-2 h-3 w-3 ${
+                                                                                    section.instructor_id ===
+                                                                                    instructor.id.toString()
+                                                                                        ? "opacity-100"
+                                                                                        : "opacity-0"
+                                                                                }`}
+                                                                            />
+                                                                            {
+                                                                                instructor.first_name
+                                                                            }{" "}
+                                                                            {
+                                                                                instructor.last_name
+                                                                            }
+                                                                        </CommandItem>
+                                                                    )
+                                                                )}
+                                                            </CommandGroup>
+                                                        </Command>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            </div>
+
+                                            {/* Split Duration Controls */}
+                                            <div className="mt-4 mb-4 space-y-3">
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <Label className="text-xs text-gray-700 mr-2">
+                                                        Split Duration
+                                                    </Label>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            toggleSectionSplitControls(
+                                                                section.id
+                                                            )
+                                                        }
+                                                        className="text-xs ml-2"
+                                                    >
+                                                        {section.showSplitControls
+                                                            ? "Hide Split"
+                                                            : "Split Duration"}
+                                                    </Button>
+                                                </div>
+
+                                                {section.showSplitControls && (
+                                                    <div className="mt-4 mb-4">
+                                                        <div className="text-xs text-gray-600 mb-3">
+                                                            Original Duration:{" "}
+                                                            {formData.duration}{" "}
+                                                            hours
+                                                        </div>
+
+                                                        {section.splitDurations.map(
+                                                            (
+                                                                duration,
+                                                                index
+                                                            ) => (
+                                                                <div
+                                                                    key={index}
+                                                                    className="flex items-center gap-2 mb-3"
+                                                                >
+                                                                    <Label className="text-xs w-12 mr-2">
+                                                                        Part{" "}
+                                                                        {index +
+                                                                            1}
+                                                                        :
+                                                                    </Label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        value={
+                                                                            duration
+                                                                        }
+                                                                        onChange={(
+                                                                            e
+                                                                        ) =>
+                                                                            updateSectionSplitDuration(
+                                                                                section.id,
+                                                                                index,
+                                                                                parseInt(
+                                                                                    e
+                                                                                        .target
+                                                                                        .value
+                                                                                ) ||
+                                                                                    1
+                                                                            )
+                                                                        }
+                                                                        className={`w-16 text-xs transition-colors mx-1 ${
+                                                                            isSectionSplitValid(
+                                                                                section.id
+                                                                            )
+                                                                                ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
+                                                                                : "border-red-300 bg-red-50"
+                                                                        }`}
+                                                                    />
+                                                                    <span className="text-xs text-gray-500 mx-1">
+                                                                        hours
+                                                                    </span>
+                                                                    {section
+                                                                        .splitDurations
+                                                                        .length >
+                                                                        1 && (
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() =>
+                                                                                removeSectionSplit(
+                                                                                    section.id,
+                                                                                    index
+                                                                                )
+                                                                            }
+                                                                            className="h-6 w-6 p-0 ml-2"
+                                                                        >
+                                                                            <Minus className="h-3 w-3" />
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
+                                                            )
+                                                        )}
+
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                addSectionSplit(
+                                                                    section.id
+                                                                )
+                                                            }
+                                                            className="w-full text-xs mt-3 mb-4"
+                                                        >
+                                                            <Plus className="h-3 w-3 mr-1" />
+                                                            Add Another Part
+                                                        </Button>
+
+                                                        <div
+                                                            className={`text-xs p-3 rounded transition-colors mt-4 ${
+                                                                isSectionSplitValid(
+                                                                    section.id
+                                                                )
+                                                                    ? "bg-green-100 border border-green-200"
+                                                                    : "bg-red-50 border border-red-200"
+                                                            }`}
+                                                        >
+                                                            <div className="flex justify-between items-center mb-2">
+                                                                <span className="mr-2">
+                                                                    Total
+                                                                    Duration:
+                                                                </span>
+                                                                <span
+                                                                    className={`font-bold text-sm ml-2 ${
+                                                                        isSectionSplitValid(
+                                                                            section.id
+                                                                        )
+                                                                            ? "text-green-700"
+                                                                            : "text-red-700"
+                                                                    }`}
+                                                                >
+                                                                    {getSectionTotalSplitDuration(
+                                                                        section.id
+                                                                    )}{" "}
+                                                                    /{" "}
+                                                                    {
+                                                                        formData.duration
+                                                                    }{" "}
+                                                                    hours
+                                                                </span>
+                                                            </div>
+                                                            {isSectionSplitValid(
+                                                                section.id
+                                                            ) ? (
+                                                                <div className="text-green-700 text-xs mt-2 flex items-center">
+                                                                    <Check className="h-3 w-3 mr-2" />
+                                                                    Duration
+                                                                    split is
+                                                                    valid
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-red-700 text-xs mt-2">
+                                                                    Total must
+                                                                    equal course
+                                                                    duration (
+                                                                    {
+                                                                        formData.duration
+                                                                    }{" "}
+                                                                    hours)
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="mt-2">
+                                                <Label className="text-xs text-gray-700">
+                                                    Status
+                                                </Label>
+                                                <Select
+                                                    value={
+                                                        section.status ||
+                                                        "offline"
+                                                    }
+                                                    onValueChange={(value) =>
+                                                        updateSectionStatus(
+                                                            section.id,
+                                                            value
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger className="mt-1 text-sm border-gray-300">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="online">
+                                                            Online
+                                                        </SelectItem>
+                                                        <SelectItem value="offline">
+                                                            Offline
+                                                        </SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 

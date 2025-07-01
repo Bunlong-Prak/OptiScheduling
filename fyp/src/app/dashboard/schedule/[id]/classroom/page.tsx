@@ -1,6 +1,6 @@
 "use client";
 
-import { Classroom } from "@/app/types";
+import { Classroom, ClassroomFormData } from "@/app/types";
 import CustomPagination from "@/components/custom/pagination";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,13 +19,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Pencil, Plus, Trash } from "lucide-react";
-import type React from "react";
-import { useEffect, useState } from "react";
-import { ClassroomFormData } from "@/app/types";
+import { Download, Pencil, Plus, Trash, Upload } from "lucide-react";
 import { useParams } from "next/navigation";
 import Papa from "papaparse";
-import { Download, Upload } from "lucide-react";
+import type React from "react";
+import { useEffect, useState } from "react";
 
 interface ClassroomType {
     id: number;
@@ -687,7 +685,6 @@ export default function ClassroomView() {
                     }));
                 },
             });
-        
         } catch (error) {
             console.error("Import error:", error);
             setStatusMessage({
@@ -700,7 +697,7 @@ export default function ClassroomView() {
 
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file && file.type === "text/csv") {
+        if (file) {
             setImportFile(file);
         } else {
             setStatusMessage({

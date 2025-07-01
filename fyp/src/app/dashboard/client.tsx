@@ -57,40 +57,121 @@ export default function Dashboard({ authUser }: DashboardProps) {
         name: "",
         startDate: "",
         endDate: "",
-        numTimeSlots: 0,
+        numTimeSlots: "" as string | number,
         timeSlots: [] as { startTime: string; endTime: string }[],
     });
+
+    // Persistent state to store all time slot values
+    const [persistentTimeSlots, setPersistentTimeSlots] = useState<
+        { startTime: string; endTime: string }[]
+    >([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    // Date conversion utilities
+    const formatDateForInput = (dateString: string): string => {
+        if (!dateString) return "";
+
+        // If already in YYYY-MM-DD format, return as is
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+            return dateString;
+        }
+
+        // Try to parse human-readable date format like "15 Jan, 2025"
+        try {
+            const date = new Date(dateString);
+            if (!isNaN(date.getTime())) {
+                return date.toISOString().split("T")[0];
+            }
+        } catch (error) {
+            console.error("Error parsing date:", error);
+        }
+
+        return "";
+    };
+
+    const formatDateForDisplay = (dateString: string): string => {
+        if (!dateString) return "";
+
+        try {
+            const date = new Date(dateString);
+            if (!isNaN(date.getTime())) {
+                return date.toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                });
+            }
+        } catch (error) {
+            console.error("Error formatting date:", error);
+        }
+
+        return dateString;
+    };
+
+    // Time validation functions
+    const isValidTimeInput = (time: string): boolean => {
+        // Allow empty string
+        if (time === "") return true;
+
+        // Allow partial input while typing
+        const partialPatterns = [
+            /^\d{1,2}$/, // Just hour (1 or 2 digits)
+            /^\d{1,2}:$/, // Hour with colon
+            /^\d{1,2}:\d{1,2}$/, // Full HH:MM format
+        ];
+
+        return partialPatterns.some((pattern) => pattern.test(time));
+    };
+
+    const isCompleteTimeFormat = (time: string): boolean => {
+        if (time === "") return false;
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        return timeRegex.test(time);
+    };
+
+    const formatTimeInput = (time: string): string => {
+        // Auto-format time input
+        const numbersOnly = time.replace(/[^\d]/g, "");
+
+        if (numbersOnly.length === 0) return "";
+        if (numbersOnly.length <= 2) return numbersOnly;
+        if (numbersOnly.length <= 4) {
+            return `${numbersOnly.slice(0, 2)}:${numbersOnly.slice(2)}`;
+        }
+
+        return `${numbersOnly.slice(0, 2)}:${numbersOnly.slice(2, 4)}`;
+    };
 
     // Fetch schedules when component mounts
     useEffect(() => {
         fetchSchedules();
     }, []);
 
-    // Update timeSlots array when numTimeSlots changes
+    // Update timeSlots array when numTimeSlots changes, using persistent data
     useEffect(() => {
-        if (formData.numTimeSlots > formData.timeSlots.length) {
-            // Add more timeSlot pairs
-            const newTimeSlots = [...formData.timeSlots];
-            for (
-                let i = formData.timeSlots.length;
-                i < formData.numTimeSlots;
-                i++
-            ) {
+        const numSlots =
+            typeof formData.numTimeSlots === "string"
+                ? formData.numTimeSlots === ""
+                    ? 0
+                    : parseInt(formData.numTimeSlots)
+                : formData.numTimeSlots;
+
+        const newTimeSlots: { startTime: string; endTime: string }[] = [];
+
+        for (let i = 0; i < numSlots; i++) {
+            // Use persistent data if available, otherwise create empty slot
+            if (i < persistentTimeSlots.length) {
+                newTimeSlots.push(persistentTimeSlots[i]);
+            } else {
                 newTimeSlots.push({ startTime: "", endTime: "" });
             }
-            setFormData({
-                ...formData,
-                timeSlots: newTimeSlots,
-            });
-        } else if (formData.numTimeSlots < formData.timeSlots.length) {
-            // Remove excess timeSlot pairs
-            setFormData({
-                ...formData,
-                timeSlots: formData.timeSlots.slice(0, formData.numTimeSlots),
-            });
         }
-    }, [formData.numTimeSlots]);
+
+        setFormData((prev) => ({
+            ...prev,
+            timeSlots: newTimeSlots,
+        }));
+    }, [formData.numTimeSlots, persistentTimeSlots]);
 
     const fetchCourseCount = async (scheduleId: string) => {
         try {
@@ -179,11 +260,11 @@ export default function Dashboard({ authUser }: DashboardProps) {
         const { name, value } = e.target;
 
         if (name === "numTimeSlots") {
-            // Allow empty string (when deleting) or valid numbers
+            // Allow empty string for deletion
             if (value === "") {
                 setFormData({
                     ...formData,
-                    [name]: 0,
+                    [name]: "",
                 });
             } else {
                 // Parse the number and ensure it's a valid positive integer
@@ -195,6 +276,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         [name]: numValue,
                     });
                 }
+                // If invalid, don't update (keeps previous valid value)
             }
         } else {
             setFormData({
@@ -209,8 +291,27 @@ export default function Dashboard({ authUser }: DashboardProps) {
         field: "startTime" | "endTime",
         value: string
     ) => {
+        // Validate and format the input
+        const formattedValue = formatTimeInput(value);
+
+        if (!isValidTimeInput(formattedValue)) {
+            return; // Don't update if invalid format
+        }
+
+        // Update persistent state
+        const updatedPersistentTimeSlots = [...persistentTimeSlots];
+
+        // Ensure the persistent array is large enough
+        while (updatedPersistentTimeSlots.length <= index) {
+            updatedPersistentTimeSlots.push({ startTime: "", endTime: "" });
+        }
+
+        updatedPersistentTimeSlots[index][field] = formattedValue;
+        setPersistentTimeSlots(updatedPersistentTimeSlots);
+
+        // Update current form data
         const updatedTimeSlots = [...formData.timeSlots];
-        updatedTimeSlots[index][field] = value;
+        updatedTimeSlots[index][field] = formattedValue;
         setFormData({
             ...formData,
             timeSlots: updatedTimeSlots,
@@ -222,9 +323,10 @@ export default function Dashboard({ authUser }: DashboardProps) {
             name: "",
             startDate: "",
             endDate: "",
-            numTimeSlots: 0,
+            numTimeSlots: "",
             timeSlots: [],
         });
+        setPersistentTimeSlots([]);
     };
 
     const openEditDialog = (scheduleId: string, e: React.MouseEvent) => {
@@ -232,13 +334,15 @@ export default function Dashboard({ authUser }: DashboardProps) {
         const schedule = schedules.find((s) => s.id === scheduleId);
         if (schedule) {
             setSelectedScheduleId(scheduleId);
+            const timeSlots = schedule.timeSlots || [];
             setFormData({
                 name: schedule.name,
-                startDate: schedule.startDate,
-                endDate: schedule.endDate,
-                numTimeSlots: schedule.timeSlots?.length || 0,
-                timeSlots: schedule.timeSlots || [],
+                startDate: formatDateForInput(schedule.startDate),
+                endDate: formatDateForInput(schedule.endDate),
+                numTimeSlots: timeSlots.length,
+                timeSlots: timeSlots,
             });
+            setPersistentTimeSlots([...timeSlots]);
             setIsEditDialogOpen(true);
         }
     };
@@ -253,14 +357,90 @@ export default function Dashboard({ authUser }: DashboardProps) {
         router.push(`/dashboard/schedule/${scheduleId}`);
     };
 
+    const validateTimeSlots = (): boolean => {
+        // Validate date range
+        if (formData.startDate && formData.endDate) {
+            const startDate = new Date(formData.startDate);
+            const endDate = new Date(formData.endDate);
+
+            if (endDate < startDate) {
+                alert("End date cannot be before start date.");
+                return false;
+            }
+        }
+
+        // Validate time slots
+        for (let i = 0; i < formData.timeSlots.length; i++) {
+            const { startTime, endTime } = formData.timeSlots[i];
+
+            if (startTime && !isCompleteTimeFormat(startTime)) {
+                alert(
+                    `Please enter a valid start time in HH:MM format for time slot ${
+                        i + 1
+                    }`
+                );
+                return false;
+            }
+
+            if (endTime && !isCompleteTimeFormat(endTime)) {
+                alert(
+                    `Please enter a valid end time in HH:MM format for time slot ${
+                        i + 1
+                    }`
+                );
+                return false;
+            }
+
+            // Check if both times are provided
+            if ((startTime && !endTime) || (!startTime && endTime)) {
+                alert(
+                    `Please provide both start and end times for time slot ${
+                        i + 1
+                    }`
+                );
+                return false;
+            }
+
+            // Check if end time is after start time
+            if (startTime && endTime) {
+                const [startHour, startMin] = startTime.split(":").map(Number);
+                const [endHour, endMin] = endTime.split(":").map(Number);
+                const startMinutes = startHour * 60 + startMin;
+                const endMinutes = endHour * 60 + endMin;
+
+                if (endMinutes <= startMinutes) {
+                    alert(
+                        `End time must be after start time for time slot ${
+                            i + 1
+                        }`
+                    );
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+
     const handleCreateSchedule = async () => {
+        if (!validateTimeSlots()) {
+            return;
+        }
+
         try {
+            // Convert numTimeSlots to number for API
+            const numSlots =
+                typeof formData.numTimeSlots === "string"
+                    ? formData.numTimeSlots === ""
+                        ? 0
+                        : parseInt(formData.numTimeSlots)
+                    : formData.numTimeSlots;
+
             // Prepare data for API
             const apiData = {
                 name: formData.name,
                 startDate: formData.startDate,
                 endDate: formData.endDate,
-                numberOfTimeSlots: formData.numTimeSlots,
+                numberOfTimeSlots: numSlots,
                 timeSlots: formData.timeSlots,
                 userId: authUser.id, // Replace with actual user ID
             };
@@ -290,6 +470,10 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
     const handleEditSchedule = async () => {
         if (!selectedScheduleId) return;
+
+        if (!validateTimeSlots()) {
+            return;
+        }
 
         try {
             const selectedSchedule = schedules.find(
@@ -370,7 +554,8 @@ export default function Dashboard({ authUser }: DashboardProps) {
     const getTimePlaceholder = (index: number, isStartTime: boolean) => {
         const baseHour = 8 + index; // Start from 08:00 and increment by 1 hour for each index
         const hour = isStartTime ? baseHour : baseHour + 1; // End time is start time + 1
-        return hour < 10 ? `${hour}` : `${hour}`; // Format with leading zero if needed
+        const formattedHour = hour < 10 ? `0${hour}` : `${hour}`;
+        return `${formattedHour}:00`; // Format as HH:MM
     };
 
     return (
@@ -379,8 +564,12 @@ export default function Dashboard({ authUser }: DashboardProps) {
             <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-semibold text-gray-900">Schedules</h1>
-                        <p className="text-sm text-gray-600 mt-1">Manage your academic schedules and time slots</p>
+                        <h1 className="text-2xl font-semibold text-gray-900">
+                            Schedules
+                        </h1>
+                        <p className="text-sm text-gray-600 mt-1">
+                            Manage your academic schedules and time slots
+                        </p>
                     </div>
                     <Button
                         className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors"
@@ -445,21 +634,29 @@ export default function Dashboard({ authUser }: DashboardProps) {
                             <div className="flex items-center gap-8 pt-4 border-t border-gray-100">
                                 <div className="flex items-center gap-2 text-sm text-gray-600">
                                     <BookOpen className="h-4 w-4 text-teal-600" />
-                                    <span className="font-medium">{schedule.courses}</span>
+                                    <span className="font-medium">
+                                        {schedule.courses}
+                                    </span>
                                     <span>Courses</span>
                                 </div>
                                 <div className="flex items-center gap-2 text-sm text-gray-600">
                                     <Users className="h-4 w-4 text-purple-600" />
-                                    <span className="font-medium">{schedule.instructors}</span>
+                                    <span className="font-medium">
+                                        {schedule.instructors}
+                                    </span>
                                     <span>Instructors</span>
                                 </div>
                                 {schedule.timeSlots &&
                                     schedule.timeSlots.length > 0 && (
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
                                             <span className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
-                                                <span className="text-white text-xs">⏰</span>
+                                                <span className="text-white text-xs">
+                                                    ⏰
+                                                </span>
                                             </span>
-                                            <span className="font-medium">{schedule.timeSlots.length}</span>
+                                            <span className="font-medium">
+                                                {schedule.timeSlots.length}
+                                            </span>
                                             <span>TimeSlots</span>
                                         </div>
                                     )}
@@ -469,8 +666,12 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
                     {schedules.length === 0 && (
                         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
-                            <div className="text-gray-500 mb-2">No schedules found</div>
-                            <div className="text-sm text-gray-400">Create a new schedule to get started.</div>
+                            <div className="text-gray-500 mb-2">
+                                No schedules found
+                            </div>
+                            <div className="text-sm text-gray-400">
+                                Create a new schedule to get started.
+                            </div>
                         </div>
                     )}
                 </div>
@@ -483,12 +684,19 @@ export default function Dashboard({ authUser }: DashboardProps) {
             >
                 <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-white">
                     <DialogHeader className="border-b border-gray-200 pb-4">
-                        <DialogTitle className="text-xl font-semibold text-gray-900">Create New Schedule</DialogTitle>
+                        <DialogTitle className="text-xl font-semibold text-gray-900">
+                            Create New Schedule
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="grid gap-6 py-6">
                         <div className="space-y-2">
-                            <Label htmlFor="name" className="text-sm font-medium text-gray-700">Schedule Name</Label>
+                            <Label
+                                htmlFor="name"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Schedule Name
+                            </Label>
                             <Input
                                 id="name"
                                 name="name"
@@ -501,23 +709,34 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="startDate" className="text-sm font-medium text-gray-700">Start Date</Label>
+                                <Label
+                                    htmlFor="startDate"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Start Date
+                                </Label>
                                 <Input
                                     id="startDate"
                                     name="startDate"
-                                    placeholder="5 May 2025"
+                                    type="date"
                                     value={formData.startDate}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:border-[#2F2F85]"
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="endDate" className="text-sm font-medium text-gray-700">End Date</Label>
+                                <Label
+                                    htmlFor="endDate"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    End Date
+                                </Label>
                                 <Input
                                     id="endDate"
                                     name="endDate"
-                                    placeholder="5 May 2026"
+                                    type="date"
+                                    min={formData.startDate || undefined}
                                     value={formData.endDate}
                                     onChange={handleInputChange}
                                     className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
@@ -527,7 +746,10 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
                         {/* TimeSlot input */}
                         <div className="space-y-2">
-                            <Label htmlFor="numTimeSlots" className="text-sm font-medium text-gray-700">
+                            <Label
+                                htmlFor="numTimeSlots"
+                                className="text-sm font-medium text-gray-700"
+                            >
                                 Number of TimeSlots
                             </Label>
                             <Input
@@ -535,6 +757,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 name="numTimeSlots"
                                 type="number"
                                 min="0"
+                                max="24"
                                 placeholder="Enter number of timeSlots needed"
                                 value={formData.numTimeSlots}
                                 onChange={handleInputChange}
@@ -548,6 +771,10 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 <h3 className="font-semibold text-gray-900 border-b border-gray-200 pb-2">
                                     TimeSlots Configuration
                                 </h3>
+                                <p className="text-sm text-gray-600">
+                                    Please enter times in HH:MM format (e.g.,
+                                    08:00, 14:30)
+                                </p>
                                 {formData.timeSlots.map((timeSlot, index) => (
                                     <div
                                         key={index}
@@ -574,11 +801,30 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white"
+                                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white ${
+                                                    timeSlot.startTime &&
+                                                    !isCompleteTimeFormat(
+                                                        timeSlot.startTime
+                                                    )
+                                                        ? "border-red-300 focus:border-red-500"
+                                                        : ""
+                                                }`}
                                             />
+                                            {timeSlot.startTime &&
+                                                !isCompleteTimeFormat(
+                                                    timeSlot.startTime
+                                                ) && (
+                                                    <p className="text-xs text-red-600">
+                                                        Enter time in HH:MM
+                                                        format
+                                                    </p>
+                                                )}
                                         </div>
                                         <div className="space-y-2">
-                                            <Label htmlFor={`endTime-${index}`} className="text-sm font-medium text-gray-700">
+                                            <Label
+                                                htmlFor={`endTime-${index}`}
+                                                className="text-sm font-medium text-gray-700"
+                                            >
                                                 End Time #{index + 1}
                                             </Label>
                                             <Input
@@ -595,8 +841,24 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white"
+                                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white ${
+                                                    timeSlot.endTime &&
+                                                    !isCompleteTimeFormat(
+                                                        timeSlot.endTime
+                                                    )
+                                                        ? "border-red-300 focus:border-red-500"
+                                                        : ""
+                                                }`}
                                             />
+                                            {timeSlot.endTime &&
+                                                !isCompleteTimeFormat(
+                                                    timeSlot.endTime
+                                                ) && (
+                                                    <p className="text-xs text-red-600">
+                                                        Enter time in HH:MM
+                                                        format
+                                                    </p>
+                                                )}
                                         </div>
                                     </div>
                                 ))}
@@ -612,7 +874,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         >
                             Cancel
                         </Button>
-                        <Button 
+                        <Button
                             onClick={handleCreateSchedule}
                             className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
                         >
@@ -626,12 +888,19 @@ export default function Dashboard({ authUser }: DashboardProps) {
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-white">
                     <DialogHeader className="border-b border-gray-200 pb-4">
-                        <DialogTitle className="text-xl font-semibold text-gray-900">Edit Schedule</DialogTitle>
+                        <DialogTitle className="text-xl font-semibold text-gray-900">
+                            Edit Schedule
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="grid gap-6 py-6">
                         <div className="space-y-2">
-                            <Label htmlFor="edit-name" className="text-sm font-medium text-gray-700">Schedule Name</Label>
+                            <Label
+                                htmlFor="edit-name"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Schedule Name
+                            </Label>
                             <Input
                                 id="edit-name"
                                 name="name"
@@ -644,13 +913,16 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="edit-startDate" className="text-sm font-medium text-gray-700">
+                                <Label
+                                    htmlFor="edit-startDate"
+                                    className="text-sm font-medium text-gray-700"
+                                >
                                     Start Date
                                 </Label>
                                 <Input
                                     id="edit-startDate"
                                     name="startDate"
-                                    placeholder="10 May 2025"
+                                    type="date"
                                     value={formData.startDate}
                                     onChange={handleInputChange}
                                     className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
@@ -658,11 +930,17 @@ export default function Dashboard({ authUser }: DashboardProps) {
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="edit-endDate" className="text-sm font-medium text-gray-700">End Date</Label>
+                                <Label
+                                    htmlFor="edit-endDate"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    End Date
+                                </Label>
                                 <Input
                                     id="edit-endDate"
                                     name="endDate"
-                                    placeholder="10 May 2026"
+                                    type="date"
+                                    min={formData.startDate || undefined}
                                     value={formData.endDate}
                                     onChange={handleInputChange}
                                     className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
@@ -672,7 +950,10 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
                         {/* TimeSlot input */}
                         <div className="space-y-2">
-                            <Label htmlFor="edit-numTimeSlots" className="text-sm font-medium text-gray-700">
+                            <Label
+                                htmlFor="edit-numTimeSlots"
+                                className="text-sm font-medium text-gray-700"
+                            >
                                 Number of TimeSlots
                             </Label>
                             <Input
@@ -680,6 +961,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 name="numTimeSlots"
                                 type="number"
                                 min="0"
+                                max="24"
                                 placeholder="Enter number of timeSlots needed"
                                 value={formData.numTimeSlots}
                                 onChange={handleInputChange}
@@ -693,6 +975,10 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 <h3 className="font-semibold text-gray-900 border-b border-gray-200 pb-2">
                                     TimeSlots Configuration
                                 </h3>
+                                <p className="text-sm text-gray-600">
+                                    Please enter times in HH:MM format (e.g.,
+                                    08:00, 14:30)
+                                </p>
                                 {formData.timeSlots.map((timeSlot, index) => (
                                     <div
                                         key={index}
@@ -719,8 +1005,24 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white"
+                                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white ${
+                                                    timeSlot.startTime &&
+                                                    !isCompleteTimeFormat(
+                                                        timeSlot.startTime
+                                                    )
+                                                        ? "border-red-300 focus:border-red-500"
+                                                        : ""
+                                                }`}
                                             />
+                                            {timeSlot.startTime &&
+                                                !isCompleteTimeFormat(
+                                                    timeSlot.startTime
+                                                ) && (
+                                                    <p className="text-xs text-red-600">
+                                                        Enter time in HH:MM
+                                                        format
+                                                    </p>
+                                                )}
                                         </div>
                                         <div className="space-y-2">
                                             <Label
@@ -743,8 +1045,24 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         e.target.value
                                                     )
                                                 }
-                                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white"
+                                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white ${
+                                                    timeSlot.endTime &&
+                                                    !isCompleteTimeFormat(
+                                                        timeSlot.endTime
+                                                    )
+                                                        ? "border-red-300 focus:border-red-500"
+                                                        : ""
+                                                }`}
                                             />
+                                            {timeSlot.endTime &&
+                                                !isCompleteTimeFormat(
+                                                    timeSlot.endTime
+                                                ) && (
+                                                    <p className="text-xs text-red-600">
+                                                        Enter time in HH:MM
+                                                        format
+                                                    </p>
+                                                )}
                                         </div>
                                     </div>
                                 ))}
@@ -760,7 +1078,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         >
                             Cancel
                         </Button>
-                        <Button 
+                        <Button
                             onClick={handleEditSchedule}
                             className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
                         >
@@ -777,14 +1095,18 @@ export default function Dashboard({ authUser }: DashboardProps) {
             >
                 <AlertDialogContent className="bg-white">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="text-xl font-semibold text-gray-900">Delete Schedule</AlertDialogTitle>
+                        <AlertDialogTitle className="text-xl font-semibold text-gray-900">
+                            Delete Schedule
+                        </AlertDialogTitle>
                         <AlertDialogDescription className="text-gray-600">
                             Are you sure you want to delete this schedule? This
                             action cannot be undone.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel className="border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</AlertDialogCancel>
+                        <AlertDialogCancel className="border-gray-300 text-gray-700 hover:bg-gray-50">
+                            Cancel
+                        </AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleDeleteSchedule}
                             className="bg-red-600 hover:bg-red-700 text-white"

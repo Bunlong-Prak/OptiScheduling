@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "6ae7f3bf-5b5b-47a7-9a99-f31104c5f704",
+  "id": "ecec9576-08a5-429a-bec2-e3b2982df5d0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -136,14 +136,28 @@
           "name": "day",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "time_slot": {
           "name": "time_slot",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "separated_duration": {
+          "name": "separated_duration",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "classroom_id": {
+          "name": "classroom_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "section_id": {
@@ -156,6 +170,19 @@
       },
       "indexes": {},
       "foreignKeys": {
+        "course_hours_classroom_id_classrooms_id_fk": {
+          "name": "course_hours_classroom_id_classrooms_id_fk",
+          "tableFrom": "course_hours",
+          "tableTo": "classrooms",
+          "columnsFrom": [
+            "classroom_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "course_hours_section_id_sections_id_fk": {
           "name": "course_hours_section_id_sections_id_fk",
           "tableFrom": "course_hours",
@@ -745,18 +772,11 @@
           "notNull": true,
           "autoincrement": false
         },
-        "classroom_id": {
-          "name": "classroom_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "instructor_id": {
           "name": "instructor_id",
           "type": "int",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
@@ -773,19 +793,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "sections_classroom_id_classrooms_id_fk": {
-          "name": "sections_classroom_id_classrooms_id_fk",
-          "tableFrom": "sections",
-          "tableTo": "classrooms",
-          "columnsFrom": [
-            "classroom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "sections_instructor_id_instructors_id_fk": {

@@ -12,12 +12,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Pencil, Plus, Trash } from "lucide-react";
+import { Download, Pencil, Plus, Trash, Upload } from "lucide-react";
 import { useParams } from "next/navigation";
+import Papa from "papaparse";
 import type React from "react";
 import { useEffect, useState } from "react";
-import Papa from 'papaparse';
-import { Download, Upload } from "lucide-react";
 
 interface ClassroomType {
     id: number;
@@ -94,10 +93,12 @@ export default function ClassroomTypeView() {
                 text: "Failed to load classroom types. Please try again.",
                 type: "error",
             });
-        } 
+        }
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const handleInputChange = (
+        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    ) => {
         const { name, value } = e.target;
         setFormData({
             ...formData,
@@ -275,18 +276,25 @@ export default function ClassroomTypeView() {
     }
 
     // Validation function for classroom type CSV data
-    const validateClassroomTypeData = (row: any, rowIndex: number): CSVClassroomTypeRow | string => {
+    const validateClassroomTypeData = (
+        row: any,
+        rowIndex: number
+    ): CSVClassroomTypeRow | string => {
         const errors: string[] = [];
-        
+
         // Check required fields
-        if (!row.name || typeof row.name !== 'string' || row.name.trim() === '') {
+        if (
+            !row.name ||
+            typeof row.name !== "string" ||
+            row.name.trim() === ""
+        ) {
             errors.push(`Row ${rowIndex + 1}: Classroom type name is required`);
         }
-        
+
         if (errors.length > 0) {
-            return errors.join(', ');
+            return errors.join(", ");
         }
-        
+
         // Return cleaned data
         return {
             name: row.name.trim(),
@@ -305,7 +313,7 @@ export default function ClassroomTypeView() {
         }
 
         const scheduleId = params.id;
-        
+
         setImportProgress({
             total: 0,
             completed: 0,
@@ -318,7 +326,8 @@ export default function ClassroomTypeView() {
             Papa.parse(importFile, {
                 header: true,
                 skipEmptyLines: true,
-                transformHeader: (header) => header.trim().toLowerCase().replace(/\s+/g, '_'),
+                transformHeader: (header) =>
+                    header.trim().toLowerCase().replace(/\s+/g, "_"),
                 complete: async (results) => {
                     const csvData = results.data as any[];
                     const validClassroomTypes: CSVClassroomTypeRow[] = [];
@@ -326,23 +335,42 @@ export default function ClassroomTypeView() {
 
                     // Validate each row
                     csvData.forEach((row, index) => {
-                        const validationResult = validateClassroomTypeData(row, index);
-                        if (typeof validationResult === 'string') {
+                        const validationResult = validateClassroomTypeData(
+                            row,
+                            index
+                        );
+                        if (typeof validationResult === "string") {
                             errors.push(validationResult);
                         } else {
                             // Check for duplicate names in the CSV
-                            const duplicateInCsv = validClassroomTypes.some(type => 
-                                type.name.toLowerCase() === validationResult.name.toLowerCase()
+                            const duplicateInCsv = validClassroomTypes.some(
+                                (type) =>
+                                    type.name.toLowerCase() ===
+                                    validationResult.name.toLowerCase()
                             );
                             if (duplicateInCsv) {
-                                errors.push(`Row ${index + 1}: Duplicate classroom type name "${validationResult.name}" in CSV`);
+                                errors.push(
+                                    `Row ${
+                                        index + 1
+                                    }: Duplicate classroom type name "${
+                                        validationResult.name
+                                    }" in CSV`
+                                );
                             } else {
                                 // Check for existing names in database
-                                const existingType = classroomTypes.some(type => 
-                                    type.name.toLowerCase() === validationResult.name.toLowerCase()
+                                const existingType = classroomTypes.some(
+                                    (type) =>
+                                        type.name.toLowerCase() ===
+                                        validationResult.name.toLowerCase()
                                 );
                                 if (existingType) {
-                                    errors.push(`Row ${index + 1}: Classroom type name "${validationResult.name}" already exists in the system`);
+                                    errors.push(
+                                        `Row ${
+                                            index + 1
+                                        }: Classroom type name "${
+                                            validationResult.name
+                                        }" already exists in the system`
+                                    );
                                 } else {
                                     validClassroomTypes.push(validationResult);
                                 }
@@ -350,7 +378,7 @@ export default function ClassroomTypeView() {
                         }
                     });
 
-                    setImportProgress(prev => ({
+                    setImportProgress((prev) => ({
                         ...prev,
                         total: validClassroomTypes.length,
                         errors: errors,
@@ -361,7 +389,10 @@ export default function ClassroomTypeView() {
                             text: "No valid classroom types found in the CSV file",
                             type: "error",
                         });
-                        setImportProgress(prev => ({ ...prev, isImporting: false }));
+                        setImportProgress((prev) => ({
+                            ...prev,
+                            isImporting: false,
+                        }));
                         return;
                     }
 
@@ -377,19 +408,22 @@ export default function ClassroomTypeView() {
                                 scheduleId: Number(scheduleId),
                             };
 
-                            const response = await fetch("/api/classroom-types", {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                },
-                                body: JSON.stringify(apiData),
-                            });
+                            const response = await fetch(
+                                "/api/classroom-types",
+                                {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify(apiData),
+                                }
+                            );
 
                             if (!response.ok) {
                                 const errorData = await response.text();
                                 importErrors.push(
                                     `Failed to import ${classroomType.name}: ${
-                                        errorData || 'Unknown error'
+                                        errorData || "Unknown error"
                                     }`
                                 );
                             } else {
@@ -398,24 +432,31 @@ export default function ClassroomTypeView() {
                         } catch (error) {
                             importErrors.push(
                                 `Failed to import ${classroomType.name}: ${
-                                    error instanceof Error ? error.message : 'Unknown error'
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Unknown error"
                                 }`
                             );
                         }
 
                         // Update progress
-                        setImportProgress(prev => ({
+                        setImportProgress((prev) => ({
                             ...prev,
                             completed: completed,
                             errors: importErrors,
                         }));
 
                         // Small delay to prevent overwhelming the server
-                        await new Promise(resolve => setTimeout(resolve, 100));
+                        await new Promise((resolve) =>
+                            setTimeout(resolve, 100)
+                        );
                     }
 
                     // Final update
-                    setImportProgress(prev => ({ ...prev, isImporting: false }));
+                    setImportProgress((prev) => ({
+                        ...prev,
+                        isImporting: false,
+                    }));
 
                     // Refresh the classroom types list
                     await fetchClassroomTypes();
@@ -424,9 +465,14 @@ export default function ClassroomTypeView() {
                     if (completed > 0) {
                         setStatusMessage({
                             text: `Successfully imported ${completed} classroom type(s)${
-                                importErrors.length > 0 ? ` with ${importErrors.length} error(s)` : ''
+                                importErrors.length > 0
+                                    ? ` with ${importErrors.length} error(s)`
+                                    : ""
                             }`,
-                            type: completed === validClassroomTypes.length ? "success" : "error",
+                            type:
+                                completed === validClassroomTypes.length
+                                    ? "success"
+                                    : "error",
                         });
                     } else {
                         setStatusMessage({
@@ -441,7 +487,10 @@ export default function ClassroomTypeView() {
                         text: "Failed to parse CSV file. Please check the file format.",
                         type: "error",
                     });
-                    setImportProgress(prev => ({ ...prev, isImporting: false }));
+                    setImportProgress((prev) => ({
+                        ...prev,
+                        isImporting: false,
+                    }));
                 },
             });
         } catch (error) {
@@ -450,21 +499,21 @@ export default function ClassroomTypeView() {
                 text: "Failed to import classroom types. Please try again.",
                 type: "error",
             });
-            setImportProgress(prev => ({ ...prev, isImporting: false }));
+            setImportProgress((prev) => ({ ...prev, isImporting: false }));
         }
     };
 
     // File selection handler
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file && file.type === 'text/csv') {
+        if (file) {
             setImportFile(file);
         } else {
             setStatusMessage({
                 text: "Please select a valid CSV file",
                 type: "error",
             });
-            event.target.value = ''; // Reset file input
+            event.target.value = ""; // Reset file input
         }
     };
 
@@ -483,50 +532,63 @@ export default function ClassroomTypeView() {
     const downloadClassroomTypesCSV = () => {
         try {
             // Create CSV header
-            const headers = ['name', 'description'];
-            
+            const headers = ["name", "description"];
+
             // Convert classroom types data to CSV rows
-            const csvRows = classroomTypes.map(type => [
+            const csvRows = classroomTypes.map((type) => [
                 type.name,
-                type.description || ''
+                type.description || "",
             ]);
-            
+
             // Combine headers and data
             const allRows = [headers, ...csvRows];
-            
+
             // Convert to CSV string
-            const csvContent = allRows.map(row => 
-                row.map(field => {
-                    // Escape quotes and wrap in quotes if field contains comma, quote, or newline
-                    const fieldStr = String(field || '');
-                    if (fieldStr.includes(',') || fieldStr.includes('"') || fieldStr.includes('\n')) {
-                        return `"${fieldStr.replace(/"/g, '""')}"`;
-                    }
-                    return fieldStr;
-                }).join(',')
-            ).join('\n');
+            const csvContent = allRows
+                .map((row) =>
+                    row
+                        .map((field) => {
+                            // Escape quotes and wrap in quotes if field contains comma, quote, or newline
+                            const fieldStr = String(field || "");
+                            if (
+                                fieldStr.includes(",") ||
+                                fieldStr.includes('"') ||
+                                fieldStr.includes("\n")
+                            ) {
+                                return `"${fieldStr.replace(/"/g, '""')}"`;
+                            }
+                            return fieldStr;
+                        })
+                        .join(",")
+                )
+                .join("\n");
 
             // Create and download file
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
+            const blob = new Blob([csvContent], {
+                type: "text/csv;charset=utf-8;",
+            });
+            const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            
+            link.setAttribute("href", url);
+
             // Generate filename with current date
-            const today = new Date().toISOString().split('T')[0];
-            link.setAttribute('download', `classroom_types_export_${today}.csv`);
-            
-            link.style.visibility = 'hidden';
+            const today = new Date().toISOString().split("T")[0];
+            link.setAttribute(
+                "download",
+                `classroom_types_export_${today}.csv`
+            );
+
+            link.style.visibility = "hidden";
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            
+
             setStatusMessage({
                 text: `Exported ${classroomTypes.length} classroom types to CSV`,
                 type: "success",
             });
         } catch (error) {
-            console.error('Error exporting CSV:', error);
+            console.error("Error exporting CSV:", error);
             setStatusMessage({
                 text: "Failed to export classroom types. Please try again.",
                 type: "error",
@@ -552,8 +614,12 @@ export default function ClassroomTypeView() {
             {/* Page Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Classroom Types</h2>
-                    <p className="text-xs text-gray-600">Manage classroom type categories</p>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                        Classroom Types
+                    </h2>
+                    <p className="text-xs text-gray-600">
+                        Manage classroom type categories
+                    </p>
                 </div>
                 <div className="flex gap-2">
                     <Button
@@ -571,7 +637,7 @@ export default function ClassroomTypeView() {
                     >
                         <Download className="mr-1 h-3 w-3" /> Export CSV
                     </Button>
-                    
+
                     <Button
                         onClick={openAddDialog}
                         className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors inline-flex items-center gap-1"
@@ -610,49 +676,68 @@ export default function ClassroomTypeView() {
                                     >
                                         <div className="space-y-1">
                                             <div>No classroom types found</div>
-                                            <div className="text-xs">Add a new classroom type to get started.</div>
+                                            <div className="text-xs">
+                                                Add a new classroom type to get
+                                                started.
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
                             ) : (
-                                paginatedClassroomTypes.map((classroomType, index) => (
-                                    <tr 
-                                        key={classroomType.id}
-                                        className={`hover:bg-gray-50 transition-colors ${
-                                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                                        }`}
-                                    >
-                                        <td className="px-3 py-2 text-xs text-gray-600 font-medium">
-                                            {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
-                                        </td>
-                                        <td className="px-3 py-2 text-xs text-gray-900">
-                                            {classroomType.name}
-                                        </td>
-                                        <td className="px-3 py-2 text-xs text-gray-600">
-                                            {classroomType.description || "-"}
-                                        </td>
-                                        <td className="px-3 py-2">
-                                            <div className="flex gap-1">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
-                                                    onClick={() => openEditDialog(classroomType)}
-                                                >
-                                                    <Pencil className="h-3 w-3" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
-                                                    onClick={() => openDeleteDialog(classroomType)}
-                                                >
-                                                    <Trash className="h-3 w-3" />
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                paginatedClassroomTypes.map(
+                                    (classroomType, index) => (
+                                        <tr
+                                            key={classroomType.id}
+                                            className={`hover:bg-gray-50 transition-colors ${
+                                                index % 2 === 0
+                                                    ? "bg-white"
+                                                    : "bg-gray-50"
+                                            }`}
+                                        >
+                                            <td className="px-3 py-2 text-xs text-gray-600 font-medium">
+                                                {(currentPage - 1) *
+                                                    ITEMS_PER_PAGE +
+                                                    index +
+                                                    1}
+                                            </td>
+                                            <td className="px-3 py-2 text-xs text-gray-900">
+                                                {classroomType.name}
+                                            </td>
+                                            <td className="px-3 py-2 text-xs text-gray-600">
+                                                {classroomType.description ||
+                                                    "-"}
+                                            </td>
+                                            <td className="px-3 py-2">
+                                                <div className="flex gap-1">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                        onClick={() =>
+                                                            openEditDialog(
+                                                                classroomType
+                                                            )
+                                                        }
+                                                    >
+                                                        <Pencil className="h-3 w-3" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                        onClick={() =>
+                                                            openDeleteDialog(
+                                                                classroomType
+                                                            )
+                                                        }
+                                                    >
+                                                        <Trash className="h-3 w-3" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )
+                                )
                             )}
                         </tbody>
                     </table>
@@ -680,13 +765,20 @@ export default function ClassroomTypeView() {
             >
                 <DialogContent className="bg-white max-w-md">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Add New Classroom Type</DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Add New Classroom Type
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4">
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="name" className="text-sm font-medium text-gray-700">Name</Label>
+                                <Label
+                                    htmlFor="name"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Name
+                                </Label>
                                 <Input
                                     id="name"
                                     name="name"
@@ -697,7 +789,12 @@ export default function ClassroomTypeView() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="description" className="text-sm font-medium text-gray-700">Description (Optional)</Label>
+                                <Label
+                                    htmlFor="description"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Description (Optional)
+                                </Label>
                                 <Textarea
                                     id="description"
                                     name="description"
@@ -743,13 +840,20 @@ export default function ClassroomTypeView() {
             >
                 <DialogContent className="bg-white max-w-md">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Edit Classroom Type</DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Edit Classroom Type
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4">
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="edit-name" className="text-sm font-medium text-gray-700">Name</Label>
+                                <Label
+                                    htmlFor="edit-name"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Name
+                                </Label>
                                 <Input
                                     id="edit-name"
                                     name="name"
@@ -760,7 +864,12 @@ export default function ClassroomTypeView() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="edit-description" className="text-sm font-medium text-gray-700">Description (Optional)</Label>
+                                <Label
+                                    htmlFor="edit-description"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Description (Optional)
+                                </Label>
                                 <Textarea
                                     id="edit-description"
                                     name="description"
@@ -806,7 +915,9 @@ export default function ClassroomTypeView() {
             >
                 <DialogContent className="bg-white max-w-md">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Delete Classroom Type</DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Delete Classroom Type
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4">
@@ -823,7 +934,9 @@ export default function ClassroomTypeView() {
                                 </p>
                             )}
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">This action cannot be undone.</p>
+                        <p className="text-xs text-gray-500 mt-2">
+                            This action cannot be undone.
+                        </p>
                     </div>
 
                     <DialogFooter className="border-t border-gray-200 pt-3">
@@ -857,12 +970,19 @@ export default function ClassroomTypeView() {
             >
                 <DialogContent className="bg-white max-w-md">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Import Classroom Types from CSV</DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Import Classroom Types from CSV
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4 space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="csv-file" className="text-sm font-medium text-gray-700">Select CSV File</Label>
+                            <Label
+                                htmlFor="csv-file"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Select CSV File
+                            </Label>
                             <Input
                                 id="csv-file"
                                 type="file"
@@ -872,14 +992,21 @@ export default function ClassroomTypeView() {
                                 className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
                             />
                             <p className="text-xs text-gray-600">
-                                CSV should contain columns: name, description (optional)
+                                CSV should contain columns: name, description
+                                (optional)
                             </p>
                         </div>
 
                         {importFile && (
                             <div className="text-sm bg-gray-50 p-2 rounded border">
-                                <p><strong>Selected file:</strong> {importFile.name}</p>
-                                <p><strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB</p>
+                                <p>
+                                    <strong>Selected file:</strong>{" "}
+                                    {importFile.name}
+                                </p>
+                                <p>
+                                    <strong>Size:</strong>{" "}
+                                    {(importFile.size / 1024).toFixed(2)} KB
+                                </p>
                             </div>
                         )}
 
@@ -887,15 +1014,23 @@ export default function ClassroomTypeView() {
                             <div className="space-y-2">
                                 <div className="flex justify-between text-sm">
                                     <span>Progress:</span>
-                                    <span>{importProgress.completed} / {importProgress.total}</span>
+                                    <span>
+                                        {importProgress.completed} /{" "}
+                                        {importProgress.total}
+                                    </span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2">
-                                    <div 
+                                    <div
                                         className="bg-[#2F2F85] h-2 rounded-full transition-all duration-300"
-                                        style={{ 
-                                            width: importProgress.total > 0 
-                                                ? `${(importProgress.completed / importProgress.total) * 100}%` 
-                                                : '0%' 
+                                        style={{
+                                            width:
+                                                importProgress.total > 0
+                                                    ? `${
+                                                          (importProgress.completed /
+                                                              importProgress.total) *
+                                                          100
+                                                      }%`
+                                                    : "0%",
                                         }}
                                     ></div>
                                 </div>
@@ -908,12 +1043,21 @@ export default function ClassroomTypeView() {
                                     Errors ({importProgress.errors.length}):
                                 </p>
                                 <div className="text-xs space-y-1 bg-red-50 p-2 rounded border border-red-200">
-                                    {importProgress.errors.slice(0, 10).map((error, index) => (
-                                        <p key={index} className="text-red-600">{error}</p>
-                                    ))}
+                                    {importProgress.errors
+                                        .slice(0, 10)
+                                        .map((error, index) => (
+                                            <p
+                                                key={index}
+                                                className="text-red-600"
+                                            >
+                                                {error}
+                                            </p>
+                                        ))}
                                     {importProgress.errors.length > 10 && (
                                         <p className="text-red-600 font-medium">
-                                            ... and {importProgress.errors.length - 10} more errors
+                                            ... and{" "}
+                                            {importProgress.errors.length - 10}{" "}
+                                            more errors
                                         </p>
                                     )}
                                 </div>
@@ -938,7 +1082,9 @@ export default function ClassroomTypeView() {
                             disabled={!importFile || importProgress.isImporting}
                             className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white disabled:bg-gray-300 text-sm px-3 py-1.5"
                         >
-                            {importProgress.isImporting ? 'Importing...' : 'Import'}
+                            {importProgress.isImporting
+                                ? "Importing..."
+                                : "Import"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

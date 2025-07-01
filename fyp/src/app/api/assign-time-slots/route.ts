@@ -6,7 +6,7 @@ import {
     sections,
 } from "@/drizzle/schema";
 import { db } from "@/lib/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -20,8 +20,10 @@ const timetableAssignmentSchema = z.object({
 });
 
 const saveTimetableSchema = z.object({
+    id: z.number(), // Optional ID for existing assignments
     sectionId: z.number(),
     day: z.string(),
+    duration: z.number().optional(), // Duration in minutes
     startTime: z.string(),
     endTime: z.string(),
     classroom: z.string().nullable(), // Allow null for online courses
@@ -50,25 +52,27 @@ export async function GET(request: Request) {
         // Use LEFT JOIN for classrooms to include courses without assigned classrooms (online courses)
         const assignments = await db
             .select({
+                id: courseHours.id,
                 sectionId: sections.id,
                 sectionNumber: sections.number,
                 courseHours: courseHours.timeSlot,
                 classroom: classrooms.code, // This will be null for online courses
-                classroomId: sections.classroomId, // Include this to check if it's null
+                classroomId: courseHours.classroomId, // Include this to check if it's null
                 code: courses.code,
                 title: courses.title,
                 firstName: instructors.firstName,
                 lastName: instructors.lastName,
+                capacity: courses.capacity,
                 day: courseHours.day,
                 timeSlot: courseHours.timeSlot,
-                duration: courses.duration,
+                duration: courseHours.separatedDuration,
                 color: courses.color,
             })
             .from(courses)
             .innerJoin(sections, eq(sections.courseId, courses.id))
             .innerJoin(courseHours, eq(courseHours.sectionId, sections.id))
             .innerJoin(instructors, eq(instructors.id, sections.instructorId))
-            .leftJoin(classrooms, eq(classrooms.id, sections.classroomId)) // LEFT JOIN to include null classrooms
+            .leftJoin(classrooms, eq(classrooms.id, courseHours.classroomId)) // LEFT JOIN to include null classrooms
             .where(eq(courses.scheduleId, parseInt(scheduleId)));
 
         console.log("Raw assignments from DB:", assignments);
@@ -96,15 +100,10 @@ export async function GET(request: Request) {
     }
 }
 
-// POST new course to timetable
 export async function POST(request: Request) {
     try {
         const body = await request.json();
 
-        if (body.length === 0) {
-            await db.delete(courseHours);
-            return NextResponse.json("AH PLER");
-        }
         // Check if body is an array
         if (!Array.isArray(body)) {
             return NextResponse.json(
@@ -113,69 +112,47 @@ export async function POST(request: Request) {
             );
         }
 
-        // Extract all sectionIds from the request
-        const requestSectionIds = new Set(
-            body.map((assignment) => assignment.sectionId).filter(Boolean)
-        );
-
-        console.log("Section IDs in request:", Array.from(requestSectionIds));
-
-        // Find and delete course hours that don't have matching sections in the request
-        if (requestSectionIds.size > 0) {
-            // Get all existing course hours
-            const existingCourseHours = await db
-                .select({
-                    id: courseHours.id,
-                    sectionId: courseHours.sectionId,
-                })
-                .from(courseHours);
-
-            // Find course hours that should be deleted (not in the request)
-            const courseHoursToDelete = existingCourseHours.filter(
-                (courseHour) => !requestSectionIds.has(courseHour.sectionId)
-            );
-
-            console.log(
-                `Found ${courseHoursToDelete.length} course hours to delete`
-            );
-
-            // Delete course hours that are not in the request
-            if (courseHoursToDelete.length > 0) {
-                const idsToDelete = courseHoursToDelete.map((ch) => ch.id);
-
-                await db
-                    .delete(courseHours)
-                    .where(inArray(courseHours.id, idsToDelete));
-
-                console.log(
-                    `Deleted ${courseHoursToDelete.length} course hours:`,
-                    courseHoursToDelete.map((ch) => ({
-                        id: ch.id,
-                        sectionId: ch.sectionId,
-                    }))
-                );
-
-                // Also clear classroom assignments for sections that were removed
-                const sectionsToCleanup = courseHoursToDelete.map(
-                    (ch) => ch.sectionId
-                );
-                if (sectionsToCleanup.length > 0) {
-                    await db
-                        .update(sections)
-                        .set({ classroomId: null })
-                        .where(inArray(sections.id, sectionsToCleanup));
-
-                    console.log(
-                        `Cleared classroom assignments for ${sectionsToCleanup.length} sections`
-                    );
-                }
-            }
-        }
-
         // Validate each item in the array
         const results = [];
         const errors = [];
-        // In your POST function, update the processing logic:
+
+        // Extract all course hour IDs from the request
+        const requestCourseHourIds = new Set();
+        body.forEach((assignment) => {
+            if (assignment.id) {
+                requestCourseHourIds.add(assignment.id);
+            }
+        });
+
+        // Get all existing course hours
+        const allExistingCourseHours = await db
+            .select({ id: courseHours.id })
+            .from(courseHours);
+
+        // Find course hours that exist in database but not in request
+        const courseHoursToNull = allExistingCourseHours.filter(
+            (courseHour) => !requestCourseHourIds.has(courseHour.id)
+        );
+
+        // Set day, timeSlot, and classroomId to null for missing course hours
+        if (courseHoursToNull.length > 0) {
+            console.log(
+                `Setting ${courseHoursToNull.length} course hours to null values`
+            );
+
+            for (const courseHour of courseHoursToNull) {
+                await db
+                    .update(courseHours)
+                    .set({
+                        day: null,
+                        timeSlot: null,
+                        classroomId: null,
+                    })
+                    .where(eq(courseHours.id, courseHour.id));
+            }
+        }
+
+        // Process each assignment
         for (const assignment of body) {
             const validationResult = saveTimetableSchema.safeParse(assignment);
 
@@ -191,13 +168,33 @@ export async function POST(request: Request) {
                 continue;
             }
 
-            const { sectionId, day, startTime, endTime, classroom, isOnline } =
-                validationResult.data;
+            const {
+                id,
+                sectionId,
+                day,
+                startTime,
+                endTime,
+                classroom,
+                isOnline,
+                duration,
+            } = validationResult.data;
+
+            // Debug logging
+            console.log("Assignment data:", {
+                sectionId,
+                day,
+                startTime,
+                endTime,
+                classroom,
+                isOnline,
+                duration,
+            });
+            console.log("Time slot will be:", `${startTime} - ${endTime}`);
 
             try {
                 // Check if course hour already exists for this section
                 const existingCourseHour = await db
-                    .select()
+                    .select({ id: courseHours.id })
                     .from(courseHours)
                     .where(eq(courseHours.sectionId, sectionId))
                     .limit(1);
@@ -205,30 +202,38 @@ export async function POST(request: Request) {
                 let courseHourId;
 
                 if (existingCourseHour.length > 0) {
+                    // Update existing course hour
+                    courseHourId = existingCourseHour[0].id;
                     console.log(
-                        `Course hour already exists for section ${sectionId}, updating...`
+                        `Updating existing course hour with ID: ${courseHourId} for section ${sectionId}...`
                     );
 
-                    courseHourId = existingCourseHour[0].id;
                     await db
                         .update(courseHours)
                         .set({
                             day: day,
                             timeSlot: `${startTime} - ${endTime}`,
                         })
-                        .where(eq(courseHours.id, courseHourId));
+                        .where(eq(courseHours.id, id));
                 } else {
                     // Create new course hour
+                    console.log(
+                        `Creating new course hour for section ${sectionId}...`
+                    );
+
                     await db.insert(courseHours).values({
+                        sectionId: sectionId,
                         day: day,
                         timeSlot: `${startTime} - ${endTime}`,
-                        sectionId: sectionId,
+                        separatedDuration: duration,
                     });
 
+                    // Get the created course hour ID
                     const createdCourseHour = await db
                         .select({ id: courseHours.id })
                         .from(courseHours)
-                        .where(eq(courseHours.sectionId, sectionId));
+                        .where(eq(courseHours.sectionId, sectionId))
+                        .limit(1);
 
                     if (createdCourseHour.length === 0) {
                         console.error(
@@ -242,6 +247,7 @@ export async function POST(request: Request) {
                     }
 
                     courseHourId = createdCourseHour[0].id;
+                    console.log(`Created course hour with ID: ${courseHourId}`);
                 }
 
                 console.log("Processing section:", sectionId);
@@ -252,11 +258,11 @@ export async function POST(request: Request) {
                     isOnline || !classroom ? null : parseInt(classroom);
 
                 await db
-                    .update(sections)
+                    .update(courseHours)
                     .set({
                         classroomId: classroomId,
                     })
-                    .where(eq(sections.id, sectionId));
+                    .where(eq(courseHours.id, id));
 
                 // Get the updated section
                 const updatedSection = await db
@@ -265,9 +271,16 @@ export async function POST(request: Request) {
                     .where(eq(sections.id, sectionId))
                     .limit(1);
 
+                // Get the full course hour data to include in response
+                const fullCourseHour = await db
+                    .select()
+                    .from(courseHours)
+                    .where(eq(courseHours.id, courseHourId))
+                    .limit(1);
+
                 results.push({
                     sectionId,
-                    courseHour: { id: courseHourId },
+                    courseHour: fullCourseHour[0], // This will include day, timeSlot, etc.
                     section: updatedSection[0],
                     isOnline: isOnline || false,
                 });
@@ -291,6 +304,7 @@ export async function POST(request: Request) {
         const response = {
             message: `Successfully processed ${results.length} of ${body.length} assignments`,
             data: results,
+            nullifiedCourseHours: courseHoursToNull.length,
             ...(errors.length > 0 && {
                 errors: errors,
                 errorCount: errors.length,
@@ -320,11 +334,11 @@ export async function DELETE(request: Request) {
 
         // Remove the assignment by setting courseHoursId and classroomId to null
         await db
-            .update(sections)
+            .update(courseHours)
             .set({
                 classroomId: null,
             })
-            .where(eq(sections.id, sectionId));
+            .where(eq(courseHours.id, sectionId));
 
         // Fetch the updated section separately
         const updatedSection = await db

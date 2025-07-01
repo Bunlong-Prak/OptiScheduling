@@ -6,7 +6,6 @@ import {
     Course,
     CourseHour,
     isAssignedCourse,
-    ScheduleAssignment,
     ScheduleResponse,
     TimetableCourse,
 } from "@/app/types";
@@ -23,21 +22,10 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-    AlertCircle,
-    CheckCircle2,
-    GripVertical, 
-    Download,
-    Minus,
-    Plus,
-    Search,
-    X,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, Search, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-// Mock data for the timetable
 const days = [
     "Monday",
     "Tuesday",
@@ -47,19 +35,15 @@ const days = [
     "Saturday",
 ];
 
-// Define TimetableGrid type for the timetable data structure
 type TimetableGrid = Record<string, TimetableCourse>;
 
-// Initial schedule data (empty object)
 const initialSchedule: TimetableGrid = {};
 
-// New type for course split configuration
 interface CourseSplitConfig {
     course: TimetableCourse;
     splits: number[];
 }
 
-// Add type for instructor time constraints
 interface InstructorTimeConstraint {
     id: number;
     instructor_id: number;
@@ -68,6 +52,7 @@ interface InstructorTimeConstraint {
     firstName: string;
     lastName: string;
 }
+
 interface DragState {
     isDragOver: boolean;
     isValidDrop: boolean;
@@ -77,8 +62,6 @@ interface CellDragState {
     [key: string]: DragState;
 }
 
-
-// Add type for messages
 interface Message {
     id: number;
     type: "success" | "error";
@@ -97,32 +80,25 @@ export default function TimetableViewClassroom() {
         day: "",
         classroomId: "",
         timeSlot: "",
-        timeSlotId: 0, // Related to course hour
+        timeSlotId: 0,
     });
-    const [hoveredCell, setHoveredCell] = useState<{day: string; time: string; classroom: string; index: number} | null>(null);
+    const [hoveredCell, setHoveredCell] = useState<{
+        day: string;
+        time: string;
+        classroom: string;
+        index: number;
+    } | null>(null);
 
-    // State for holding real courses from API
     const [availableCourses, setAvailableCourses] = useState<TimetableCourse[]>(
         []
     );
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [assignedCourses, setAssignedCourses] = useState<TimetableCourse[]>(
         []
     );
     const [isLoading, setIsLoading] = useState(true);
-    // const [isSaving, setIsSaving] = useState(false);
-
-    // Add state to track if dragging to available courses area
     const [isDraggingToAvailable, setIsDraggingToAvailable] = useState(false);
-
-    // New state for time slots from database - course hours related
     const [timeSlots, setTimeSlots] = useState<CourseHour[]>([]);
-    // State for display time slots (which might be condensed for consecutive slots)
-    // const [displayTimeSlots, setDisplayTimeSlots] = useState<CourseHour[]>([]);
-
-    // State for classrooms from database
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-    // Add these new state variables to your existing useState declarations
     const [isGeneratingSchedule, setIsGeneratingSchedule] =
         useState<boolean>(false);
     const [scheduleGenerated, setScheduleGenerated] = useState<boolean>(false);
@@ -132,30 +108,26 @@ export default function TimetableViewClassroom() {
         scheduledAssignments: number;
         constraintsApplied: number;
     } | null>(null);
-// Add this with your other useState declarations:
-const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver: boolean; isValidDrop: boolean}}>({});
-    // NEW: Search functionality state
+    const [cellDragStates, setCellDragStates] = useState<{
+        [key: string]: { isDragOver: boolean; isValidDrop: boolean };
+    }>({});
     const [searchQuery, setSearchQuery] = useState("");
     const [isSearchActive, setIsSearchActive] = useState(false);
-
-    // NEW: Course split dialog state
     const [isSplitDialogOpen, setIsSplitDialogOpen] = useState(false);
     const [courseSplitConfig, setCourseSplitConfig] =
         useState<CourseSplitConfig | null>(null);
     const [splitDurations, setSplitDurations] = useState<number[]>([]);
-
-    // NEW: Instructor time constraints state
     const [instructorConstraints, setInstructorConstraints] = useState<
         InstructorTimeConstraint[]
     >([]);
-
-    // NEW: Messages state
     const [messages, setMessages] = useState<Message[]>([]);
     const [messageIdCounter, setMessageIdCounter] = useState(0);
+    const [originalCourseColors, setOriginalCourseColors] = useState<
+        Map<string, { color: string; originalColor?: string }>
+    >(new Map());
 
     const params = useParams();
 
-    // NEW: Function to show messages
     const showMessage = (type: "success" | "error", text: string) => {
         const id = messageIdCounter;
         setMessageIdCounter((prev) => prev + 1);
@@ -163,30 +135,62 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
         const newMessage: Message = { id, type, text };
         setMessages((prev) => [...prev, newMessage]);
 
-        // Auto-remove message after 3 seconds
         setTimeout(() => {
             setMessages((prev) => prev.filter((msg) => msg.id !== id));
         }, 3000);
     };
 
-    // NEW: Function to manually remove message
     const removeMessage = (id: number) => {
         setMessages((prev) => prev.filter((msg) => msg.id !== id));
     };
 
-    // Helper function to get consistent time slot key
+    const normalizeTimeSlot = (timeSlot: any) => {
+        if (!timeSlot) return "";
+
+        if (typeof timeSlot === "string") {
+            return timeSlot
+                .replace(/\s+/g, "")
+                .replace(/(\d{1,2}):(\d{2})/g, (match, hour, minute) => {
+                    return `${hour.padStart(2, "0")}:${minute}`;
+                });
+        }
+
+        if (timeSlot.startTime && timeSlot.endTime) {
+            const start = normalizeTime(timeSlot.startTime);
+            const end = normalizeTime(timeSlot.endTime);
+            return `${start}-${end}`;
+        }
+
+        if (timeSlot.time_slot) {
+            return normalizeTimeSlot(timeSlot.time_slot);
+        }
+
+        return timeSlot.toString();
+    };
+
+    const normalizeTime = (time: any) => {
+        if (!time) return "";
+
+        const cleaned = time.toString().replace(/\s+/g, "");
+        const match = cleaned.match(/(\d{1,2}):(\d{2})/);
+
+        if (match) {
+            const [, hour, minute] = match;
+            return `${hour.padStart(2, "0")}:${minute}`;
+        }
+
+        return cleaned;
+    };
+
     const getTimeSlotKey = (timeSlot: any): string => {
-        // If it's a time slot string like "8:00-9:00", use it directly
         if (typeof timeSlot === "string") {
             return timeSlot;
         }
 
-        // If it's an object with startTime, use that
         if (timeSlot.startTime) {
             return timeSlot.startTime;
         }
 
-        // If it's an object with time_slot, use that
         if (timeSlot.time_slot) {
             return timeSlot.time_slot;
         }
@@ -194,16 +198,25 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
         return timeSlot.toString();
     };
 
-    // Helper function to check if time slots are consecutive
+    const formatTimeSlotForDisplay = (timeSlot: any) => {
+        const normalized = normalizeTimeSlot(timeSlot);
+        if (normalized.includes("-")) {
+            return normalized.replace("-", " - ");
+        }
+        return normalized;
+    };
+
+    const areTimeSlotsEqual = (slot1: any, slot2: any) => {
+        return normalizeTimeSlot(slot1) === normalizeTimeSlot(slot2);
+    };
+
     const areTimeSlotsConsecutive = (slots: any[]): boolean => {
         if (!slots || slots.length < 2) return false;
 
-        // Loop through pairs of time slots
         for (let i = 0; i < slots.length - 1; i++) {
             const currentSlot = slots[i];
             const nextSlot = slots[i + 1];
 
-            // Get end time of current slot and start time of next slot
             let currentEndTime, nextStartTime;
 
             if (currentSlot.endTime) {
@@ -214,7 +227,7 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
             ) {
                 currentEndTime = currentSlot.time_slot.split("-")[1].trim();
             } else {
-                return false; // Cannot determine end time
+                return false;
             }
 
             if (nextSlot.startTime) {
@@ -222,10 +235,9 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
             } else if (nextSlot.time_slot && nextSlot.time_slot.includes("-")) {
                 nextStartTime = nextSlot.time_slot.split("-")[0].trim();
             } else {
-                return false; // Cannot determine start time
+                return false;
             }
 
-            // Check if they match
             if (currentEndTime !== nextStartTime) {
                 return false;
             }
@@ -234,21 +246,17 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
         return true;
     };
 
-    // Helper function to parse a time slot string
-    const parseTimeSlot = (
-        timeSlotStr: string
-    ): { startTime: string; endTime: string } => {
-        if (!timeSlotStr || !timeSlotStr.includes("-")) {
-            return { startTime: timeSlotStr, endTime: timeSlotStr };
+    const parseTimeSlot = (timeSlotStr: any) => {
+        const normalized = normalizeTimeSlot(timeSlotStr);
+
+        if (!normalized || !normalized.includes("-")) {
+            return { startTime: normalized, endTime: normalized };
         }
 
-        const [startTime, endTime] = timeSlotStr
-            .split("-")
-            .map((time) => time.trim());
+        const [startTime, endTime] = normalized.split("-");
         return { startTime, endTime };
     };
 
-    // NEW: Function to check instructor time constraints and scheduling conflicts
     const checkInstructorConstraints = (
         course: TimetableCourse,
         day: string,
@@ -257,82 +265,41 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
     ): { isValid: boolean; conflictMessage?: string } => {
         const instructorName = course.instructor.trim();
 
-        console.log("=== CONSTRAINT CHECK DEBUG ===");
-        console.log("Course:", course.code);
-        console.log("Instructor:", instructorName);
-        console.log("Day:", day);
-        console.log("Time Slot Index:", timeSlotIndex);
-        console.log("Duration:", duration);
-        console.log("All Constraints:", instructorConstraints);
-
-        // 1. Check instructor availability constraints (time_period = unavailable times)
         const matchingConstraints = instructorConstraints.filter(
             (constraint) => {
                 const constraintInstructorName =
                     `${constraint.firstName} ${constraint.lastName}`.trim();
                 const nameMatch = constraintInstructorName === instructorName;
                 const dayMatch = constraint.day_of_the_week === day;
-
-                console.log("Checking constraint:");
-                console.log(
-                    "  - Constraint instructor:",
-                    constraintInstructorName
-                );
-                console.log("  - Course instructor:", instructorName);
-                console.log("  - Name match:", nameMatch);
-                console.log("  - Constraint day:", constraint.day_of_the_week);
-                console.log("  - Drop day:", day);
-                console.log("  - Day match:", dayMatch);
-                console.log("  - Time periods:", constraint.time_period);
-
                 return nameMatch && dayMatch;
             }
         );
 
-        console.log("Matching constraints found:", matchingConstraints.length);
-
         if (matchingConstraints.length > 0) {
             const instructorConstraint = matchingConstraints[0];
 
-            // Check each time slot the course would occupy
             for (let i = 0; i < duration; i++) {
                 if (timeSlotIndex + i >= timeSlots.length) break;
 
                 const timeSlotObject = timeSlots[timeSlotIndex + i];
-                console.log("Checking time slot object:", timeSlotObject);
 
-                // Get all possible time representations
                 const timeRepresentations = [
                     timeSlotObject.startTime,
                     timeSlotObject.time_slot,
                     getTimeSlotKey(timeSlotObject),
-                ].filter(Boolean); // Remove undefined/null values
+                ].filter(Boolean);
 
-                console.log(
-                    "Time representations to check:",
-                    timeRepresentations
-                );
-                console.log(
-                    "Against constraint time periods:",
-                    instructorConstraint.time_period
-                );
-
-                // Check if any time representation matches the constraint periods
                 for (const timeRep of timeRepresentations) {
                     if (instructorConstraint.time_period.includes(timeRep)) {
-                        console.log("🚫 CONSTRAINT VIOLATION FOUND!");
-                        console.log("Blocked time:", timeRep);
                         return {
                             isValid: false,
-                            conflictMessage: `Instructor ${instructorName} is not available on ${day} at ${timeRep} `,
+                            conflictMessage: `Instructor ${instructorName} is not available on ${day} at ${timeRep}`,
                         };
                     }
                 }
 
-                // Also check if time_period contains time ranges and current time falls within
                 for (const timePeriod of instructorConstraint.time_period) {
                     if (timePeriod.includes("-")) {
-                        // Handle time ranges like "09:00-10:00"
                         const [periodStart, periodEnd] = timePeriod
                             .split("-")
                             .map((t) => t.trim());
@@ -347,11 +314,6 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
                                         periodStart
                                     ))
                             ) {
-                                console.log(
-                                    "🚫 CONSTRAINT VIOLATION FOUND IN RANGE!"
-                                );
-                                console.log("Blocked time range:", timePeriod);
-                                console.log("Attempted time:", timeRep);
                                 return {
                                     isValid: false,
                                     conflictMessage: `Instructor ${instructorName} is not available on ${day} at ${timeRep} (time constraint)`,
@@ -363,7 +325,6 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
             }
         }
 
-        // 2. Check if instructor is already teaching another course at the same time
         for (let i = 0; i < duration; i++) {
             if (timeSlotIndex + i >= timeSlots.length) break;
 
@@ -371,24 +332,18 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
                 timeSlots[timeSlotIndex + i]
             );
 
-            // Check all schedule entries for conflicts with this instructor
             const conflictingCourse = Object.entries(schedule).find(
                 ([scheduleKey, scheduledCourse]) => {
-                    // Skip if it's the same course (in case of moving an existing course)
-                    if (scheduledCourse.sectionId === course.sectionId) {
+                    if (scheduledCourse.id === course.id) {
                         return false;
                     }
 
-                    // Check if the scheduled course is on the same day and same instructor
                     if (
                         scheduledCourse.day === day &&
                         scheduledCourse.instructor.trim() === instructorName
                     ) {
-                        // Parse the schedule key to get the time slot
                         const keyParts = scheduleKey.split("-");
-                        const scheduleTimeSlot = keyParts[keyParts.length - 1]; // Last part is the time slot
-
-                        // Check if time slots overlap
+                        const scheduleTimeSlot = keyParts[keyParts.length - 1];
                         return scheduleTimeSlot === currentTimeSlot;
                     }
 
@@ -398,7 +353,6 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
 
             if (conflictingCourse) {
                 const [, conflictingScheduledCourse] = conflictingCourse;
-                console.log("🚫 SCHEDULING CONFLICT FOUND!");
                 return {
                     isValid: false,
                     conflictMessage: `Instructor ${instructorName} is already teaching ${conflictingScheduledCourse.code} on ${day} at ${currentTimeSlot}`,
@@ -406,19 +360,15 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
             }
         }
 
-        console.log("✅ No constraints violated");
         return { isValid: true };
     };
 
-    // NEW: Course split dialog functions
     const handleCourseClick = (course: TimetableCourse) => {
-        // Only open split dialog for multi-hour courses, don't set as draggable
         if (course.duration > 1) {
             setCourseSplitConfig({ course, splits: [] });
             setSplitDurations([course.duration]);
             setIsSplitDialogOpen(true);
         }
-        // Remove the else clause completely - let drag handle single-hour courses
     };
 
     const addSplit = () => {
@@ -453,35 +403,18 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
 
         const { course } = courseSplitConfig;
 
-        // Remove original course from available courses
-        setAvailableCourses((prev) =>
-            prev.filter((c) => c.sectionId !== course.sectionId)
-        );
+        setAvailableCourses((prev) => prev.filter((c) => c.id !== course.id));
 
-        // Create split courses
         const splitCourses = splitDurations.map((duration, index) => ({
             ...course,
-            sectionId: Number.isNaN(Number(course.sectionId))
-                ? course.sectionId
-                : Number(course.sectionId), // keep as number if possible
+            id: course.id ? course.id * 1000 + index + 1 : index + 1,
             duration: duration,
             uniqueId: `${course.code}-${course.section}-split-${index + 1}`,
             name: `${course.name} (Part ${index + 1})`,
         }));
 
-        // Add split courses to available courses
-        setAvailableCourses((prev) => [
-            ...prev,
-            ...splitCourses.map((split, idx) => ({
-                ...split,
-                sectionId:
-                    typeof split.sectionId === "number"
-                        ? split.sectionId * 1000 + idx + 1 // ensure uniqueness and number type
-                        : idx + 1, // fallback if not a number
-            })),
-        ]);
+        setAvailableCourses((prev) => [...prev, ...splitCourses]);
 
-        // Close dialog
         setIsSplitDialogOpen(false);
         setCourseSplitConfig(null);
         setSplitDurations([]);
@@ -493,7 +426,6 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
         setSplitDurations([]);
     };
 
-    // NEW: Filtered schedule based on search query
     const filteredSchedule = useMemo(() => {
         if (!searchQuery.trim()) {
             return schedule;
@@ -517,12 +449,10 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
         return filtered;
     }, [schedule, searchQuery]);
 
-    // NEW: Check if search has active results
     useEffect(() => {
         setIsSearchActive(searchQuery.trim().length > 0);
     }, [searchQuery]);
 
-    // NEW: Search functionality helpers
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchQuery(e.target.value);
     };
@@ -531,7 +461,6 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
         setSearchQuery("");
     };
 
-    // NEW: Fetch instructor time constraints
     useEffect(() => {
         const fetchInstructorConstraints = async () => {
             try {
@@ -543,10 +472,6 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
                 if (response.ok) {
                     const constraintsData = await response.json();
                     setInstructorConstraints(constraintsData);
-                    console.log(
-                        "Loaded instructor constraints:",
-                        constraintsData
-                    );
                 } else {
                     console.error("Failed to fetch instructor constraints");
                 }
@@ -560,7 +485,6 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
         }
     }, [params.id]);
 
-    // Fetch time slots and classrooms from API
     useEffect(() => {
         const fetchTimeSlots = async () => {
             try {
@@ -571,16 +495,13 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
 
                 if (response.ok) {
                     const schedulesData = await response.json();
-                    // Find the current schedule by ID
                     const currentSchedule = schedulesData.find(
                         (s: any) => s.id.toString() === scheduleId
                     );
 
                     if (currentSchedule && currentSchedule.timeSlots) {
-                        // Transform API time slots to a consistent format
                         const apiTimeSlots = currentSchedule.timeSlots.map(
                             (slot: any) => {
-                                // Create a formatted slot object
                                 const formattedSlot: any = {
                                     id: slot.id,
                                     time_slot:
@@ -592,7 +513,6 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
                                     endTime: slot.endTime,
                                 };
 
-                                // If time_slot already has start/end times but not as separate properties
                                 if (
                                     !slot.startTime &&
                                     !slot.endTime &&
@@ -610,20 +530,9 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
                             }
                         );
 
-                        console.log("Raw API time slots:", apiTimeSlots);
-
-                        // Check if the time slots are consecutive
                         const isConsecutive =
                             areTimeSlotsConsecutive(apiTimeSlots);
-                        console.log(
-                            "Time slots are consecutive:",
-                            isConsecutive
-                        );
-
-                        // Save original time slots for data processing
                         setTimeSlots(apiTimeSlots);
-
-                        // For display, just use the time slots as is
                     } else {
                         console.error(
                             "No time slots found for schedule",
@@ -646,15 +555,13 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
                 );
                 if (response.ok) {
                     const data = await response.json();
-                    
-                    // Add virtual online classrooms with special negative IDs
+
                     const virtualOnlineClassrooms = [
-                        { id: -1, code: 'Online 1', capacity: 999 },
-                        { id: -2, code: 'Online 2', capacity: 999 },
-                        { id: -3, code: 'Online 3', capacity: 999 }
+                        { id: -1, code: "Online", capacity: 999 },
+                        { id: -2, code: "Online", capacity: 999 },
+                        { id: -3, code: "Online", capacity: 999 },
                     ];
-                    
-                    // Combine physical and virtual classrooms
+
                     setClassrooms([...data, ...virtualOnlineClassrooms]);
                 }
             } catch (error) {
@@ -662,17 +569,10 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
             }
         };
 
-        fetchTimeSlots(); // Now we're fetching time slots from API
+        fetchTimeSlots();
         fetchClassrooms();
     }, [params.id]);
 
-    // Fetch real courses from API
-    // Add this new state to store original course colors
-    const [originalCourseColors, setOriginalCourseColors] = useState<
-        Map<string, { color: string; originalColor?: string }>
-    >(new Map());
-
-    // Update the courses fetch useEffect to store original colors
     useEffect(() => {
         const fetchCourses = async () => {
             setIsLoading(true);
@@ -684,51 +584,53 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
                 if (response.ok) {
                     const coursesData: Course[] = await response.json();
 
-                    // Group courses by sectionId
-                    const coursesBySectionId: { [sectionId: string]: Course } =
-                        {};
-
-                    // NEW: Create color map to preserve original colors
                     const colorMap = new Map<
                         string,
                         { color: string; originalColor?: string }
                     >();
 
-                    coursesData.forEach((course) => {
-                        const sectionId = course.sectionId;
+                    const transformedCourses = coursesData.map(
+                        (course: any) => {
+                            const colorClassName =
+                                colors_class[course.color] ||
+                                getConsistentCourseColor(course.code);
 
-                        if (!coursesBySectionId[sectionId]) {
-                            coursesBySectionId[sectionId] = { ...course };
+                            colorMap.set(course.code, {
+                                color: colorClassName,
+                                originalColor: course.color,
+                            });
+
+                            const isOnlineCourse =
+                                course.status === "online" ||
+                                course.isOnline === true;
+
+                            return {
+                                id: course.id,
+                                code: course.code,
+                                sectionId: course.sectionId,
+                                name: course.title,
+                                color: colorClassName,
+                                duration:
+                                    course.separatedDuration || course.duration,
+                                instructor: `${course.firstName || ""} ${
+                                    course.lastName || ""
+                                }`.trim(),
+                                section: course.section,
+                                room: isOnlineCourse
+                                    ? "Online"
+                                    : course.classroom,
+                                uniqueId: `${course.code}-${course.section}-${course.id}`,
+                                majors: course.major || [],
+                                originalColor: course.color,
+                                status: isOnlineCourse ? "online" : "offline",
+                                isOnline: isOnlineCourse,
+                                day: course.day,
+                                timeSlot: course.timeSlot,
+                                capacity: course.capacity,
+                            };
                         }
-                    });
+                    );
 
-                    // Transform for timetable
-                    const transformedCourses = Object.values(coursesBySectionId).map((course: any) => {
-                        const colorClassName = colors_class[course.color] || getConsistentCourseColor(course.code);
-                    
-                        // Store the color mapping for later use
-                        colorMap.set(course.code, {
-                            color: colorClassName,
-                            originalColor: course.color,
-                        });
-                    
-                        return {
-                            code: course.code,
-                            sectionId: course.sectionId,
-                            name: course.title,
-                            color: colorClassName,
-                            duration: course.duration,
-                            instructor: `${course.firstName || ""} ${course.lastName || ""}`.trim(),
-                            section: course.section,
-                            room: course.status === 'online' ? 'Online' : (course.classroom), // Fix: Set room based on status
-                            uniqueId: `${course.code}-${course.section}`,
-                            majors: course.major || [],
-                            originalColor: course.color,
-                            status: course.status || 'offline', // Fix: Include status property
-                        };
-                    });
-
-                    // Store the color mapping
                     setOriginalCourseColors(colorMap);
                     setAvailableCourses(transformedCourses);
                 } else {
@@ -746,7 +648,6 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
         fetchCourses();
     }, [params.id]);
 
-    // Fetch timetable assignments from API
     useEffect(() => {
         const fetchTimetableAssignments = async () => {
             if (!params.id || !timeSlots.length || !classrooms.length) return;
@@ -766,187 +667,238 @@ const [cellDragStates, setCellDragStates] = useState<{[key: string]: {isDragOver
 
                 const assignmentsData = await response.json();
 
-                // Process the assignments data to create schedule
                 const newSchedule: TimetableGrid = {};
                 const newAssignedCourses: TimetableCourse[] = [];
 
-              // Update the assignment processing in your useEffect
-assignmentsData.forEach((assignment: any) => {
-    // Extract data from the API response
-    const sectionId = assignment.sectionId;
-    const classroomCode = assignment.classroom;
-    const code = assignment.code;
-    const title = assignment.title || code;
-    const firstName = assignment.firstName;
-    const lastName = assignment.lastName;
-    const day = assignment.day;
-    const originalColor = assignment.color;
-    const isOnline = assignment.isOnline || assignment.classroomId === null;
+                assignmentsData.forEach((assignment: any) => {
+                    const courseHourId = assignment.id;
+                    const sectionId = assignment.sectionId;
+                    const classroomCode = assignment.classroom;
+                    const code = assignment.code;
+                    const title = assignment.title || code;
+                    const firstName = assignment.firstName;
+                    const lastName = assignment.lastName;
+                    const day = assignment.day;
+                    const originalColor = assignment.color;
+                    const isOnline =
+                        assignment.isOnline || assignment.classroomId === null;
 
-    const colorClassName =
-        originalColor && colors_class[originalColor]
-            ? colors_class[originalColor]
-            : getConsistentCourseColor(code);
+                    const colorClassName =
+                        originalColor && colors_class[originalColor]
+                            ? colors_class[originalColor]
+                            : getConsistentCourseColor(code);
 
-    // Parse the time slot - handle different formats
-    let startTime = assignment.startTime;
-    let endTime = assignment.endTime;
+                    let startTime = assignment.startTime;
+                    let endTime = assignment.endTime;
 
-    if (!startTime && assignment.timeSlot) {
-        const timeSlot = assignment.timeSlot;
-        if (timeSlot.includes(" - ")) {
-            const parts = timeSlot.split(" - ");
-            startTime = parts[0].trim();
-            endTime = parts[1].trim();
-        } else {
-            startTime = timeSlot;
-        }
-    }
+                    if (!startTime && assignment.timeSlot) {
+                        const timeSlot = assignment.timeSlot;
+                        if (timeSlot.includes(" - ")) {
+                            const parts = timeSlot.split(" - ");
+                            startTime = parts[0].trim();
+                            endTime = parts[1].trim();
+                        } else {
+                            startTime = timeSlot;
+                        }
+                    }
 
-    let duration = parseInt(assignment.duration || "1", 10);
+                    const originalDuration = parseInt(
+                        assignment.separatedDuration ||
+                            assignment.duration ||
+                            "1",
+                        10
+                    );
 
-    // Skip invalid assignments
-    if (!sectionId || !day || !startTime) {
-        console.warn("Skipping invalid assignment:", assignment);
-        return;
-    }
+                    if (!courseHourId || !day || !startTime) {
+                        console.warn(
+                            "Skipping invalid assignment:",
+                            assignment
+                        );
+                        return;
+                    }
 
-    // Handle classroom assignment for online vs physical courses
-    let classroom;
-    let classroomId;
+                    let classroom;
+                    let classroomId;
 
-    if (isOnline) {
-        // For online courses, assign to the first available virtual classroom
-        // or create a mapping strategy
-        const virtualClassroom = classrooms.find(c => c.id < 0);
-        if (virtualClassroom) {
-            classroom = virtualClassroom;
-            classroomId = virtualClassroom.id.toString();
-        } else {
-            // Fallback: create a virtual classroom reference
-            classroomId = "-1"; // Use the first virtual classroom
-            classroom = { id: -1, code: 'Online 1', capacity: 999 };
-        }
-    } else {
-        // Find physical classroom by code
-        classroom = classrooms.find((c) => c.code === classroomCode);
-        if (!classroom) {
-            console.warn(`Classroom with code ${classroomCode} not found.`);
-            return;
-        }
-        classroomId = classroom.id.toString();
-    }
+                    if (isOnline) {
+                        const virtualClassroom = classrooms.find(
+                            (c) => c.id < 0
+                        );
+                        if (virtualClassroom) {
+                            classroom = virtualClassroom;
+                            classroomId = virtualClassroom.id.toString();
+                        } else {
+                            classroomId = "-1";
+                            classroom = {
+                                id: -1,
+                                code: "Online",
+                                capacity: 999,
+                            };
+                        }
+                    } else {
+                        classroom = classrooms.find(
+                            (c) => c.code === classroomCode
+                        );
+                        if (!classroom) {
+                            console.warn(
+                                `Classroom with code ${classroomCode} not found.`
+                            );
+                            return;
+                        }
+                        classroomId = classroom.id.toString();
+                    }
 
-    // Instructor name
-    const instructorName =
-        firstName && lastName ? `${firstName} ${lastName}` : "TBA";
+                    const instructorName =
+                        firstName && lastName
+                            ? `${firstName} ${lastName}`
+                            : "TBA";
 
-    // Find the time slot that matches the start time
-    const startIndex = timeSlots.findIndex((ts) => {
-        const tsKey = getTimeSlotKey(ts);
-        return (
-            tsKey === startTime ||
-            ts.startTime === startTime ||
-            ts.time_slot === startTime ||
-            (ts.time_slot && ts.time_slot.startsWith(startTime + "-")) ||
-            (tsKey.includes("-") && tsKey.split("-")[0].trim() === startTime)
-        );
-    });
+                    const startIndex = timeSlots.findIndex((ts) => {
+                        if (
+                            ts.startTime === startTime ||
+                            getTimeSlotKey(ts) === startTime
+                        ) {
+                            return true;
+                        }
 
-    if (startIndex === -1) {
-        console.warn(
-            `Time slot "${startTime}" not found for course ${code}. Available time slots:`,
-            timeSlots.map((ts) => ({
-                key: getTimeSlotKey(ts),
-                startTime: ts.startTime,
-                time_slot: ts.time_slot,
-            }))
-        );
-        return;
-    }
+                        if (ts.startTime && ts.endTime) {
+                            const slotStart = parseInt(ts.startTime);
+                            const slotEnd = parseInt(ts.endTime);
+                            const start = parseInt(startTime);
+                            return slotStart <= start && start < slotEnd;
+                        }
 
-    // Calculate duration and end time...
-    if (endTime) {
-        const endIndex = timeSlots.findIndex((ts) => {
-            const tsKey = getTimeSlotKey(ts);
-            return (
-                ts.endTime === endTime ||
-                (ts.time_slot && ts.time_slot.endsWith("-" + endTime)) ||
-                (tsKey.includes("-") && tsKey.split("-")[1].trim() === endTime)
-            );
-        });
+                        return false;
+                    });
 
-        if (endIndex !== -1) {
-            duration = endIndex - startIndex + 1;
-            console.log(
-                `Calculated duration for ${code}: ${duration} hours (${startTime} to ${endTime})`
-            );
-        }
-    }
+                    if (startIndex === -1) {
+                        console.warn(
+                            `Time slot "${startTime}" not found for course ${code}. Available time slots:`,
+                            timeSlots.map((ts) => ({
+                                key: getTimeSlotKey(ts),
+                                startTime: ts.startTime,
+                                time_slot: ts.time_slot,
+                            }))
+                        );
+                        return;
+                    }
 
-    const actualDuration = Math.min(duration, timeSlots.length - startIndex);
+                    let slotsToSpan;
+                    let calculatedEndTime;
 
-    // Create the course object
-    let course = {
-        sectionId: sectionId,
-        code: code,
-        name: title,
-        instructor: instructorName,
-        duration: actualDuration,
-        day: day,
-        startTime: startTime,
-        endTime:
-            endTime ||
-            timeSlots[
-                Math.min(startIndex + actualDuration - 1, timeSlots.length - 1)
-            ].endTime,
-        classroom: classroomId,
-        color: colorClassName,
-        section: assignment.sectionNumber || assignment.section_number || "N/A", 
-        room: isOnline ? "Online" : classroomCode,
-        originalColor: originalColor,
-        isOnline: isOnline, // Add this flag for future reference
-    };
+                    if (endTime) {
+                        const endIndex = timeSlots.findIndex((ts, index) => {
+                            if (ts.endTime === endTime) {
+                                return true;
+                            }
 
-    // Add to assigned courses
-    if (
-        !newAssignedCourses.some(
-            (c) =>
-                c.sectionId === sectionId &&
-                c.day === day &&
-                c.startTime === startTime
-        )
-    ) {
-        newAssignedCourses.push({ ...course });
-    }
+                            if (ts.startTime && ts.endTime) {
+                                const slotStart = parseInt(ts.startTime);
+                                const slotEnd = parseInt(ts.endTime);
+                                const end = parseInt(endTime);
+                                return slotStart < end && end <= slotEnd;
+                            }
 
-    // Add to schedule grid - this is where the UI display happens
-    for (let i = 0; i < actualDuration; i++) {
-        if (startIndex + i >= timeSlots.length) break;
+                            return false;
+                        });
 
-        const currentTimeSlot = getTimeSlotKey(timeSlots[startIndex + i]);
-        const key = `${day}-${classroomId}-${currentTimeSlot}`;
+                        if (endIndex !== -1) {
+                            slotsToSpan = endIndex - startIndex + 1;
+                            calculatedEndTime = endTime;
+                        } else {
+                            slotsToSpan = calculateSlotsNeeded(
+                                originalDuration,
+                                timeSlots,
+                                startIndex
+                            );
+                            calculatedEndTime = calculateEndTime(
+                                startTime,
+                                originalDuration
+                            );
+                        }
+                    } else {
+                        slotsToSpan = calculateSlotsNeeded(
+                            originalDuration,
+                            timeSlots,
+                            startIndex
+                        );
+                        calculatedEndTime = calculateEndTime(
+                            startTime,
+                            originalDuration
+                        );
+                    }
 
-        newSchedule[key] = {
-            ...course,
-            isStart: i === 0,
-            isMiddle: i > 0 && i < actualDuration - 1,
-            isEnd: i === actualDuration - 1,
-            colspan: i === 0 ? actualDuration : 0,
-        };
-    }
-});
+                    const maxSlotsAvailable = timeSlots.length - startIndex;
+                    slotsToSpan = Math.min(slotsToSpan, maxSlotsAvailable);
 
-                // Update state with assignments
+                    const course = {
+                        id: courseHourId,
+                        capacity: assignment.capacity,
+                        sectionId: sectionId,
+                        code: code,
+                        name: title,
+                        instructor: instructorName,
+                        duration: originalDuration,
+                        day: day,
+                        startTime: startTime,
+                        endTime: calculatedEndTime,
+                        classroom: classroomId,
+                        color: colorClassName,
+                        section:
+                            assignment.sectionNumber ||
+                            assignment.section_number ||
+                            "N/A",
+                        room: isOnline ? "Online" : classroomCode,
+                        originalColor: originalColor,
+                        isOnline: isOnline,
+                    };
+
+                    if (
+                        !newAssignedCourses.some(
+                            (c) =>
+                                c.id === courseHourId &&
+                                c.day === day &&
+                                c.startTime === startTime
+                        )
+                    ) {
+                        newAssignedCourses.push({ ...course });
+                    }
+
+                    const dayValue = assignment.day?.trim();
+                    const classroomIdValue = isOnline
+                        ? "-1"
+                        : classroom.id.toString();
+                    const timeSlotValue =
+                        assignment.startTime?.trim() || startTime?.trim();
+
+                    const baseKey = `${dayValue}-${classroomIdValue}-${timeSlotValue}`;
+
+                    for (let i = 0; i < slotsToSpan; i++) {
+                        if (startIndex + i >= timeSlots.length) break;
+
+                        const currentTimeSlot = getTimeSlotKey(
+                            timeSlots[startIndex + i]
+                        );
+                        const key = `${dayValue}-${classroomIdValue}-${currentTimeSlot}`;
+
+                        newSchedule[key] = {
+                            ...course,
+                            isStart: i === 0,
+                            isMiddle: i > 0 && i < slotsToSpan - 1,
+                            isEnd: i === slotsToSpan - 1,
+                            colspan: i === 0 ? slotsToSpan : 0,
+                        };
+                    }
+                });
+
                 setSchedule(newSchedule);
                 setAssignedCourses(newAssignedCourses);
 
-                // Update available courses (remove assigned courses)
                 const assignedIds = new Set(
-                    newAssignedCourses.map((c) => c.sectionId)
+                    newAssignedCourses.map((c) => c.id)
                 );
                 setAvailableCourses((prev) =>
-                    prev.filter((c) => !assignedIds.has(c.sectionId))
+                    prev.filter((c) => !assignedIds.has(c.id))
                 );
             } catch (error) {
                 console.error("Error fetching timetable assignments:", error);
@@ -955,136 +907,259 @@ assignmentsData.forEach((assignment: any) => {
             }
         };
 
-        // Only fetch if we have the necessary data
         if (timeSlots.length > 0 && classrooms.length > 0) {
             fetchTimetableAssignments();
         }
-    }, [params.id, timeSlots, classrooms]); // Re-fetch if schedule ID, time slots or classrooms change
+    }, [params.id, timeSlots, classrooms]);
 
-    // Handle drag start
+    const checkCapacityConstraints = (
+        course: TimetableCourse,
+        classroomId: string
+    ): { isValid: boolean; conflictMessage?: string } => {
+        // Skip capacity check for online classrooms
+        const isOnlineClassroom = parseInt(classroomId) < 0;
+        if (isOnlineClassroom) {
+            return { isValid: true };
+        }
+
+        // Find the classroom
+        const classroom = classrooms.find(
+            (c) => c.id.toString() === classroomId
+        );
+        if (!classroom) {
+            return {
+                isValid: false,
+                conflictMessage: "Classroom not found",
+            };
+        }
+
+        // Get course capacity - check different possible property names
+        const courseCapacity = course.capacity;
+
+        // Check if course capacity exceeds classroom capacity
+        if (courseCapacity > classroom.capacity) {
+            return {
+                isValid: false,
+                conflictMessage: `Course capacity (${courseCapacity} students) exceeds classroom capacity (${classroom.capacity} students)`,
+            };
+        }
+
+        return { isValid: true };
+    };
+
+    const renderCapacityInfo = (
+        course: TimetableCourse,
+        classroom: Classroom
+    ) => {
+        const isOnlineClassroom = classroom.id < 0;
+        if (isOnlineClassroom) return null;
+
+        const courseCapacity = course.capacity;
+
+        const capacityCheck = checkCapacityConstraints(
+            course,
+            classroom.id.toString()
+        );
+
+        if (courseCapacity === 0) {
+            return (
+                <div className="text-yellow-400 mb-1">
+                    ⚠️ Course capacity not specified
+                </div>
+            );
+        }
+
+        if (!capacityCheck.isValid) {
+            return (
+                <div className="text-red-400 mb-1 whitespace-normal">
+                    ⚠️ {capacityCheck.conflictMessage}
+                </div>
+            );
+        }
+
+        return (
+            <div className="text-green-400 mb-1">
+                ✓ Capacity: {courseCapacity}/{classroom.capacity}
+            </div>
+        );
+    };
+
+    function calculateSlotsNeeded(
+        durationHours: number,
+        timeSlots: any[],
+        startIndex: number
+    ) {
+        if (timeSlots.length === 0 || startIndex >= timeSlots.length) return 1;
+
+        const firstSlotDuration = getSlotDurationHours(timeSlots[0]);
+        const allSlotsUniform = timeSlots.every(
+            (slot) => getSlotDurationHours(slot) === firstSlotDuration
+        );
+
+        if (allSlotsUniform) {
+            return Math.ceil(durationHours / firstSlotDuration);
+        } else {
+            let hoursRemaining = durationHours;
+            let slotsNeeded = 0;
+
+            for (
+                let i = startIndex;
+                i < timeSlots.length && hoursRemaining > 0;
+                i++
+            ) {
+                const slotDuration = getSlotDurationHours(timeSlots[i]);
+                hoursRemaining -= slotDuration;
+                slotsNeeded++;
+            }
+
+            return slotsNeeded;
+        }
+    }
+
+    function getSlotDurationHours(slot: any): number {
+        if (slot.time_slot && slot.time_slot.includes("-")) {
+            const [start, end] = slot.time_slot
+                .split("-")
+                .map((t: string) => t.trim());
+            // Parse time strings to get duration
+            const startHour = parseTimeToHours(start);
+            const endHour = parseTimeToHours(end);
+            return endHour - startHour;
+        }
+        if (slot.startTime && slot.endTime) {
+            const startHour = parseTimeToHours(slot.startTime);
+            const endHour = parseTimeToHours(slot.endTime);
+            return endHour - startHour;
+        }
+        // Default to 1 hour if no duration info available
+        return 1;
+    }
+
+    function parseTimeToHours(timeStr: string): number {
+        // Handle formats like "08:00", "8:30", "14:45", etc.
+        const cleanTime = timeStr.replace(/\s+/g, "");
+        const match = cleanTime.match(/(\d{1,2}):(\d{2})/);
+
+        if (match) {
+            const hours = parseInt(match[1], 10);
+            const minutes = parseInt(match[2], 10);
+            return hours + minutes / 60;
+        }
+
+        // If it's just a number, treat as hours
+        const numericTime = parseInt(cleanTime, 10);
+        if (!isNaN(numericTime)) {
+            return numericTime;
+        }
+
+        return 0;
+    }
+
+    function calculateEndTime(startTime: string, durationHours: number) {
+        const startHour = parseInt(startTime);
+        return (startHour + durationHours).toString();
+    }
+
     const handleDragStart = (course: TimetableCourse) => {
         setDraggedCourse(course);
-        // Clear any existing cell drag states
         setCellDragStates({});
     };
 
-
-
-    // Handle drag over for available courses section
     const handleAvailableDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsDraggingToAvailable(true);
     };
 
-    // Handle drag leave for available courses section
     const handleAvailableDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsDraggingToAvailable(false);
     };
 
-// Function to save all assignments to the database with type safety
-const saveAllAssignments = async () => {
-    try {
-        // Filter to only assigned courses using type guard
-        const validAssignedCourses = assignedCourses.filter(isAssignedCourse);
+    const saveAllAssignments = async () => {
+        try {
+            const validAssignedCourses =
+                assignedCourses.filter(isAssignedCourse);
 
-        if (validAssignedCourses.length === 0) {
-            showMessage("error", "No valid course assignments to save");
-            return;
-        }
+            const assignmentsData = validAssignedCourses.map((course) => {
+                const classroomValue = course.classroom;
+                const isOnlineClassroom =
+                    !isNaN(parseInt(classroomValue)) &&
+                    parseInt(classroomValue) < 0;
 
-        // Prepare data for API - handle online courses specially
-        const assignmentsData = validAssignedCourses.map((course) => {
-            // Now TypeScript knows these properties exist thanks to the type guard
-            const classroomValue = course.classroom;
-            
-            // Check if it's an online classroom (negative ID)
-            const isOnlineClassroom = !isNaN(parseInt(classroomValue)) && parseInt(classroomValue) < 0;
-            
-            return {
-                sectionId: course.sectionId,
-                day: course.day,
-                startTime: course.startTime,
-                endTime: course.endTime,
-                // For online courses, set classroom to null instead of negative ID
-                classroom: isOnlineClassroom ? null : classroomValue,
-                isOnline: isOnlineClassroom,
-            };
-        });
+                return {
+                    id: course.id,
+                    sectionId: course.sectionId,
+                    day: course.day,
+                    startTime: course.startTime,
+                    endTime: course.endTime,
+                    classroom: isOnlineClassroom ? null : classroomValue,
+                    isOnline: isOnlineClassroom,
+                    duration: course.duration,
+                };
+            });
 
-        console.log('Saving assignments:', assignmentsData);
+            const response = await fetch("/api/assign-time-slots", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(assignmentsData),
+            });
 
-        // Send all assignments to API
-        const response = await fetch("/api/assign-time-slots", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(assignmentsData),
-        });
-
-        if (response.ok) {
-            showMessage("success", `Successfully saved ${assignmentsData.length} course assignments!`);
-        } else {
-            const errorData = await response.json();
-            console.error("Failed to save assignments:", errorData);
+            if (response.ok) {
+                showMessage(
+                    "success",
+                    `Successfully saved ${assignmentsData.length} course assignments!`
+                );
+            } else {
+                const errorData = await response.json();
+                console.error("Failed to save assignments:", errorData);
+                showMessage(
+                    "error",
+                    `Failed to save assignments: ${
+                        errorData.error || "Unknown error"
+                    }`
+                );
+            }
+        } catch (error) {
+            console.error("Error saving assignments:", error);
             showMessage(
                 "error",
-                `Failed to save assignments: ${
-                    errorData.error || "Unknown error"
+                `Error saving assignments: ${
+                    error instanceof Error ? error.message : "Unknown error"
                 }`
             );
         }
-    } catch (error) {
-        console.error("Error saving assignments:", error);
-        showMessage(
-            "error",
-            `Error saving assignments: ${
-                error instanceof Error ? error.message : "Unknown error"
-            }`
-        );
-    }
-};
-    // // Function to export timetable
-    // const exportTimetable = () => {
-    //     // Implement export functionality
-    //     alert("Export functionality to be implemented");
-    // };
+    };
 
-    // Handle drag over for available courses section
     const handleAvailableDrop = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsDraggingToAvailable(false);
 
         if (!draggedCourse) return;
 
-        // Only process if the course is from the timetable (has day property)
         if (draggedCourse.day) {
-            // Remove course from the timetable
             removeCourseFromTimetable(draggedCourse);
         }
     };
 
-    // Function to remove a course from the timetable and return it to available courses
     const removeCourseFromTimetable = (course: TimetableCourse) => {
         if (!course.day || !course.classroom || !course.startTime) return;
 
-        // Find all keys for this course in the schedule
         const newSchedule = { ...schedule };
 
-        // Remove all occurrences of this course ID from schedule
         Object.keys(newSchedule).forEach((key) => {
-            if (newSchedule[key].sectionId === course.sectionId) {
+            if (newSchedule[key].id === course.id) {
                 delete newSchedule[key];
             }
         });
 
         setSchedule(newSchedule);
 
-        // Return the course to available courses list
-        // Create a clean version without timetable-specific properties
         const cleanCourse = {
+            id: course.id,
             code: course.code,
+            capacity: course.capacity,
             name: course.name,
             color: course.color,
             duration: course.duration,
@@ -1092,7 +1167,6 @@ const saveAllAssignments = async () => {
             sectionId: course.sectionId,
             section: course.section,
             room: course.room,
-            // Explicitly clean any timetable positioning data
             day: undefined,
             startTime: undefined,
             endTime: undefined,
@@ -1103,121 +1177,197 @@ const saveAllAssignments = async () => {
             colspan: undefined,
         };
 
-        // Only add back to available courses if it's not already there
-        if (!availableCourses.some((c) => c.sectionId === course.sectionId)) {
+        if (!availableCourses.some((c) => c.id === course.id)) {
             setAvailableCourses((prev) => [...prev, cleanCourse]);
         }
 
-        // Remove from assigned courses
-        setAssignedCourses((prev) =>
-            prev.filter((c) => c.sectionId !== course.sectionId)
-        );
+        setAssignedCourses((prev) => prev.filter((c) => c.id !== course.id));
     };
+
     const getTimeSlotId = (timeSlotStr: string): number => {
-        // Find the time slot using the consistent key
         const index = timeSlots.findIndex(
             (ts) => getTimeSlotKey(ts) === timeSlotStr
         );
         return index !== -1 ? index + 1 : 0;
     };
 
-    // UPDATED: Handle drop with instructor constraint checking
     const handleDrop = (day: string, classroomId: string, timeSlot: string) => {
-        if (!draggedCourse || timeSlots.length === 0) return;
+        if (!draggedCourse || timeSlots.length === 0) {
+            console.log("No dragged course or time slots");
+            return;
+        }
 
-        console.log("Dropping course on slot:", timeSlot);
+        console.log("=== DROP VALIDATION START ===");
+        console.log("Drop attempt:", {
+            course: draggedCourse.code,
+            day,
+            classroomId,
+            timeSlot,
+            courseCapacity: draggedCourse.capacity || "not specified",
+            classroom: classrooms.find((c) => c.id.toString() === classroomId),
+        });
+
+        // 1. ONLINE/OFFLINE COURSE VALIDATION
         const isOnlineClassroom = parseInt(classroomId) < 0;
-        const isCourseOnline = draggedCourse.status === 'online';
-        
-// Prevent online courses from being assigned to physical classrooms
-if (isCourseOnline && !isOnlineClassroom) {
-    showMessage(
-        "error",
-        "Online courses cannot be assigned to physical classrooms. Please use the Online rows."
-    );
-    return;
-}
+        const isCourseOnline =
+            draggedCourse.status === "online" ||
+            draggedCourse.isOnline === true ||
+            draggedCourse.room === "Online";
 
-// Prevent offline courses from being assigned to online rows
-if (!isCourseOnline && isOnlineClassroom) {
-    showMessage(
-        "error", 
-        "Physical courses cannot be assigned to online rows. Please use a physical classroom."
-    );
-    return;
-}    
+        if (isCourseOnline && !isOnlineClassroom) {
+            console.log(
+                "VALIDATION FAILED: Online course to physical classroom"
+            );
+            showMessage(
+                "error",
+                "Online courses cannot be assigned to physical classrooms. Please use the Online rows."
+            );
+            setDraggedCourse(null);
+            setCellDragStates({});
+            return;
+        }
 
-        // Find the time slot that matches the drop location
+        if (!isCourseOnline && isOnlineClassroom) {
+            console.log(
+                "VALIDATION FAILED: Physical course to online classroom"
+            );
+            showMessage(
+                "error",
+                "Physical courses cannot be assigned to online rows. Please use a physical classroom."
+            );
+            setDraggedCourse(null);
+            setCellDragStates({});
+            return;
+        }
+
+        // 2. STRICT CAPACITY CONSTRAINT CHECK - THIS MUST BLOCK THE DROP
+        console.log("=== CAPACITY VALIDATION ===");
+        const capacityValidationResult = validateCapacityConstraints(
+            draggedCourse,
+            classroomId,
+            classrooms
+        );
+
+        // CRITICAL: If capacity validation fails, IMMEDIATELY return and show error
+        if (!capacityValidationResult.isValid) {
+            console.log("CAPACITY VALIDATION FAILED - BLOCKING DROP");
+            console.log(
+                "Error message:",
+                capacityValidationResult.conflictMessage
+            );
+
+            showMessage(
+                "error",
+                capacityValidationResult.conflictMessage ||
+                    "Capacity constraint violation - assignment blocked"
+            );
+
+            // Clean up drag state to prevent any further processing
+            setDraggedCourse(null);
+            setCellDragStates({});
+            setHoveredCell(null);
+            return; // CRITICAL: This return prevents the drop from proceeding
+        }
+
+        // Show warnings for incomplete capacity data but allow assignment
+        if (capacityValidationResult.warningMessage) {
+            console.log(
+                "Capacity warning:",
+                capacityValidationResult.warningMessage
+            );
+            // Note: We're not returning here, so assignment will continue
+        }
+
+        // 3. TIME SLOT VALIDATION
         const matchingTimeSlot = timeSlots.find(
             (ts) => getTimeSlotKey(ts) === timeSlot
         );
 
         if (!matchingTimeSlot) {
             console.error(`Time slot ${timeSlot} not found`);
+            showMessage("error", "Invalid time slot selected");
+            setDraggedCourse(null);
+            setCellDragStates({});
             return;
         }
 
         const timeSlotIndex = timeSlots.indexOf(matchingTimeSlot);
-
-        // Check if the time slot is already occupied
         const key = `${day}-${classroomId}-${timeSlot}`;
         const existingCourse = schedule[key];
 
-        // If dropping on the same course, do nothing
-        if (
-            existingCourse &&
-            existingCourse.sectionId === draggedCourse.sectionId
-        ) {
+        // 4. EXISTING COURSE VALIDATION
+        if (existingCourse && existingCourse.id === draggedCourse.id) {
+            console.log("Course already in this position");
+            setDraggedCourse(null);
+            setCellDragStates({});
             return;
         }
 
-        // If dropping on a different course, show conflict message
-        if (
-            existingCourse &&
-            existingCourse.sectionId !== draggedCourse.sectionId
-        ) {
+        if (existingCourse && existingCourse.id !== draggedCourse.id) {
             showMessage(
                 "error",
-                "This time slot is already occupied. Please choose another slot."
+                `This time slot is already occupied by ${existingCourse.code}. Please choose another slot.`
             );
+            setDraggedCourse(null);
+            setCellDragStates({});
             return;
         }
 
-        // CRITICAL FIX: Check if there's enough space for the course duration within the SAME DAY
-        // First, calculate how many time slots are left in this day
+        // 5. DURATION AND SLOT AVAILABILITY CHECK
+        const slotDurationHours = calculateSlotDuration(matchingTimeSlot);
+        const slotsNeeded = Math.ceil(
+            draggedCourse.duration / slotDurationHours
+        );
         const remainingSlots = timeSlots.length - timeSlotIndex;
 
-        if (draggedCourse.duration > remainingSlots) {
+        if (slotsNeeded > remainingSlots) {
             showMessage(
                 "error",
-                "Courses cannot span across multiple days. Not enough time slots available for this course duration."
+                `Cannot place ${draggedCourse.duration}-hour course here. Need ${slotsNeeded} time slots but only ${remainingSlots} slot(s) remaining.`
             );
+            setDraggedCourse(null);
+            setCellDragStates({});
             return;
         }
 
-        // Check for conflicts in subsequent time slots
-        for (let i = 1; i < draggedCourse.duration; i++) {
-            if (timeSlotIndex + i >= timeSlots.length) break;
-            const nextTimeSlot = getTimeSlotKey(timeSlots[timeSlotIndex + i]);
-            const nextKey = `${day}-${classroomId}-${nextTimeSlot}`;
+        // 6. MULTI-SLOT CONFLICT CHECK
+        for (let i = 0; i < slotsNeeded; i++) {
+            const currentSlotIndex = timeSlotIndex + i;
+
+            if (currentSlotIndex >= timeSlots.length) {
+                showMessage(
+                    "error",
+                    `Cannot place ${draggedCourse.duration}-hour course starting at this time. Not enough time slots available.`
+                );
+                setDraggedCourse(null);
+                setCellDragStates({});
+                return;
+            }
+
+            const currentTimeSlot = getTimeSlotKey(timeSlots[currentSlotIndex]);
+            const currentKey = `${day}-${classroomId}-${currentTimeSlot}`;
+            const conflictingCourse = schedule[currentKey];
+
             if (
-                schedule[nextKey] &&
-                schedule[nextKey].sectionId !== draggedCourse.sectionId
+                conflictingCourse &&
+                conflictingCourse.id !== draggedCourse.id
             ) {
                 showMessage(
                     "error",
-                    "There's a conflict with another course in subsequent time slots."
+                    `Cannot place course here. Time slot ${currentTimeSlot} is occupied by ${conflictingCourse.code}.`
                 );
+                setDraggedCourse(null);
+                setCellDragStates({});
                 return;
             }
         }
 
-        // NEW: Check instructor time constraints
+        // 7. INSTRUCTOR CONSTRAINT CHECK
         const constraintCheck = checkInstructorConstraints(
             draggedCourse,
             day,
             timeSlotIndex,
-            draggedCourse.duration
+            slotsNeeded
         );
 
         if (!constraintCheck.isValid) {
@@ -1226,33 +1376,40 @@ if (!isCourseOnline && isOnlineClassroom) {
                 constraintCheck.conflictMessage ||
                     "Instructor time constraint conflict"
             );
+            setDraggedCourse(null);
+            setCellDragStates({});
             return;
         }
 
-        // Create a new schedule and remove all instances of the dragged course
+        // 8. ALL VALIDATIONS PASSED - PROCEED WITH ASSIGNMENT
+        console.log(
+            "=== ALL VALIDATIONS PASSED - PROCEEDING WITH ASSIGNMENT ==="
+        );
+
+        // Remove course from existing positions in schedule
         const newSchedule = { ...schedule };
         Object.keys(newSchedule).forEach((scheduleKey) => {
-            if (
-                newSchedule[scheduleKey].sectionId === draggedCourse.sectionId
-            ) {
+            if (newSchedule[scheduleKey].id === draggedCourse.id) {
                 delete newSchedule[scheduleKey];
             }
         });
 
         // Calculate end time
-        const endTimeIndex = timeSlotIndex + draggedCourse.duration - 1;
+        const endTimeSlotIndex = timeSlotIndex + slotsNeeded - 1;
         const endTimeSlot =
-            endTimeIndex < timeSlots.length
-                ? timeSlots[endTimeIndex].endTime ||
-                  timeSlots[endTimeIndex].time_slot?.split("-")[1]?.trim() ||
-                  timeSlots[endTimeIndex].time_slot
+            endTimeSlotIndex < timeSlots.length
+                ? timeSlots[endTimeSlotIndex].endTime ||
+                  timeSlots[endTimeSlotIndex].time_slot
+                      ?.split("-")[1]
+                      ?.trim() ||
+                  timeSlots[endTimeSlotIndex].time_slot
                 : timeSlots[timeSlots.length - 1].endTime ||
                   timeSlots[timeSlots.length - 1].time_slot
                       ?.split("-")[1]
                       ?.trim() ||
                   timeSlots[timeSlots.length - 1].time_slot;
 
-        // Create course with assignment data
+        // Create assigned course object
         const assignedCourse = {
             ...draggedCourse,
             day: day,
@@ -1261,13 +1418,14 @@ if (!isCourseOnline && isOnlineClassroom) {
                 getTimeSlotKey(timeSlots[timeSlotIndex]),
             endTime: endTimeSlot,
             classroom: classroomId,
-            color: draggedCourse.color, // Keep the original color instead of regenerating it
+            color: draggedCourse.color,
             originalColor: draggedCourse.originalColor,
         };
 
-        // Add the course to all its new time slots
-        for (let i = 0; i < draggedCourse.duration; i++) {
+        // Place course in all required time slots
+        for (let i = 0; i < slotsNeeded; i++) {
             if (timeSlotIndex + i >= timeSlots.length) break;
+
             const currentTimeSlot = getTimeSlotKey(
                 timeSlots[timeSlotIndex + i]
             );
@@ -1276,52 +1434,215 @@ if (!isCourseOnline && isOnlineClassroom) {
             newSchedule[currentKey] = {
                 ...assignedCourse,
                 isStart: i === 0,
-                isMiddle: i > 0 && i < draggedCourse.duration - 1,
-                isEnd: i === draggedCourse.duration - 1,
-                colspan: i === 0 ? draggedCourse.duration : 0,
+                isMiddle: i > 0 && i < slotsNeeded - 1,
+                isEnd: i === slotsNeeded - 1,
+                colspan: i === 0 ? slotsNeeded : 0,
             };
         }
 
-        // Update schedule state
+        // Update state
         setSchedule(newSchedule);
 
-        // IMPORTANT FIX: Always remove the course from available courses when it's assigned
-        // No matter where it came from - ensure it's not in the available list
+        // Remove from available courses
         setAvailableCourses((prev) =>
-            prev.filter(
-                (course) => course.sectionId !== draggedCourse.sectionId
-            )
+            prev.filter((course) => course.id !== draggedCourse.id)
         );
 
-        // Check if course is already in assigned courses
+        // Update assigned courses
         const isAlreadyAssigned = assignedCourses.some(
-            (c) => c.sectionId === draggedCourse.sectionId
+            (c) => c.id === draggedCourse.id
         );
 
         if (isAlreadyAssigned) {
-            // Update the course position within assigned courses
             setAssignedCourses((prev) => {
-                const filtered = prev.filter(
-                    (c) => c.sectionId !== draggedCourse.sectionId
-                );
+                const filtered = prev.filter((c) => c.id !== draggedCourse.id);
                 return [...filtered, assignedCourse];
             });
         } else {
-            // Add to assigned courses
             setAssignedCourses((prev) => [...prev, assignedCourse]);
         }
+
+        // Clean up drag state
         setCellDragStates({});
         setDraggedCourse(null);
         setHoveredCell(null);
-        setTimeout(() => {
-            setCellDragStates({});
-            setDraggedCourse(null);
-            setHoveredCell(null);
-        },5);
-        
+
+        // Show success message with capacity info
+        const classroom = classrooms.find(
+            (c) => c.id.toString() === classroomId
+        );
+
+        let successMessage = `${draggedCourse.code} assigned successfully to ${
+            classroom?.code || "classroom"
+        }`;
+
+        // Add capacity info to success message if available
+        if (capacityValidationResult.capacityDetails) {
+            const { courseCapacity, classroomCapacity, utilizationPercentage } =
+                capacityValidationResult.capacityDetails;
+            successMessage += ` (${courseCapacity}/${classroomCapacity} students, ${utilizationPercentage}% capacity)`;
+        }
+
+        if (capacityValidationResult.warningMessage) {
+            successMessage += ` - Warning: ${capacityValidationResult.warningMessage}`;
+        }
+
+        showMessage("success", successMessage);
+
+        console.log("=== ASSIGNMENT COMPLETED SUCCESSFULLY ===");
+        console.log("Course assignment completed:", {
+            course: draggedCourse.code,
+            assignedTo: `${day} ${timeSlot}`,
+            classroom: classroom?.code,
+            duration: `${slotsNeeded} slots`,
+            capacityDetails: capacityValidationResult.capacityDetails,
+        });
     };
 
-    // Handle course click in timetable - updated to use classroom instead of major
+    const validateCapacityConstraints = (
+        course: TimetableCourse,
+        classroomId: string,
+        classrooms: Classroom[]
+    ): {
+        isValid: boolean;
+        conflictMessage?: string;
+        warningMessage?: string;
+        capacityDetails?: {
+            courseCapacity: number;
+            classroomCapacity: number;
+            utilizationPercentage: number;
+        };
+    } => {
+        // Skip capacity check for online classrooms
+        const isOnlineClassroom = parseInt(classroomId) < 0;
+        if (isOnlineClassroom) {
+            console.log("Skipping capacity check for online classroom");
+            return { isValid: true };
+        }
+
+        // Find the classroom
+        const classroom = classrooms.find(
+            (c) => c.id.toString() === classroomId
+        );
+        if (!classroom) {
+            console.log("Classroom not found for ID:", classroomId);
+            return {
+                isValid: false,
+                conflictMessage: "Classroom not found",
+            };
+        }
+
+        // Extract course capacity with multiple fallbacks
+        const getCourseCapacity = (course: TimetableCourse): number => {
+            const capacityFields = [
+                "capacity",
+                "enrollmentCount",
+                "studentCount",
+                "maxStudents",
+                "enrollment",
+                "classSize",
+            ];
+
+            for (const field of capacityFields) {
+                const value = (course as any)[field];
+                if (value !== undefined && value !== null) {
+                    const numValue =
+                        typeof value === "string"
+                            ? parseInt(value, 10)
+                            : Number(value);
+                    if (!isNaN(numValue) && numValue >= 0) {
+                        console.log(
+                            `Found course capacity in field '${field}':`,
+                            numValue
+                        );
+                        return numValue;
+                    }
+                }
+            }
+
+            console.log("No valid course capacity found, defaulting to 0");
+            return 0;
+        };
+
+        const courseCapacity = getCourseCapacity(course);
+        const classroomCapacity = classroom.capacity || 0;
+
+        console.log("Capacity validation details:", {
+            course: course.code,
+            courseCapacity,
+            classroomCapacity,
+            classroom: classroom.code,
+        });
+
+        // Handle cases where capacity data is missing
+        if (courseCapacity === 0 && classroomCapacity === 0) {
+            console.log("Both capacities are 0 - allowing with warning");
+            return {
+                isValid: true,
+                warningMessage:
+                    "Both course and classroom capacity are not specified - assignment allowed but should be verified manually",
+            };
+        }
+
+        if (courseCapacity === 0) {
+            console.log("Course capacity is 0 - allowing with warning");
+            return {
+                isValid: true,
+                warningMessage: `Course capacity not specified, classroom capacity is ${classroomCapacity} students`,
+            };
+        }
+
+        if (classroomCapacity === 0) {
+            console.log("Classroom capacity is 0 - allowing with warning");
+            return {
+                isValid: true,
+                warningMessage: `Classroom capacity not specified, course requires ${courseCapacity} students`,
+            };
+        }
+
+        // Calculate utilization percentage
+        const utilizationPercentage = Math.round(
+            (courseCapacity / classroomCapacity) * 100
+        );
+
+        // STRICT capacity validation - this will block the drop
+        if (courseCapacity > classroomCapacity) {
+            console.log("CAPACITY CONSTRAINT VIOLATION - BLOCKING DROP:", {
+                courseCapacity,
+                classroomCapacity,
+                difference: courseCapacity - classroomCapacity,
+            });
+
+            return {
+                isValid: false,
+                conflictMessage: `Cannot assign course: ${courseCapacity} students required but classroom only has ${classroomCapacity} seats (${
+                    courseCapacity - classroomCapacity
+                } students over capacity)`,
+                capacityDetails: {
+                    courseCapacity,
+                    classroomCapacity,
+                    utilizationPercentage,
+                },
+            };
+        }
+
+        // Success case
+        console.log("Capacity validation passed:", {
+            courseCapacity,
+            classroomCapacity,
+            utilizationPercentage,
+        });
+
+        return {
+            isValid: true,
+            capacityDetails: {
+                courseCapacity,
+                classroomCapacity,
+                utilizationPercentage,
+            },
+        };
+    };
+
     const handleScheduledCourseClick = (
         day: string,
         classroomId: string,
@@ -1329,12 +1650,11 @@ if (!isCourseOnline && isOnlineClassroom) {
         course: TimetableCourse
     ) => {
         setSelectedCourse(course);
-        const timeSlotId = getTimeSlotId(timeSlot); // Course hours related
+        const timeSlotId = getTimeSlotId(timeSlot);
         setCellToDelete({ day, classroomId, timeSlot, timeSlotId });
         setIsDialogOpen(true);
     };
 
-    // UPDATED: generateSchedule function with success message
     const generateSchedule = async () => {
         if (!params.id) {
             showMessage("error", "Schedule ID is missing");
@@ -1369,153 +1689,9 @@ if (!isCourseOnline && isOnlineClassroom) {
             }
 
             if (data.schedule && Array.isArray(data.schedule)) {
-                setSchedule({});
-
-                const newSchedule: TimetableGrid = {};
-                const newAssignedCourses: TimetableCourse[] = [];
-
-                const transformedSchedule: ScheduleAssignment[] =
-                    data.schedule.map((item: any) => ({
-                        sectionId: item.section_id,
-                        courseCode: item.course_code,
-                        courseTitle: item.course_title,
-                        courseColor: item.course_color || "",
-                        instructorName: item.instructor_name,
-                        day: item.day,
-                        startTime: item.start_time,
-                        endTime: item.end_time,
-                        classroomCode: item.classroom_code,
-                    }));
-
-                transformedSchedule.forEach(
-                    (assignment: ScheduleAssignment) => {
-                        const {
-                            sectionId,
-                            courseCode,
-                            courseTitle,
-                            courseColor,
-                            instructorName,
-                            day,
-                            startTime,
-                            endTime,
-                            classroomCode,
-                        } = assignment;
-
-                        const classroom = classrooms.find(
-                            (c) => c.code === classroomCode
-                        );
-                        if (!classroom) {
-                            console.warn(
-                                `Classroom with code ${classroomCode} not found`
-                            );
-                            return;
-                        }
-
-                        // FIXED COLOR LOGIC: Use stored original colors first
-                        let colorClassName: string;
-                        let originalColorName: string | undefined;
-
-                        // 1. First try to get the original color from our stored map
-                        const storedColor =
-                            originalCourseColors.get(courseCode);
-                        if (storedColor) {
-                            colorClassName = storedColor.color;
-                            originalColorName = storedColor.originalColor;
-                        }
-                        // 2. Then try API color if it exists in our color mapping
-                        else if (courseColor && colors_class[courseColor]) {
-                            colorClassName = colors_class[courseColor];
-                            originalColorName = courseColor;
-                        }
-                        // 3. Try to find in available courses (though this might be empty)
-                        else {
-                            const originalCourse = [
-                                ...availableCourses,
-                                ...assignedCourses,
-                            ].find((c) => c.code === courseCode);
-                            if (originalCourse) {
-                                colorClassName = originalCourse.color;
-                                originalColorName =
-                                    originalCourse.originalColor;
-                            } else {
-                                // 4. Last resort: generate consistent color
-                                colorClassName =
-                                    getConsistentCourseColor(courseCode);
-                                originalColorName = courseColor;
-                            }
-                        }
-
-                        const startIndex = timeSlots.findIndex(
-                            (ts) =>
-                                getTimeSlotKey(ts) === startTime ||
-                                ts.startTime === startTime
-                        );
-                        if (startIndex === -1) {
-                            console.warn(`Time slot ${startTime} not found`);
-                            return;
-                        }
-
-                        const endIndex = timeSlots.findIndex(
-                            (ts) =>
-                                getTimeSlotKey(ts) === endTime ||
-                                ts.endTime === endTime ||
-                                (ts.time_slot &&
-                                    ts.time_slot.endsWith(`-${endTime}`))
-                        );
-
-                        const duration =
-                            endIndex !== -1 ? endIndex - startIndex + 1 : 1;
-
-                        let course: TimetableCourse = {
-                            sectionId: sectionId,
-                            code: courseCode,
-                            name: courseTitle,
-                            instructor: instructorName,
-                            duration,
-                            day,
-                            startTime: startTime,
-                            endTime: endTime,
-                            classroom: classroom.id.toString(),
-                            color: colorClassName, // This will now be consistent
-                            originalColor: originalColorName,
-                            section: sectionId.toString(),
-                            room: classroomCode,
-                        };
-
-                        newAssignedCourses.push(course);
-
-                        for (let i = 0; i < duration; i++) {
-                            if (startIndex + i >= timeSlots.length) break;
-
-                            const currentTimeSlot = getTimeSlotKey(
-                                timeSlots[startIndex + i]
-                            );
-                            const key = `${day}-${classroom.id}-${currentTimeSlot}`;
-
-                            newSchedule[key] = {
-                                ...course,
-                                isStart: i === 0,
-                                isMiddle: i > 0 && i < duration - 1,
-                                isEnd: i === duration - 1,
-                                colspan: i === 0 ? duration : 0,
-                            };
-                        }
-                    }
-                );
-
-                setSchedule(newSchedule);
-                setAssignedCourses(newAssignedCourses);
-
-                const assignedIds = new Set(
-                    newAssignedCourses.map((c) => c.sectionId)
-                );
-                setAvailableCourses((prev) =>
-                    prev.filter((c) => !assignedIds.has(c.sectionId))
-                );
-
+                // After successful generation, re-fetch assignments to update the timetable
+                await fetchTimetableAssignments();
                 setScheduleGenerated(true);
-
-                // Show success message
                 showMessage("success", "Schedule generated successfully!");
             } else {
                 console.error("Invalid schedule data format", data);
@@ -1536,8 +1712,320 @@ if (!isCourseOnline && isOnlineClassroom) {
             setIsGeneratingSchedule(false);
         }
     };
+    // Make fetchTimetableAssignments a standalone function or move it inside generateSchedule
+    // For clarity and reusability, let's make it a regular function and call it in useEffect and generateSchedule
+    const fetchTimetableAssignments = useCallback(async () => {
+        if (!params.id || !timeSlots.length || !classrooms.length) return;
 
-    // Handle course delete - updated to use sectionId approach
+        setIsLoading(true);
+        try {
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/assign-time-slots?scheduleId=${scheduleId}`
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    `Failed to fetch assignments: ${response.status} ${response.statusText}`
+                );
+            }
+
+            const assignmentsData = await response.json();
+
+            const newSchedule: TimetableGrid = {};
+            const newAssignedCourses: TimetableCourse[] = [];
+
+            // Store all assigned course information for filtering
+            const assignedCourseKeys = new Set();
+            const assignedCourseIds = new Set();
+
+            assignmentsData.forEach((assignment: any) => {
+                const courseHourId = assignment.id;
+                const sectionId = assignment.sectionId;
+                const classroomCode = assignment.classroom;
+                const code = assignment.code;
+                const title = assignment.title || code;
+                const firstName = assignment.firstName;
+                const lastName = assignment.lastName;
+                const day = assignment.day;
+                const originalColor = assignment.color;
+                const isOnline =
+                    assignment.isOnline || assignment.classroomId === null;
+
+                // Track assigned courses
+                if (courseHourId) {
+                    assignedCourseIds.add(courseHourId);
+                }
+                if (code && assignment.sectionNumber) {
+                    assignedCourseKeys.add(
+                        `${code}-${assignment.sectionNumber}`
+                    );
+                }
+
+                const colorClassName =
+                    originalColor && colors_class[originalColor]
+                        ? colors_class[originalColor]
+                        : getConsistentCourseColor(code);
+
+                let startTime = assignment.startTime;
+                let endTime = assignment.endTime;
+
+                if (!startTime && assignment.timeSlot) {
+                    const timeSlot = assignment.timeSlot;
+                    if (timeSlot.includes(" - ")) {
+                        const parts = timeSlot.split(" - ");
+                        startTime = parts[0].trim();
+                        endTime = parts[1].trim();
+                    } else {
+                        startTime = timeSlot;
+                    }
+                }
+
+                const originalDuration = parseInt(
+                    assignment.separatedDuration || assignment.duration || "1",
+                    10
+                );
+
+                if (!courseHourId || !day || !startTime) {
+                    console.warn("Skipping invalid assignment:", assignment);
+                    return;
+                }
+
+                let classroom;
+                let classroomId;
+
+                if (isOnline) {
+                    const virtualClassroom = classrooms.find((c) => c.id < 0);
+                    if (virtualClassroom) {
+                        classroom = virtualClassroom;
+                        classroomId = virtualClassroom.id.toString();
+                    } else {
+                        classroomId = "-1";
+                        classroom = {
+                            id: -1,
+                            code: "Online",
+                            capacity: 999,
+                        };
+                    }
+                } else {
+                    classroom = classrooms.find(
+                        (c) => c.code === classroomCode
+                    );
+                    if (!classroom) {
+                        console.warn(
+                            `Classroom with code ${classroomCode} not found.`
+                        );
+                        return;
+                    }
+                    classroomId = classroom.id.toString();
+                }
+
+                const instructorName =
+                    firstName && lastName ? `${firstName} ${lastName}` : "TBA";
+
+                const startIndex = timeSlots.findIndex((ts) => {
+                    if (
+                        ts.startTime === startTime ||
+                        getTimeSlotKey(ts) === startTime
+                    ) {
+                        return true;
+                    }
+
+                    if (ts.startTime && ts.endTime) {
+                        const slotStart = parseInt(ts.startTime);
+                        const slotEnd = parseInt(ts.endTime);
+                        const start = parseInt(startTime);
+                        return slotStart <= start && start < slotEnd;
+                    }
+
+                    return false;
+                });
+
+                if (startIndex === -1) {
+                    console.warn(
+                        `Time slot "${startTime}" not found for course ${code}. Available time slots:`,
+                        timeSlots.map((ts) => ({
+                            key: getTimeSlotKey(ts),
+                            startTime: ts.startTime,
+                            time_slot: ts.time_slot,
+                        }))
+                    );
+                    return;
+                }
+
+                let slotsToSpan;
+                let calculatedEndTime;
+
+                if (endTime) {
+                    const endIndex = timeSlots.findIndex((ts, index) => {
+                        if (ts.endTime === endTime) {
+                            return true;
+                        }
+
+                        if (ts.startTime && ts.endTime) {
+                            const slotStart = parseInt(ts.startTime);
+                            const slotEnd = parseInt(ts.endTime);
+                            const end = parseInt(endTime);
+                            return slotStart < end && end <= slotEnd;
+                        }
+
+                        return false;
+                    });
+
+                    if (endIndex !== -1) {
+                        slotsToSpan = endIndex - startIndex + 1;
+                        calculatedEndTime = endTime;
+                    } else {
+                        slotsToSpan = calculateSlotsNeeded(
+                            originalDuration,
+                            timeSlots,
+                            startIndex
+                        );
+                        calculatedEndTime = calculateEndTime(
+                            startTime,
+                            originalDuration
+                        );
+                    }
+                } else {
+                    slotsToSpan = calculateSlotsNeeded(
+                        originalDuration,
+                        timeSlots,
+                        startIndex
+                    );
+                    calculatedEndTime = calculateEndTime(
+                        startTime,
+                        originalDuration
+                    );
+                }
+
+                const maxSlotsAvailable = timeSlots.length - startIndex;
+                slotsToSpan = Math.min(slotsToSpan, maxSlotsAvailable);
+
+                const course = {
+                    id: courseHourId,
+                    capacity: assignment.capacity,
+                    sectionId: sectionId,
+                    code: code,
+                    name: title,
+                    instructor: instructorName,
+                    duration: originalDuration,
+                    day: day,
+                    startTime: startTime,
+                    endTime: calculatedEndTime,
+                    classroom: classroomId,
+                    color: colorClassName,
+                    section:
+                        assignment.sectionNumber ||
+                        assignment.section_number ||
+                        "N/A",
+                    room: isOnline ? "Online" : classroomCode,
+                    originalColor: originalColor,
+                    isOnline: isOnline,
+                };
+
+                if (
+                    !newAssignedCourses.some(
+                        (c) =>
+                            c.id === courseHourId &&
+                            c.day === day &&
+                            c.startTime === startTime
+                    )
+                ) {
+                    newAssignedCourses.push({ ...course });
+                }
+
+                const dayValue = assignment.day?.trim();
+                const classroomIdValue = isOnline
+                    ? "-1"
+                    : classroom.id.toString();
+                const timeSlotValue =
+                    assignment.startTime?.trim() || startTime?.trim();
+
+                const baseKey = `${dayValue}-${classroomIdValue}-${timeSlotValue}`;
+
+                for (let i = 0; i < slotsToSpan; i++) {
+                    if (startIndex + i >= timeSlots.length) break;
+
+                    const currentTimeSlot = getTimeSlotKey(
+                        timeSlots[startIndex + i]
+                    );
+                    const key = `${dayValue}-${classroomIdValue}-${currentTimeSlot}`;
+
+                    newSchedule[key] = {
+                        ...course,
+                        isStart: i === 0,
+                        isMiddle: i > 0 && i < slotsToSpan - 1,
+                        isEnd: i === slotsToSpan - 1,
+                        colspan: i === 0 ? slotsToSpan : 0,
+                    };
+                }
+            });
+
+            setSchedule(newSchedule);
+            setAssignedCourses(newAssignedCourses);
+
+            // Enhanced filtering logic - remove assigned courses from available courses
+            setAvailableCourses((prev) => {
+                const filtered = prev.filter((course) => {
+                    // Check by course ID
+                    if (course.id && assignedCourseIds.has(course.id)) {
+                        return false;
+                    }
+
+                    // Check by course code and section combination
+                    const courseKey = `${course.code}-${course.section}`;
+                    if (assignedCourseKeys.has(courseKey)) {
+                        return false;
+                    }
+
+                    // Check by sectionId if available
+                    if (course.sectionId) {
+                        const isAssignedBySection = newAssignedCourses.some(
+                            (assigned) =>
+                                assigned.sectionId === course.sectionId
+                        );
+                        if (isAssignedBySection) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                });
+
+                console.log("Filtering available courses:");
+                console.log("- Original count:", prev.length);
+                console.log("- Assigned IDs:", Array.from(assignedCourseIds));
+                console.log("- Assigned keys:", Array.from(assignedCourseKeys));
+                console.log("- Filtered count:", filtered.length);
+
+                return filtered;
+            });
+        } catch (error) {
+            console.error("Error fetching timetable assignments:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [params.id, timeSlots, classrooms]); // Add `useCallback` and its dependencies
+
+    // Dependency on the memoized function
+
+    const calculateSlotDuration = (slot: any): number => {
+        if (slot.time_slot && slot.time_slot.includes("-")) {
+            const [start, end] = slot.time_slot
+                .split("-")
+                .map((t: string) => t.trim());
+            const startHour = parseInt(start);
+            const endHour = parseInt(end);
+            return endHour - startHour;
+        }
+        if (slot.startTime && slot.endTime) {
+            const startHour = parseInt(slot.startTime);
+            const endHour = parseInt(slot.endTime);
+            return endHour - startHour;
+        }
+        return 1;
+    };
+
     const handleRemoveCourse = async () => {
         const { day, classroomId, timeSlot } = cellToDelete;
         const key = `${day}-${classroomId}-${timeSlot}`;
@@ -1545,18 +2033,16 @@ if (!isCourseOnline && isOnlineClassroom) {
 
         if (!course) return;
 
-        // Close dialog first for better UX
         setIsDialogOpen(false);
 
         try {
-            // Call the DELETE API to remove the assignment from the database
             const response = await fetch("/api/assign-time-slots", {
                 method: "DELETE",
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    sectionId: course.sectionId,
+                    id: course.id,
                 }),
             });
 
@@ -1569,24 +2055,21 @@ if (!isCourseOnline && isOnlineClassroom) {
             }
 
             const result = await response.json();
-            console.log("Course removed successfully:", result);
 
-            // If API call successful, update the local state
-            const courseId = course.sectionId;
+            const courseId = course.id;
 
-            // Create a new schedule without this course
             const newSchedule = { ...schedule };
             Object.keys(newSchedule).forEach((scheduleKey) => {
-                if (newSchedule[scheduleKey].sectionId === courseId) {
+                if (newSchedule[scheduleKey].id === courseId) {
                     delete newSchedule[scheduleKey];
                 }
             });
             setSchedule(newSchedule);
 
-            // Return the course to available courses list with a clean state
-            // Create a clean version without timetable-specific properties
             const cleanCourse: TimetableCourse = {
+                id: course.id,
                 code: course.code,
+                capacity: course.capacity,
                 name: course.name,
                 color: course.color,
                 duration: course.duration,
@@ -1594,20 +2077,13 @@ if (!isCourseOnline && isOnlineClassroom) {
                 sectionId: course.sectionId,
                 section: course.section,
                 room: course.room,
-                // Remove timetable-specific properties by not including them
             };
 
-            // Only add back to available courses if it's not already there
-            if (!availableCourses.some((c) => c.sectionId === courseId)) {
+            if (!availableCourses.some((c) => c.id === courseId)) {
                 setAvailableCourses((prev) => [...prev, cleanCourse]);
             }
 
-            // Remove from assigned courses
-            setAssignedCourses((prev) =>
-                prev.filter((c) => c.sectionId !== courseId)
-            );
-
-            // Show success message
+            setAssignedCourses((prev) => prev.filter((c) => c.id !== courseId));
             showMessage(
                 "success",
                 `Course ${course.code} removed successfully`
@@ -1615,404 +2091,567 @@ if (!isCourseOnline && isOnlineClassroom) {
         } catch (error) {
             console.error("Error removing course:", error);
 
-            // Show user-friendly error message
             const errorMessage =
                 error instanceof Error
                     ? error.message
                     : "Failed to remove course from timetable";
 
             showMessage("error", `Error: ${errorMessage}`);
-
-            // Reopen dialog if there was an error
             setIsDialogOpen(true);
         }
     };
 
-// Helper function to convert time to period number
-const getTimePeriod = (timeSlot: string): number => {
-    if (!timeSlot) return 0;
-    const timeSlotIndex = timeSlots.findIndex(ts => getTimeSlotKey(ts) === timeSlot);
-    return timeSlotIndex !== -1 ? timeSlotIndex + 1 : 0;
-};
-
-// Helper function to convert full day name to abbreviation
-const getDayAbbreviation = (day: string): string => {
-    const dayMap: Record<string, string> = {
-        'Monday': 'Mon',
-        'Tuesday': 'Tue', 
-        'Wednesday': 'Wed',
-        'Thursday': 'Thu',
-        'Friday': 'Fri',
-        'Saturday': 'Sat',
-        'Sunday': 'Sun'
+    const getTimePeriod = (timeSlot: string): number => {
+        if (!timeSlot) return 0;
+        const timeSlotIndex = timeSlots.findIndex(
+            (ts) => getTimeSlotKey(ts) === timeSlot
+        );
+        return timeSlotIndex !== -1 ? timeSlotIndex + 1 : 0;
     };
-    return dayMap[day] || day;
-};
-// 1. Enhanced course card with drag handle
-const checkDropValidity = (day: string, classroomId: string, timeSlot: string): boolean => {
-    if (!draggedCourse || timeSlots.length === 0) return false;
 
-    const key = `${day}-${classroomId}-${timeSlot}`;
-    const existingCourse = schedule[key];
+    const getDayAbbreviation = (day: string): string => {
+        const dayMap: Record<string, string> = {
+            Monday: "Mon",
+            Tuesday: "Tue",
+            Wednesday: "Wed",
+            Thursday: "Thu",
+            Friday: "Fri",
+            Saturday: "Sat",
+            Sunday: "Sun",
+        };
+        return dayMap[day] || day;
+    };
 
-    // If dropping on the same course, allow it
-    if (existingCourse && existingCourse.sectionId === draggedCourse.sectionId) {
-        return true;
-    }
+    const checkDropValidity = (
+        day: string,
+        classroomId: string,
+        timeSlot: string
+    ): boolean => {
+        if (!draggedCourse || timeSlots.length === 0) return false;
 
-    // If dropping on a different course, don't allow
-    if (existingCourse && existingCourse.sectionId !== draggedCourse.sectionId) {
-        return false;
-    }
+        const key = `${day}-${classroomId}-${timeSlot}`;
+        const existingCourse = schedule[key];
 
-    // Check online/offline compatibility
-    const isOnlineClassroom = parseInt(classroomId) < 0;
-    const isCourseOnline = draggedCourse.status === 'online';
+        // Allow dropping in same position
+        if (existingCourse && existingCourse.id === draggedCourse.id) {
+            return true;
+        }
 
-    if (isCourseOnline && !isOnlineClassroom) return false;
-    if (!isCourseOnline && isOnlineClassroom) return false;
-
-    // Check if there's enough space for the course duration
-    const matchingTimeSlot = timeSlots.find(ts => getTimeSlotKey(ts) === timeSlot);
-    if (!matchingTimeSlot) return false;
-
-    const timeSlotIndex = timeSlots.indexOf(matchingTimeSlot);
-    const remainingSlots = timeSlots.length - timeSlotIndex;
-
-    if (draggedCourse.duration > remainingSlots) return false;
-
-    // Check for conflicts in subsequent time slots
-    for (let i = 1; i < draggedCourse.duration; i++) {
-        if (timeSlotIndex + i >= timeSlots.length) break;
-        const nextTimeSlot = getTimeSlotKey(timeSlots[timeSlotIndex + i]);
-        const nextKey = `${day}-${classroomId}-${nextTimeSlot}`;
-        if (schedule[nextKey] && schedule[nextKey].sectionId !== draggedCourse.sectionId) {
+        // Block if slot is occupied by different course
+        if (existingCourse && existingCourse.id !== draggedCourse.id) {
             return false;
         }
-    }
 
-    // *** NEW: Check instructor constraints and conflicts ***
-    const constraintCheck = checkInstructorConstraints(
-        draggedCourse,
-        day,
-        timeSlotIndex,
-        draggedCourse.duration
-    );
+        // 1. ONLINE/OFFLINE VALIDATION
+        const isOnlineClassroom = parseInt(classroomId) < 0;
+        const isCourseOnline =
+            draggedCourse.status === "online" ||
+            draggedCourse.isOnline === true ||
+            draggedCourse.room === "Online";
 
-    // If instructor constraint check fails, return false
-    if (!constraintCheck.isValid) {
-        return false;
-    }
+        if (isCourseOnline && !isOnlineClassroom) return false;
+        if (!isCourseOnline && isOnlineClassroom) return false;
 
-    return true;
-};
-  // 2. Enhanced drop zone with better feedback
-  const [isDragOver, setIsDragOver] = useState(false);
-  
- // Enhanced drag over handler (replace your existing handleDragOver function)
-const handleCellDragOver = (
-    e: React.DragEvent<HTMLTableCellElement>,
-    day: string,
-    classroomId: string,
-    timeSlot: string
-) => {
-    e.preventDefault();
-    
-    if (!draggedCourse) return;
-    
-    const cellKey = `${day}-${classroomId}-${timeSlot}`;
-    
-    // Check if drop is valid
-    const isValidDrop = checkDropValidity(day, classroomId, timeSlot);
-    
-    setCellDragStates(prev => ({
-        ...prev,
-        [cellKey]: {
-            isDragOver: true,
-            isValidDrop
-        }
-    }));
-};
+        // 2. CAPACITY CONSTRAINT VALIDATION - CRITICAL CHECK
+        const capacityCheck = validateCapacityConstraints(
+            draggedCourse,
+            classroomId,
+            classrooms
+        );
 
-const handleCellDragLeave = (
-    e: React.DragEvent<HTMLTableCellElement>,
-    day: string,
-    classroomId: string,
-    timeSlot: string
-) => {
-    const cellKey = `${day}-${classroomId}-${timeSlot}`;
-    
-    setCellDragStates(prev => ({
-        ...prev,
-        [cellKey]: {
-            isDragOver: false,
-            isValidDrop: false
-        }
-    }));
-};
-  
-// FIXED: Main export function for old system format as CSV
-const exportOldSystemFormat = () => {
-    try {
-        console.log('=== EXPORT DEBUG START ===');
-        console.log('Schedule object:', schedule);
-        console.log('Schedule keys:', Object.keys(schedule));
-        console.log('Time slots:', timeSlots);
-        
-        // Check if schedule has data
-        if (!schedule || Object.keys(schedule).length === 0) {
-            showMessage('error', 'No schedule data to export. Please generate or create a schedule first.');
-            return;
+        // PREVENT visual "valid drop" indicator if capacity constraint is violated
+        if (!capacityCheck.isValid) {
+            console.log(
+                "Drop validity check failed - capacity constraint:",
+                capacityCheck.conflictMessage
+            );
+            return false; // This will show red "cannot drop" indicator
         }
 
-        // Get all assigned courses (only start cells to avoid duplicates)
-        const assignedCourses = Object.values(schedule).filter(course => {
-            const isStart = course.isStart === true || course.isStart === undefined; // Handle both cases
-            console.log(`Course ${course.code}: isStart=${course.isStart}, including=${isStart}`);
-            return isStart;
-        });
+        // 3. TIME SLOT VALIDATION
+        const matchingTimeSlot = timeSlots.find(
+            (ts) => getTimeSlotKey(ts) === timeSlot
+        );
+        if (!matchingTimeSlot) return false;
 
-        console.log('Assigned courses found:', assignedCourses.length);
-        console.log('Assigned courses:', assignedCourses);
+        const timeSlotIndex = timeSlots.indexOf(matchingTimeSlot);
 
-        if (assignedCourses.length === 0) {
-            showMessage('error', 'No assigned courses found to export.');
-            return;
-        }
+        // 4. DYNAMIC DURATION VALIDATION
+        const courseDurationHours = draggedCourse.duration;
 
-        // Prepare CSV data
-        const csvData: any[] = [];
-        
-        assignedCourses.forEach(course => {
-            console.log('Processing course:', course);
-            
-            const dayAbbr = getDayAbbreviation(course.day || '');
-            const startPeriod = getTimePeriod(course.startTime || '');
-            const isOnline = !course.room || course.room === 'TBA' || course.room === '';
-            const type = isOnline ? 'online' : 'offline';
-            
-            console.log(`Course ${course.code}: day=${dayAbbr}, startPeriod=${startPeriod}, duration=${course.duration}, type=${type}`);
-            
-            // Generate periods for the course duration
-            const periods: string[] = [];
-            for (let i = 0; i < course.duration; i++) {
-                const period = startPeriod + i;
-                const roomPart = isOnline ? '' : `${course.room}.`;
-                const formatStr = `[${roomPart}${dayAbbr}.${period}.${type}]`;
-                periods.push(formatStr);
+        // Calculate if the course can fit starting from this time slot
+        let totalAvailableDuration = 0;
+        let slotsNeeded = 0;
+
+        for (let i = timeSlotIndex; i < timeSlots.length; i++) {
+            const currentSlot = timeSlots[i];
+            const currentSlotDuration = getSlotDurationHours(currentSlot);
+
+            // Check if this slot is occupied by another course
+            const currentTimeSlot = getTimeSlotKey(currentSlot);
+            const currentKey = `${day}-${classroomId}-${currentTimeSlot}`;
+            const conflictingCourse = schedule[currentKey];
+
+            if (
+                conflictingCourse &&
+                conflictingCourse.id !== draggedCourse.id
+            ) {
+                // Can't use this slot, stop checking
+                break;
             }
-            
-            // Add to CSV data
-            csvData.push({
-                course_code: course.code,
-                course_name: course.name,
-                instructor: course.instructor,
-                day: course.day,
-                room: course.room || 'Online',
-                start_time: course.startTime,
-                end_time: course.endTime,
-                duration: course.duration,
-                format: periods.join(', ')
-            });
-        });
 
-        console.log('CSV data prepared:', csvData);
+            totalAvailableDuration += currentSlotDuration;
+            slotsNeeded++;
 
-        if (csvData.length === 0) {
-            showMessage('error', 'No data to export after processing.');
-            return;
+            // If we have enough duration, we can place the course
+            if (totalAvailableDuration >= courseDurationHours) {
+                break;
+            }
         }
 
-        // Convert to CSV string
-        const headers = ['course_code', 'course_name', 'instructor', 'day', 'room', 'start_time', 'end_time', 'duration', 'format'];
-        const csvRows = [
-            headers.join(','),
-            ...csvData.map(row => 
-                headers.map(header => {
-                    const value = row[header] || '';
-                    // Escape commas and quotes
-                    if (value.toString().includes(',') || value.toString().includes('"')) {
-                        return `"${value.toString().replace(/"/g, '""')}"`;
-                    }
-                    return value;
-                }).join(',')
-            )
-        ];
+        // Check if we have enough total duration
+        if (totalAvailableDuration < courseDurationHours) {
+            console.log(
+                `Insufficient duration: need ${courseDurationHours}h, have ${totalAvailableDuration}h`
+            );
+            return false;
+        }
 
-        const csvContent = csvRows.join('\n');
-        console.log('Final CSV content:', csvContent);
+        // 5. MULTI-SLOT CONFLICT CHECK (using calculated slotsNeeded)
+        for (let i = 0; i < slotsNeeded; i++) {
+            const currentSlotIndex = timeSlotIndex + i;
 
-        // Create and download file
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        
+            if (currentSlotIndex >= timeSlots.length) {
+                return false;
+            }
 
-        const today = new Date().toISOString().split('T')[0];
-        link.setAttribute('download', `schedule_export_${today}.csv`);
-        
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        console.log('=== EXPORT DEBUG END ===');
-        showMessage('success', `Schedule exported successfully! ${csvData.length} courses exported.`);
-        
-    } catch (error) {
-        console.error('Export error:', error);
-        showMessage('error', `Failed to export schedule: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-};
-// Enhanced table cell rendering (replace your existing table cell code)
-const renderEnhancedTableCell = (day: string, classroom: Classroom, slot: CourseHour) => {
-    const slotKey = getTimeSlotKey(slot);
-    const key = `${day}-${classroom.id}-${slotKey}`;
-    const course = filteredSchedule[key];
-    const cellKey = `${day}-${classroom.id}-${slotKey}`;
-    const dragState = cellDragStates[cellKey] || { isDragOver: false, isValidDrop: false };
+            const currentSlot = timeSlots[currentSlotIndex];
+            const currentTimeSlot = getTimeSlotKey(currentSlot);
+            const currentKey = `${day}-${classroomId}-${currentTimeSlot}`;
+            const conflictingCourse = schedule[currentKey];
 
-    // Skip cells that are part of a multi-hour course but not the start
-    if (course && !course.isStart) {
-        return null;
-    }
+            if (
+                conflictingCourse &&
+                conflictingCourse.id !== draggedCourse.id
+            ) {
+                return false;
+            }
+        }
 
-    return (
-        <td
-            key={`${day}-${classroom.id}-${slotKey}`}
-            className={`
+        // 6. INSTRUCTOR CONSTRAINT CHECK
+        const constraintCheck = checkInstructorConstraints(
+            draggedCourse,
+            day,
+            timeSlotIndex,
+            slotsNeeded
+        );
+
+        if (!constraintCheck.isValid) {
+            console.log(
+                "Drop validity check failed - instructor constraint:",
+                constraintCheck.conflictMessage
+            );
+            return false;
+        }
+
+        // All validations passed
+        return true;
+    };
+
+    const [isDragOver, setIsDragOver] = useState(false);
+
+    const handleCellDragOver = (
+        e: React.DragEvent<HTMLTableCellElement>,
+        day: string,
+        classroomId: string,
+        timeSlot: string
+    ) => {
+        e.preventDefault();
+
+        if (!draggedCourse) return;
+
+        const cellKey = `${day}-${classroomId}-${timeSlot}`;
+        const isValidDrop = checkDropValidity(day, classroomId, timeSlot);
+
+        setCellDragStates((prev) => ({
+            ...prev,
+            [cellKey]: {
+                isDragOver: true,
+                isValidDrop,
+            },
+        }));
+    };
+
+    const handleCellDragLeave = (
+        e: React.DragEvent<HTMLTableCellElement>,
+        day: string,
+        classroomId: string,
+        timeSlot: string
+    ) => {
+        const cellKey = `${day}-${classroomId}-${timeSlot}`;
+
+        setCellDragStates((prev) => ({
+            ...prev,
+            [cellKey]: {
+                isDragOver: false,
+                isValidDrop: false,
+            },
+        }));
+    };
+
+    const exportOldSystemFormat = () => {
+        try {
+            if (!schedule || Object.keys(schedule).length === 0) {
+                showMessage(
+                    "error",
+                    "No schedule data to export. Please generate or create a schedule first."
+                );
+                return;
+            }
+
+            const assignedCourses = Object.values(schedule).filter((course) => {
+                const isStart =
+                    course.isStart === true || course.isStart === undefined;
+                return isStart;
+            });
+
+            if (assignedCourses.length === 0) {
+                showMessage("error", "No assigned courses found to export.");
+                return;
+            }
+
+            const csvData: any[] = [];
+
+            assignedCourses.forEach((course) => {
+                const dayAbbr = getDayAbbreviation(course.day || "");
+                const startPeriod = getTimePeriod(course.startTime || "");
+                const isOnline =
+                    !course.room || course.room === "TBA" || course.room === "";
+                const type = isOnline ? "online" : "offline";
+
+                const periods: string[] = [];
+                for (let i = 0; i < course.duration; i++) {
+                    const period = startPeriod + i;
+                    const roomPart = isOnline ? "" : `${course.room}.`;
+                    const formatStr = `[${roomPart}${dayAbbr}.${period}.${type}]`;
+                    periods.push(formatStr);
+                }
+
+                csvData.push({
+                    course_code: course.code,
+                    course_name: course.name,
+                    instructor: course.instructor,
+                    day: course.day,
+                    room: course.room || "Online",
+                    start_time: course.startTime,
+                    end_time: course.endTime,
+                    duration: course.duration,
+                    format: periods.join(", "),
+                });
+            });
+
+            if (csvData.length === 0) {
+                showMessage("error", "No data to export after processing.");
+                return;
+            }
+
+            const headers = [
+                "course_code",
+                "course_name",
+                "instructor",
+                "day",
+                "room",
+                "start_time",
+                "end_time",
+                "duration",
+                "format",
+            ];
+            const csvRows = [
+                headers.join(","),
+                ...csvData.map((row) =>
+                    headers
+                        .map((header) => {
+                            const value = row[header] || "";
+                            if (
+                                value.toString().includes(",") ||
+                                value.toString().includes('"')
+                            ) {
+                                return `"${value
+                                    .toString()
+                                    .replace(/"/g, '""')}"`;
+                            }
+                            return value;
+                        })
+                        .join(",")
+                ),
+            ];
+
+            const csvContent = csvRows.join("\n");
+
+            const blob = new Blob([csvContent], {
+                type: "text/csv;charset=utf-8;",
+            });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+
+            const today = new Date().toISOString().split("T")[0];
+            link.setAttribute("download", `schedule_export_${today}.csv`);
+
+            link.style.visibility = "hidden";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showMessage(
+                "success",
+                `Schedule exported successfully! ${csvData.length} courses exported.`
+            );
+        } catch (error) {
+            console.error("Export error:", error);
+            showMessage(
+                "error",
+                `Failed to export schedule: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`
+            );
+        }
+    };
+
+    const renderEnhancedTableCellWithDebug = (
+        day: string,
+        classroom: Classroom,
+        slot: CourseHour
+    ) => {
+        const slotKey = getTimeSlotKey(slot);
+        const key = `${day}-${classroom.id}-${slotKey}`;
+        const course = filteredSchedule[key];
+
+        const cellKey = `${day}-${classroom.id}-${slotKey}`;
+        const dragState = cellDragStates[cellKey] || {
+            isDragOver: false,
+            isValidDrop: false,
+        };
+
+        if (course && !course.isStart) {
+            return null;
+        }
+
+        return (
+            <td
+                key={`${day}-${classroom.id}-${slotKey}`}
+                className={`
                 px-1 py-1 whitespace-nowrap text-xs border relative min-h-[60px] transition-all duration-200
-                ${dragState.isDragOver 
-                    ? (dragState.isValidDrop 
-                        ? 'bg-green-50 border-green-300 shadow-inner' 
-                        : 'bg-red-50 border-red-300') 
-                    : 'hover:bg-gray-50'
+                ${
+                    dragState.isDragOver
+                        ? dragState.isValidDrop
+                            ? "bg-green-50 border-green-300 shadow-inner"
+                            : "bg-red-50 border-red-300"
+                        : "hover:bg-gray-50"
                 }
             `}
-            colSpan={course?.colspan || 1}
-            onDragOver={(e) => handleCellDragOver(e, day, classroom.id.toString(), slotKey)}
-            onDragLeave={(e) => handleCellDragLeave(e, day, classroom.id.toString(), slotKey)}
-            onDrop={() => handleDrop(day, classroom.id.toString(), slotKey)}
-            onMouseEnter={() => draggedCourse && setHoveredCell({
-                day, 
-                time: slotKey, 
-                classroom: classroom.id.toString(),
-                index: timeSlots.findIndex(ts => getTimeSlotKey(ts) === slotKey)
-            })}
-            onMouseLeave={() => setHoveredCell(null)}
-        >
-            {/* Drop zone visual indicator */}
-            {dragState.isDragOver && !course && (
-                <div className={`
-                    absolute inset-0 border-2 border-dashed rounded-sm m-1 flex items-center justify-center text-xs font-medium
-                    ${dragState.isValidDrop 
-                        ? 'border-green-400 bg-green-100 text-green-700' 
-                        : 'border-red-400 bg-red-100 text-red-700'
-                    }
-                `}>
-                    {dragState.isValidDrop ? (
-                        <div className="flex items-center">
-                            <span>Drop {draggedCourse?.code}</span>
-                        </div>
-                    ) : (
-                        <span>Cannot drop here</span>
-                    )}
-                </div>
-            )}
-
-            {/* Drag preview for valid drops */}
-            {dragState.isDragOver && dragState.isValidDrop && draggedCourse && !course && (
-                <div className="absolute inset-0 pointer-events-none z-10">
-                    <div className={`${draggedCourse.color} opacity-60 rounded m-1 p-1 border-2 border-dashed border-blue-400`}>
-                        <div className="font-semibold text-xs">{draggedCourse.code}</div>
-                      
-                    </div>
-                </div>
-            )}
-
-            {/* Existing hover preview code */}
-            {hoveredCell?.day === day && 
- hoveredCell?.time === slotKey && 
- hoveredCell?.classroom === classroom.id.toString() && 
- draggedCourse && 
- !course && 
- !dragState.isDragOver && (
-    <div className="absolute z-50 -top-2 left-full ml-1 bg-gray-900 text-white shadow-lg p-2 rounded text-xs whitespace-nowrap max-w-xs">
-        <div className="font-semibold mb-1">{draggedCourse.code} - {draggedCourse.duration}hr{draggedCourse.duration > 1 ? 's' : ''}</div>
-        
-        {/* Online/Offline compatibility check - FIXED */}
-        {(() => {
-            const isOnlineClassroom = classroom.id < 0;
-            const isCourseOnline = draggedCourse.status === 'online'; // Use status instead of room
-            
-            if (isCourseOnline && !isOnlineClassroom) {
-                return <div className="text-red-400 mb-1">⚠️ Online courses cannot be assigned to physical classrooms</div>;
-            }
-            if (!isCourseOnline && isOnlineClassroom) {
-                return <div className="text-red-400 mb-1">⚠️ Physical courses cannot be assigned to online rows</div>;
-            }
-        })()}
-        
-        {/* Instructor constraint check with detailed message */}
-        {(() => {
-            const check = checkInstructorConstraints(draggedCourse, day, hoveredCell.index, draggedCourse.duration);
-            if (!check.isValid) {
-                return (
-                    <div className="text-red-400 mb-1 whitespace-normal">
-                        ⚠️ {check.conflictMessage}
-                    </div>
-                );
-            } else {
-                return <div className="text-green-400 mb-1">✓ Instructor available</div>;
-            }
-        })()}
-        
-        {/* Time slot availability */}
-        <div className="space-y-0.5">
-            <div className="text-xs text-gray-300 mb-1">Time slots:</div>
-            {Array.from({length: draggedCourse.duration}, (_, i) => {
-                const slotIndex = hoveredCell.index + i;
-                if (slotIndex < timeSlots.length) {
-                    const slot = timeSlots[slotIndex];
-                    const occupied = schedule[`${day}-${classroom.id}-${getTimeSlotKey(slot)}`];
-                    return (
-                        <div key={i} className={occupied ? "text-red-400" : "text-green-400"}>
-                            {slot.time_slot || slot.startTime} {occupied ? `(${occupied.code})` : '✓'}
-                        </div>
-                    );
+                colSpan={course?.colspan || 1}
+                onDragOver={(e) =>
+                    handleCellDragOver(e, day, classroom.id.toString(), slotKey)
                 }
-                return <div key={i} className="text-red-400">Out of bounds</div>;
-            })}
-        </div>
-    </div>
-)}
-            
-            {/* Existing course display */}
-            {course ? (
-                <div
-                    className={`${course.color} p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium hover:shadow-md`}
-                    onClick={() => handleScheduledCourseClick(day, classroom.id.toString(), slotKey, course)}
-                    draggable
-                    onDragStart={() => handleDragStart(course)}
-                >
-                    {course.code}
-                </div>
-            ) : (
-                <div className="h-6 w-full" />
-            )}
-        </td>
-    );
-};
+                onDragLeave={(e) =>
+                    handleCellDragLeave(
+                        e,
+                        day,
+                        classroom.id.toString(),
+                        slotKey
+                    )
+                }
+                onDrop={() => handleDrop(day, classroom.id.toString(), slotKey)}
+                onMouseEnter={() =>
+                    draggedCourse &&
+                    setHoveredCell({
+                        day,
+                        time: slotKey,
+                        classroom: classroom.id.toString(),
+                        index: timeSlots.findIndex(
+                            (ts) => getTimeSlotKey(ts) === slotKey
+                        ),
+                    })
+                }
+                onMouseLeave={() => setHoveredCell(null)}
+            >
+                {dragState.isDragOver && !course && (
+                    <div
+                        className={`
+                    absolute inset-0 border-2 border-dashed rounded-sm m-1 flex items-center justify-center text-xs font-medium
+                    ${
+                        dragState.isValidDrop
+                            ? "border-green-400 bg-green-100 text-green-700"
+                            : "border-red-400 bg-red-100 text-red-700"
+                    }
+                `}
+                    >
+                        {dragState.isValidDrop ? (
+                            <div className="flex items-center">
+                                <span>Drop {draggedCourse?.code}</span>
+                            </div>
+                        ) : (
+                            <span>Cannot drop here</span>
+                        )}
+                    </div>
+                )}
+
+                {dragState.isDragOver &&
+                    dragState.isValidDrop &&
+                    draggedCourse &&
+                    !course && (
+                        <div className="absolute inset-0 pointer-events-none z-10">
+                            <div
+                                className={`${draggedCourse.color} opacity-60 rounded m-1 p-1 border-2 border-dashed border-blue-400`}
+                            >
+                                <div className="font-semibold text-xs">
+                                    {draggedCourse.code}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                {hoveredCell?.day === day &&
+                    hoveredCell?.time === slotKey &&
+                    hoveredCell?.classroom === classroom.id.toString() &&
+                    draggedCourse &&
+                    !course &&
+                    !dragState.isDragOver && (
+                        <div className="absolute z-50 -top-2 left-full ml-1 bg-gray-900 text-white shadow-lg p-2 rounded text-xs whitespace-nowrap max-w-xs">
+                            <div className="font-semibold mb-1">
+                                {draggedCourse.code} - {draggedCourse.duration}
+                                hr
+                                {draggedCourse.duration > 1 ? "s" : ""}
+                            </div>
+
+                            {(() => {
+                                const isOnlineClassroom = classroom.id < 0;
+                                const isCourseOnline =
+                                    draggedCourse.status === "online";
+
+                                if (isCourseOnline && !isOnlineClassroom) {
+                                    return (
+                                        <div className="text-red-400 mb-1">
+                                            ⚠️ Online courses cannot be assigned
+                                            to physical classrooms
+                                        </div>
+                                    );
+                                }
+                                if (!isCourseOnline && isOnlineClassroom) {
+                                    return (
+                                        <div className="text-red-400 mb-1">
+                                            ⚠️ Physical courses cannot be
+                                            assigned to online rows
+                                        </div>
+                                    );
+                                }
+                            })()}
+
+                            {(() => {
+                                const check = checkInstructorConstraints(
+                                    draggedCourse,
+                                    day,
+                                    hoveredCell.index,
+                                    draggedCourse.duration
+                                );
+                                if (!check.isValid) {
+                                    return (
+                                        <div className="text-red-400 mb-1 whitespace-normal">
+                                            ⚠️ {check.conflictMessage}
+                                        </div>
+                                    );
+                                } else {
+                                    return (
+                                        <div className="text-green-400 mb-1">
+                                            ✓ Instructor available
+                                        </div>
+                                    );
+                                }
+                            })()}
+
+                            <div className="space-y-0.5">
+                                <div className="text-xs text-gray-300 mb-1">
+                                    Time slots:
+                                </div>
+                                {Array.from(
+                                    { length: draggedCourse.duration },
+                                    (_, i) => {
+                                        const slotIndex = hoveredCell.index + i;
+                                        if (slotIndex < timeSlots.length) {
+                                            const slot = timeSlots[slotIndex];
+                                            const occupied =
+                                                schedule[
+                                                    `${day}-${
+                                                        classroom.id
+                                                    }-${getTimeSlotKey(slot)}`
+                                                ];
+                                            return (
+                                                <div
+                                                    key={i}
+                                                    className={
+                                                        occupied
+                                                            ? "text-red-400"
+                                                            : "text-green-400"
+                                                    }
+                                                >
+                                                    {slot.time_slot ||
+                                                        slot.startTime}{" "}
+                                                    {occupied
+                                                        ? `(${occupied.code})`
+                                                        : "✓"}
+                                                </div>
+                                            );
+                                        }
+                                        return (
+                                            <div
+                                                key={i}
+                                                className="text-red-400"
+                                            >
+                                                Out of bounds
+                                            </div>
+                                        );
+                                    }
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                {course ? (
+                    <div
+                        className={`${course.color} p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium hover:shadow-md`}
+                        onClick={() =>
+                            handleScheduledCourseClick(
+                                day,
+                                classroom.id.toString(),
+                                slotKey,
+                                course
+                            )
+                        }
+                        draggable
+                        onDragStart={() => handleDragStart(course)}
+                    >
+                        {course.code}
+                    </div>
+                ) : (
+                    <div className="h-6 w-full" />
+                )}
+            </td>
+        );
+    };
 
     return (
         <div className="relative min-h-screen">
             <div className="flex justify-between items-center mb-8">
-              <div>
-            <h2 className="text-lg font-semibold text-gray-900">Classroom View Timetable</h2>
-            <p className="text-xs text-gray-600 mt-1">Manage and generate classroom schedules</p>
-        </div>
-        
+                <div>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                        Classroom View Timetable
+                    </h2>
+                    <p className="text-xs text-gray-600 mt-1">
+                        Manage and generate classroom schedules
+                    </p>
+                </div>
+
                 <div className="flex gap-4">
                     <Button
                         onClick={generateSchedule}
@@ -2025,52 +2664,55 @@ const renderEnhancedTableCell = (day: string, classroom: Classroom, slot: Course
                             ? "Generating..."
                             : "Auto-Generate Schedule"}
                     </Button>
-                    <Button className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors" onClick={saveAllAssignments}>Save All</Button>
                     <Button
-    onClick={exportOldSystemFormat}
-    variant="outline"
-    className="border-purple-600 text-purple-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md"
-    disabled={Object.keys(schedule).length === 0}
->
-    <Download className="mr-1 h-3 w-3" /> Export CSV
-</Button>
+                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors"
+                        onClick={saveAllAssignments}
+                    >
+                        Save All
+                    </Button>
+                    <Button
+                        onClick={exportOldSystemFormat}
+                        variant="outline"
+                        className="border-purple-600 text-purple-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md"
+                        disabled={Object.keys(schedule).length === 0}
+                    >
+                        <Download className="mr-1 h-3 w-3" /> Export CSV
+                    </Button>
                 </div>
             </div>
 
-            {/* NEW: Search Bar */}
             <div className="mb-6 ">
-  <div className="relative max-w-md">
-    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none ">
-      <Search className="h-5 w-5 text-gray-400" />
-    </div>
-    <Input
-      type="text"
-      placeholder="Search courses by code, name, instructor, or section..."
-      value={searchQuery}
-      onChange={handleSearchChange}
-      className="pl-10 pr-10 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-    />
-    {searchQuery && (
-      <button
-        onClick={clearSearch}
-        className="absolute inset-y-0 right-0 pr-3 flex items-center"
-      >
-        <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-      </button>
-    )}
-  </div>
-  {isSearchActive && (
-    <div className="mt-2 text-sm text-gray-600">
-      {Object.keys(filteredSchedule).length > 0 ? (
-        <>Showing courses matching "{searchQuery}"</>
-      ) : (
-        <>No courses found matching "{searchQuery}"</>
-      )}
-    </div>
-  )}
-</div>
+                <div className="relative max-w-md">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none ">
+                        <Search className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <Input
+                        type="text"
+                        placeholder="Search courses by code, name, instructor, or section..."
+                        value={searchQuery}
+                        onChange={handleSearchChange}
+                        className="pl-10 pr-10 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                    />
+                    {searchQuery && (
+                        <button
+                            onClick={clearSearch}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        >
+                            <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                        </button>
+                    )}
+                </div>
+                {isSearchActive && (
+                    <div className="mt-2 text-sm text-gray-600">
+                        {Object.keys(filteredSchedule).length > 0 ? (
+                            <>Showing courses matching "{searchQuery}"</>
+                        ) : (
+                            <>No courses found matching "{searchQuery}"</>
+                        )}
+                    </div>
+                )}
+            </div>
 
-            {/* NEW: Message Display Area */}
             {messages.length > 0 && (
                 <div className="mb-4 space-y-2">
                     {messages.map((message) => (
@@ -2101,23 +2743,6 @@ const renderEnhancedTableCell = (day: string, classroom: Classroom, slot: Course
                 </div>
             )}
 
-            {/* Optional: Show generation results */}
-            {scheduleGenerated && generationStats && (
-                <div className="bg-green-50 border border-green-200 text-green-800 p-3 mb-4 rounded">
-                    <p>
-                        Schedule generated successfully!{" "}
-                        {generationStats.scheduledAssignments} classes were
-                        scheduled out of {generationStats.totalSections}{" "}
-                        sections.
-                    </p>
-                    <p className="text-sm mt-1">
-                        You can still make manual adjustments by dragging
-                        courses.
-                    </p>
-                </div>
-            )}
-
-            {/* Full week timetable */}
             <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] mb-40">
                 <div className="inline-block min-w-full">
                     <div className="border rounded-lg overflow-hidden">
@@ -2141,7 +2766,6 @@ const renderEnhancedTableCell = (day: string, classroom: Classroom, slot: Course
                                     <th className="px-4 py-3 text-left text-xs font-medium  text-gray-500 uppercase tracking-wider w-24 border">
                                         Time
                                     </th>
-                                    {/* Course hours related - time slot headers */}
                                     {days.map((day) =>
                                         timeSlots.map((slot) => (
                                             <th
@@ -2158,38 +2782,42 @@ const renderEnhancedTableCell = (day: string, classroom: Classroom, slot: Course
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-    {classrooms.map((classroom, index) => (
-        <tr
-            key={classroom.id}
-            className={
-                index % 2 === 0
-                    ? "bg-white"
-                    : "bg-white"
-            }
-        >
-            <td className={`px-4 py-2 whitespace-nowrap text-sm font-medium border ${
-                classroom.id < 0 
-                    ? 'bg-blue-50 text-blue-700 italic' 
-                    : 'text-gray-700'
-            }`}>
-                {classroom.code}
-            </td>
-            
-            {/* NEW: Replace the old mapping with this */}
-            {days.map((day) =>
-                timeSlots.map((slot) => {
-                    return renderEnhancedTableCell(day, classroom, slot);
-                })
-            )}
-        </tr>
-    ))}
-</tbody>
+                                {classrooms.map((classroom, index) => (
+                                    <tr
+                                        key={classroom.id}
+                                        className={
+                                            index % 2 === 0
+                                                ? "bg-white"
+                                                : "bg-white"
+                                        }
+                                    >
+                                        <td
+                                            className={`px-4 py-2 whitespace-nowrap text-sm font-medium border ${
+                                                classroom.id < 0
+                                                    ? "bg-blue-50 text-blue-700 italic"
+                                                    : "text-gray-700"
+                                            }`}
+                                        >
+                                            {classroom.code}
+                                        </td>
+
+                                        {days.map((day) =>
+                                            timeSlots.map((slot) => {
+                                                return renderEnhancedTableCellWithDebug(
+                                                    day,
+                                                    classroom,
+                                                    slot
+                                                );
+                                            })
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            {/* Draggable courses section with real data from API - only showing available courses */}
             <div
                 className={`fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-lg shadow-lg z-50 border-t ${
                     isDraggingToAvailable ? "bg-blue-100" : ""
@@ -2217,9 +2845,9 @@ const renderEnhancedTableCell = (day: string, classroom: Classroom, slot: Course
                         </div>
                     ) : (
                         <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto p-2">
-                       {availableCourses.map((course) => (
+                            {availableCourses.map((course) => (
                                 <div
-                                    key={course.sectionId}
+                                    key={course.id}
                                     className={`${course.color} p-3 rounded-lg shadow cursor-pointer hover:shadow-md transition-all border`}
                                     draggable
                                     onDragStart={() => handleDragStart(course)}
@@ -2241,11 +2869,6 @@ const renderEnhancedTableCell = (day: string, classroom: Classroom, slot: Course
                                     <p className="text-xs mt-1 truncate text-gray-700">
                                         Section: {course.section || "N/A"}
                                     </p>
-                                    {course.duration > 1 && (
-                                        <p className="text-xs mt-1 text-blue-600 font-medium">
-                                            Click to split duration
-                                        </p>
-                                    )}
                                 </div>
                             ))}
                         </div>
@@ -2253,129 +2876,6 @@ const renderEnhancedTableCell = (day: string, classroom: Classroom, slot: Course
                 </div>
             </div>
 
-            {/* Course Split Dialog */}
-            <Dialog
-                open={isSplitDialogOpen}
-                onOpenChange={setIsSplitDialogOpen}
-            >
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">
-                            Split Course Duration
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    {courseSplitConfig && (
-                        <div className="space-y-4">
-                            <div className="space-y-3">
-                                <div
-                                    className={`w-full h-1 ${courseSplitConfig.course.color
-                                        .replace("hover:", "")
-                                        .replace("border-", "")}`}
-                                ></div>
-                                <h3 className="font-bold text-lg">
-                                    {courseSplitConfig.course.code}:{" "}
-                                    {courseSplitConfig.course.name}
-                                </h3>
-                                <div className="text-sm text-gray-600">
-                                    Original Duration:{" "}
-                                    {courseSplitConfig.course.duration} hours
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <Label className="text-sm font-medium">
-                                    Split into parts:
-                                </Label>
-
-                                {splitDurations.map((duration, index) => (
-                                    <div
-                                        key={index}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <Label className="text-sm w-16">
-                                            Part {index + 1}:
-                                        </Label>
-                                        <Input
-                                            type="number"
-                                            min="1"
-                                            value={duration}
-                                            onChange={(e) =>
-                                                updateSplitDuration(
-                                                    index,
-                                                    parseInt(e.target.value) ||
-                                                        1
-                                                )
-                                            }
-                                            className="w-20"
-                                        />
-                                        <span className="text-sm text-gray-500">
-                                            hours
-                                        </span>
-                                        {splitDurations.length > 1 && (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() =>
-                                                    removeSplit(index)
-                                                }
-                                            >
-                                                <Minus className="h-4 w-4" />
-                                            </Button>
-                                        )}
-                                    </div>
-                                ))}
-
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={addSplit}
-                                    className="w-full"
-                                >
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Add Another Part
-                                </Button>
-                            </div>
-
-                            <div className="text-sm">
-                                <div className="flex justify-between">
-                                    <span>Total Duration:</span>
-                                    <span
-                                        className={`font-medium ${
-                                            isValidSplit()
-                                                ? "text-green-600"
-                                                : "text-red-600"
-                                        }`}
-                                    >
-                                        {getTotalSplitDuration()} /{" "}
-                                        {courseSplitConfig.course.duration}{" "}
-                                        hours
-                                    </span>
-                                </div>
-                                {!isValidSplit() && (
-                                    <div className="text-red-600 text-xs mt-1">
-                                        Total must equal original duration
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex justify-end gap-2">
-                                <Button variant="outline" onClick={cancelSplit}>
-                                    Cancel
-                                </Button>
-                                <Button
-                                    onClick={applySplit}
-                                    disabled={!isValidSplit()}
-                                >
-                                    Split Course
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
-
-            {/* Course details dialog */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
@@ -2440,6 +2940,136 @@ const renderEnhancedTableCell = (day: string, classroom: Classroom, slot: Course
                                     </div>
                                 </div>
                             </div>
+
+                            <Dialog
+                                open={isSplitDialogOpen}
+                                onOpenChange={setIsSplitDialogOpen}
+                            >
+                                <DialogContent className="sm:max-w-lg">
+                                    <DialogHeader>
+                                        <DialogTitle>
+                                            Split Course Duration
+                                        </DialogTitle>
+                                    </DialogHeader>
+
+                                    {courseSplitConfig && (
+                                        <div className="space-y-4">
+                                            <div className="text-sm text-gray-600">
+                                                <p>
+                                                    <strong>Course:</strong>{" "}
+                                                    {
+                                                        courseSplitConfig.course
+                                                            .code
+                                                    }
+                                                </p>
+                                                <p>
+                                                    <strong>
+                                                        Total Duration:
+                                                    </strong>{" "}
+                                                    {
+                                                        courseSplitConfig.course
+                                                            .duration
+                                                    }{" "}
+                                                    hours
+                                                </p>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium">
+                                                    Split Configuration:
+                                                </label>
+                                                {splitDurations.map(
+                                                    (duration, index) => (
+                                                        <div
+                                                            key={index}
+                                                            className="flex items-center gap-2"
+                                                        >
+                                                            <span className="text-sm">
+                                                                Part {index + 1}
+                                                                :
+                                                            </span>
+                                                            <Input
+                                                                type="number"
+                                                                min="1"
+                                                                value={duration}
+                                                                onChange={(e) =>
+                                                                    updateSplitDuration(
+                                                                        index,
+                                                                        parseInt(
+                                                                            e
+                                                                                .target
+                                                                                .value
+                                                                        ) || 1
+                                                                    )
+                                                                }
+                                                                className="w-20"
+                                                            />
+                                                            <span className="text-sm">
+                                                                hour(s)
+                                                            </span>
+                                                            {splitDurations.length >
+                                                                1 && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() =>
+                                                                        removeSplit(
+                                                                            index
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <X className="h-4 w-4" />
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    )
+                                                )}
+                                            </div>
+
+                                            <div className="flex justify-between items-center">
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={addSplit}
+                                                >
+                                                    Add Split
+                                                </Button>
+                                                <div className="text-sm">
+                                                    Total:{" "}
+                                                    {getTotalSplitDuration()} /{" "}
+                                                    {
+                                                        courseSplitConfig.course
+                                                            .duration
+                                                    }{" "}
+                                                    hours
+                                                </div>
+                                            </div>
+
+                                            {!isValidSplit() && (
+                                                <div className="text-red-600 text-sm">
+                                                    Total split duration must
+                                                    equal original course
+                                                    duration
+                                                </div>
+                                            )}
+
+                                            <div className="flex justify-end gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={cancelSplit}
+                                                >
+                                                    Cancel
+                                                </Button>
+                                                <Button
+                                                    onClick={applySplit}
+                                                    disabled={!isValidSplit()}
+                                                >
+                                                    Apply Split
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </DialogContent>
+                            </Dialog>
 
                             <div className="flex justify-end gap-2">
                                 <Button

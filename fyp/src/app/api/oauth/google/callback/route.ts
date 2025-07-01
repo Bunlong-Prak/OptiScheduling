@@ -92,5 +92,7 @@ export async function GET(request: NextRequest) {
         });
     }
 
-    return Response.redirect(new URL("/dashboard", request.nextUrl));
+    return Response.redirect(
+        new URL(`${process.env.DOMAIN}/dashboard`, request.nextUrl)
+    );
 }

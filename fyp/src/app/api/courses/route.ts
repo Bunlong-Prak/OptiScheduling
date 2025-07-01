@@ -1,5 +1,6 @@
 import {
     classrooms,
+    courseHours,
     courses,
     instructors,
     majors,
@@ -7,20 +8,29 @@ import {
     sections,
 } from "@/drizzle/schema";
 import { db } from "@/lib/db";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-// Updated section schema to include status
+// Updated section schema to include status and splitDurations
 const sectionSchema = z.object({
     section: z.string().min(1, { message: "Section number is required" }),
     instructorId: z
         .string()
-        .min(1, { message: "At least 1 system will be added" }), // Optional instructor ID
-    status: z.enum(["online", "offline"]).default("offline"), // Status at section level
+        .min(1, { message: "Instructor ID is required" })
+        .optional() // Make it optional
+        .or(z.literal(null)), // Allow null values
+    status: z.enum(["online", "offline"]).default("offline"),
+    splitDurations: z
+        .array(
+            z.object({
+                separatedDuration: z.number().optional(),
+            })
+        )
+        .optional(),
 });
 
-// Updated course schema for creating new courses (removed status from course level)
+// Updated course schema for creating new courses
 const courseSchema = z.object({
     // Course Code: Required, alphanumeric with possible spaces/dashes, min 2 chars, max 10 chars
     code: z
@@ -51,7 +61,7 @@ const courseSchema = z.object({
     duration: z.number().min(1, { message: "Duration is required" }),
     // Capacity: Required
     capacity: z.number().min(1, { message: "Capacity is required" }),
-    // Sections array: Required, at least one section (now includes status per section)
+    // Sections array: Required, at least one section (now includes status and splitDurations)
     sectionsList: z
         .array(sectionSchema)
         .min(1, { message: "At least one section is required" }),
@@ -60,7 +70,7 @@ const courseSchema = z.object({
     }),
 });
 
-// Updated schema for editing courses (removed status from course level)
+// Updated schema for editing courses
 const editCourseSchema = z.object({
     sectionId: z.number({
         required_error: "Section ID is required",
@@ -94,7 +104,7 @@ const editCourseSchema = z.object({
     duration: z.number().min(1, { message: "Duration is required" }),
     // Capacity: Required
     capacity: z.number().min(1, { message: "Capacity is required" }),
-    // Sections array: Required, at least one section (now includes status per section)
+    // Sections array: Required, at least one section (now includes status and splitDurations)
     sectionsList: z
         .array(sectionSchema)
         .min(1, { message: "At least one section is required" }),
@@ -114,10 +124,12 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const scheduleId = searchParams.get("scheduleId");
 
-        // Updated query to include section status
+        // Updated query to use courseHours.id as the primary identifier
         let query = db
             .select({
-                id: courses.id,
+                id: courseHours.id, // Changed to courseHours.id for unique identification
+                courseId: courses.id, // Keep course ID for reference
+                sectionId: sections.id, // Keep section ID for reference
                 title: courses.title,
                 code: courses.code,
                 major: majors.name, // Get major name from direct join
@@ -128,15 +140,18 @@ export async function GET(request: Request) {
                 duration: courses.duration,
                 capacity: courses.capacity,
                 status: sections.status, // Get status from sections table
-                sectionId: sections.id,
                 section: sections.number,
                 classroom: classrooms.code,
+                separatedDuration: courseHours.separatedDuration, // This is now unique per courseHours.id
+                day: courseHours.day, // Include day information
+                timeSlot: courseHours.timeSlot, // Include time slot information
             })
-            .from(courses)
+            .from(courseHours) // Start from courseHours to ensure unique records
+            .innerJoin(sections, eq(courseHours.sectionId, sections.id))
+            .innerJoin(courses, eq(sections.courseId, courses.id))
             .innerJoin(majors, eq(courses.majorId, majors.id)) // Direct join with majors
-            .innerJoin(sections, eq(courses.id, sections.courseId))
-            .leftJoin(instructors, eq(sections.instructorId, instructors.id)) // Changed to leftJoin to handle sections without instructors
-            .leftJoin(classrooms, eq(sections.classroomId, classrooms.id))
+            .leftJoin(instructors, eq(sections.instructorId, instructors.id)) // leftJoin to handle sections without instructors
+            .leftJoin(classrooms, eq(courseHours.classroomId, classrooms.id))
             .innerJoin(schedules, eq(courses.scheduleId, schedules.id)) as any;
 
         // Add filter for scheduleId if provided
@@ -144,8 +159,12 @@ export async function GET(request: Request) {
             query = query.where(eq(courses.scheduleId, parseInt(scheduleId)));
         }
 
-        const allCourses = await query;
-        return NextResponse.json(allCourses);
+        const allCourseHours = await query;
+
+        // Convert back to array - now each record represents a unique course hour
+        const result = Object.values(allCourseHours);
+
+        return NextResponse.json(result);
     } catch (error: unknown) {
         console.error("Error fetching courses:", error);
         return NextResponse.json(
@@ -155,7 +174,7 @@ export async function GET(request: Request) {
     }
 }
 
-// POST - Create a new course (updated to handle section-level status)
+// POST - Create a new course (updated to handle courseHours)
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -224,7 +243,7 @@ export async function POST(request: Request) {
             );
         }
 
-        // Insert the course with majorId (removed status from course level)
+        // Insert the course with majorId
         const insertCourse = await db.insert(courses).values({
             code: code,
             title: title,
@@ -251,9 +270,10 @@ export async function POST(request: Request) {
         // Array to collect created course sections
         const createdSections = [];
 
-        // Process each section (now includes status)
+        // Process each section (now includes status and courseHours)
         for (const sectionData of sectionsList) {
-            const { section, instructorId, status } = sectionData;
+            const { section, instructorId, status, splitDurations } =
+                sectionData;
 
             // Insert the section with status
             const sectionValues: any = {
@@ -273,8 +293,8 @@ export async function POST(request: Request) {
 
             await db.insert(sections).values(sectionValues);
 
-            // Fetch the created section data for response
-            const sectionDetails = await db
+            // Fetch the created section to get its ID
+            const createdSection = await db
                 .select({
                     id: sections.id,
                     number: sections.number,
@@ -287,10 +307,30 @@ export async function POST(request: Request) {
                         eq(sections.number, section)
                     )
                 )
+                .orderBy(desc(sections.id))
                 .limit(1);
 
-            if (sectionDetails.length > 0) {
-                createdSections.push(sectionDetails[0]);
+            if (createdSection.length > 0) {
+                const newSectionId = createdSection[0].id;
+                createdSections.push(createdSection[0]);
+
+                // Insert courseHours if splitDurations are provided
+                if (splitDurations && splitDurations.length > 0) {
+                    for (const timeSlot of splitDurations) {
+                        const { separatedDuration } = timeSlot;
+
+                        // Use separatedDuration if provided, otherwise use course duration
+                        const durationToUse =
+                            separatedDuration !== undefined
+                                ? separatedDuration
+                                : duration;
+
+                        await db.insert(courseHours).values({
+                            separatedDuration: durationToUse,
+                            sectionId: newSectionId,
+                        });
+                    }
+                }
             }
         }
 
@@ -313,14 +353,14 @@ export async function POST(request: Request) {
     }
 }
 
-// PATCH - Update an existing course (updated to handle section-level status)
+// PATCH - Update an existing course (updated to handle courseHours)
+
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
 
-        // Validate request data - using partial schema for updates
-        const updateSchema = editCourseSchema.partial();
-        const validationResult = updateSchema.safeParse(body);
+        // Validate request data
+        const validationResult = editCourseSchema.safeParse(body);
 
         if (!validationResult.success) {
             return NextResponse.json(
@@ -341,7 +381,6 @@ export async function PATCH(request: Request) {
             duration,
             capacity,
             sectionsList,
-            sectionsToDelete,
         } = validationResult.data;
 
         if (!sectionId) {
@@ -353,7 +392,10 @@ export async function PATCH(request: Request) {
 
         // Get the courseId from the sectionId
         const sectionInfo = await db
-            .select({ courseId: sections.courseId })
+            .select({
+                courseId: sections.courseId,
+                currentNumber: sections.number,
+            })
             .from(sections)
             .where(eq(sections.id, sectionId))
             .limit(1);
@@ -379,8 +421,8 @@ export async function PATCH(request: Request) {
             );
         }
 
-        // Prepare the update data for course
-        const updateData: Partial<{
+        // STEP 1: Update course-level data (affects ALL sections of this course)
+        const courseUpdateData: Partial<{
             code: string;
             title: string;
             color: string;
@@ -389,11 +431,11 @@ export async function PATCH(request: Request) {
             majorId: number;
         }> = {};
 
-        if (code !== undefined) updateData.code = code;
-        if (title !== undefined) updateData.title = title;
-        if (color !== undefined) updateData.color = color;
-        if (duration !== undefined) updateData.duration = duration;
-        if (capacity !== undefined) updateData.capacity = capacity;
+        if (code !== undefined) courseUpdateData.code = code;
+        if (title !== undefined) courseUpdateData.title = title;
+        if (color !== undefined) courseUpdateData.color = color;
+        if (duration !== undefined) courseUpdateData.duration = duration;
+        if (capacity !== undefined) courseUpdateData.capacity = capacity;
 
         // Handle majorsList update if provided
         if (majorsList && majorsList.length === 1) {
@@ -411,53 +453,113 @@ export async function PATCH(request: Request) {
                 );
             }
 
-            updateData.majorId = majorResult[0].id;
+            courseUpdateData.majorId = majorResult[0].id;
         }
 
-        // Update the course data
-        if (Object.keys(updateData).length > 0) {
+        // Update the course data (affects all sections)
+        if (Object.keys(courseUpdateData).length > 0) {
             await db
                 .update(courses)
-                .set(updateData)
+                .set(courseUpdateData)
                 .where(eq(courses.id, courseId));
         }
 
-        // Handle section updates - ONLY update the sections that are sent
+        // STEP 2: Update section-specific data (only affects the specific section being edited)
         if (sectionsList && sectionsList.length > 0) {
-            for (const sectionData of sectionsList) {
-                const { section, instructorId, status } = sectionData;
+            // We should only have one section in the list since we're editing a specific section
+            const sectionData = sectionsList[0];
+            const { section, instructorId, status, splitDurations } =
+                sectionData;
 
-                // Prepare section update values
-                const sectionUpdateData: any = {
-                    number: section,
-                    status: status || "offline",
-                };
+            // Update the specific section being edited
+            const sectionUpdateData: any = {
+                number: section,
+                status: status || "offline",
+            };
 
-                // Handle instructor assignment/removal
-                if (
-                    instructorId !== undefined &&
-                    instructorId !== null &&
-                    instructorId !== ""
-                ) {
-                    sectionUpdateData.instructorId = parseInt(instructorId);
-                } else {
-                    sectionUpdateData.instructorId = null; // Remove instructor if not provided
-                }
+            // Handle instructor assignment/removal for this specific section
+            if (
+                instructorId !== undefined &&
+                instructorId !== null &&
+                instructorId !== ""
+            ) {
+                sectionUpdateData.instructorId = parseInt(instructorId);
+            } else {
+                sectionUpdateData.instructorId = null;
+            }
 
-                // Update only the specific section being edited
+            // Update only the specific section
+            await db
+                .update(sections)
+                .set(sectionUpdateData)
+                .where(eq(sections.id, sectionId));
+
+            // STEP 3: Update courseHours for this specific section
+            if (splitDurations && splitDurations.length > 0) {
+                // Delete existing courseHours for this specific section only
                 await db
-                    .update(sections)
-                    .set(sectionUpdateData)
-                    .where(eq(sections.id, sectionId));
+                    .delete(courseHours)
+                    .where(eq(courseHours.sectionId, sectionId));
+
+                // Insert new courseHours for this specific section
+                for (const timeSlot of splitDurations) {
+                    const { separatedDuration } = timeSlot;
+
+                    // Use separatedDuration if provided, otherwise use course duration
+                    const durationToUse =
+                        separatedDuration !== undefined
+                            ? separatedDuration
+                            : duration !== undefined
+                            ? duration
+                            : existingCourse.duration;
+
+                    await db.insert(courseHours).values({
+                        separatedDuration: durationToUse,
+                        sectionId: sectionId, // Only for this specific section
+                    });
+                }
+            } else {
+                // If no split durations provided, just update existing courseHours duration
+                // This handles the case where course duration changed but no splits
+                if (duration !== undefined) {
+                    await db
+                        .update(courseHours)
+                        .set({ separatedDuration: duration })
+                        .where(eq(courseHours.sectionId, sectionId));
+                }
             }
         }
 
-        // Handle explicit section deletions (if needed)
-        if (sectionsToDelete && Array.isArray(sectionsToDelete)) {
-            for (const sectionIdToDelete of sectionsToDelete) {
-                await db
-                    .delete(sections)
-                    .where(eq(sections.id, sectionIdToDelete));
+        // STEP 4: If course duration changed, update courseHours for ALL OTHER sections
+        // (but only if they don't have custom split durations)
+        if (duration !== undefined) {
+            // Get all other sections for this course
+            const allOtherSections = await db
+                .select({ id: sections.id })
+                .from(sections)
+                .where(
+                    and(
+                        eq(sections.courseId, courseId),
+                        ne(sections.id, sectionId) // Exclude the section we just updated
+                    )
+                );
+
+            // Update courseHours for other sections that don't have custom splits
+            for (const otherSection of allOtherSections) {
+                // Check if this section has multiple courseHours (indicating custom splits)
+                const courseHoursCount = await db
+                    .select({ count: courseHours.id })
+                    .from(courseHours)
+                    .where(eq(courseHours.sectionId, otherSection.id));
+
+                // If section has only one courseHour, update it to match new course duration
+                if (courseHoursCount.length === 1) {
+                    await db
+                        .update(courseHours)
+                        .set({ separatedDuration: duration })
+                        .where(eq(courseHours.sectionId, otherSection.id));
+                }
+                // If section has multiple courseHours (custom splits), leave them unchanged
             }
         }
 
@@ -472,8 +574,7 @@ export async function PATCH(request: Request) {
         );
     }
 }
-
-// DELETE - Remove a course (unchanged)
+// DELETE - Remove a course (updated to handle courseHours)
 export async function DELETE(request: Request) {
     try {
         const body = await request.json();
@@ -520,7 +621,12 @@ export async function DELETE(request: Request) {
             );
         }
 
-        // First delete all sections associated with the course
+        // First delete courseHours associated with the section
+        await db
+            .delete(courseHours)
+            .where(eq(courseHours.sectionId, sectionId));
+
+        // Then delete the section
         await db.delete(sections).where(eq(sections.id, sectionId));
 
         // Check if any sections remain for this course
@@ -531,7 +637,7 @@ export async function DELETE(request: Request) {
 
         // If no sections remain, delete the course
         if (remainingSections.length === 0) {
-            // Then delete the course (majorId is now stored directly in the course table)
+            // Delete the course (majorId is now stored directly in the course table)
             await db.delete(courses).where(eq(courses.id, courseId));
         }
 
