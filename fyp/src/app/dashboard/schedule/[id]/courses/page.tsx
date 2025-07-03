@@ -150,7 +150,7 @@ export default function CoursesView() {
             )
         );
     };
-
+    
     const removeSectionSplit = (sectionId: number, index: number) => {
         setSections(
             sections.map((section) =>
@@ -586,6 +586,7 @@ export default function CoursesView() {
         }
     };
 
+
     const handleEditCourse = async () => {
         // Make sure we have at least one section and a major
         if (sections.length === 0 || !selectedMajor) {
@@ -865,87 +866,62 @@ export default function CoursesView() {
         isImporting: false,
     });
 
-    // Types for CSV data
     interface CSVCourseRow {
         code: string;
         title: string;
         major: string;
         color: string;
-        status: string;
-        duration: string;
+        status: string; // "online" or "offline"
+        duration: string; 
+        separated_duration: string; 
         capacity: string;
         section: string;
+        classroom?: string;
         instructor_name?: string;
     }
+    
 
-    // Validation function for course CSV data
-    const validateCourseData = (
-        row: any,
-        rowIndex: number
-    ): CSVCourseRow | string => {
+    const validateCourseData = (row: any, rowIndex: number): CSVCourseRow | string => {
         const errors: string[] = [];
-
+    
         // Check required fields
-        if (
-            !row.code ||
-            typeof row.code !== "string" ||
-            row.code.trim() === ""
-        ) {
+        if (!row.code || typeof row.code !== "string" || row.code.trim() === "") {
             errors.push(`Row ${rowIndex + 1}: Course code is required`);
         }
-
-        if (
-            !row.title ||
-            typeof row.title !== "string" ||
-            row.title.trim() === ""
-        ) {
+    
+        if (!row.title || typeof row.title !== "string" || row.title.trim() === "") {
             errors.push(`Row ${rowIndex + 1}: Course title is required`);
         }
-
-        if (
-            !row.major ||
-            typeof row.major !== "string" ||
-            row.major.trim() === ""
-        ) {
+    
+        if (!row.major || typeof row.major !== "string" || row.major.trim() === "") {
             errors.push(`Row ${rowIndex + 1}: Major is required`);
         } else {
-            // Check if major exists in the system
+            // Check if major exists (case insensitive)
             const majorExists = majors.some(
-                (major) =>
-                    major.name.toLowerCase() === row.major.trim().toLowerCase()
+                (major) => major.name.toLowerCase() === row.major.trim().toLowerCase()
             );
             if (!majorExists) {
                 errors.push(
-                    `Row ${
-                        rowIndex + 1
-                    }: Major "${row.major.trim()}" does not exist in the system`
+                    `Row ${rowIndex + 1}: Major "${row.major.trim()}" does not exist. Available: ${majors.map(m => m.name).join(", ")}`
                 );
             }
         }
-
-        if (
-            !row.color ||
-            typeof row.color !== "string" ||
-            row.color.trim() === ""
-        ) {
+    
+        if (!row.color || typeof row.color !== "string" || row.color.trim() === "") {
             errors.push(`Row ${rowIndex + 1}: Color is required`);
         } else {
             // Validate color exists in the colors array
-            const colorExists = colors.includes(row.color.trim());
+            const colorExists = colors.some(color => 
+                getColorName(color).toLowerCase() === row.color.trim().toLowerCase()
+            );
             if (!colorExists) {
                 errors.push(
-                    `Row ${
-                        rowIndex + 1
-                    }: Color "${row.color.trim()}" is not valid`
+                    `Row ${rowIndex + 1}: Color "${row.color.trim()}" is not valid. Available: ${colors.map(c => getColorName(c)).join(", ")}`
                 );
             }
         }
-
-        if (
-            !row.status ||
-            typeof row.status !== "string" ||
-            row.status.trim() === ""
-        ) {
+    
+        if (!row.status || typeof row.status !== "string" || row.status.trim() === "") {
             errors.push(`Row ${rowIndex + 1}: Status is required`);
         } else {
             const validStatuses = ["online", "offline"];
@@ -955,47 +931,38 @@ export default function CoursesView() {
                 );
             }
         }
-
-        if (!row.duration) {
-            errors.push(`Row ${rowIndex + 1}: Duration is required`);
-        } else {
-            const durationNum = Number(row.duration);
-            if (isNaN(durationNum) || durationNum <= 0) {
-                errors.push(
-                    `Row ${
-                        rowIndex + 1
-                    }: Duration must be a valid positive number`
-                );
-            }
+    
+        // Validate duration
+        const duration = Number(row.duration);
+        if (!row.duration || isNaN(duration) || duration <= 0) {
+            errors.push(
+                `Row ${rowIndex + 1}: Duration must be a valid positive number`
+            );
         }
-
-        if (!row.capacity) {
-            errors.push(`Row ${rowIndex + 1}: Capacity is required`);
-        } else {
-            const capacityNum = Number(row.capacity);
-            if (isNaN(capacityNum) || capacityNum <= 0) {
-                errors.push(
-                    `Row ${
-                        rowIndex + 1
-                    }: Capacity must be a valid positive number`
-                );
-            }
+    
+        // Validate separated duration
+        const separatedDuration = Number(row.separated_duration);
+        if (!row.separated_duration || isNaN(separatedDuration) || separatedDuration <= 0) {
+            errors.push(
+                `Row ${rowIndex + 1}: Separated duration must be a valid positive number`
+            );
         }
-
-        if (
-            !row.section ||
-            typeof row.section !== "string" ||
-            row.section.trim() === ""
-        ) {
+    
+        // Validate capacity
+        const capacity = Number(row.capacity);
+        if (!row.capacity || isNaN(capacity) || capacity <= 0) {
+            errors.push(
+                `Row ${rowIndex + 1}: Capacity must be a valid positive number`
+            );
+        }
+    
+        // Validate section
+        if (!row.section || row.section.toString().trim() === "") {
             errors.push(`Row ${rowIndex + 1}: Section is required`);
         }
-
+    
         // Validate instructor if provided
-        if (
-            row.instructor_name &&
-            typeof row.instructor_name === "string" &&
-            row.instructor_name.trim() !== ""
-        ) {
+        if (row.instructor_name && typeof row.instructor_name === "string" && row.instructor_name.trim() !== "") {
             const instructorExists = instructors.some(
                 (instructor) =>
                     `${instructor.first_name} ${instructor.last_name}`.toLowerCase() ===
@@ -1003,17 +970,15 @@ export default function CoursesView() {
             );
             if (!instructorExists) {
                 errors.push(
-                    `Row ${
-                        rowIndex + 1
-                    }: Instructor "${row.instructor_name.trim()}" does not exist in the system`
+                    `Row ${rowIndex + 1}: Instructor "${row.instructor_name.trim()}" does not exist. Available: ${instructors.map(i => `${i.first_name} ${i.last_name}`).join(", ")}`
                 );
             }
         }
-
+    
         if (errors.length > 0) {
-            return errors.join(", ");
+            return errors.join("; ");
         }
-
+    
         // Return cleaned data
         return {
             code: row.code.trim(),
@@ -1021,14 +986,15 @@ export default function CoursesView() {
             major: row.major.trim(),
             color: row.color.trim(),
             status: row.status.trim().toLowerCase(),
-            duration: row.duration.toString(),
-            capacity: row.capacity.toString(),
-            section: Number(row.section).toString(),
-            instructor_name: row.instructor_name
-                ? row.instructor_name.trim()
-                : undefined,
+            duration: duration.toString(),
+            separated_duration: separatedDuration.toString(),
+            capacity: capacity.toString(),
+            section: row.section.toString().trim(),
+            classroom: row.classroom ? row.classroom.trim() : undefined,
+            instructor_name: row.instructor_name ? row.instructor_name.trim() : undefined,
         };
     };
+    
 
     // Group courses by code for import
     const groupCoursesByCode = (validCourses: CSVCourseRow[]) => {
@@ -1045,7 +1011,6 @@ export default function CoursesView() {
         return grouped;
     };
 
-    // Main import function
     const handleImportCSV = async () => {
         if (!importFile) {
             setStatusMessage({
@@ -1054,18 +1019,24 @@ export default function CoursesView() {
             });
             return;
         }
-
+    
         const scheduleId = params.id;
-
+        if (!scheduleId) {
+            setStatusMessage({
+                text: "Schedule ID is missing",
+                type: "error",
+            });
+            return;
+        }
+    
         setImportProgress({
             total: 0,
             completed: 0,
             errors: [],
             isImporting: true,
         });
-
+    
         try {
-            // Parse CSV file
             Papa.parse(importFile, {
                 header: true,
                 skipEmptyLines: true,
@@ -1073,9 +1044,11 @@ export default function CoursesView() {
                     header.trim().toLowerCase().replace(/\s+/g, "_"),
                 complete: async (results) => {
                     const csvData = results.data as any[];
+                    console.log("Parsed CSV data:", csvData);
+                    
                     const validCourses: CSVCourseRow[] = [];
                     const errors: string[] = [];
-
+    
                     // Validate each row
                     csvData.forEach((row, index) => {
                         const validationResult = validateCourseData(row, index);
@@ -1085,38 +1058,40 @@ export default function CoursesView() {
                             validCourses.push(validationResult);
                         }
                     });
-
+    
+                    console.log("Valid courses after validation:", validCourses);
+    
                     // Group courses by code to handle multiple sections
                     const groupedCourses = groupCoursesByCode(validCourses);
-
+    
                     // Check for duplicate codes in existing courses
-                    for (const [courseCode, courseSections] of groupedCourses) {
+                    const duplicateCodes: string[] = [];
+                    for (const [courseCode] of groupedCourses) {
                         const existingCourse = courses.some(
-                            (course) => course.code.toLowerCase() === courseCode
+                            (course) => course.code.toLowerCase() === courseCode.toLowerCase()
                         );
                         if (existingCourse) {
-                            errors.push(
-                                `Course code "${courseSections[0].code}" already exists in the system`
-                            );
-                            // Remove from valid courses
-                            validCourses.splice(
-                                validCourses.findIndex(
-                                    (c) => c.code.toLowerCase() === courseCode
-                                ),
-                                courseSections.length
-                            );
+                            duplicateCodes.push(courseCode);
+                            errors.push(`Course code "${courseCode}" already exists in the system`);
                         }
                     }
-
+    
+                    // Remove duplicates from grouped courses
+                    duplicateCodes.forEach(code => {
+                        groupedCourses.delete(code.toLowerCase());
+                    });
+    
                     setImportProgress((prev) => ({
                         ...prev,
                         total: groupedCourses.size,
                         errors: errors,
                     }));
-
+    
                     if (groupedCourses.size === 0) {
                         setStatusMessage({
-                            text: "No valid courses found in the CSV file",
+                            text: errors.length > 0 
+                                ? `No valid courses to import. ${errors.length} error(s) found.`
+                                : "No valid courses found in the CSV file",
                             type: "error",
                         });
                         setImportProgress((prev) => ({
@@ -1125,53 +1100,48 @@ export default function CoursesView() {
                         }));
                         return;
                     }
-
+    
                     // Import valid courses
                     let completed = 0;
                     const importErrors: string[] = [...errors];
-
+    
                     for (const [courseCode, courseSections] of groupedCourses) {
                         try {
-                            // Use the first section's data as the base course data
                             const baseCourse = courseSections[0];
-
-                            // Create sections list with instructors
-                            const sectionsList = courseSections.map(
-                                (courseSection) => {
-                                    let instructorId = null;
-                                    if (courseSection.instructor_name) {
-                                        const instructor = instructors.find(
-                                            (inst) =>
-                                                `${inst.first_name} ${inst.last_name}`.toLowerCase() ===
-                                                courseSection.instructor_name!.toLowerCase()
-                                        );
-                                        instructorId = instructor
-                                            ? instructor.id.toString()
-                                            : null;
-                                    }
-
-                                    return {
-                                        section: courseSection.section,
-                                        instructorId: instructorId,
-                                        status: courseSection.status,
-                                        splitDurations: [
-                                            Number(courseSection.duration),
-                                        ],
-                                    };
+    
+                            // Create sections list with instructors and split durations
+                            const sectionsList = courseSections.map((courseSection) => {
+                                let instructorId = null;
+                                if (courseSection.instructor_name) {
+                                    const instructor = instructors.find(
+                                        (inst) =>
+                                            `${inst.first_name} ${inst.last_name}`.toLowerCase() ===
+                                            courseSection.instructor_name!.toLowerCase()
+                                    );
+                                    instructorId = instructor ? instructor.id.toString() : null;
                                 }
-                            );
-
+    
+                                return {
+                                    section: courseSection.section,
+                                    instructorId: instructorId,
+                                    status: courseSection.status, // Keep as online/offline
+                                    splitDurations: [{ separatedDuration: Number(courseSection.separated_duration) }],
+                                };
+                            });
+    
                             const apiData = {
                                 code: baseCourse.code,
                                 title: baseCourse.title,
                                 majorsList: [baseCourse.major],
-                                color: getHexFromColorName(baseCourse.color), // Convert to hex
+                                color: getHexFromColorName(baseCourse.color),
                                 duration: Number(baseCourse.duration),
                                 capacity: Number(baseCourse.capacity),
                                 sectionsList: sectionsList,
                                 scheduleId: Number(scheduleId),
                             };
-
+    
+                            console.log("Sending to API:", apiData);
+    
                             const response = await fetch("/api/courses", {
                                 method: "POST",
                                 headers: {
@@ -1179,50 +1149,44 @@ export default function CoursesView() {
                                 },
                                 body: JSON.stringify(apiData),
                             });
-
+    
                             if (!response.ok) {
                                 const errorData = await response.json();
+                                console.error("API Error:", errorData);
                                 importErrors.push(
-                                    `Failed to import course ${
-                                        baseCourse.code
-                                    }: ${errorData.error || "Unknown error"}`
+                                    `Failed to import course ${baseCourse.code}: ${
+                                        errorData.error || "Unknown error"
+                                    }`
                                 );
                             } else {
                                 completed++;
+                                console.log(`Successfully imported course: ${baseCourse.code}`);
                             }
                         } catch (error) {
+                            console.error(`Error importing course ${courseCode}:`, error);
                             importErrors.push(
                                 `Failed to import course ${courseCode}: ${
-                                    error instanceof Error
-                                        ? error.message
-                                        : "Unknown error"
+                                    error instanceof Error ? error.message : "Unknown error"
                                 }`
                             );
                         }
-
-                        // Update progress
+    
                         setImportProgress((prev) => ({
                             ...prev,
                             completed: completed,
                             errors: importErrors,
                         }));
-
-                        // Small delay to prevent overwhelming the server
-                        await new Promise((resolve) =>
-                            setTimeout(resolve, 200)
-                        );
+    
+                        await new Promise((resolve) => setTimeout(resolve, 100));
                     }
-
-                    // Final update
+    
                     setImportProgress((prev) => ({
                         ...prev,
                         isImporting: false,
                     }));
-
-                    // Refresh the course list
+    
                     await fetchData();
-
-                    // Show completion message
+    
                     if (completed > 0) {
                         setStatusMessage({
                             text: `Successfully imported ${completed} course(s)${
@@ -1230,14 +1194,11 @@ export default function CoursesView() {
                                     ? ` with ${importErrors.length} error(s)`
                                     : ""
                             }`,
-                            type:
-                                completed === groupedCourses.size
-                                    ? "success"
-                                    : "error",
+                            type: completed === groupedCourses.size ? "success" : "error",
                         });
                     } else {
                         setStatusMessage({
-                            text: "Failed to import any courses",
+                            text: "Failed to import any courses. Check the errors above.",
                             type: "error",
                         });
                     }
@@ -1289,70 +1250,72 @@ export default function CoursesView() {
         });
     };
 
-    // Download CSV with current courses data
     const downloadCoursesCSV = () => {
         try {
-            // Create CSV header
+            // Create CSV header to match the actual Course structure from your API
             const headers = [
                 "code",
-                "title",
+                "title", 
                 "major",
                 "color",
-                "status",
-                "duration",
+                "status", // "online" or "offline"
+                "duration", // Course duration 
+                "separated_duration", // Individual section duration
                 "capacity",
                 "section",
-                "instructor_name",
+                "classroom",
+                "instructor_name"
             ];
-
+    
             // Convert courses data to CSV rows (one row per section)
             const csvRows: string[][] = [];
-
+    
             courses.forEach((course) => {
-                const instructorName =
-                    `${course.firstName || ""} ${
-                        course.lastName || ""
-                    }`.trim() || "";
-
+                // Get instructor name, handling potential undefined values
+                const instructorName = course.firstName && course.lastName 
+                    ? `${course.firstName.trim()} ${course.lastName.trim()}`
+                    : "";
+    
                 // Convert hex color back to color name for CSV
-                const colorName = getColorNameFromHex(course.color || "");
-
+                const colorName = getColorNameFromHex(course.color || "") || "blue";
+    
                 csvRows.push([
-                    course.code,
-                    course.title,
+                    course.code || "",
+                    course.title || "",
                     course.major || "",
                     colorName,
-                    course.status || "offline",
-                    course.duration.toString(),
-                    course.capacity.toString(),
-                    course.section,
-                    instructorName,
+                    course.status || "offline", // Keep as online/offline
+                    course.duration?.toString() || "1", 
+                    course.separatedDuration?.toString() || course.duration?.toString() || "1",
+                    course.capacity?.toString() || "1", 
+                    course.section || "",
+                    course.classroom || "",
+                    instructorName
                 ]);
             });
-
+    
             // Combine headers and data
             const allRows = [headers, ...csvRows];
-
-            // Convert to CSV string
+    
+            // Convert to CSV string with proper escaping
             const csvContent = allRows
                 .map((row) =>
-                    row
-                        .map((field) => {
-                            // Escape quotes and wrap in quotes if field contains comma, quote, or newline
-                            const fieldStr = String(field || "");
-                            if (
-                                fieldStr.includes(",") ||
-                                fieldStr.includes('"') ||
-                                fieldStr.includes("\n")
-                            ) {
-                                return `"${fieldStr.replace(/"/g, '""')}"`;
-                            }
-                            return fieldStr;
-                        })
-                        .join(",")
+                    row.map((field) => {
+                        const fieldStr = String(field || "");
+                        if (
+                            fieldStr.includes(",") ||
+                            fieldStr.includes('"') ||
+                            fieldStr.includes("\n") ||
+                            fieldStr.includes("\r")
+                        ) {
+                            return `"${fieldStr.replace(/"/g, '""')}"`;
+                        }
+                        return fieldStr;
+                    })
+                    .join(",")
                 )
                 .join("\n");
-
+    
             // Create and download file
             const blob = new Blob([csvContent], {
                 type: "text/csv;charset=utf-8;",
@@ -1360,18 +1323,19 @@ export default function CoursesView() {
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
             link.setAttribute("href", url);
-
-            // Generate filename with current date
+    
             const today = new Date().toISOString().split("T")[0];
             link.setAttribute("download", `courses_export_${today}.csv`);
-
+    
             link.style.visibility = "hidden";
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-
+            
+            URL.revokeObjectURL(url);
+    
             setStatusMessage({
-                text: `Exported ${courses.length} courses to CSV`,
+                text: `Successfully exported ${courses.length} courses to CSV`,
                 type: "success",
             });
         } catch (error) {
@@ -1382,6 +1346,7 @@ export default function CoursesView() {
             });
         }
     };
+    
 
     return (
         <div className="space-y-4">
@@ -2831,16 +2796,28 @@ export default function CoursesView() {
                                 disabled={importProgress.isImporting}
                                 className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
                             />
-                            <p className="text-xs text-gray-600 mt-1">
-                                CSV should contain columns: code, title, major,
-                                color, status, duration, capacity, section
-                                (number), instructor_name
-                            </p>
-                            <p className="text-xs text-blue-600 mt-1">
-                                Note: Section should be a number (1, 2, 3,
-                                etc.). Multiple rows with the same course code
-                                will be treated as different sections.
-                            </p>
+<div className="text-xs text-gray-600 mt-2 space-y-2">
+    <p><strong>Required CSV columns:</strong></p>
+    <ul className="list-disc list-inside space-y-1 ml-2">
+        <li><strong>code:</strong> Course code (e.g., CS101)</li>
+        <li><strong>title:</strong> Course name</li>
+        <li><strong>major:</strong> Must match existing major names</li>
+        <li><strong>color:</strong> Color name (e.g., blue, red, green)</li>
+        <li><strong>status:</strong> "online" or "offline"</li>
+        <li><strong>duration:</strong> Course duration (e.g., 3)</li>
+        <li><strong>separated_duration:</strong> Individual section duration (e.g., 1.5)</li>
+        <li><strong>capacity:</strong> Maximum students (e.g., 30)</li>
+        <li><strong>section:</strong> Section identifier (e.g., 1, 2, A, B)</li>
+        <li><strong>classroom:</strong> Classroom name (optional)</li>
+        <li><strong>instructor_name:</strong> Full name (optional, must match existing instructor)</li>
+    </ul>
+    <div className="bg-blue-50 p-2 rounded border border-blue-200 mt-2">
+        <p className="text-blue-700 font-medium mb-1">Notes:</p>
+        <p className="text-blue-600 text-xs">• Multiple rows with same code = different sections</p>
+        <p className="text-blue-600 text-xs">• separated_duration is for individual section scheduling</p>
+        <p className="text-blue-600 text-xs">• Status must be exactly "online" or "offline"</p>
+    </div>
+</div>
                         </div>
 
                         {importFile && (
