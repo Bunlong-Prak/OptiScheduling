@@ -2,6 +2,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
     datetime,
+    float,
     int,
     mysqlTable,
     timestamp,
@@ -91,7 +92,7 @@ export const courses = mysqlTable("courses", {
     code: varchar("code", { length: 50 }).notNull(),
     color: varchar("color", { length: 50 }),
     capacity: int("capacity").notNull(),
-    duration: int("duration").notNull(),
+    duration: float("duration").notNull(),
 
     scheduleId: int("schedule_id")
         .notNull()
@@ -129,7 +130,7 @@ export const courseHours = mysqlTable("course_hours", {
     id: int("id").primaryKey().autoincrement(),
     day: varchar("day", { length: 50 }),
     timeSlot: varchar("time_slot", { length: 50 }),
-    separatedDuration: int("separated_duration"),
+    separatedDuration: float("separated_duration"),
     classroomId: int("classroom_id").references(() => classrooms.id), // Foreign key to Classrooms
     sectionId: int("section_id")
         .notNull()
@@ -151,8 +152,10 @@ export const majors = mysqlTable("majors", {
 
 export const classrooms = mysqlTable("classrooms", {
     id: int("id").primaryKey().autoincrement(),
+    name: varchar("name", { length: 255 }),
     code: varchar("code", { length: 255 }).notNull(),
     capacity: int("capacity").notNull(),
+    location: varchar("location", { length: 255 }).notNull(),
     classroomTypeId: int("classroom_type_id")
         .notNull()
         .references(() => classroomTypes.id),
@@ -182,6 +185,7 @@ export const classroomRelations = relations(classrooms, ({ one }) => ({
 
 export const instructors = mysqlTable("instructors", {
     id: int("id").primaryKey().autoincrement(),
+    instructorId: varchar("instructor_id", { length: 100 }).notNull(),
     firstName: varchar("first_name", { length: 255 }).notNull(),
     lastName: varchar("last_name", { length: 255 }).notNull(),
     gender: varchar("gender", { length: 50 }).notNull(),

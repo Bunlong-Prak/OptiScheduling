@@ -10,6 +10,11 @@ const createInstructorSchema = z.object({
             required_error: "First name is required",
         })
         .min(1, "First name cannot be empty"),
+    instructorId: z
+        .string({
+            required_error: "Instructor ID is required",
+        })
+        .min(1, "Instructor ID cannot be empty"),
     lastName: z
         .string({
             required_error: "Last name is required",
@@ -118,6 +123,7 @@ export async function POST(request: Request) {
             const validatedData = createInstructorSchema.parse(body);
 
             const {
+                instructorId,
                 firstName,
                 lastName,
                 gender,
@@ -130,6 +136,7 @@ export async function POST(request: Request) {
             const result = await db
                 .insert(instructors)
                 .values({
+                    instructorId,
                     firstName,
                     lastName,
                     gender,

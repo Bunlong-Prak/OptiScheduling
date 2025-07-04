@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "ecec9576-08a5-429a-bec2-e3b2982df5d0",
+  "id": "73e863f1-682e-4128-8754-6cf7a7814da3",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -73,6 +73,13 @@
           "notNull": true,
           "autoincrement": true
         },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "code": {
           "name": "code",
           "type": "varchar(255)",
@@ -83,6 +90,13 @@
         "capacity": {
           "name": "capacity",
           "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "location": {
+          "name": "location",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -148,7 +162,7 @@
         },
         "separated_duration": {
           "name": "separated_duration",
-          "type": "int",
+          "type": "float",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -248,7 +262,7 @@
         },
         "duration": {
           "name": "duration",
-          "type": "int",
+          "type": "float",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -486,6 +500,13 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": true
+        },
+        "instructor_id": {
+          "name": "instructor_id",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "first_name": {
           "name": "first_name",

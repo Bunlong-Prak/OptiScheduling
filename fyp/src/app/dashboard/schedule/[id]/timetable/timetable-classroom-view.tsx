@@ -1016,26 +1016,30 @@ export default function TimetableViewClassroom() {
         }
     }
 
-    function getSlotDurationHours(slot: any): number {
+    const getSlotDurationHours = (slot: any): number => {
+        // Try to get duration from time_slot field first
         if (slot.time_slot && slot.time_slot.includes("-")) {
             const [start, end] = slot.time_slot
                 .split("-")
                 .map((t: string) => t.trim());
-            // Parse time strings to get duration
             const startHour = parseTimeToHours(start);
             const endHour = parseTimeToHours(end);
             return endHour - startHour;
         }
+
+        // Try startTime and endTime fields
         if (slot.startTime && slot.endTime) {
             const startHour = parseTimeToHours(slot.startTime);
             const endHour = parseTimeToHours(slot.endTime);
             return endHour - startHour;
         }
+
         // Default to 1 hour if no duration info available
         return 1;
-    }
+    };
+    const parseTimeToHours = (timeStr: string): number => {
+        if (!timeStr) return 0;
 
-    function parseTimeToHours(timeStr: string): number {
         // Handle formats like "08:00", "8:30", "14:45", etc.
         const cleanTime = timeStr.replace(/\s+/g, "");
         const match = cleanTime.match(/(\d{1,2}):(\d{2})/);
@@ -1053,8 +1057,42 @@ export default function TimetableViewClassroom() {
         }
 
         return 0;
-    }
+    };
 
+    const getDropValidationMessage = (
+        day: string,
+        classroomId: string,
+        timeSlot: string
+    ): string => {
+        if (!draggedCourse || timeSlots.length === 0)
+            return "No course selected";
+
+        const isOnlineClassroom = parseInt(classroomId) < 0;
+        const isCourseOnline =
+            draggedCourse.status === "online" ||
+            draggedCourse.isOnline === true;
+
+        if (isCourseOnline && !isOnlineClassroom) {
+            return "Online courses cannot be assigned to physical classrooms";
+        }
+        if (!isCourseOnline && isOnlineClassroom) {
+            return "Physical courses cannot be assigned to online rows";
+        }
+
+        const matchingTimeSlot = timeSlots.find(
+            (ts) => getTimeSlotKey(ts) === timeSlot
+        );
+        if (!matchingTimeSlot) return "Invalid time slot";
+
+        const slotDuration = getSlotDurationHours(matchingTimeSlot);
+        const courseDuration = draggedCourse.duration;
+
+        if (courseDuration < slotDuration) {
+            return `Course duration (${courseDuration}h) is shorter than time slot (${slotDuration}h)`;
+        }
+
+        return "Cannot drop here";
+    };
     function calculateEndTime(startTime: string, durationHours: number) {
         const startHour = parseInt(startTime);
         return (startHour + durationHours).toString();
@@ -1191,6 +1229,105 @@ export default function TimetableViewClassroom() {
         return index !== -1 ? index + 1 : 0;
     };
 
+    // Shared function to calculate required slots for a course
+    const calculateRequiredSlots = (
+        course: TimetableCourse,
+        timeSlots: CourseHour[],
+        startTimeSlotIndex: number,
+        schedule: TimetableGrid,
+        day: string,
+        classroomId: string
+    ): {
+        slotsNeeded: number;
+        consecutiveSlots: Array<{
+            index: number;
+            slot: any;
+            duration: number;
+            key: string;
+        }>;
+        totalDuration: number;
+        canAccommodate: boolean;
+    } => {
+        const courseDurationHours = course.duration;
+        let totalAccumulatedDuration = 0;
+        let consecutiveSlots = [];
+        let canAccommodate = false;
+
+        console.log(`=== CALCULATING REQUIRED SLOTS ===`);
+        console.log(
+            `Course: ${course.code}, Required: ${courseDurationHours}h`
+        );
+
+        // Build consecutive available slots from the starting point
+        for (let i = startTimeSlotIndex; i < timeSlots.length; i++) {
+            const currentSlot = timeSlots[i];
+            const currentSlotDuration = getSlotDurationHours(currentSlot);
+            const currentTimeSlot = getTimeSlotKey(currentSlot);
+            const currentKey = `${day}-${classroomId}-${currentTimeSlot}`;
+            const conflictingCourse = schedule[currentKey];
+
+            console.log(
+                `Checking slot ${i}: ${currentTimeSlot} (${currentSlotDuration}h)`
+            );
+
+            // Check if this slot is occupied by another course
+            if (conflictingCourse && conflictingCourse.id !== course.id) {
+                console.log(
+                    `  - Occupied by ${conflictingCourse.code}, stopping`
+                );
+                break;
+            }
+
+            // Add this slot to our consecutive chain
+            consecutiveSlots.push({
+                index: i,
+                slot: currentSlot,
+                duration: currentSlotDuration,
+                key: currentTimeSlot,
+            });
+
+            totalAccumulatedDuration += currentSlotDuration;
+            console.log(`  - Accumulated: ${totalAccumulatedDuration}h`);
+
+            // Check if we have exactly the required duration
+            if (
+                Math.abs(totalAccumulatedDuration - courseDurationHours) < 0.01
+            ) {
+                console.log(`✅ Exact match: ${totalAccumulatedDuration}h`);
+                canAccommodate = true;
+                break;
+            }
+
+            // Check if we have enough duration (with small tolerance)
+            if (totalAccumulatedDuration >= courseDurationHours) {
+                const excess = totalAccumulatedDuration - courseDurationHours;
+                const tolerance = 0.25; // 15 minutes
+
+                if (excess <= tolerance) {
+                    console.log(`✅ Acceptable excess: ${excess}h`);
+                    canAccommodate = true;
+                    break;
+                } else {
+                    console.log(
+                        `❌ Too much excess: ${excess}h > ${tolerance}h`
+                    );
+                    break;
+                }
+            }
+        }
+
+        console.log(
+            `Result: ${consecutiveSlots.length} slots, ${totalAccumulatedDuration}h total`
+        );
+
+        return {
+            slotsNeeded: consecutiveSlots.length,
+            consecutiveSlots,
+            totalDuration: totalAccumulatedDuration,
+            canAccommodate,
+        };
+    };
+
     const handleDrop = (day: string, classroomId: string, timeSlot: string) => {
         if (!draggedCourse || timeSlots.length === 0) {
             console.log("No dragged course or time slots");
@@ -1313,39 +1450,38 @@ export default function TimetableViewClassroom() {
             return;
         }
 
-        // 5. DURATION AND SLOT AVAILABILITY CHECK
-        const slotDurationHours = calculateSlotDuration(matchingTimeSlot);
-        const slotsNeeded = Math.ceil(
-            draggedCourse.duration / slotDurationHours
-        );
-        const remainingSlots = timeSlots.length - timeSlotIndex;
+        console.log("Matching Time Slot:", matchingTimeSlot);
 
-        if (slotsNeeded > remainingSlots) {
+        // 5. USE SHARED SLOT CALCULATION FUNCTION - CRITICAL FOR CONSISTENCY
+        console.log("=== USING SHARED SLOT CALCULATION ===");
+        const slotCalculation = calculateRequiredSlots(
+            draggedCourse,
+            timeSlots,
+            timeSlotIndex,
+            schedule,
+            day,
+            classroomId
+        );
+
+        if (!slotCalculation.canAccommodate) {
             showMessage(
                 "error",
-                `Cannot place ${draggedCourse.duration}-hour course here. Need ${slotsNeeded} time slots but only ${remainingSlots} slot(s) remaining.`
+                `Cannot place ${draggedCourse.duration}-hour course here. Need ${draggedCourse.duration}h but only ${slotCalculation.totalDuration}h available consecutively.`
             );
             setDraggedCourse(null);
             setCellDragStates({});
             return;
         }
 
-        // 6. MULTI-SLOT CONFLICT CHECK
-        for (let i = 0; i < slotsNeeded; i++) {
-            const currentSlotIndex = timeSlotIndex + i;
+        const slotsNeeded = slotCalculation.slotsNeeded;
+        console.log(
+            `✅ Consistent slot calculation: ${slotsNeeded} slots needed for ${draggedCourse.duration}h course`
+        );
 
-            if (currentSlotIndex >= timeSlots.length) {
-                showMessage(
-                    "error",
-                    `Cannot place ${draggedCourse.duration}-hour course starting at this time. Not enough time slots available.`
-                );
-                setDraggedCourse(null);
-                setCellDragStates({});
-                return;
-            }
-
-            const currentTimeSlot = getTimeSlotKey(timeSlots[currentSlotIndex]);
-            const currentKey = `${day}-${classroomId}-${currentTimeSlot}`;
+        // 6. VERIFY NO CONFLICTS IN ALL REQUIRED SLOTS (using calculated consecutive slots)
+        console.log("=== FINAL CONFLICT CHECK ===");
+        for (const slotInfo of slotCalculation.consecutiveSlots) {
+            const currentKey = `${day}-${classroomId}-${slotInfo.key}`;
             const conflictingCourse = schedule[currentKey];
 
             if (
@@ -1354,12 +1490,13 @@ export default function TimetableViewClassroom() {
             ) {
                 showMessage(
                     "error",
-                    `Cannot place course here. Time slot ${currentTimeSlot} is occupied by ${conflictingCourse.code}.`
+                    `Cannot place course here. Time slot ${slotInfo.key} is occupied by ${conflictingCourse.code}.`
                 );
                 setDraggedCourse(null);
                 setCellDragStates({});
                 return;
             }
+            console.log(`  ✅ Slot ${slotInfo.key} is available`);
         }
 
         // 7. INSTRUCTOR CONSTRAINT CHECK
@@ -1394,20 +1531,22 @@ export default function TimetableViewClassroom() {
             }
         });
 
-        // Calculate end time
-        const endTimeSlotIndex = timeSlotIndex + slotsNeeded - 1;
+        // Calculate end time using the last slot from our consistent calculation
+        const lastSlotInfo =
+            slotCalculation.consecutiveSlots[
+                slotCalculation.consecutiveSlots.length - 1
+            ];
+        const lastSlot = lastSlotInfo.slot;
         const endTimeSlot =
-            endTimeSlotIndex < timeSlots.length
-                ? timeSlots[endTimeSlotIndex].endTime ||
-                  timeSlots[endTimeSlotIndex].time_slot
-                      ?.split("-")[1]
-                      ?.trim() ||
-                  timeSlots[endTimeSlotIndex].time_slot
-                : timeSlots[timeSlots.length - 1].endTime ||
-                  timeSlots[timeSlots.length - 1].time_slot
-                      ?.split("-")[1]
-                      ?.trim() ||
-                  timeSlots[timeSlots.length - 1].time_slot;
+            lastSlot.endTime ||
+            lastSlot.time_slot?.split("-")[1]?.trim() ||
+            lastSlot.time_slot;
+
+        console.log(`End time calculated from last slot:`, {
+            lastSlotIndex: lastSlotInfo.index,
+            lastSlotKey: lastSlotInfo.key,
+            endTime: endTimeSlot,
+        });
 
         // Create assigned course object
         const assignedCourse = {
@@ -1422,14 +1561,14 @@ export default function TimetableViewClassroom() {
             originalColor: draggedCourse.originalColor,
         };
 
-        // Place course in all required time slots
-        for (let i = 0; i < slotsNeeded; i++) {
-            if (timeSlotIndex + i >= timeSlots.length) break;
+        // Place course in all required time slots (using our calculated consecutive slots)
+        console.log(`=== PLACING COURSE IN ${slotsNeeded} SLOTS ===`);
+        slotCalculation.consecutiveSlots.forEach((slotInfo, i) => {
+            const currentKey = `${day}-${classroomId}-${slotInfo.key}`;
 
-            const currentTimeSlot = getTimeSlotKey(
-                timeSlots[timeSlotIndex + i]
+            console.log(
+                `  Placing in slot ${i + 1}/${slotsNeeded}: ${slotInfo.key}`
             );
-            const currentKey = `${day}-${classroomId}-${currentTimeSlot}`;
 
             newSchedule[currentKey] = {
                 ...assignedCourse,
@@ -1438,7 +1577,7 @@ export default function TimetableViewClassroom() {
                 isEnd: i === slotsNeeded - 1,
                 colspan: i === 0 ? slotsNeeded : 0,
             };
-        }
+        });
 
         // Update state
         setSchedule(newSchedule);
@@ -1494,7 +1633,11 @@ export default function TimetableViewClassroom() {
             course: draggedCourse.code,
             assignedTo: `${day} ${timeSlot}`,
             classroom: classroom?.code,
-            duration: `${slotsNeeded} slots`,
+            slotsUsed: slotsNeeded,
+            totalDuration: slotCalculation.totalDuration,
+            slotDetails: slotCalculation.consecutiveSlots.map(
+                (s) => `${s.key}(${s.duration}h)`
+            ),
             capacityDetails: capacityValidationResult.capacityDetails,
         });
     };
@@ -2014,15 +2157,28 @@ export default function TimetableViewClassroom() {
             const [start, end] = slot.time_slot
                 .split("-")
                 .map((t: string) => t.trim());
-            const startHour = parseInt(start);
-            const endHour = parseInt(end);
-            return endHour - startHour;
+
+            const startHour = parseTimeToHours(start);
+            const endHour = parseTimeToHours(end);
+
+            console.log("startTime:", start, "-> hours:", startHour);
+            console.log("endTime:", end, "-> hours:", endHour);
+
+            const result = endHour - startHour;
+            console.log("duration result:", result, "hours");
+            return result;
         }
+
         if (slot.startTime && slot.endTime) {
-            const startHour = parseInt(slot.startTime);
-            const endHour = parseInt(slot.endTime);
-            return endHour - startHour;
+            const startHour = parseTimeToHours(slot.startTime);
+            const endHour = parseTimeToHours(slot.endTime);
+            console.log("startTime:", slot.startTime, "-> hours:", startHour);
+            console.log("endTime:", slot.endTime, "-> hours:", endHour);
+            const result = endHour - startHour;
+            console.log("duration result:", result, "hours");
+            return result;
         }
+
         return 1;
     };
 
@@ -2119,6 +2275,7 @@ export default function TimetableViewClassroom() {
             Saturday: "Sat",
             Sunday: "Sun",
         };
+
         return dayMap[day] || day;
     };
 
@@ -2126,7 +2283,7 @@ export default function TimetableViewClassroom() {
         day: string,
         classroomId: string,
         timeSlot: string
-    ): boolean => {
+    ) => {
         if (!draggedCourse || timeSlots.length === 0) return false;
 
         const key = `${day}-${classroomId}-${timeSlot}`;
@@ -2149,112 +2306,79 @@ export default function TimetableViewClassroom() {
             draggedCourse.isOnline === true ||
             draggedCourse.room === "Online";
 
-        if (isCourseOnline && !isOnlineClassroom) return false;
-        if (!isCourseOnline && isOnlineClassroom) return false;
+        if (isCourseOnline && !isOnlineClassroom) {
+            console.log(
+                "❌ Online course cannot be assigned to physical classroom"
+            );
+            return false;
+        }
+        if (!isCourseOnline && isOnlineClassroom) {
+            console.log(
+                "❌ Physical course cannot be assigned to online classroom"
+            );
+            return false;
+        }
 
-        // 2. CAPACITY CONSTRAINT VALIDATION - CRITICAL CHECK
+        // 2. CAPACITY CONSTRAINT VALIDATION
         const capacityCheck = validateCapacityConstraints(
             draggedCourse,
             classroomId,
             classrooms
         );
 
-        // PREVENT visual "valid drop" indicator if capacity constraint is violated
         if (!capacityCheck.isValid) {
             console.log(
-                "Drop validity check failed - capacity constraint:",
+                "❌ Capacity constraint failed:",
                 capacityCheck.conflictMessage
             );
-            return false; // This will show red "cannot drop" indicator
+            return false;
         }
 
         // 3. TIME SLOT VALIDATION
         const matchingTimeSlot = timeSlots.find(
             (ts) => getTimeSlotKey(ts) === timeSlot
         );
-        if (!matchingTimeSlot) return false;
-
-        const timeSlotIndex = timeSlots.indexOf(matchingTimeSlot);
-
-        // 4. DYNAMIC DURATION VALIDATION
-        const courseDurationHours = draggedCourse.duration;
-
-        // Calculate if the course can fit starting from this time slot
-        let totalAvailableDuration = 0;
-        let slotsNeeded = 0;
-
-        for (let i = timeSlotIndex; i < timeSlots.length; i++) {
-            const currentSlot = timeSlots[i];
-            const currentSlotDuration = getSlotDurationHours(currentSlot);
-
-            // Check if this slot is occupied by another course
-            const currentTimeSlot = getTimeSlotKey(currentSlot);
-            const currentKey = `${day}-${classroomId}-${currentTimeSlot}`;
-            const conflictingCourse = schedule[currentKey];
-
-            if (
-                conflictingCourse &&
-                conflictingCourse.id !== draggedCourse.id
-            ) {
-                // Can't use this slot, stop checking
-                break;
-            }
-
-            totalAvailableDuration += currentSlotDuration;
-            slotsNeeded++;
-
-            // If we have enough duration, we can place the course
-            if (totalAvailableDuration >= courseDurationHours) {
-                break;
-            }
-        }
-
-        // Check if we have enough total duration
-        if (totalAvailableDuration < courseDurationHours) {
-            console.log(
-                `Insufficient duration: need ${courseDurationHours}h, have ${totalAvailableDuration}h`
-            );
+        if (!matchingTimeSlot) {
+            console.log("❌ Time slot not found");
             return false;
         }
 
-        // 5. MULTI-SLOT CONFLICT CHECK (using calculated slotsNeeded)
-        for (let i = 0; i < slotsNeeded; i++) {
-            const currentSlotIndex = timeSlotIndex + i;
+        const timeSlotIndex = timeSlots.indexOf(matchingTimeSlot);
 
-            if (currentSlotIndex >= timeSlots.length) {
-                return false;
-            }
+        // 4. USE SHARED SLOT CALCULATION FUNCTION
+        const slotCalculation = calculateRequiredSlots(
+            draggedCourse,
+            timeSlots,
+            timeSlotIndex,
+            schedule,
+            day,
+            classroomId
+        );
 
-            const currentSlot = timeSlots[currentSlotIndex];
-            const currentTimeSlot = getTimeSlotKey(currentSlot);
-            const currentKey = `${day}-${classroomId}-${currentTimeSlot}`;
-            const conflictingCourse = schedule[currentKey];
-
-            if (
-                conflictingCourse &&
-                conflictingCourse.id !== draggedCourse.id
-            ) {
-                return false;
-            }
+        if (!slotCalculation.canAccommodate) {
+            console.log(`❌ Cannot accommodate course duration`);
+            return false;
         }
 
-        // 6. INSTRUCTOR CONSTRAINT CHECK
+        // 5. INSTRUCTOR CONSTRAINT CHECK
         const constraintCheck = checkInstructorConstraints(
             draggedCourse,
             day,
             timeSlotIndex,
-            slotsNeeded
+            slotCalculation.slotsNeeded
         );
 
         if (!constraintCheck.isValid) {
             console.log(
-                "Drop validity check failed - instructor constraint:",
+                "❌ Instructor constraint failed:",
                 constraintCheck.conflictMessage
             );
             return false;
         }
 
-        // All validations passed
+        console.log(`✅ All validations passed for ${draggedCourse.code}`);
+        console.log(`✅ Will use ${slotCalculation.slotsNeeded} slots`);
+
         return true;
     };
 

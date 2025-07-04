@@ -45,6 +45,7 @@ export default function InstructorsView() {
     const [selectedInstructor, setSelectedInstructor] =
         useState<Instructor | null>(null);
     const [formData, setFormData] = useState<InstructorFormData>({
+        instructor_id: "",
         first_name: "",
         last_name: "",
         gender: "",
@@ -462,38 +463,15 @@ export default function InstructorsView() {
     const params = useParams();
     const handleAddInstructor = async () => {
         try {
-            // Validate form data with Zod
-            const validatedData = instructorSchema.parse({
-                first_name: formData.first_name,
-                last_name: formData.last_name,
-                gender: formData.gender,
-                email: formData.email,
-                phone_number: formData.phone_number,
-            });
-
-            // Check if email already exists
-            const existingInstructor = instructors.find(
-                (instructor) =>
-                    instructor.email.toLowerCase() ===
-                    validatedData.email.toLowerCase()
-            );
-
-            if (existingInstructor) {
-                setStatusMessage({
-                    text: "An instructor with this email already exists",
-                    type: "error",
-                });
-                return;
-            }
-
             // Prepare data for API
             const scheduleId = params.id;
             const apiData = {
-                firstName: validatedData.first_name,
-                lastName: validatedData.last_name,
-                gender: validatedData.gender,
-                email: validatedData.email,
-                phoneNumber: validatedData.phone_number || "",
+                instructorId: formData.instructor_id,
+                firstName: formData.first_name,
+                lastName: formData.last_name,
+                gender: formData.gender,
+                email: formData.email,
+                phoneNumber: formData.phone_number || "",
                 scheduleId: Number(scheduleId),
             };
 
@@ -671,6 +649,7 @@ export default function InstructorsView() {
 
     const resetForm = () => {
         setFormData({
+            instructor_id: "",
             first_name: "",
             last_name: "",
             gender: "",
@@ -684,6 +663,7 @@ export default function InstructorsView() {
         resetForm(); // Reset first to clear any previous data
         setSelectedInstructor(instructor);
         setFormData({
+            instructor_id: instructor.instructor_id, // Assuming you have an instructorId field
             first_name: instructor.first_name,
             last_name: instructor.last_name,
             gender: instructor.gender,
@@ -780,6 +760,9 @@ export default function InstructorsView() {
                                     No.
                                 </th>
                                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Instructor ID
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
                                     First Name
                                 </th>
                                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
@@ -831,6 +814,9 @@ export default function InstructorsView() {
                                                     ITEMS_PER_PAGE +
                                                     index +
                                                     1}
+                                            </td>
+                                            <td className="px-3 py-2 text-xs font-medium text-gray-900">
+                                                {instructor.instructor_id}
                                             </td>
                                             <td className="px-3 py-2 text-xs font-medium text-gray-900">
                                                 {instructor.first_name}
@@ -911,6 +897,24 @@ export default function InstructorsView() {
                     </DialogHeader>
 
                     <div className="py-4 space-y-4">
+                        <div className="grid gap-4">
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="instructor_id"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Instructor ID
+                                </Label>
+                                <Input
+                                    id="instructor_id"
+                                    name="instructor_id"
+                                    value={formData.instructor_id}
+                                    onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    placeholder="Enter instructor ID"
+                                />
+                            </div>
+                        </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label

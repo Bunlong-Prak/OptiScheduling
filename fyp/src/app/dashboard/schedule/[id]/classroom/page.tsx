@@ -31,6 +31,8 @@ interface ClassroomType {
 }
 
 interface FormErrors {
+    location?: string;
+    name?: string;
     code?: string;
     type?: string;
     capacity?: string;
@@ -48,6 +50,8 @@ export default function ClassroomView() {
     const [selectedClassroom, setSelectedClassroom] =
         useState<Classroom | null>(null);
     const [formData, setFormData] = useState<ClassroomFormData>({
+        name: "",
+        location: "",
         code: "",
         type: "",
         capacity: "",
@@ -236,6 +240,16 @@ export default function ClassroomView() {
                 });
             }
         }
+
+        // ✅ ADD LOCATION VALIDATION HERE IF NEEDED
+        if (name === "location") {
+            if (!value.trim()) {
+                setFormErrors({
+                    ...formErrors,
+                    location: "Location is required",
+                });
+            }
+        }
     };
 
     const handleSelectChange = (name: string, value: string) => {
@@ -254,16 +268,14 @@ export default function ClassroomView() {
     };
 
     const handleAddClassroom = async () => {
-        if (!validateForm()) {
-            return;
-        }
-
         setIsLoading(true);
         try {
             const scheduleId = params.id;
 
             const apiData = {
                 code: formData.code.trim(),
+                name: formData.name,
+                location: formData.location,
                 type: formData.type,
                 capacity: Number.parseInt(formData.capacity),
                 scheduleId: scheduleId,
@@ -407,6 +419,8 @@ export default function ClassroomView() {
 
     const resetForm = () => {
         setFormData({
+            location: "",
+            name: "",
             code: "",
             type: "",
             capacity: "",
@@ -418,6 +432,8 @@ export default function ClassroomView() {
     const openEditDialog = (classroom: Classroom) => {
         setSelectedClassroom(classroom);
         setFormData({
+            location: classroom.location,
+            name: classroom.name,
             code: classroom.code,
             type: classroom.type,
             capacity: classroom.capacity.toString(),
@@ -990,6 +1006,33 @@ export default function ClassroomView() {
 
                         <div className="space-y-2">
                             <Label
+                                htmlFor="name"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Classroom Name{" "}
+                                <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                                id="name"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleInputChange}
+                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    formErrors.name
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                }`}
+                                placeholder="Enter classroom name"
+                            />
+                            {formErrors.name && (
+                                <p className="text-xs text-red-600">
+                                    {formErrors.name}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label
                                 htmlFor="type"
                                 className="text-sm font-medium text-gray-700"
                             >
@@ -1034,6 +1077,32 @@ export default function ClassroomView() {
                             {formErrors.type && (
                                 <p className="text-xs text-red-600">
                                     {formErrors.type}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label
+                                htmlFor="location"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                location <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                                id="location"
+                                name="location"
+                                value={formData.location}
+                                onChange={handleInputChange}
+                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    formErrors.location
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                }`}
+                                placeholder="Enter location"
+                            />
+                            {formErrors.location && (
+                                <p className="text-xs text-red-600">
+                                    {formErrors.location}
                                 </p>
                             )}
                         </div>

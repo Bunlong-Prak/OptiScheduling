@@ -58,7 +58,7 @@ const courseSchema = z.object({
         .regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, {
             message: "Color must be a valid hex color (e.g., #FF0000)",
         }),
-    duration: z.number().min(1, { message: "Duration is required" }),
+    duration: z.number().min(0, { message: "Duration is required" }),
     // Capacity: Required
     capacity: z.number().min(1, { message: "Capacity is required" }),
     // Sections array: Required, at least one section (now includes status and splitDurations)

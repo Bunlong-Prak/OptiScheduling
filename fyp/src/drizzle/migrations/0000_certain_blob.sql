@@ -8,8 +8,10 @@ CREATE TABLE `classroom_types` (
 --> statement-breakpoint
 CREATE TABLE `classrooms` (
 	`id` int AUTO_INCREMENT NOT NULL,
+	`name` varchar(255),
 	`code` varchar(255) NOT NULL,
 	`capacity` int NOT NULL,
+	`location` varchar(255) NOT NULL,
 	`classroom_type_id` int NOT NULL,
 	CONSTRAINT `classrooms_id` PRIMARY KEY(`id`)
 );
@@ -18,7 +20,7 @@ CREATE TABLE `course_hours` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`day` varchar(50),
 	`time_slot` varchar(50),
-	`separated_duration` int,
+	`separated_duration` float,
 	`classroom_id` int,
 	`section_id` int NOT NULL,
 	CONSTRAINT `course_hours_id` PRIMARY KEY(`id`)
@@ -30,7 +32,7 @@ CREATE TABLE `courses` (
 	`code` varchar(50) NOT NULL,
 	`color` varchar(50),
 	`capacity` int NOT NULL,
-	`duration` int NOT NULL,
+	`duration` float NOT NULL,
 	`schedule_id` int NOT NULL,
 	`major_id` int NOT NULL,
 	CONSTRAINT `courses_id` PRIMARY KEY(`id`)
@@ -59,6 +61,7 @@ CREATE TABLE `instructor_time_constraint_time_slots` (
 --> statement-breakpoint
 CREATE TABLE `instructors` (
 	`id` int AUTO_INCREMENT NOT NULL,
+	`instructor_id` varchar(100) NOT NULL,
 	`first_name` varchar(255) NOT NULL,
 	`last_name` varchar(255) NOT NULL,
 	`gender` varchar(50) NOT NULL,

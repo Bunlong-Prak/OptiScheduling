@@ -13,6 +13,8 @@ export type Major = {
 
 export type Classroom = {
     id: number;
+    name: string;
+    location: string;
     code: string;
     capacity: number;
     type: string;
@@ -27,6 +29,7 @@ export type ClassroomType = {
 
 export type Instructor = {
     id: number;
+    instructor_id: string; // Unique identifier for the instructor
     first_name: string;
     last_name: string;
     gender: string;
@@ -89,6 +92,7 @@ export type CourseFormData = {
 };
 
 export type InstructorFormData = {
+    instructor_id: string; // Unique identifier for the instructor
     first_name: string;
     last_name: string;
     gender: string;
@@ -97,6 +101,8 @@ export type InstructorFormData = {
 };
 
 export type ClassroomFormData = {
+    location: string; // String for form input, will be validated
+    name?: string; // Optional for form input, will be validated
     code: string;
     type: string;
     capacity: string; // String for form input, will be converted to number

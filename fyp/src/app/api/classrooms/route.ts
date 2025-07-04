@@ -1,12 +1,14 @@
 import { classrooms, classroomTypes } from "@/drizzle/schema";
 import { db } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 // Updated validation schemas to include scheduleId
 const createClassroomSchema = z.object({
     code: z.string().min(1, "Classroom code is required"),
+    name: z.string().min(1, "Classroom name is required"),
+    location: z.string().min(1, "Classroom location is required"),
     type: z.string().min(1, "Classroom type is required"),
     capacity: z.number().min(1, "Capacity must be greater than 0"),
     scheduleId: z.string().min(1, "Schedule ID is required"),
@@ -38,6 +40,8 @@ export async function GET(request: Request) {
                     code: classrooms.code,
                     typeName: classroomTypes.name,
                     capacity: classrooms.capacity,
+                    location: classrooms.location,
+                    name: classrooms.name,
                 })
                 .from(classrooms)
                 .innerJoin(
@@ -49,6 +53,8 @@ export async function GET(request: Request) {
         // Format the response to include type name
         const formattedClassrooms = classroomTypesQuery?.map((classroom) => ({
             id: classroom.id,
+            name: classroom.name,
+            location: classroom.location,
             code: classroom.code,
             type: classroom.typeName || "Unknown Type",
             capacity: classroom.capacity,
@@ -71,7 +77,8 @@ export async function POST(request: Request) {
 
         // Validate request body and extract scheduleId
         const validatedData = createClassroomSchema.parse(body);
-        const { code, type, capacity, scheduleId } = validatedData;
+        const { name, location, code, type, capacity, scheduleId } =
+            validatedData;
 
         // Find classroom type in the specific schedule
         const classroomType = await db.query.classroomTypes.findFirst({
@@ -90,10 +97,14 @@ export async function POST(request: Request) {
 
         // Create classroom with the correct classroomTypeId
         const newClassroom = await db.insert(classrooms).values({
+            name,
             code,
             classroomTypeId: classroomType.id,
+            location,
             capacity,
         });
+
+        console.log("New classroom created:", newClassroom);
 
         return NextResponse.json(newClassroom);
     } catch (error: unknown) {
