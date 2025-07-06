@@ -97,7 +97,6 @@ type Course = {
     title: string;
     code: string;
     duration: number;
-    capacity: number;
     sections: {
         id: number;
         number: string;
@@ -130,7 +129,7 @@ type Assignment = {
     start_time: string;
     end_time: string;
     classroom_code: string;
-    classroom_id: number | null;
+    classroom_id: number;
     courseHours_id?: number;
 };
 
@@ -284,7 +283,7 @@ async function transformAssignmentsForFrontend(
         // Get the course color from the database
         const courseColor = await getCourseColor(course?.id, scheduleId);
 
-        // Calculate duration from HH:MM format
+        // FIXED: Calculate duration from HH:MM format instead of parseInt
         const [startHour, startMinute] = assignment.start_time
             .split(":")
             .map(Number);
@@ -295,7 +294,7 @@ async function transformAssignmentsForFrontend(
         const durationHours = (endTotalMinutes - startTotalMinutes) / 60;
 
         const transformedItem = {
-            id: assignment.section_id,
+            id: assignment.section_id, // Use section_id as id
             section_id: assignment.section_id,
             course_code: assignment.course_code,
             course_title: assignment.course_title,
@@ -305,16 +304,17 @@ async function transformAssignmentsForFrontend(
             start_time: assignment.start_time,
             end_time: assignment.end_time,
             classroom_code: assignment.classroom_code,
-            classroom_id: assignment.classroom_id, // Can be null for online courses
-            duration: durationHours,
-            separated_duration: durationHours,
+            classroom_id: assignment.classroom_id,
+            duration: durationHours, // FIXED: Use calculated duration in hours
+            separated_duration: durationHours, // FIXED: Use calculated duration in hours
+            // Additional fields that might be needed
             section_number: section?.number || "",
             firstName: assignment.instructor_name.split(" ")[0] || "",
             lastName:
                 assignment.instructor_name.split(" ").slice(1).join(" ") || "",
             title: assignment.course_title,
             code: assignment.course_code,
-            isOnline: assignment.classroom_id === null, // Updated condition
+            isOnline: assignment.classroom_id < 0,
         };
 
         transformedSchedule.push(transformedItem);
@@ -325,6 +325,7 @@ async function transformAssignmentsForFrontend(
     );
     return transformedSchedule;
 }
+
 async function getCourseColor(
     courseId: number | undefined,
     scheduleId: number
@@ -811,35 +812,6 @@ function scheduleSchedulingUnit(
         return null;
     }
 
-    // Step 1: Assign classroom if not already assigned
-    if (unit.classroom_id === undefined) {
-        unit.classroom_id = assignClassroomToSection(unit, classroomsData);
-    }
-
-    // For online courses, classroom_id will be null - this is valid
-    if (unit.classroom_id === null && unit.status !== "online") {
-        console.log(
-            `❌ Failed to assign classroom to offline scheduling unit ${
-                unit.section_number
-            } part ${unit.separationIndex + 1}`
-        );
-        return null;
-    }
-
-    // Step 2: Validate the classroom assignment (skip for online courses)
-    if (unit.classroom_id !== null) {
-        if (
-            !validateClassroomCapacity(unit, unit.classroom_id, classroomsData)
-        ) {
-            console.log(
-                `❌ Classroom capacity validation failed for unit ${
-                    unit.section_number
-                } part ${unit.separationIndex + 1}`
-            );
-            return null;
-        }
-    }
-
     // Get instructor info
     const instructor = instructorsData.find(
         (inst) => inst.id === unit.instructor_id
@@ -848,29 +820,50 @@ function scheduleSchedulingUnit(
         ? `${instructor.first_name} ${instructor.last_name}`
         : "Unknown";
 
-    // Get classroom info
-    let classroomCode: string;
-    if (unit.classroom_id === null) {
-        classroomCode = "Online";
-    } else {
-        const classroom = classroomsData.find(
-            (cls) => cls.id === unit.classroom_id
-        );
-        classroomCode = classroom ? classroom.code : "Unknown";
+    // Step 1: Assign classroom if not already assigned
+    if (!unit.classroom_id) {
+        unit.classroom_id = assignClassroomToSection(unit, classroomsData);
     }
+
+    if (!unit.classroom_id) {
+        console.log(
+            `Failed to assign classroom to scheduling unit ${
+                unit.section_number
+            } part ${unit.separationIndex + 1}`
+        );
+        return null;
+    }
+
+    // Get classroom info
+    const classroom = classroomsData.find(
+        (cls) => cls.id === unit.classroom_id
+    );
+    const classroomCode = classroom
+        ? classroom.code
+        : unit.classroom_id === -1
+        ? "Online"
+        : unit.classroom_id === -2
+        ? "Online"
+        : unit.classroom_id === -3
+        ? "Online"
+        : "Unknown";
 
     // Get instructor constraints
     const instructorConstraints = timeConstraints.filter(
         (constraint) => constraint.instructor_id === unit.instructor_id
     );
 
-    // Find ALL possible combinations
+    // Find ALL possible combinations (not just consecutive)
     const possibleCombinations = findPossibleTimeSlots(timeSlots, duration);
 
     if (possibleCombinations.length === 0) {
         console.log(`No possible combinations found for ${duration}h duration`);
         return null;
     }
+
+    console.log(
+        `Found ${possibleCombinations.length} possible combinations for duration ${duration} hours`
+    );
 
     // Try to schedule on each day
     const availableDays = [...DAYS];
@@ -890,12 +883,24 @@ function scheduleSchedulingUnit(
 
         // Try each possible combination
         for (const combination of possibleCombinations) {
+            // Validate the combination
+            const validation = validateTimeSlotAssignment(
+                combination,
+                duration,
+                unit.section_number
+            );
+
+            if (!validation.isValid) {
+                console.log(`❌ ${validation.message}`);
+                continue;
+            }
+
             // Check if this combination is available
             if (
                 canScheduleAtTime(
                     day,
                     combination,
-                    unit.classroom_id, // Can be null for online courses
+                    unit.classroom_id!,
                     unit.instructor_id,
                     scheduleGrid,
                     instructorGrid,
@@ -906,13 +911,14 @@ function scheduleSchedulingUnit(
                 markSlotsAsOccupied(
                     day,
                     combination,
-                    unit.classroom_id, // Can be null for online courses
+                    unit.classroom_id!,
                     unit.instructor_id,
                     unit.section_id,
                     scheduleGrid,
                     instructorGrid
                 );
 
+                // For non-consecutive combinations, we need to handle start/end times differently
                 const sortedCombination = combination.sort((a, b) => {
                     const startA = a.split("-")[0];
                     const startB = b.split("-")[0];
@@ -930,6 +936,8 @@ function scheduleSchedulingUnit(
                         unit.separationIndex + 1
                     } on ${day}`
                 );
+                console.log(`✅ Time slots: ${combination.join(", ")}`);
+                console.log(`✅ ${validation.message}`);
 
                 return {
                     section_id: unit.section_id,
@@ -940,7 +948,7 @@ function scheduleSchedulingUnit(
                     start_time: startTime,
                     end_time: endTime,
                     classroom_code: classroomCode,
-                    classroom_id: unit.classroom_id, // Can be null for online courses
+                    classroom_id: unit.classroom_id!,
                     courseHours_id: unit.courseHours_id,
                 };
             }
@@ -953,36 +961,6 @@ function scheduleSchedulingUnit(
         } part ${unit.separationIndex + 1} (${duration} hours)`
     );
     return null;
-}
-
-function validateClassroomCapacity(
-    unit: SchedulingUnit,
-    assignedClassroomId: number,
-    classroomsData: any[]
-): boolean {
-    const classroom = classroomsData.find(
-        (cls) => cls.id === assignedClassroomId
-    );
-
-    if (!classroom) {
-        console.log(`❌ Classroom with ID ${assignedClassroomId} not found`);
-        return false;
-    }
-
-    const courseCapacity = unit.course.capacity || 0;
-    const classroomCapacity = classroom.capacity;
-
-    if (classroomCapacity < courseCapacity) {
-        console.log(
-            `❌ Capacity mismatch: Course ${unit.course.code} needs ${courseCapacity} seats but classroom ${classroom.code} only has ${classroomCapacity} seats`
-        );
-        return false;
-    }
-
-    console.log(
-        `✅ Capacity validation passed: Course ${unit.course.code} (${courseCapacity} seats) fits in classroom ${classroom.code} (${classroomCapacity} seats)`
-    );
-    return true;
 }
 
 function validateTimeSlotAssignment(
@@ -1139,7 +1117,7 @@ function initializeScheduleGrid(
 ): ScheduleGrid {
     const grid = new Map<string, Slot>();
 
-    // Only add physical classrooms - no more virtual online classrooms
+    // Add physical classrooms
     for (const classroom of classroomsData) {
         for (const day of DAYS) {
             for (const timeSlot of timeSlots) {
@@ -1154,49 +1132,58 @@ function initializeScheduleGrid(
         }
     }
 
+    // Add virtual online classrooms with negative IDs
+    const onlineClassroomIds = [-1, -2, -3];
+    for (const onlineId of onlineClassroomIds) {
+        for (const day of DAYS) {
+            for (const timeSlot of timeSlots) {
+                const key = `${day}-${onlineId}-${timeSlot}`;
+                grid.set(key, {
+                    day,
+                    timeSlot,
+                    classroom_id: onlineId,
+                    isAvailable: true,
+                });
+            }
+        }
+    }
+
     return grid;
 }
 
 function assignClassroomToSection(
-    unit: SchedulingUnit,
+    section: any,
     classroomsData: any[]
 ): number | null {
-    console.log(
-        `Assigning classroom to section ${unit.section_number} of course ${unit.course.code}`
-    );
+    console.log(`Assigning classroom to section ${section.number}`);
 
     // Check if the section is online
-    if (unit.status === "online") {
-        console.log(
-            `Section ${unit.section_number} is online - setting classroom_id to null`
+    if (section.status === "online") {
+        // Randomly assign to one of the 3 online "classrooms" using negative IDs
+        const onlineClassroomIds = [-1, -2, -3];
+        const randomIndex = Math.floor(
+            Math.random() * onlineClassroomIds.length
         );
-        return null; // Return null instead of negative ID
+        console.log(
+            `Assigned online section to Online Classroom ${Math.abs(
+                onlineClassroomIds[randomIndex]
+            )}`
+        );
+        return onlineClassroomIds[randomIndex];
     }
 
-    // For offline courses, filter classrooms by capacity
-    const courseCapacity = unit.course.capacity || 0;
+    // For offline courses, proceed with normal classroom assignment
     const suitableClassrooms = classroomsData.filter(
-        (classroom) => classroom.capacity >= courseCapacity
-    );
-
-    console.log(
-        `Course ${unit.course.code} requires capacity: ${courseCapacity}. Found ${suitableClassrooms.length} suitable classrooms out of ${classroomsData.length} total.`
+        (classroom) => classroom.capacity >= (section.course.capacity || 0)
     );
 
     if (suitableClassrooms.length === 0) {
-        console.log(
-            `❌ No suitable classrooms found for course ${unit.course.code} (capacity: ${courseCapacity})`
-        );
+        console.log("No suitable classrooms found");
         return null;
     }
 
-    // Randomly select from suitable classrooms
     const randomIndex = Math.floor(Math.random() * suitableClassrooms.length);
     const assignedClassroom = suitableClassrooms[randomIndex];
-
-    console.log(
-        `✅ Assigned classroom ${assignedClassroom.code} (capacity: ${assignedClassroom.capacity}) to course ${unit.course.code} (required: ${courseCapacity})`
-    );
 
     return assignedClassroom.id;
 }
@@ -1604,28 +1591,26 @@ function removeDuplicateCombinations(combinations: string[][]): string[][] {
 function canScheduleAtTime(
     day: string,
     slotCombination: string[],
-    classroomId: number | null, // Updated to allow null
-    instructorId: number,
+    classroomId: number,
+    instructorId: number, // NEW: Added instructor ID parameter
     scheduleGrid: ScheduleGrid,
-    instructorGrid: InstructorGrid,
+    instructorGrid: InstructorGrid, // NEW: Added instructor grid parameter
     instructorAvailableSlots?: string[]
 ): boolean {
-    // Check if all required slots are available
+    // Check if all required slots are available in the classroom
     for (const timeSlot of slotCombination) {
-        // Check classroom availability (skip for online courses)
-        if (classroomId !== null) {
-            const classroomKey = `${day}-${classroomId}-${timeSlot}`;
-            const classroomSlot = scheduleGrid.get(classroomKey);
+        // Check classroom availability
+        const classroomKey = `${day}-${classroomId}-${timeSlot}`;
+        const classroomSlot = scheduleGrid.get(classroomKey);
 
-            if (!classroomSlot || !classroomSlot.isAvailable) {
-                console.log(
-                    `❌ Classroom ${classroomId} not available at ${day} ${timeSlot}`
-                );
-                return false;
-            }
+        if (!classroomSlot || !classroomSlot.isAvailable) {
+            console.log(
+                `❌ Classroom ${classroomId} not available at ${day} ${timeSlot}`
+            );
+            return false;
         }
 
-        // Check instructor availability
+        // NEW: Check instructor availability
         const instructorKey = `${day}-${instructorId}-${timeSlot}`;
         const instructorSlot = instructorGrid.get(instructorKey);
 
@@ -1648,10 +1633,8 @@ function canScheduleAtTime(
         }
     }
 
-    const classroomInfo =
-        classroomId !== null ? `classroom ${classroomId}` : "online";
     console.log(
-        `✅ Both ${classroomInfo} and instructor ${instructorId} available for ${day} ${slotCombination.join(
+        `✅ Both classroom ${classroomId} and instructor ${instructorId} available for ${day} ${slotCombination.join(
             ","
         )}`
     );
@@ -1662,25 +1645,23 @@ function canScheduleAtTime(
 function markSlotsAsOccupied(
     day: string,
     slotCombination: string[],
-    classroomId: number | null, // Updated to allow null
-    instructorId: number,
+    classroomId: number,
+    instructorId: number, // NEW: Added instructor ID parameter
     sectionId: number,
     scheduleGrid: ScheduleGrid,
-    instructorGrid: InstructorGrid
+    instructorGrid: InstructorGrid // NEW: Added instructor grid parameter
 ): void {
     for (const timeSlot of slotCombination) {
-        // Mark classroom slot as occupied (skip for online courses)
-        if (classroomId !== null) {
-            const classroomKey = `${day}-${classroomId}-${timeSlot}`;
-            const classroomSlot = scheduleGrid.get(classroomKey);
+        // Mark classroom slot as occupied
+        const classroomKey = `${day}-${classroomId}-${timeSlot}`;
+        const classroomSlot = scheduleGrid.get(classroomKey);
 
-            if (classroomSlot) {
-                classroomSlot.isAvailable = false;
-                classroomSlot.assigned_section_id = sectionId;
-            }
+        if (classroomSlot) {
+            classroomSlot.isAvailable = false;
+            classroomSlot.assigned_section_id = sectionId;
         }
 
-        // Mark instructor slot as occupied
+        // NEW: Mark instructor slot as occupied
         const instructorKey = `${day}-${instructorId}-${timeSlot}`;
         const instructorSlot = instructorGrid.get(instructorKey);
 
@@ -1746,8 +1727,10 @@ async function insertAndUpdateCourseHours(
         let insertedCount = 0;
         const errors: any[] = [];
 
+        // Process each assignment to update existing course hours
         for (const assignment of assignments) {
             try {
+                // Keep the HH:MM format for time slot
                 const timeSlotFormat = `${assignment.start_time} - ${assignment.end_time}`;
 
                 // Calculate duration in hours from HH:MM format
@@ -1763,17 +1746,20 @@ async function insertAndUpdateCourseHours(
                 const durationHours =
                     (endTotalMinutes - startTotalMinutes) / 60;
 
-                // For online courses, classroom_id is already null
-                const classroomIdToStore = assignment.classroom_id; // No conversion needed
+                // Check if this is an online course and set classroom_id accordingly
+                const isOnlineCourse = assignment.classroom_id < 0; // Online courses have negative classroom IDs
+                const classroomIdToStore = isOnlineCourse
+                    ? null
+                    : assignment.classroom_id;
 
                 if (assignment.courseHours_id) {
-                    // Update existing courseHours record
+                    // Update existing courseHours record using the courseHours_id
                     const result = await db
                         .update(courseHours)
                         .set({
                             day: assignment.day,
                             timeSlot: timeSlotFormat,
-                            classroomId: classroomIdToStore, // null for online courses
+                            classroomId: classroomIdToStore, // Set to null for online courses
                         })
                         .where(eq(courseHours.id, assignment.courseHours_id));
 
@@ -1789,12 +1775,12 @@ async function insertAndUpdateCourseHours(
                         })`
                     );
                 } else {
-                    // Insert new courseHours record
+                    // Insert new courseHours record if no ID exists
                     const insertResult = await db.insert(courseHours).values({
                         day: assignment.day,
                         timeSlot: timeSlotFormat,
                         separatedDuration: durationHours,
-                        classroomId: classroomIdToStore, // null for online courses
+                        classroomId: classroomIdToStore, // Set to null for online courses
                         sectionId: assignment.section_id,
                     });
 
@@ -1849,6 +1835,7 @@ async function insertAndUpdateCourseHours(
         };
     }
 }
+
 // Replace your original storeScheduleInDatabase function with this
 async function storeScheduleInDatabase(
     assignments: Assignment[],

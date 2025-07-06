@@ -135,22 +135,6 @@ export async function POST(request: Request) {
         );
 
         // Set day, timeSlot, and classroomId to null for missing course hours
-        if (courseHoursToNull.length > 0) {
-            console.log(
-                `Setting ${courseHoursToNull.length} course hours to null values`
-            );
-
-            for (const courseHour of courseHoursToNull) {
-                await db
-                    .update(courseHours)
-                    .set({
-                        day: null,
-                        timeSlot: null,
-                        classroomId: null,
-                    })
-                    .where(eq(courseHours.id, courseHour.id));
-            }
-        }
 
         // Process each assignment
         for (const assignment of body) {
