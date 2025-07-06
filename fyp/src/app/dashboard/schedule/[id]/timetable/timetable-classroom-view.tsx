@@ -702,11 +702,10 @@ export default function TimetableViewClassroom() {
                         }
                     }
 
-                    const originalDuration = parseInt(
+                    const originalDuration = parseFloat(
                         assignment.separatedDuration ||
                             assignment.duration ||
-                            "1",
-                        10
+                            "1"
                     );
 
                     if (!courseHourId || !day || !startTime) {
@@ -1296,23 +1295,6 @@ export default function TimetableViewClassroom() {
                 console.log(`✅ Exact match: ${totalAccumulatedDuration}h`);
                 canAccommodate = true;
                 break;
-            }
-
-            // Check if we have enough duration (with small tolerance)
-            if (totalAccumulatedDuration >= courseDurationHours) {
-                const excess = totalAccumulatedDuration - courseDurationHours;
-                const tolerance = 0.25; // 15 minutes
-
-                if (excess <= tolerance) {
-                    console.log(`✅ Acceptable excess: ${excess}h`);
-                    canAccommodate = true;
-                    break;
-                } else {
-                    console.log(
-                        `❌ Too much excess: ${excess}h > ${tolerance}h`
-                    );
-                    break;
-                }
             }
         }
 
