@@ -464,9 +464,9 @@ export async function PATCH(request: Request) {
                 .where(eq(courses.id, courseId));
         }
 
-        // STEP 2: Update section-specific data (only affects the specific section being edited)
+        // STEP 2: Update ONLY the specific section being edited
         if (sectionsList && sectionsList.length > 0) {
-            // We should only have one section in the list since we're editing a specific section
+            // Only process the first section since we're editing one specific section
             const sectionData = sectionsList[0];
             const { section, instructorId, status, splitDurations } =
                 sectionData;
@@ -495,13 +495,13 @@ export async function PATCH(request: Request) {
                 .where(eq(sections.id, sectionId));
 
             // STEP 3: Update courseHours for this specific section
-            if (splitDurations && splitDurations.length > 0) {
-                // Delete existing courseHours for this specific section only
-                await db
-                    .delete(courseHours)
-                    .where(eq(courseHours.sectionId, sectionId));
+            // Always delete existing courseHours for this section first
+            await db
+                .delete(courseHours)
+                .where(eq(courseHours.sectionId, sectionId));
 
-                // Insert new courseHours for this specific section
+            if (splitDurations && splitDurations.length > 0) {
+                // Insert new courseHours based on split durations
                 for (const timeSlot of splitDurations) {
                     const { separatedDuration } = timeSlot;
 
@@ -515,24 +515,24 @@ export async function PATCH(request: Request) {
 
                     await db.insert(courseHours).values({
                         separatedDuration: durationToUse,
-                        sectionId: sectionId, // Only for this specific section
+                        sectionId: sectionId,
                     });
                 }
             } else {
-                // If no split durations provided, just update existing courseHours duration
-                // This handles the case where course duration changed but no splits
-                if (duration !== undefined) {
-                    await db
-                        .update(courseHours)
-                        .set({ separatedDuration: duration })
-                        .where(eq(courseHours.sectionId, sectionId));
-                }
+                // No split durations, create single courseHour with course duration
+                const durationToUse =
+                    duration !== undefined ? duration : existingCourse.duration;
+
+                await db.insert(courseHours).values({
+                    separatedDuration: durationToUse,
+                    sectionId: sectionId,
+                });
             }
         }
 
         // STEP 4: If course duration changed, update courseHours for ALL OTHER sections
         // (but only if they don't have custom split durations)
-        if (duration !== undefined) {
+        if (duration !== undefined && duration !== existingCourse.duration) {
             // Get all other sections for this course
             const allOtherSections = await db
                 .select({ id: sections.id })
@@ -548,7 +548,7 @@ export async function PATCH(request: Request) {
             for (const otherSection of allOtherSections) {
                 // Check if this section has multiple courseHours (indicating custom splits)
                 const courseHoursCount = await db
-                    .select({ count: courseHours.id })
+                    .select({ id: courseHours.id })
                     .from(courseHours)
                     .where(eq(courseHours.sectionId, otherSection.id));
 

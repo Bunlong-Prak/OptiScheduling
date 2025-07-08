@@ -1097,19 +1097,11 @@ export default function CoursesView() {
             );
         }
 
-        // Validate separated duration
-        const separatedDuration = Number(row.separated_duration);
-        if (
-            !row.separated_duration ||
-            isNaN(separatedDuration) ||
-            separatedDuration <= 0
-        ) {
-            errors.push(
-                `Row ${
-                    rowIndex + 1
-                }: Separated duration must be a valid positive number`
-            );
-        }
+   // In validateCourseData function, change separated_duration validation to:
+const separatedDuration = Number(row.separated_duration || row.duration);
+if (isNaN(separatedDuration) || separatedDuration <= 0) {
+    errors.push(`Row ${rowIndex + 1}: Separated duration must be a valid positive number`);
+}
 
         // Validate capacity
         const capacity = Number(row.capacity);
@@ -1456,17 +1448,9 @@ export default function CoursesView() {
         try {
             // Create CSV header to match the actual Course structure from your API
             const headers = [
-                "code",
-                "title",
-                "major",
-                "color",
-                "status", // "online" or "offline"
-                "duration", // Course duration
-                "separated_duration", // Individual section duration
-                "capacity",
-                "section",
-                "classroom",
-                "instructor_name",
+                "code", "title", "major", "color", "status",
+                "duration", "separated_duration", "capacity", 
+                "section", "classroom", "instructor_name"
             ];
 
             // Convert courses data to CSV rows (one row per section)
@@ -2464,7 +2448,7 @@ export default function CoursesView() {
             </Dialog>
 
             {/* Edit Course Dialog - Complete */}
-            {/* Edit Course Dialog - Updated to match Add Dialog structure */}
+       
             <Dialog
                 open={isEditDialogOpen}
                 onOpenChange={(open) => {
@@ -2572,42 +2556,52 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label
-                                    htmlFor="edit-duration"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    Duration (hours)
-                                </Label>
-                                <Input
-                                    id="edit-duration"
-                                    name="duration"
-                                    type="number"
-                                    min="1"
-                                    value={formData.duration}
-                                    onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label
-                                    htmlFor="edit-capacity"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    Capacity
-                                </Label>
-                                <Input
-                                    id="edit-capacity"
-                                    name="capacity"
-                                    type="number"
-                                    min="1"
-                                    value={formData.capacity}
-                                    onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                />
-                            </div>
-                        </div>
+                   
+<div className="grid gap-4">
+    <div className="space-y-2">
+        <Label className="text-sm font-medium text-gray-700">
+            Duration
+        </Label>
+        <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+                <Label htmlFor="edit-duration-hours" className="text-xs text-gray-600">
+                    Hours
+                </Label>
+                <Input
+                    id="edit-duration-hours"
+                    name="durationHours"
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={durationHours}
+                    onChange={handleInputChange}
+                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                    placeholder="0"
+                />
+            </div>
+            <div className="space-y-1">
+                <Label htmlFor="edit-duration-minutes" className="text-xs text-gray-600">
+                    Minutes
+                </Label>
+                <Input
+                    id="edit-duration-minutes"
+                    name="durationMinutes"
+                    type="number"
+                    min="0"
+                    max="59"
+                    step="5"
+                    value={durationMinutes}
+                    onChange={handleInputChange}
+                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                    placeholder="0"
+                />
+            </div>
+        </div>
+        <div className="text-xs text-gray-500">
+            Total: {durationHours}h {durationMinutes}m ({formData.duration.toFixed(2)} hours)
+        </div>
+    </div>
+</div>
 
                         {/* Sections */}
                         <div className="space-y-4">
@@ -2621,111 +2615,7 @@ export default function CoursesView() {
                                 </p>
                             </div>
 
-                            {/* Add Section Form */}
-                            <div className="grid gap-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label
-                                            htmlFor="edit-section"
-                                            className="text-sm font-medium text-gray-700"
-                                        >
-                                            Section Number
-                                        </Label>
-                                        <Input
-                                            id="edit-section"
-                                            placeholder="Enter section number"
-                                            value={currentSection}
-                                            onChange={(e) =>
-                                                setCurrentSection(
-                                                    e.target.value
-                                                )
-                                            }
-                                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label
-                                            htmlFor="edit-section-instructor"
-                                            className="text-sm font-medium text-gray-700"
-                                        >
-                                            Instructor
-                                        </Label>
-                                        <Popover
-                                            open={currentInstructorOpen}
-                                            onOpenChange={
-                                                setCurrentInstructorOpen
-                                            }
-                                        >
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    role="combobox"
-                                                    className="w-full justify-between border-gray-300 text-sm"
-                                                >
-                                                    {currentInstructor?.name ||
-                                                        "Select instructor..."}
-                                                    <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-full p-0">
-                                                <Command>
-                                                    <CommandInput placeholder="Search instructor..." />
-                                                    <CommandEmpty>
-                                                        No instructor found.
-                                                    </CommandEmpty>
-                                                    <CommandGroup>
-                                                        {instructors.map(
-                                                            (instructor) => (
-                                                                <CommandItem
-                                                                    key={
-                                                                        instructor.id
-                                                                    }
-                                                                    value={`${instructor.first_name} ${instructor.last_name}`}
-                                                                    onSelect={() => {
-                                                                        setCurrentInstructor(
-                                                                            {
-                                                                                id: instructor.id.toString(),
-                                                                                name: `${instructor.first_name} ${instructor.last_name}`,
-                                                                            }
-                                                                        );
-                                                                        setCurrentInstructorOpen(
-                                                                            false
-                                                                        );
-                                                                    }}
-                                                                >
-                                                                    <Check
-                                                                        className={`mr-2 h-3 w-3 ${
-                                                                            currentInstructor?.id ===
-                                                                            instructor.id.toString()
-                                                                                ? "opacity-100"
-                                                                                : "opacity-0"
-                                                                        }`}
-                                                                    />
-                                                                    {
-                                                                        instructor.first_name
-                                                                    }{" "}
-                                                                    {
-                                                                        instructor.last_name
-                                                                    }
-                                                                </CommandItem>
-                                                            )
-                                                        )}
-                                                    </CommandGroup>
-                                                </Command>
-                                            </PopoverContent>
-                                        </Popover>
-                                    </div>
-                                </div>
-                                <Button
-                                    onClick={addSection}
-                                    disabled={!currentSection}
-                                    className="w-full bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm"
-                                >
-                                    <Plus className="h-3 w-3 mr-2" /> Add
-                                    Section
-                                </Button>
-                            </div>
-
+                        
                             {/* Sections List - Now appears after the add section form */}
                             {sections.length > 0 && (
                                 <div className="space-y-2">
@@ -2815,175 +2705,262 @@ export default function CoursesView() {
                                                 </Popover>
                                             </div>
 
-                                            {/* Split Duration Controls */}
-                                            <div className="mt-4 mb-4 space-y-3">
-                                                <div className="flex justify-between items-center mb-3">
-                                                    <Label className="text-xs text-gray-700 mr-2">
-                                                        Split Duration
-                                                    </Label>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            toggleSectionSplitControls(
-                                                                section.id
-                                                            )
-                                                        }
-                                                        className="text-xs ml-2"
-                                                    >
-                                                        {section.showSplitControls
-                                                            ? "Hide Split"
-                                                            : "Split Duration"}
-                                                    </Button>
-                                                </div>
+                                           
+{/* Split Duration Controls */}
+<div className="mt-4 mb-4 space-y-3">
+    <div className="flex justify-between items-center mb-3">
+        <Label className="text-xs text-gray-700 mr-2">
+            Split Duration
+        </Label>
+        <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+                toggleSectionSplitControls(
+                    section.id
+                )
+            }
+            className="text-xs ml-2"
+        >
+            {section.showSplitControls
+                ? "Hide Split"
+                : "Split Duration"}
+        </Button>
+    </div>
 
-                                                {section.showSplitControls && (
-                                                    <div className="mt-4 mb-4">
-                                                        <div className="text-xs text-gray-600 mb-3">
-                                                            Original Duration:{" "}
-                                                            {formData.duration}{" "}
-                                                            hours
-                                                        </div>
+    {section.showSplitControls && (
+        <div className="mt-4 mb-4">
+            <div className="text-xs text-gray-600 mb-3">
+                Original Duration:{" "}
+                {durationHours}h{" "}
+                {durationMinutes}m (
+                {formData.duration.toFixed(
+                    2
+                )}{" "}
+                hours)
+            </div>
 
-                                                        {section.splitDurations.map(
-                                                            (
-                                                                duration,
-                                                                index
-                                                            ) => (
-                                                                <div
-                                                                    key={index}
-                                                                    className="flex items-center gap-2 mb-3"
-                                                                >
-                                                                    <Label className="text-xs w-12 mr-2">
-                                                                        Part{" "}
-                                                                        {index +
-                                                                            1}
-                                                                        :
-                                                                    </Label>
-                                                                    <Input
-                                                                        type="number"
-                                                                        min="1"
-                                                                        value={
-                                                                            duration
-                                                                        }
-                                                                        onChange={(
-                                                                            e
-                                                                        ) =>
-                                                                            updateSectionSplitDuration(
-                                                                                section.id,
-                                                                                index,
-                                                                                parseInt(
-                                                                                    e
-                                                                                        .target
-                                                                                        .value
-                                                                                ) ||
-                                                                                    1
-                                                                            )
-                                                                        }
-                                                                        className={`w-16 text-xs transition-colors mx-1 ${
-                                                                            isSectionSplitValid(
-                                                                                section.id
-                                                                            )
-                                                                                ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
-                                                                                : "border-red-300 bg-red-50"
-                                                                        }`}
-                                                                    />
-                                                                    <span className="text-xs text-gray-500 mx-1">
-                                                                        hours
-                                                                    </span>
-                                                                    {section
-                                                                        .splitDurations
-                                                                        .length >
-                                                                        1 && (
-                                                                        <Button
-                                                                            variant="outline"
-                                                                            size="sm"
-                                                                            onClick={() =>
-                                                                                removeSectionSplit(
-                                                                                    section.id,
-                                                                                    index
-                                                                                )
-                                                                            }
-                                                                            className="h-6 w-6 p-0 ml-2"
-                                                                        >
-                                                                            <Minus className="h-3 w-3" />
-                                                                        </Button>
-                                                                    )}
-                                                                </div>
-                                                            )
-                                                        )}
+            {section.splitDurations.map(
+                (
+                    duration,
+                    index
+                ) => {
+                    const {
+                        hours,
+                        minutes,
+                    } =
+                        convertSplitDurationToHoursMinutes(
+                            duration
+                        );
+                    return (
+                        <div
+                            key={
+                                index
+                            }
+                            className="flex items-center gap-2 mb-3"
+                        >
+                            <Label className="text-xs w-12 mr-2">
+                                Part{" "}
+                                {index +
+                                    1}
+                                :
+                            </Label>
 
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() =>
-                                                                addSectionSplit(
-                                                                    section.id
-                                                                )
-                                                            }
-                                                            className="w-full text-xs mt-3 mb-4"
-                                                        >
-                                                            <Plus className="h-3 w-3 mr-1" />
-                                                            Add Another Part
-                                                        </Button>
+                            {/* Hours Input */}
+                            <div className="flex flex-col items-center">
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    max="23"
+                                    value={
+                                        hours
+                                    }
+                                    onChange={(
+                                        e
+                                    ) =>
+                                        updateSectionSplitDurationHours(
+                                            section.id,
+                                            index,
+                                            parseInt(
+                                                e
+                                                    .target
+                                                    .value
+                                            ) ||
+                                                0
+                                        )
+                                    }
+                                    className={`w-20 text-xs transition-colors ${
+                                        isSectionSplitValid(
+                                            section.id
+                                        )
+                                            ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
+                                            : "border-red-300 bg-red-50"
+                                    }`}
+                                    placeholder="0"
+                                />
+                                <span className="text-xs text-gray-500 mt-1">
+                                    h
+                                </span>
+                            </div>
 
-                                                        <div
-                                                            className={`text-xs p-3 rounded transition-colors mt-4 ${
-                                                                isSectionSplitValid(
-                                                                    section.id
-                                                                )
-                                                                    ? "bg-green-100 border border-green-200"
-                                                                    : "bg-red-50 border border-red-200"
-                                                            }`}
-                                                        >
-                                                            <div className="flex justify-between items-center mb-2">
-                                                                <span className="mr-2">
-                                                                    Total
-                                                                    Duration:
-                                                                </span>
-                                                                <span
-                                                                    className={`font-bold text-sm ml-2 ${
-                                                                        isSectionSplitValid(
-                                                                            section.id
-                                                                        )
-                                                                            ? "text-green-700"
-                                                                            : "text-red-700"
-                                                                    }`}
-                                                                >
-                                                                    {getSectionTotalSplitDuration(
-                                                                        section.id
-                                                                    )}{" "}
-                                                                    /{" "}
-                                                                    {
-                                                                        formData.duration
-                                                                    }{" "}
-                                                                    hours
-                                                                </span>
-                                                            </div>
-                                                            {isSectionSplitValid(
-                                                                section.id
-                                                            ) ? (
-                                                                <div className="text-green-700 text-xs mt-2 flex items-center">
-                                                                    <Check className="h-3 w-3 mr-2" />
-                                                                    Duration
-                                                                    split is
-                                                                    valid
-                                                                </div>
-                                                            ) : (
-                                                                <div className="text-red-700 text-xs mt-2">
-                                                                    Total must
-                                                                    equal course
-                                                                    duration (
-                                                                    {
-                                                                        formData.duration
-                                                                    }{" "}
-                                                                    hours)
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
+                            {/* Minutes Input */}
+                            <div className="flex flex-col items-center">
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    max="59"
+                                    step="5"
+                                    value={
+                                        minutes
+                                    }
+                                    onChange={(
+                                        e
+                                    ) =>
+                                        updateSectionSplitDurationMinutes(
+                                            section.id,
+                                            index,
+                                            parseInt(
+                                                e
+                                                    .target
+                                                    .value
+                                            ) ||
+                                                0
+                                        )
+                                    }
+                                    className={`w-20 text-xs transition-colors ${
+                                        isSectionSplitValid(
+                                            section.id
+                                        )
+                                            ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
+                                            : "border-red-300 bg-red-50"
+                                    }`}
+                                    placeholder="0"
+                                />
+                                <span className="text-xs text-gray-500 mt-1">
+                                    m
+                                </span>
+                            </div>
+
+                            {/* Total for this part */}
+                            <span className="text-xs text-gray-500 mx-2">
+                                (
+                                {duration.toFixed(
+                                    2
+                                )}
+                                h
+                                total)
+                            </span>
+
+                            {/* Remove button */}
+                            {section
+                                .splitDurations
+                                .length >
+                                1 && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                        removeSectionSplit(
+                                            section.id,
+                                            index
+                                        )
+                                    }
+                                    className="h-6 w-6 p-0 ml-2"
+                                >
+                                    <Minus className="h-3 w-3" />
+                                </Button>
+                            )}
+                        </div>
+                    );
+                }
+            )}
+
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                    addSectionSplit(
+                        section.id
+                    )
+                }
+                className="w-full text-xs mt-3 mb-4"
+            >
+                <Plus className="h-3 w-3 mr-1" />
+                Add Another Part
+            </Button>
+
+            <div
+                className={`text-xs p-3 rounded transition-colors mt-4 ${
+                    isSectionSplitValid(
+                        section.id
+                    )
+                        ? "bg-green-100 border border-green-200"
+                        : "bg-red-50 border border-red-200"
+                }`}
+            >
+                <div className="flex justify-between items-center mb-2">
+                    <span className="mr-2">
+                        Total
+                        Duration:
+                    </span>
+                    <span
+                        className={`font-bold text-sm ml-2 ${
+                            isSectionSplitValid(
+                                section.id
+                            )
+                                ? "text-green-700"
+                                : "text-red-700"
+                        }`}
+                    >
+                        {(() => {
+                            const totalDecimal =
+                                getSectionTotalSplitDuration(
+                                    section.id
+                                );
+                            const {
+                                hours: totalHours,
+                                minutes:
+                                    totalMinutes,
+                            } =
+                                convertSplitDurationToHoursMinutes(
+                                    totalDecimal
+                                );
+                            return `${totalHours}h ${totalMinutes}m (${totalDecimal.toFixed(
+                                2
+                            )}) / ${durationHours}h ${durationMinutes}m (${formData.duration.toFixed(
+                                2
+                            )})`;
+                        })()}
+                    </span>
+                </div>
+                {isSectionSplitValid(
+                    section.id
+                ) ? (
+                    <div className="text-green-700 text-xs mt-2 flex items-center">
+                        <Check className="h-3 w-3 mr-2" />
+                        Duration
+                        split is
+                        valid
+                    </div>
+                ) : (
+                    <div className="text-red-700 text-xs mt-2">
+                        Total must
+                        equal course
+                        duration (
+                        {
+                            durationHours
+                        }
+                        h{" "}
+                        {
+                            durationMinutes
+                        }
+                        m)
+                    </div>
+                )}
+            </div>
+        </div>
+    )}
+</div>
 
                                             <div className="mt-2">
                                                 <Label className="text-xs text-gray-700">
