@@ -1,7 +1,7 @@
 "use client";
 
 import type { Instructor, InstructorFormData } from "@/app/types";
-import CustomPagination from "@/components/custom/pagination"; // Importing the Pagination component
+import CustomPagination from "@/components/custom/pagination";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -30,11 +30,12 @@ import Papa from "papaparse";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-const ITEMS_PER_PAGE = 20; // Define how many items to show per page
+
+const ITEMS_PER_PAGE = 20;
 
 export default function InstructorsView() {
+    const params = useParams();
     const [instructors, setInstructors] = useState<Instructor[]>([]);
-
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -42,8 +43,7 @@ export default function InstructorsView() {
         text: string;
         type: "success" | "error";
     } | null>(null);
-    const [selectedInstructor, setSelectedInstructor] =
-        useState<Instructor | null>(null);
+    const [selectedInstructor, setSelectedInstructor] = useState<Instructor | null>(null);
     const [formData, setFormData] = useState<InstructorFormData>({
         instructor_id: "",
         first_name: "",
@@ -52,32 +52,9 @@ export default function InstructorsView() {
         email: "",
         phone_number: "",
     });
-    const [currentPage, setCurrentPage] = useState(1); // Add current page state
+    const [currentPage, setCurrentPage] = useState(1);
 
-    // Fetch instructors from API
-    const fetchInstructors = async () => {
-        try {
-            const scheduleId = params.id;
-            const response = await fetch(
-                `/api/instructors/?scheduleId=${scheduleId}`
-            );
-            if (!response.ok) {
-                throw new Error("Failed to fetch instructors");
-            }
-            const data = await response.json();
-            setInstructors(data);
-            // Reset to first page when data changes
-            setCurrentPage(1);
-        } catch (error) {
-            console.error("Error fetching instructors:", error);
-            setStatusMessage({
-                text: "Failed to load instructors. Please try again.",
-                type: "error",
-            });
-        }
-    };
-
-    // Add these to your existing state variables
+    // Import state
     const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
     const [importFile, setImportFile] = useState<File | null>(null);
     const [importProgress, setImportProgress] = useState<{
@@ -92,353 +69,24 @@ export default function InstructorsView() {
         isImporting: false,
     });
 
-    // Types for CSV data
-    interface CSVInstructorRow {
-        first_name: string;
-        last_name: string;
-        gender: string;
-        email: string;
-        phone_number: string;
-    }
-    // Validation function
-    const validateInstructorData = (
-        row: any,
-        rowIndex: number
-    ): CSVInstructorRow | string => {
-        const errors: string[] = [];
-
-        // Check required fields
-        if (
-            !row.first_name ||
-            typeof row.first_name !== "string" ||
-            row.first_name.trim() === ""
-        ) {
-            errors.push(`Row ${rowIndex + 1}: First name is required`);
-        }
-
-        if (
-            !row.last_name ||
-            typeof row.last_name !== "string" ||
-            row.last_name.trim() === ""
-        ) {
-            errors.push(`Row ${rowIndex + 1}: Last name is required`);
-        }
-
-        if (
-            !row.email ||
-            typeof row.email !== "string" ||
-            row.email.trim() === ""
-        ) {
-            errors.push(`Row ${rowIndex + 1}: Email is required`);
-        } else {
-            // Basic email validation
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(row.email.trim())) {
-                errors.push(`Row ${rowIndex + 1}: Invalid email format`);
-            }
-        }
-
-        if (
-            !row.gender ||
-            typeof row.gender !== "string" ||
-            row.gender.trim() === ""
-        ) {
-            errors.push(`Row ${rowIndex + 1}: Gender is required`);
-        } else {
-            const validGenders = ["Male", "Female", "male", "female"];
-            if (!validGenders.includes(row.gender.trim())) {
-                errors.push(
-                    `Row ${rowIndex + 1}: Gender must be 'Male' or 'Female'`
-                );
-            }
-        }
-
-        if (row.phone_number && typeof row.phone_number !== "string") {
-            errors.push(`Row ${rowIndex + 1}: Phone number must be a string`);
-        }
-
-        if (errors.length > 0) {
-            return errors.join(", ");
-        }
-
-        // Return cleaned data
-        return {
-            first_name: row.first_name.trim(),
-            last_name: row.last_name.trim(),
-            gender:
-                row.gender.trim().charAt(0).toUpperCase() +
-                row.gender.trim().slice(1).toLowerCase(), // Normalize to "Male" or "Female"
-            email: row.email.trim().toLowerCase(),
-            phone_number: row.phone_number ? row.phone_number.trim() : "",
-        };
-    };
-
-    // Main import function
-
-    // Updated CSV import function for your component
-    const handleImportCSV = async () => {
-        if (!importFile) {
-            setStatusMessage({
-                text: "Please select a CSV file to import",
-                type: "error",
-            });
-            return;
-        }
-
-        const scheduleId = params.id;
-
-        setImportProgress({
-            total: 0,
-            completed: 0,
-            errors: [],
-            isImporting: true,
-        });
-
+    // Fetch instructors from API
+    const fetchInstructors = async () => {
         try {
-            // Parse CSV file
-            Papa.parse(importFile, {
-                header: true,
-                skipEmptyLines: true,
-                transformHeader: (header) =>
-                    header.trim().toLowerCase().replace(/\s+/g, "_"),
-                complete: async (results) => {
-                    const csvData = results.data as any[];
-
-                    // Step 1: Validate CSV data with Zod and check for internal duplicates
-                    const {
-                        validInstructors: csvValidInstructors,
-                        errors: csvErrors,
-                    } = validateInstructorsWithUniqueEmails(csvData);
-
-                    // Step 2: Check against existing instructors in the system
-                    const {
-                        validInstructors: finalValidInstructors,
-                        errors: existingErrors,
-                    } = validateAgainstExistingEmails(
-                        csvValidInstructors,
-                        instructors
-                    );
-
-                    const allErrors = [...csvErrors, ...existingErrors];
-
-                    setImportProgress((prev) => ({
-                        ...prev,
-                        total: finalValidInstructors.length,
-                        errors: allErrors,
-                    }));
-
-                    if (finalValidInstructors.length === 0) {
-                        setStatusMessage({
-                            text: "No valid instructors found in the CSV file",
-                            type: "error",
-                        });
-                        setImportProgress((prev) => ({
-                            ...prev,
-                            isImporting: false,
-                        }));
-                        return;
-                    }
-
-                    // Step 3: Import valid instructors
-                    let completed = 0;
-                    const importErrors: string[] = [...allErrors];
-
-                    for (const instructor of finalValidInstructors) {
-                        try {
-                            const apiData = {
-                                firstName: instructor.first_name,
-                                lastName: instructor.last_name,
-                                gender: instructor.gender,
-                                email: instructor.email,
-                                phoneNumber: instructor.phone_number || "",
-                                scheduleId: Number(scheduleId),
-                            };
-
-                            const response = await fetch("/api/instructors", {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                },
-                                body: JSON.stringify(apiData),
-                            });
-
-                            if (!response.ok) {
-                                const errorData = await response.json();
-                                importErrors.push(
-                                    `Failed to import ${
-                                        instructor.first_name
-                                    } ${instructor.last_name}: ${
-                                        errorData.error || "Unknown error"
-                                    }`
-                                );
-                            } else {
-                                completed++;
-                            }
-                        } catch (error) {
-                            importErrors.push(
-                                `Failed to import ${instructor.first_name} ${
-                                    instructor.last_name
-                                }: ${
-                                    error instanceof Error
-                                        ? error.message
-                                        : "Unknown error"
-                                }`
-                            );
-                        }
-
-                        // Update progress
-                        setImportProgress((prev) => ({
-                            ...prev,
-                            completed: completed,
-                            errors: importErrors,
-                        }));
-
-                        // Small delay to prevent overwhelming the server
-                        await new Promise((resolve) =>
-                            setTimeout(resolve, 100)
-                        );
-                    }
-
-                    // Final update
-                    setImportProgress((prev) => ({
-                        ...prev,
-                        isImporting: false,
-                    }));
-
-                    // Refresh the instructor list
-                    await fetchInstructors();
-
-                    // Show completion message
-                    if (completed > 0) {
-                        setStatusMessage({
-                            text: `Successfully imported ${completed} instructor(s)${
-                                importErrors.length > 0
-                                    ? ` with ${importErrors.length} error(s)`
-                                    : ""
-                            }`,
-                            type:
-                                completed === finalValidInstructors.length
-                                    ? "success"
-                                    : "error",
-                        });
-                    } else {
-                        setStatusMessage({
-                            text: "Failed to import any instructors",
-                            type: "error",
-                        });
-                    }
-                },
-                error: (error) => {
-                    console.error("CSV parsing error:", error);
-                    setStatusMessage({
-                        text: "Failed to parse CSV file. Please check the file format.",
-                        type: "error",
-                    });
-                    setImportProgress((prev) => ({
-                        ...prev,
-                        isImporting: false,
-                    }));
-                },
-            });
+            const scheduleId = params.id;
+            const response = await fetch(`/api/instructors/?scheduleId=${scheduleId}`);
+            if (!response.ok) {
+                throw new Error("Failed to fetch instructors");
+            }
+            const data = await response.json();
+            setInstructors(data);
+            setCurrentPage(1);
         } catch (error) {
-            console.error("Import error:", error);
+            console.error("Error fetching instructors:", error);
             setStatusMessage({
-                text: "Failed to import instructors. Please try again.",
+                text: "Failed to load instructors. Please try again.",
                 type: "error",
             });
-            setImportProgress((prev) => ({ ...prev, isImporting: false }));
         }
-    };
-
-    // File selection handler
-    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (file) {
-            setImportFile(file);
-        } else {
-            setStatusMessage({
-                text: "Please select a valid CSV file",
-                type: "error",
-            });
-            event.target.value = ""; // Reset file input
-        }
-    };
-
-    // Reset import state
-    const resetImportState = () => {
-        setImportFile(null);
-        setImportProgress({
-            total: 0,
-            completed: 0,
-            errors: [],
-            isImporting: false,
-        });
-    };
-
-    // Download CSV with current instructors data
-    const downloadInstructorsCSV = () => {
-        // Create CSV header
-        const headers = [
-            "first_name",
-            "last_name",
-            "gender",
-            "email",
-            "phone_number",
-        ];
-
-        // Convert instructors data to CSV rows
-        const csvRows = instructors.map((instructor) => [
-            instructor.first_name,
-            instructor.last_name,
-            instructor.gender,
-            instructor.email,
-            instructor.phone_number || "",
-        ]);
-
-        // Combine headers and data
-        const allRows = [headers, ...csvRows];
-
-        // Convert to CSV string
-        const csvContent = allRows
-            .map((row) =>
-                row
-                    .map((field) => {
-                        // Escape quotes and wrap in quotes if field contains comma, quote, or newline
-                        const fieldStr = String(field || "");
-                        if (
-                            fieldStr.includes(",") ||
-                            fieldStr.includes('"') ||
-                            fieldStr.includes("\n")
-                        ) {
-                            return `"${fieldStr.replace(/"/g, '""')}"`;
-                        }
-                        return fieldStr;
-                    })
-                    .join(",")
-            )
-            .join("\n");
-
-        // Create and download file
-        const blob = new Blob([csvContent], {
-            type: "text/csv;charset=utf-8;",
-        });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-
-        // Generate filename with current date
-        const today = new Date().toISOString().split("T")[0];
-        link.setAttribute("download", `instructors_export_${today}.csv`);
-
-        link.style.visibility = "hidden";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        setStatusMessage({
-            text: `Exported ${instructors.length} instructors to CSV`,
-            type: "success",
-        });
     };
 
     // Load instructors on component mount
@@ -460,19 +108,43 @@ export default function InstructorsView() {
             [name]: value,
         });
     };
-    const params = useParams();
+
+    // FIXED: Add Instructor with consistent field mapping
     const handleAddInstructor = async () => {
         try {
-            // Prepare data for API
-            const scheduleId = params.id;
-            const apiData = {
-                instructorId: formData.instructor_id,
-                firstName: formData.first_name,
-                lastName: formData.last_name,
+            // Validate form data with Zod
+            const validatedData = instructorSchema.parse({
+                first_name: formData.first_name,
+                last_name: formData.last_name,
                 gender: formData.gender,
                 email: formData.email,
-                phoneNumber: formData.phone_number || "",
-                scheduleId: Number(scheduleId),
+                phone_number: formData.phone_number,
+            });
+
+            // Check if email already exists
+            const existingInstructor = instructors.find(
+                (instructor) =>
+                    instructor.email === validatedData.email
+            );
+
+            if (existingInstructor) {
+                setStatusMessage({
+                    text: "An instructor with this email already exists",
+                    type: "error",
+                });
+                return;
+            }
+
+            const scheduleId = params.id;
+            // FIXED: Consistent API data structure
+            const apiData = {
+                instructor_id: formData.instructor_id || "", // Include instructor_id
+                first_name: validatedData.first_name,
+                last_name: validatedData.last_name,
+                gender: validatedData.gender,
+                email: validatedData.email,
+                phone_number: validatedData.phone_number || "",
+                schedule_id: Number(scheduleId), // Use schedule_id to match database
             };
 
             const response = await fetch("/api/instructors", {
@@ -484,16 +156,13 @@ export default function InstructorsView() {
             });
 
             if (!response.ok) {
-                throw new Error("Failed to create instructor");
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to create instructor");
             }
 
-            // Refresh the instructor list
             await fetchInstructors();
-
-            // Close dialog and reset form
             setIsAddDialogOpen(false);
             resetForm();
-
             setStatusMessage({
                 text: "Instructor added successfully",
                 type: "success",
@@ -510,16 +179,14 @@ export default function InstructorsView() {
             } else {
                 console.error("Error adding instructor:", error);
                 setStatusMessage({
-                    text:
-                        error instanceof Error
-                            ? error.message
-                            : "Failed to add instructor. Please try again.",
+                    text: error instanceof Error ? error.message : "Failed to add instructor. Please try again.",
                     type: "error",
                 });
             }
         }
     };
 
+    // FIXED: Edit Instructor with consistent field mapping
     const handleEditInstructor = async () => {
         if (!selectedInstructor) return;
 
@@ -536,8 +203,7 @@ export default function InstructorsView() {
             // Check if email already exists (excluding current instructor)
             const existingInstructor = instructors.find(
                 (instructor) =>
-                    instructor.email.toLowerCase() ===
-                        validatedData.email.toLowerCase() &&
+                    instructor.email === validatedData.email&&
                     instructor.id !== selectedInstructor.id
             );
 
@@ -549,17 +215,16 @@ export default function InstructorsView() {
                 return;
             }
 
-            // Prepare data for API
+            // FIXED: Consistent API data structure
             const apiData = {
                 id: selectedInstructor.id,
-                firstName: validatedData.first_name,
-                lastName: validatedData.last_name,
+                instructor_id: formData.instructor_id,
+                first_name: validatedData.first_name,
+                last_name: validatedData.last_name,
                 gender: validatedData.gender,
                 email: validatedData.email,
-                phoneNumber: validatedData.phone_number || "",
+                phone_number: validatedData.phone_number || "",
             };
-
-            console.log("Sending update data:", apiData);
 
             const response = await fetch("/api/instructors", {
                 method: "PATCH",
@@ -569,16 +234,10 @@ export default function InstructorsView() {
                 body: JSON.stringify(apiData),
             });
 
-            const responseData = await response.json();
-
             if (!response.ok) {
-                console.error("Update failed:", responseData);
-                throw new Error(
-                    responseData.error || "Failed to update instructor"
-                );
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to update instructor");
             }
-
-            console.log("Update successful:", responseData);
 
             await fetchInstructors();
             setIsEditDialogOpen(false);
@@ -599,41 +258,33 @@ export default function InstructorsView() {
             } else {
                 console.error("Error updating instructor:", error);
                 setStatusMessage({
-                    text:
-                        error instanceof Error
-                            ? error.message
-                            : "Failed to update instructor. Please try again.",
+                    text: error instanceof Error ? error.message : "Failed to update instructor. Please try again.",
                     type: "error",
                 });
             }
         }
     };
+
     const handleDeleteInstructor = async () => {
         if (!selectedInstructor) return;
 
         try {
-            const apiData = {
-                id: selectedInstructor.id,
-            };
             const response = await fetch("/api/instructors", {
                 method: "DELETE",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify(apiData),
+                body: JSON.stringify({ id: selectedInstructor.id }),
             });
 
             if (!response.ok) {
-                throw new Error("Failed to delete instructor");
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to delete instructor");
             }
 
-            // Refresh the instructor list
             await fetchInstructors();
-
-            // Close dialog
             setIsDeleteDialogOpen(false);
             setSelectedInstructor(null);
-
             setStatusMessage({
                 text: "Instructor deleted successfully",
                 type: "success",
@@ -645,6 +296,287 @@ export default function InstructorsView() {
                 type: "error",
             });
         }
+    };
+
+    // FIXED: Import CSV function with proper validation and field mapping
+    const handleImportCSV = async () => {
+        if (!importFile) {
+            setStatusMessage({
+                text: "Please select a CSV file to import",
+                type: "error",
+            });
+            return;
+        }
+
+        const scheduleId = params.id;
+        setImportProgress({
+            total: 0,
+            completed: 0,
+            errors: [],
+            isImporting: true,
+        });
+
+        try {
+            Papa.parse(importFile, {
+                header: true,
+                skipEmptyLines: true,
+                transformHeader: (header) => header.trim().toLowerCase().replace(/\s+/g, "_"),
+                complete: async (results) => {
+                    const csvData = results.data as any[];
+                    
+                    // Manual validation for CSV data
+                    const validInstructors: any[] = [];
+                    const errors: string[] = [];
+
+                    for (let i = 0; i < csvData.length; i++) {
+                        const row = csvData[i];
+                        const rowNumber = i + 1;
+
+                        // Validate required fields
+                        if (!row.first_name?.trim()) {
+                            errors.push(`Row ${rowNumber}: First name is required`);
+                            continue;
+                        }
+                        if (!row.last_name?.trim()) {
+                            errors.push(`Row ${rowNumber}: Last name is required`);
+                            continue;
+                        }
+                        if (!row.email?.trim()) {
+                            errors.push(`Row ${rowNumber}: Email is required`);
+                            continue;
+                        }
+                        if (!row.gender?.trim()) {
+                            errors.push(`Row ${rowNumber}: Gender is required`);
+                            continue;
+                        }
+
+                        // Validate email format
+                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                        if (!emailRegex.test(row.email.trim())) {
+                            errors.push(`Row ${rowNumber}: Invalid email format`);
+                            continue;
+                        }
+
+                        // Validate gender
+                        const validGenders = ["Male", "Female", "male", "female"];
+                        if (!validGenders.includes(row.gender.trim())) {
+                            errors.push(`Row ${rowNumber}: Gender must be 'Male' or 'Female'`);
+                            continue;
+                        }
+
+                        // Check for duplicate emails in CSV
+                        const duplicateInCsv = validInstructors.find(
+                            (existing) => existing.email=== row.email.trim()
+                        );
+                        if (duplicateInCsv) {
+                            errors.push(`Row ${rowNumber}: Duplicate email in CSV: ${row.email}`);
+                            continue;
+                        }
+
+                        // Check against existing instructors
+                        const existingInstructor = instructors.find(
+                            (instructor) => instructor.email === row.email.trim()
+                        );
+                        if (existingInstructor) {
+                            errors.push(`Row ${rowNumber}: Email already exists in system: ${row.email}`);
+                            continue;
+                        }
+
+                        // Add valid instructor
+                        validInstructors.push({
+                            instructor_id: row.instructor_id?.trim() || "",
+                            first_name: row.first_name.trim(),
+                            last_name: row.last_name.trim(),
+                            gender: row.gender.trim().charAt(0).toUpperCase() + row.gender.trim().slice(1).toLowerCase(),
+                            email: row.email.trim(),
+                            phone_number: row.phone_number?.trim() || "",
+                        });
+                    }
+
+                    setImportProgress((prev) => ({
+                        ...prev,
+                        total: validInstructors.length,
+                        errors,
+                    }));
+
+                    if (validInstructors.length === 0) {
+                        setStatusMessage({
+                            text: "No valid instructors found in the CSV file",
+                            type: "error",
+                        });
+                        setImportProgress((prev) => ({ ...prev, isImporting: false }));
+                        return;
+                    }
+
+                    // Import valid instructors
+                    let completed = 0;
+                    const importErrors: string[] = [...errors];
+
+                    for (const instructor of validInstructors) {
+                        try {
+                            const apiData = {
+                                instructor_id: instructor.instructor_id,
+                                first_name: instructor.first_name,
+                                last_name: instructor.last_name,
+                                gender: instructor.gender,
+                                email: instructor.email,
+                                phone_number: instructor.phone_number,
+                                schedule_id: Number(scheduleId),
+                            };
+
+                            const response = await fetch("/api/instructors", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify(apiData),
+                            });
+
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                importErrors.push(
+                                    `Failed to import ${instructor.first_name} ${instructor.last_name}: ${errorData.error || "Unknown error"}`
+                                );
+                            } else {
+                                completed++;
+                            }
+                        } catch (error) {
+                            importErrors.push(
+                                `Failed to import ${instructor.first_name} ${instructor.last_name}: ${
+                                    error instanceof Error ? error.message : "Unknown error"
+                                }`
+                            );
+                        }
+
+                        setImportProgress((prev) => ({
+                            ...prev,
+                            completed: completed,
+                            errors: importErrors,
+                        }));
+
+                        await new Promise((resolve) => setTimeout(resolve, 100));
+                    }
+
+                    setImportProgress((prev) => ({ ...prev, isImporting: false }));
+                    await fetchInstructors();
+
+                    if (completed > 0) {
+                        setStatusMessage({
+                            text: `Successfully imported ${completed} instructor(s)${
+                                importErrors.length > 0 ? ` with ${importErrors.length} error(s)` : ""
+                            }`,
+                            type: completed === validInstructors.length ? "success" : "error",
+                        });
+                    } else {
+                        setStatusMessage({
+                            text: "Failed to import any instructors",
+                            type: "error",
+                        });
+                    }
+                },
+                error: (error) => {
+                    console.error("CSV parsing error:", error);
+                    setStatusMessage({
+                        text: "Failed to parse CSV file. Please check the file format.",
+                        type: "error",
+                    });
+                    setImportProgress((prev) => ({ ...prev, isImporting: false }));
+                },
+            });
+        } catch (error) {
+            console.error("Import error:", error);
+            setStatusMessage({
+                text: "Failed to import instructors. Please try again.",
+                type: "error",
+            });
+            setImportProgress((prev) => ({ ...prev, isImporting: false }));
+        }
+    };
+
+    // FIXED: Export CSV function with all fields
+    const downloadInstructorsCSV = () => {
+        // FIXED: Include all fields including instructor_id
+        const headers = [
+            "instructor_id",
+            "first_name", 
+            "last_name",
+            "gender",
+            "email",
+            "phone_number",
+        ];
+
+        const csvRows = instructors.map((instructor) => [
+            instructor.instructor_id || "",
+            instructor.first_name,
+            instructor.last_name,
+            instructor.gender,
+            instructor.email,
+            instructor.phone_number || "",
+        ]);
+
+        const allRows = [headers, ...csvRows];
+        const csvContent = allRows
+            .map((row) =>
+                row
+                    .map((field) => {
+                        const fieldStr = String(field || "");
+                        if (fieldStr.includes(",") || fieldStr.includes('"') || fieldStr.includes("\n")) {
+                            return `"${fieldStr.replace(/"/g, '""')}"`;
+                        }
+                        return fieldStr;
+                    })
+                    .join(",")
+            )
+            .join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+
+        const today = new Date().toISOString().split("T")[0];
+        link.setAttribute("download", `instructors_export_${today}.csv`);
+
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setStatusMessage({
+            text: `Exported ${instructors.length} instructors to CSV`,
+            type: "success",
+        });
+    };
+
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
+                setStatusMessage({
+                    text: "Please select a valid CSV file",
+                    type: "error",
+                });
+                event.target.value = "";
+                return;
+            }
+            setImportFile(file);
+        } else {
+            setStatusMessage({
+                text: "Please select a valid CSV file",
+                type: "error",
+            });
+            event.target.value = "";
+        }
+    };
+
+    const resetImportState = () => {
+        setImportFile(null);
+        setImportProgress({
+            total: 0,
+            completed: 0,
+            errors: [],
+            isImporting: false,
+        });
     };
 
     const resetForm = () => {
@@ -659,16 +591,17 @@ export default function InstructorsView() {
         setSelectedInstructor(null);
     };
 
+    // FIXED: Include instructor_id in edit dialog
     const openEditDialog = (instructor: Instructor) => {
-        resetForm(); // Reset first to clear any previous data
+        resetForm();
         setSelectedInstructor(instructor);
         setFormData({
-            instructor_id: instructor.instructor_id, // Assuming you have an instructorId field
+            instructor_id: instructor.instructor_id || "",
             first_name: instructor.first_name,
             last_name: instructor.last_name,
             gender: instructor.gender,
             email: instructor.email,
-            phone_number: instructor.phone_number,
+            phone_number: instructor.phone_number || "",
         });
         setIsEditDialogOpen(true);
     };
@@ -678,9 +611,8 @@ export default function InstructorsView() {
         setIsDeleteDialogOpen(true);
     };
 
-    // Function to handle opening the add dialog
     const openAddDialog = () => {
-        resetForm(); // Ensure form is clean before opening
+        resetForm();
         setIsAddDialogOpen(true);
     };
 
@@ -718,12 +650,8 @@ export default function InstructorsView() {
             {/* Page Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                        Instructors
-                    </h2>
-                    <p className="text-xs text-gray-600">
-                        Manage instructor information and details
-                    </p>
+                    <h2 className="text-lg font-semibold text-gray-900">Instructors</h2>
+                    <p className="text-xs text-gray-600">Manage instructor information and details</p>
                 </div>
                 <div className="flex gap-2">
                     <Button
@@ -750,120 +678,73 @@ export default function InstructorsView() {
                 </div>
             </div>
 
-            {/* Compact Table Container */}
+            {/* Table */}
             <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="bg-[#2F2F85] text-white">
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
-                                    No.
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
-                                    Instructor ID
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
-                                    First Name
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
-                                    Last Name
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
-                                    Gender
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
-                                    Email
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
-                                    Phone
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
-                                    Actions
-                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">No.</th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">Instructor ID</th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">First Name</th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">Last Name</th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">Gender</th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">Email</th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">Phone</th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                             {instructors.length === 0 ? (
                                 <tr>
-                                    <td
-                                        colSpan={7}
-                                        className="px-3 py-8 text-center text-gray-500 text-sm"
-                                    >
+                                    <td colSpan={8} className="px-3 py-8 text-center text-gray-500 text-sm">
                                         <div className="space-y-1">
                                             <div>No instructors found</div>
-                                            <div className="text-xs">
-                                                Add a new instructor to get
-                                                started.
-                                            </div>
+                                            <div className="text-xs">Add a new instructor to get started.</div>
                                         </div>
                                     </td>
                                 </tr>
                             ) : (
-                                paginatedInstructors.map(
-                                    (instructor, index) => (
-                                        <tr
-                                            key={instructor.id}
-                                            className={`hover:bg-gray-50 transition-colors ${
-                                                index % 2 === 0
-                                                    ? "bg-white"
-                                                    : "bg-gray-50"
-                                            }`}
-                                        >
-                                            <td className="px-3 py-2 text-xs text-gray-600 font-medium">
-                                                {(currentPage - 1) *
-                                                    ITEMS_PER_PAGE +
-                                                    index +
-                                                    1}
-                                            </td>
-                                            <td className="px-3 py-2 text-xs font-medium text-gray-900">
-                                                {instructor.instructor_id}
-                                            </td>
-                                            <td className="px-3 py-2 text-xs font-medium text-gray-900">
-                                                {instructor.first_name}
-                                            </td>
-                                            <td className="px-3 py-2 text-xs font-medium text-gray-900">
-                                                {instructor.last_name}
-                                            </td>
-                                            <td className="px-3 py-2 text-xs text-gray-900">
-                                                {instructor.gender}
-                                            </td>
-                                            <td className="px-3 py-2 text-xs text-gray-900">
-                                                {instructor.email}
-                                            </td>
-                                            <td className="px-3 py-2 text-xs text-gray-900">
-                                                {instructor.phone_number}
-                                            </td>
-                                            <td className="px-3 py-2">
-                                                <div className="flex gap-1">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
-                                                        onClick={() =>
-                                                            openEditDialog(
-                                                                instructor
-                                                            )
-                                                        }
-                                                    >
-                                                        <Pencil className="h-3 w-3" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
-                                                        onClick={() =>
-                                                            openDeleteDialog(
-                                                                instructor
-                                                            )
-                                                        }
-                                                    >
-                                                        <Trash className="h-3 w-3" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )
-                                )
+                                paginatedInstructors.map((instructor, index) => (
+                                    <tr
+                                        key={instructor.id}
+                                        className={`hover:bg-gray-50 transition-colors ${
+                                            index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                                        }`}
+                                    >
+                                        <td className="px-3 py-2 text-xs text-gray-600 font-medium">
+                                            {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
+                                        </td>
+                                        <td className="px-3 py-2 text-xs font-medium text-gray-900">
+                                            {instructor.instructor_id || "-"}
+                                        </td>
+                                        <td className="px-3 py-2 text-xs font-medium text-gray-900">{instructor.first_name}</td>
+                                        <td className="px-3 py-2 text-xs font-medium text-gray-900">{instructor.last_name}</td>
+                                        <td className="px-3 py-2 text-xs text-gray-900">{instructor.gender}</td>
+                                        <td className="px-3 py-2 text-xs text-gray-900">{instructor.email}</td>
+                                        <td className="px-3 py-2 text-xs text-gray-900">{instructor.phone_number || "-"}</td>
+                                        <td className="px-3 py-2">
+                                            <div className="flex gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                    onClick={() => openEditDialog(instructor)}
+                                                >
+                                                    <Pencil className="h-3 w-3" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                    onClick={() => openDeleteDialog(instructor)}
+                                                >
+                                                    <Trash className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
                             )}
                         </tbody>
                     </table>
@@ -891,37 +772,28 @@ export default function InstructorsView() {
             >
                 <DialogContent className="bg-white max-w-lg">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">
-                            Add New Instructor
-                        </DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">Add New Instructor</DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4 space-y-4">
-                        <div className="grid gap-4">
-                            <div className="space-y-2">
-                                <Label
-                                    htmlFor="instructor_id"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    Instructor ID
-                                </Label>
-                                <Input
-                                    id="instructor_id"
-                                    name="instructor_id"
-                                    value={formData.instructor_id}
-                                    onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                    placeholder="Enter instructor ID"
-                                />
-                            </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="instructor_id" className="text-sm font-medium text-gray-700">
+                                Instructor ID
+                            </Label>
+                            <Input
+                                id="instructor_id"
+                                name="instructor_id"
+                                value={formData.instructor_id}
+                                onChange={handleInputChange}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                placeholder="Enter instructor ID (optional)"
+                            />
                         </div>
+
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label
-                                    htmlFor="first_name"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    First Name
+                                <Label htmlFor="first_name" className="text-sm font-medium text-gray-700">
+                                    First Name *
                                 </Label>
                                 <Input
                                     id="first_name"
@@ -930,14 +802,12 @@ export default function InstructorsView() {
                                     onChange={handleInputChange}
                                     className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
                                     placeholder="Enter first name"
+                                    required
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label
-                                    htmlFor="last_name"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    Last Name
+                                <Label htmlFor="last_name" className="text-sm font-medium text-gray-700">
+                                    Last Name *
                                 </Label>
                                 <Input
                                     id="last_name"
@@ -946,41 +816,32 @@ export default function InstructorsView() {
                                     onChange={handleInputChange}
                                     className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
                                     placeholder="Enter last name"
+                                    required
                                 />
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <Label
-                                htmlFor="gender"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Gender
+                            <Label htmlFor="gender" className="text-sm font-medium text-gray-700">
+                                Gender *
                             </Label>
                             <Select
                                 value={formData.gender}
-                                onValueChange={(value) =>
-                                    handleSelectChange("gender", value)
-                                }
+                                onValueChange={(value) => handleSelectChange("gender", value)}
                             >
                                 <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
                                     <SelectValue placeholder="Select gender" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Male">Male</SelectItem>
-                                    <SelectItem value="Female">
-                                        Female
-                                    </SelectItem>
+                                    <SelectItem value="Female">Female</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="space-y-2">
-                            <Label
-                                htmlFor="email"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Email
+                            <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                                Email *
                             </Label>
                             <Input
                                 id="email"
@@ -990,15 +851,13 @@ export default function InstructorsView() {
                                 onChange={handleInputChange}
                                 className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
                                 placeholder="Enter email address"
+                                required
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label
-                                htmlFor="phone_number"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Phone
+                            <Label htmlFor="phone_number" className="text-sm font-medium text-gray-700">
+                                Phone Number
                             </Label>
                             <Input
                                 id="phone_number"
@@ -1042,19 +901,28 @@ export default function InstructorsView() {
             >
                 <DialogContent className="bg-white max-w-lg">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">
-                            Edit Instructor
-                        </DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">Edit Instructor</DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4 space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-instructor_id" className="text-sm font-medium text-gray-700">
+                                Instructor ID
+                            </Label>
+                            <Input
+                                id="edit-instructor_id"
+                                name="instructor_id"
+                                value={formData.instructor_id}
+                                onChange={handleInputChange}
+                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                placeholder="Enter instructor ID (optional)"
+                            />
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label
-                                    htmlFor="edit-first_name"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    First Name
+                                <Label htmlFor="edit-first_name" className="text-sm font-medium text-gray-700">
+                                    First Name *
                                 </Label>
                                 <Input
                                     id="edit-first_name"
@@ -1062,14 +930,12 @@ export default function InstructorsView() {
                                     value={formData.first_name}
                                     onChange={handleInputChange}
                                     className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    required
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label
-                                    htmlFor="edit-last_name"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    Last Name
+                                <Label htmlFor="edit-last_name" className="text-sm font-medium text-gray-700">
+                                    Last Name *
                                 </Label>
                                 <Input
                                     id="edit-last_name"
@@ -1077,41 +943,32 @@ export default function InstructorsView() {
                                     value={formData.last_name}
                                     onChange={handleInputChange}
                                     className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    required
                                 />
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <Label
-                                htmlFor="edit-gender"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Gender
+                            <Label htmlFor="edit-gender" className="text-sm font-medium text-gray-700">
+                                Gender *
                             </Label>
                             <Select
                                 value={formData.gender}
-                                onValueChange={(value) =>
-                                    handleSelectChange("gender", value)
-                                }
+                                onValueChange={(value) => handleSelectChange("gender", value)}
                             >
                                 <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
                                     <SelectValue placeholder="Select gender" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Male">Male</SelectItem>
-                                    <SelectItem value="Female">
-                                        Female
-                                    </SelectItem>
+                                    <SelectItem value="Female">Female</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="space-y-2">
-                            <Label
-                                htmlFor="edit-email"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Email
+                            <Label htmlFor="edit-email" className="text-sm font-medium text-gray-700">
+                                Email *
                             </Label>
                             <Input
                                 id="edit-email"
@@ -1120,15 +977,13 @@ export default function InstructorsView() {
                                 value={formData.email}
                                 onChange={handleInputChange}
                                 className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                required
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label
-                                htmlFor="edit-phone_number"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Phone
+                            <Label htmlFor="edit-phone_number" className="text-sm font-medium text-gray-700">
+                                Phone Number
                             </Label>
                             <Input
                                 id="edit-phone_number"
@@ -1171,9 +1026,7 @@ export default function InstructorsView() {
             >
                 <DialogContent className="bg-white max-w-md">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">
-                            Delete Instructor
-                        </DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">Delete Instructor</DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4">
@@ -1181,12 +1034,9 @@ export default function InstructorsView() {
                             Are you sure you want to delete this instructor?
                         </p>
                         <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
-                            {selectedInstructor?.first_name}{" "}
-                            {selectedInstructor?.last_name}
+                            {selectedInstructor?.first_name} {selectedInstructor?.last_name}
                         </p>
-                        <p className="text-xs text-gray-500 mt-2">
-                            This action cannot be undone.
-                        </p>
+                        <p className="text-xs text-gray-500 mt-2">This action cannot be undone.</p>
                     </div>
 
                     <DialogFooter className="border-t border-gray-200 pt-3">
@@ -1227,10 +1077,7 @@ export default function InstructorsView() {
 
                     <div className="py-4 space-y-4">
                         <div>
-                            <Label
-                                htmlFor="csv-file"
-                                className="text-sm font-medium text-gray-700"
-                            >
+                            <Label htmlFor="csv-file" className="text-sm font-medium text-gray-700">
                                 Select CSV File
                             </Label>
                             <Input
@@ -1242,20 +1089,17 @@ export default function InstructorsView() {
                                 className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
                             />
                             <p className="text-xs text-gray-600 mt-1">
-                                CSV should contain columns: first_name,
-                                last_name, gender, email, phone_number
+                                CSV should contain columns: instructor_id (optional), first_name, last_name, gender, email, phone_number
                             </p>
                         </div>
 
                         {importFile && (
                             <div className="text-xs bg-gray-50 p-2 rounded border">
                                 <p>
-                                    <strong>Selected file:</strong>{" "}
-                                    {importFile.name}
+                                    <strong>Selected file:</strong> {importFile.name}
                                 </p>
                                 <p>
-                                    <strong>Size:</strong>{" "}
-                                    {(importFile.size / 1024).toFixed(2)} KB
+                                    <strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB
                                 </p>
                             </div>
                         )}
@@ -1265,8 +1109,7 @@ export default function InstructorsView() {
                                 <div className="flex justify-between text-xs">
                                     <span>Progress:</span>
                                     <span>
-                                        {importProgress.completed} /{" "}
-                                        {importProgress.total}
+                                        {importProgress.completed} / {importProgress.total}
                                     </span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2">
@@ -1275,11 +1118,7 @@ export default function InstructorsView() {
                                         style={{
                                             width:
                                                 importProgress.total > 0
-                                                    ? `${
-                                                          (importProgress.completed /
-                                                              importProgress.total) *
-                                                          100
-                                                      }%`
+                                                    ? `${(importProgress.completed / importProgress.total) * 100}%`
                                                     : "0%",
                                         }}
                                     ></div>
@@ -1289,20 +1128,13 @@ export default function InstructorsView() {
 
                         {importProgress.errors.length > 0 && (
                             <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded border border-red-200">
-                                <p className="text-xs font-medium text-red-600 mb-1">
-                                    Errors:
-                                </p>
+                                <p className="text-xs font-medium text-red-600 mb-1">Errors:</p>
                                 <div className="text-xs space-y-1">
-                                    {importProgress.errors.map(
-                                        (error, index) => (
-                                            <p
-                                                key={index}
-                                                className="text-red-600"
-                                            >
-                                                {error}
-                                            </p>
-                                        )
-                                    )}
+                                    {importProgress.errors.map((error, index) => (
+                                        <p key={index} className="text-red-600">
+                                            {error}
+                                        </p>
+                                    ))}
                                 </div>
                             </div>
                         )}
@@ -1325,9 +1157,7 @@ export default function InstructorsView() {
                             disabled={!importFile || importProgress.isImporting}
                             className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
                         >
-                            {importProgress.isImporting
-                                ? "Importing..."
-                                : "Import"}
+                            {importProgress.isImporting ? "Importing..." : "Import"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
