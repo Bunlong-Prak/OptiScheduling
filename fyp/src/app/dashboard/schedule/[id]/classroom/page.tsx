@@ -124,6 +124,20 @@ export default function ClassroomView() {
     const validateForm = (isEdit: boolean = false): boolean => {
         const errors: FormErrors = {};
 
+        // Validate name
+        if (!(formData.name ?? "").trim()) {
+            errors.name = "Classroom name is required";
+        } else if ((formData.name ?? "").length > 255) {
+            errors.name = "Classroom name cannot exceed 255 characters";
+        }
+
+        // Validate location
+        if (!formData.location.trim()) {
+            errors.location = "Location is required";
+        } else if (formData.location.length > 255) {
+            errors.location = "Location cannot exceed 255 characters";
+        }
+
         // Validate code
         const codeError = validateClassroomCode(
             formData.code,
@@ -241,14 +255,19 @@ export default function ClassroomView() {
             }
         }
 
-        // ✅ ADD LOCATION VALIDATION HERE IF NEEDED
-        if (name === "location") {
-            if (!value.trim()) {
-                setFormErrors({
-                    ...formErrors,
-                    location: "Location is required",
-                });
-            }
+        // Real-time validation for other fields
+        if (name === "location" && !value.trim()) {
+            setFormErrors({
+                ...formErrors,
+                location: "Location is required",
+            });
+        }
+
+        if (name === "name" && !value.trim()) {
+            setFormErrors({
+                ...formErrors,
+                name: "Classroom name is required",
+            });
         }
     };
 
@@ -268,14 +287,18 @@ export default function ClassroomView() {
     };
 
     const handleAddClassroom = async () => {
+        if (!validateForm()) {
+            return;
+        }
+
         setIsLoading(true);
         try {
             const scheduleId = params.id;
 
             const apiData = {
                 code: formData.code.trim(),
-                name: formData.name,
-                location: formData.location,
+                name: (formData.name ?? "").trim(),
+                location: formData.location.trim(),
                 type: formData.type,
                 capacity: Number.parseInt(formData.capacity),
                 scheduleId: scheduleId,
@@ -329,6 +352,8 @@ export default function ClassroomView() {
             const apiData = {
                 id: selectedClassroom.id,
                 code: formData.code.trim(),
+                name: (formData.name ?? "").trim(),
+                location: formData.location.trim(),
                 type: formData.type,
                 capacity: Number.parseInt(formData.capacity),
                 scheduleId: scheduleId,
@@ -470,6 +495,8 @@ export default function ClassroomView() {
 
     interface CSVClassroomRow {
         code: string;
+        name: string;
+        location: string;
         type: string;
         capacity: string;
     }
@@ -491,6 +518,22 @@ export default function ClassroomView() {
             if (codeError) {
                 errors.push(`Row ${rowIndex + 1}: ${codeError}`);
             }
+        }
+
+        if (
+            !row.name ||
+            typeof row.name !== "string" ||
+            row.name.trim() === ""
+        ) {
+            errors.push(`Row ${rowIndex + 1}: Classroom name is required`);
+        }
+
+        if (
+            !row.location ||
+            typeof row.location !== "string" ||
+            row.location.trim() === ""
+        ) {
+            errors.push(`Row ${rowIndex + 1}: Location is required`);
         }
 
         if (
@@ -534,6 +577,8 @@ export default function ClassroomView() {
 
         return {
             code: row.code.trim(),
+            name: row.name.trim(),
+            location: row.location.trim(),
             type: row.type.trim(),
             capacity: row.capacity.toString(),
         };
@@ -620,6 +665,8 @@ export default function ClassroomView() {
                         try {
                             const apiData = {
                                 code: classroom.code,
+                                name: classroom.name,
+                                location: classroom.location,
                                 type: classroom.type,
                                 capacity: Number.parseInt(classroom.capacity),
                                 scheduleId: scheduleId,
@@ -736,10 +783,12 @@ export default function ClassroomView() {
 
     const downloadClassroomsCSV = () => {
         try {
-            const headers = ["code", "type", "capacity"];
+            const headers = ["code", "name", "location", "type", "capacity"];
 
             const csvRows = sortedClassrooms.map((classroom) => [
                 classroom.code,
+                classroom.name,
+                classroom.location,
                 classroom.type,
                 classroom.capacity.toString(),
             ]);
@@ -859,6 +908,12 @@ export default function ClassroomView() {
                                     Code
                                 </th>
                                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Name
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Location
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
                                     Type
                                 </th>
                                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
@@ -873,7 +928,7 @@ export default function ClassroomView() {
                             {isLoading ? (
                                 <tr>
                                     <td
-                                        colSpan={5}
+                                        colSpan={7}
                                         className="px-3 py-8 text-center text-gray-500 text-sm"
                                     >
                                         Loading...
@@ -882,7 +937,7 @@ export default function ClassroomView() {
                             ) : paginatedClassrooms.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={5}
+                                        colSpan={7}
                                         className="px-3 py-8 text-center text-gray-500 text-sm"
                                     >
                                         <div className="space-y-1">
@@ -912,6 +967,12 @@ export default function ClassroomView() {
                                         </td>
                                         <td className="px-3 py-2 text-xs font-medium text-gray-900">
                                             {classroom.code}
+                                        </td>
+                                        <td className="px-3 py-2 text-xs text-gray-900">
+                                            {classroom.name}
+                                        </td>
+                                        <td className="px-3 py-2 text-xs text-gray-900">
+                                            {classroom.location}
                                         </td>
                                         <td className="px-3 py-2 text-xs text-gray-900">
                                             {classroom.type}
@@ -1033,6 +1094,32 @@ export default function ClassroomView() {
 
                         <div className="space-y-2">
                             <Label
+                                htmlFor="location"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Location <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                                id="location"
+                                name="location"
+                                value={formData.location}
+                                onChange={handleInputChange}
+                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    formErrors.location
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                }`}
+                                placeholder="Enter location"
+                            />
+                            {formErrors.location && (
+                                <p className="text-xs text-red-600">
+                                    {formErrors.location}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label
                                 htmlFor="type"
                                 className="text-sm font-medium text-gray-700"
                             >
@@ -1077,32 +1164,6 @@ export default function ClassroomView() {
                             {formErrors.type && (
                                 <p className="text-xs text-red-600">
                                     {formErrors.type}
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="location"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                location <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="location"
-                                name="location"
-                                value={formData.location}
-                                onChange={handleInputChange}
-                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.location
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
-                                }`}
-                                placeholder="Enter location"
-                            />
-                            {formErrors.location && (
-                                <p className="text-xs text-red-600">
-                                    {formErrors.location}
                                 </p>
                             )}
                         </div>
@@ -1198,6 +1259,59 @@ export default function ClassroomView() {
                             {formErrors.code && (
                                 <p className="text-xs text-red-600">
                                     {formErrors.code}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label
+                                htmlFor="edit-name"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Classroom Name{" "}
+                                <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                                id="edit-name"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleInputChange}
+                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    formErrors.name
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                }`}
+                                placeholder="Enter classroom name"
+                            />
+                            {formErrors.name && (
+                                <p className="text-xs text-red-600">
+                                    {formErrors.name}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label
+                                htmlFor="edit-location"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Location <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                                id="edit-location"
+                                name="location"
+                                value={formData.location}
+                                onChange={handleInputChange}
+                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    formErrors.location
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                }`}
+                                placeholder="Enter location"
+                            />
+                            {formErrors.location && (
+                                <p className="text-xs text-red-600">
+                                    {formErrors.location}
                                 </p>
                             )}
                         </div>
@@ -1326,10 +1440,20 @@ export default function ClassroomView() {
                         <p className="text-sm text-gray-600 mb-2">
                             Are you sure you want to delete this classroom?
                         </p>
-                        <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
-                            {selectedClassroom?.code} ({selectedClassroom?.type}
-                            )
-                        </p>
+                        <div className="bg-gray-50 p-3 rounded border space-y-1">
+                            <p className="font-medium text-sm text-gray-900">
+                                <span className="text-gray-600">Code:</span> {selectedClassroom?.code}
+                            </p>
+                            <p className="text-sm text-gray-700">
+                                <span className="text-gray-600">Name:</span> {selectedClassroom?.name}
+                            </p>
+                            <p className="text-sm text-gray-700">
+                                <span className="text-gray-600">Location:</span> {selectedClassroom?.location}
+                            </p>
+                            <p className="text-sm text-gray-700">
+                                <span className="text-gray-600">Type:</span> {selectedClassroom?.type}
+                            </p>
+                        </div>
                         <p className="text-xs text-gray-500 mt-2">
                             This action cannot be undone.
                         </p>
@@ -1387,7 +1511,7 @@ export default function ClassroomView() {
                                 className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
                             />
                             <p className="text-xs text-gray-600 mt-1">
-                                CSV should contain columns: code, type, capacity
+                                CSV should contain columns: code, name, location, type, capacity
                             </p>
                         </div>
 
@@ -1463,6 +1587,7 @@ export default function ClassroomView() {
                         <Button
                             variant="outline"
                             onClick={() => {
+                                
                                 resetImportState();
                                 setIsImportDialogOpen(false);
                             }}

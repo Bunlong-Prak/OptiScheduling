@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-// Updated validation schemas to include scheduleId
+// Updated validation schemas to include all fields
 const createClassroomSchema = z.object({
     code: z.string().min(1, "Classroom code is required"),
     name: z.string().min(1, "Classroom name is required"),
@@ -17,6 +17,8 @@ const createClassroomSchema = z.object({
 const editClassroomSchema = z.object({
     id: z.number(),
     code: z.string().min(1, "Classroom code is required"),
+    name: z.string().min(1, "Classroom name is required"),
+    location: z.string().min(1, "Classroom location is required"),
     type: z.string().min(1, "Classroom type is required"),
     capacity: z.number().min(1, "Capacity must be greater than 0"),
     scheduleId: z.string().min(1, "Schedule ID is required"),
@@ -32,26 +34,32 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const scheduleId = searchParams.get("scheduleId");
-        let classroomTypesQuery;
-        if (scheduleId) {
-            classroomTypesQuery = await db
-                .select({
-                    id: classrooms.id,
-                    code: classrooms.code,
-                    typeName: classroomTypes.name,
-                    capacity: classrooms.capacity,
-                    location: classrooms.location,
-                    name: classrooms.name,
-                })
-                .from(classrooms)
-                .innerJoin(
-                    classroomTypes,
-                    eq(classrooms.classroomTypeId, classroomTypes.id)
-                )
-                .where(eq(classroomTypes.scheduleId, parseInt(scheduleId)));
+
+        if (!scheduleId) {
+            return NextResponse.json(
+                { error: "Schedule ID is required" },
+                { status: 400 }
+            );
         }
+
+        const classroomTypesQuery = await db
+            .select({
+                id: classrooms.id,
+                code: classrooms.code,
+                name: classrooms.name,
+                location: classrooms.location,
+                typeName: classroomTypes.name,
+                capacity: classrooms.capacity,
+            })
+            .from(classrooms)
+            .innerJoin(
+                classroomTypes,
+                eq(classrooms.classroomTypeId, classroomTypes.id)
+            )
+            .where(eq(classroomTypes.scheduleId, parseInt(scheduleId)));
+
         // Format the response to include type name
-        const formattedClassrooms = classroomTypesQuery?.map((classroom) => ({
+        const formattedClassrooms = classroomTypesQuery.map((classroom) => ({
             id: classroom.id,
             name: classroom.name,
             location: classroom.location,
@@ -132,7 +140,8 @@ export async function PATCH(request: Request) {
 
         // Validate request body and extract scheduleId
         const validatedData = editClassroomSchema.parse(body);
-        const { id, code, type, capacity, scheduleId } = validatedData;
+        const { id, code, name, location, type, capacity, scheduleId } =
+            validatedData;
 
         // Security check: Verify the classroom belongs to the specified schedule
         const existingClassroom = await db
@@ -171,11 +180,13 @@ export async function PATCH(request: Request) {
             );
         }
 
-        // Update classroom with the correct classroomTypeId
+        // Update classroom with all fields
         const updatedClassroom = await db
             .update(classrooms)
             .set({
                 code,
+                name,
+                location,
                 classroomTypeId: classroomType.id,
                 capacity,
             })
