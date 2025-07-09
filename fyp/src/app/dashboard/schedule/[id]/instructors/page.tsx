@@ -24,11 +24,11 @@ import {
     validateAgainstExistingEmails,
     validateInstructorsWithUniqueEmails,
 } from "@/lib/validations/instructors";
-import { Download, Pencil, Plus, Trash, Upload } from "lucide-react";
+import { Download, Pencil, Plus, Search, Trash, Upload, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import Papa from "papaparse";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
 const ITEMS_PER_PAGE = 20;
@@ -627,13 +627,32 @@ export default function InstructorsView() {
     }, [statusMessage]);
 
     // Calculate pagination values
-    const totalPages = Math.ceil(instructors.length / ITEMS_PER_PAGE);
-    const paginatedInstructors = instructors.slice(
-        (currentPage - 1) * ITEMS_PER_PAGE,
-        currentPage * ITEMS_PER_PAGE
+    const [searchQuery, setSearchQuery] = useState("");
+
+// Add this filtered instructors logic after your existing state
+const filteredInstructors = useMemo(() => {
+    if (!searchQuery.trim()) return instructors;
+    
+    const query = searchQuery.toLowerCase();
+    return instructors.filter(instructor =>
+        instructor.first_name.toLowerCase().includes(query) ||
+        instructor.last_name.toLowerCase().includes(query) ||
+        instructor.email.toLowerCase().includes(query) ||
+        (instructor.instructor_id && instructor.instructor_id.toLowerCase().includes(query)) ||
+        (instructor.phone_number && instructor.phone_number.includes(query))
     );
+}, [instructors, searchQuery]);
+
+// Update your pagination logic to use filteredInstructors instead of instructors
+const totalPages = Math.ceil(filteredInstructors.length / ITEMS_PER_PAGE);
+const paginatedInstructors = filteredInstructors.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+);
+
 
     return (
+        
         <div className="space-y-4">
             {statusMessage && (
                 <div
@@ -653,6 +672,7 @@ export default function InstructorsView() {
                     <h2 className="text-lg font-semibold text-gray-900">Instructors</h2>
                     <p className="text-xs text-gray-600">Manage instructor information and details</p>
                 </div>
+              
                 <div className="flex gap-2">
                     <Button
                         onClick={() => setIsImportDialogOpen(true)}
@@ -677,7 +697,31 @@ export default function InstructorsView() {
                     </Button>
                 </div>
             </div>
-
+            <div className="relative max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                    placeholder="Search instructors by name, email, ID, or phone..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                    }}
+                    className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
+                />
+                {searchQuery && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            setSearchQuery("");
+                            setCurrentPage(1);
+                        }}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+                    >
+                        <X className="h-3 w-3" />
+                    </Button>
+                )}
+            </div>
             {/* Table */}
             <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
@@ -695,16 +739,20 @@ export default function InstructorsView() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                            {instructors.length === 0 ? (
-                                <tr>
-                                    <td colSpan={8} className="px-3 py-8 text-center text-gray-500 text-sm">
-                                        <div className="space-y-1">
-                                            <div>No instructors found</div>
-                                            <div className="text-xs">Add a new instructor to get started.</div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : (
+                        {filteredInstructors.length === 0 ? (
+    <tr>
+        <td colSpan={8} className="px-3 py-8 text-center text-gray-500 text-sm">
+            <div className="space-y-1">
+                <div>
+                    {searchQuery ? `No instructors found for "${searchQuery}"` : "No instructors found"}
+                </div>
+                <div className="text-xs">
+                    {searchQuery ? "Try a different search term" : "Add a new instructor to get started."}
+                </div>
+            </div>
+        </td>
+    </tr>
+) : (
                                 paginatedInstructors.map((instructor, index) => (
                                     <tr
                                         key={instructor.id}
@@ -752,7 +800,7 @@ export default function InstructorsView() {
             </div>
 
             {/* Pagination */}
-            {instructors.length > 0 && (
+            {filteredInstructors.length > 0 && totalPages > 1 && (
                 <div className="flex justify-center">
                     <CustomPagination
                         currentPage={currentPage}
