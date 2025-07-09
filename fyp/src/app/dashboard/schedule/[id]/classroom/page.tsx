@@ -19,7 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Download, Pencil, Plus, Trash, Upload } from "lucide-react";
+import { Download, Pencil, Plus, Search, Trash, Upload, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import Papa from "papaparse";
 import type React from "react";
@@ -472,12 +472,6 @@ export default function ClassroomView() {
         setIsDeleteDialogOpen(true);
     };
 
-    const totalPages = Math.ceil(sortedClassrooms.length / ITEMS_PER_PAGE);
-    const paginatedClassrooms = sortedClassrooms.slice(
-        (currentPage - 1) * ITEMS_PER_PAGE,
-        currentPage * ITEMS_PER_PAGE
-    );
-
     // CSV Import functionality (keeping existing implementation but using sorted classrooms)
     const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
     const [importFile, setImportFile] = useState<File | null>(null);
@@ -785,7 +779,7 @@ export default function ClassroomView() {
         try {
             const headers = ["code", "name", "location", "type", "capacity"];
 
-            const csvRows = sortedClassrooms.map((classroom) => [
+            const csvRows = filteredClassrooms.map((classroom) => [
                 classroom.code,
                 classroom.name,
                 classroom.location,
@@ -829,7 +823,7 @@ export default function ClassroomView() {
             document.body.removeChild(link);
 
             setStatusMessage({
-                text: `Exported ${sortedClassrooms.length} classrooms to CSV`,
+                text: `Exported ${filteredClassrooms.length} classrooms to CSV`,
                 type: "success",
             });
         } catch (error) {
@@ -840,6 +834,22 @@ export default function ClassroomView() {
             });
         }
     };
+    //search function start here
+    const [searchQuery, setSearchQuery] = useState("");
+    // Filter classrooms based on search query
+const filteredClassrooms = sortedClassrooms.filter(classroom =>
+    classroom.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    classroom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    classroom.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    classroom.type.toLowerCase().includes(searchQuery.toLowerCase())
+);
+// Calculate pagination values with filtered data  
+const totalPages = Math.ceil(filteredClassrooms.length / ITEMS_PER_PAGE);
+const paginatedClassrooms = filteredClassrooms.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+);
+
 
     return (
         <div className="space-y-4">
@@ -881,7 +891,7 @@ export default function ClassroomView() {
                         onClick={downloadClassroomsCSV}
                         variant="outline"
                         className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
-                        disabled={sortedClassrooms.length === 0 || isLoading}
+                        disabled={filteredClassrooms.length === 0 || isLoading}
                     >
                         <Download className="mr-1 h-3 w-3" /> Export CSV
                     </Button>
@@ -894,7 +904,32 @@ export default function ClassroomView() {
                     </Button>
                 </div>
             </div>
-
+{/* Search Bar */}
+<div className="relative max-w-md">
+    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+    <Input
+        placeholder="Search classrooms by code, name, location, or type..."
+        value={searchQuery}
+        onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setCurrentPage(1);
+        }}
+        className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
+    />
+    {searchQuery && (
+        <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+                setSearchQuery("");
+                setCurrentPage(1);
+            }}
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+        >
+            <X className="h-3 w-3" />
+        </Button>
+    )}
+</div>
             {/* Compact Table Container */}
             <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
@@ -1018,7 +1053,7 @@ export default function ClassroomView() {
                 </div>
             </div>
 
-            {sortedClassrooms.length > 0 && (
+            { filteredClassrooms.length > 0 && (
                 <div className="flex justify-center">
                     <CustomPagination
                         currentPage={currentPage}
