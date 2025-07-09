@@ -407,7 +407,7 @@ export default function ClassroomView() {
                 scheduleId: scheduleId,
             };
 
-            const response = await fetch(`/api/classrooms/`, {
+            const response = await fetch(`/api/classrooms?scheduleId={scheduleId}`, {
                 method: "DELETE",
                 headers: {
                     "Content-Type": "application/json",
@@ -849,6 +849,69 @@ const paginatedClassrooms = filteredClassrooms.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
 );
+//clear all classroom start here
+// Add this state variable with your other useState declarations
+const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
+
+// Add this function with your other handler functions
+const handleClearAllClassrooms = async () => {
+    try {
+        const scheduleId = params.id;
+        let deletedCount = 0;
+        let errorCount = 0;
+        
+        // Delete all classrooms one by one
+        for (const classroom of classrooms) {
+            try {
+                const response = await fetch("/api/classrooms", {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ 
+                        id: classroom.id, 
+                        scheduleId: scheduleId 
+                    }),
+                });
+
+                if (response.ok) {
+                    deletedCount++;
+                } else {
+                    errorCount++;
+                }
+            } catch (error) {
+                errorCount++;
+            }
+        }
+
+        await fetchClassrooms();
+        setIsClearAllDialogOpen(false);
+        
+        if (deletedCount === classrooms.length) {
+            setStatusMessage({
+                text: `Successfully deleted ${deletedCount} classrooms`,
+                type: "success",
+            });
+        } else if (deletedCount > 0) {
+            setStatusMessage({
+                text: `Deleted ${deletedCount} classrooms. ${errorCount} classrooms couldn't be deleted (they're being used in course schedules)`,
+                type: "error",
+            });
+        } else {
+            setStatusMessage({
+                text: "No classrooms could be deleted. They're all being used in course schedules.",
+                type: "error",
+            });
+        }
+    } catch (error) {
+        console.error("Error clearing all classrooms:", error);
+        setStatusMessage({
+            text: "Failed to delete classrooms. Please try again.",
+            type: "error",
+        });
+    }
+};
+
 
 
     return (
@@ -902,6 +965,14 @@ const paginatedClassrooms = filteredClassrooms.slice(
                     >
                         <Plus className="mr-1 h-3 w-3" /> New Classroom
                     </Button>
+                    <Button
+    onClick={() => setIsClearAllDialogOpen(true)}
+    variant="outline"
+    className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
+    disabled={classrooms.length === 0 || isLoading}
+>
+    Clear All
+</Button>
                 </div>
             </div>
 {/* Search Bar */}
@@ -1643,6 +1714,42 @@ const paginatedClassrooms = filteredClassrooms.slice(
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            {/* Clear All Classrooms Dialog */}
+<Dialog
+    open={isClearAllDialogOpen}
+    onOpenChange={setIsClearAllDialogOpen}
+>
+    <DialogContent className="bg-white max-w-md">
+        <DialogHeader className="border-b border-gray-200 pb-3">
+            <DialogTitle className="text-lg font-semibold text-gray-900">Clear All Classrooms</DialogTitle>
+        </DialogHeader>
+
+        <div className="py-4">
+            <p className="text-sm text-gray-600 mb-2">
+                Are you sure you want to delete all {classrooms.length} classrooms?
+            </p>
+            <p className="text-xs text-red-600 font-medium">This action cannot be undone.</p>
+        </div>
+
+        <DialogFooter className="border-t border-gray-200 pt-3">
+            <Button
+                variant="outline"
+                onClick={() => setIsClearAllDialogOpen(false)}
+                disabled={isLoading}
+                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+            >
+                Cancel
+            </Button>
+            <Button
+                onClick={handleClearAllClassrooms}
+                disabled={isLoading}
+                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+            >
+                Delete All
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
         </div>
     );
 }

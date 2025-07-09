@@ -1,4 +1,4 @@
-import { classrooms, classroomTypes } from "@/drizzle/schema";
+import { classrooms, classroomTypes, courseHours } from "@/drizzle/schema";
 import { db } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -249,10 +249,38 @@ export async function DELETE(request: Request) {
             );
         }
 
+        // Check if classroom is being used in course_hours
+        const courseHoursUsage = await db
+            .select()
+            .from(courseHours)
+            .where(eq(courseHours.classroomId, id));
+
+        if (courseHoursUsage.length > 0) {
+            // Option: Force delete by removing course_hours references first
+            await db.delete(courseHours).where(eq(courseHours.classroomId, id));
+            console.log(
+                `Deleted ${courseHoursUsage.length} course_hours records for classroom ${id}`
+            );
+        }
+
         await db.delete(classrooms).where(eq(classrooms.id, id));
         return NextResponse.json({ message: "Classroom deleted successfully" });
     } catch (error: unknown) {
         console.error("Error deleting classroom:", error);
+
+        // Handle foreign key constraint error
+        if (
+            error instanceof Error &&
+            error.message.includes("foreign key constraint fails")
+        ) {
+            return NextResponse.json(
+                {
+                    error: "Cannot delete classroom because it's being used in course schedules",
+                },
+                { status: 409 }
+            );
+        }
+
         return NextResponse.json(
             { error: "Failed to delete classroom" },
             { status: 500 }

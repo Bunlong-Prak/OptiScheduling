@@ -649,6 +649,38 @@ const paginatedInstructors = filteredInstructors.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
 );
+// Add this state variable with your other useState declarations
+const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
+
+// Add this function with your other handler functions
+const handleClearAllInstructors = async () => {
+    try {
+        // Delete all instructors one by one
+        const deletePromises = instructors.map(instructor =>
+            fetch("/api/instructors?scheduleId=${scheduleId", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ id: instructor.id }),
+            })
+        );
+
+        await Promise.all(deletePromises);
+        await fetchInstructors();
+        setIsClearAllDialogOpen(false);
+        setStatusMessage({
+            text: `Successfully deleted ${instructors.length} instructors`,
+            type: "success",
+        });
+    } catch (error) {
+        console.error("Error clearing all instructors:", error);
+        setStatusMessage({
+            text: "Failed to delete all instructors. Please try again.",
+            type: "error",
+        });
+    }
+};
 
 
     return (
@@ -695,6 +727,14 @@ const paginatedInstructors = filteredInstructors.slice(
                     >
                         <Plus className="mr-1 h-3 w-3" /> New Instructor
                     </Button>
+                    <Button
+    onClick={() => setIsClearAllDialogOpen(true)}
+    variant="outline"
+    className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
+    disabled={instructors.length === 0}
+>
+    Clear All
+</Button>
                 </div>
             </div>
             <div className="relative max-w-md">
@@ -1210,6 +1250,39 @@ const paginatedInstructors = filteredInstructors.slice(
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <Dialog
+    open={isClearAllDialogOpen}
+    onOpenChange={setIsClearAllDialogOpen}
+>
+    <DialogContent className="bg-white max-w-md">
+        <DialogHeader className="border-b border-gray-200 pb-3">
+            <DialogTitle className="text-lg font-semibold text-gray-900">Clear All Instructors</DialogTitle>
+        </DialogHeader>
+
+        <div className="py-4">
+            <p className="text-sm text-gray-600 mb-2">
+                Are you sure you want to delete all {instructors.length} instructors?
+            </p>
+            <p className="text-xs text-red-600 font-medium">This action cannot be undone.</p>
+        </div>
+
+        <DialogFooter className="border-t border-gray-200 pt-3">
+            <Button
+                variant="outline"
+                onClick={() => setIsClearAllDialogOpen(false)}
+                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+            >
+                Cancel
+            </Button>
+            <Button
+                onClick={handleClearAllInstructors}
+                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+            >
+                Delete All
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
         </div>
     );
 }
