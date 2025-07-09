@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Pencil, Plus, Trash, Upload } from "lucide-react";
+import { Download, Pencil, Plus, Search, Trash, Upload, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import Papa from "papaparse";
 import type React from "react";
@@ -59,11 +59,7 @@ export default function ClassroomTypeView() {
     }, [statusMessage]);
 
     // Calculate pagination values
-    const totalPages = Math.ceil(classroomTypes.length / ITEMS_PER_PAGE);
-    const paginatedClassroomTypes = classroomTypes.slice(
-        (currentPage - 1) * ITEMS_PER_PAGE,
-        currentPage * ITEMS_PER_PAGE
-    );
+    // (Removed duplicate totalPages and paginatedClassroomTypes, now handled after filtering)
 
     const params = useParams();
 
@@ -595,6 +591,19 @@ export default function ClassroomTypeView() {
             });
         }
     };
+    const [searchQuery, setSearchQuery] = useState("");
+    // Filter classroom types based on search query
+const filteredClassroomTypes = classroomTypes.filter(type =>
+    type.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (type.description && type.description.toLowerCase().includes(searchQuery.toLowerCase()))
+);
+
+// Calculate pagination values with filtered data
+const totalPages = Math.ceil(filteredClassroomTypes.length / ITEMS_PER_PAGE);
+const paginatedClassroomTypes = filteredClassroomTypes.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+);
 
     return (
         <div className="space-y-4">
@@ -646,7 +655,32 @@ export default function ClassroomTypeView() {
                     </Button>
                 </div>
             </div>
-
+{/* Search Bar */}
+<div className="relative max-w-md">
+    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+    <Input
+        placeholder="Search classroom types by name or description..."
+        value={searchQuery}
+        onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setCurrentPage(1);
+        }}
+        className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
+    />
+    {searchQuery && (
+        <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+                setSearchQuery("");
+                setCurrentPage(1);
+            }}
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+        >
+            <X className="h-3 w-3" />
+        </Button>
+    )}
+</div>
             {/* Compact Table Container */}
             <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
@@ -745,7 +779,7 @@ export default function ClassroomTypeView() {
             </div>
 
             {/* Pagination */}
-            {classroomTypes.length > 0 && (
+            {filteredClassroomTypes.length > 0 && (
                 <div className="flex justify-center">
                     <CustomPagination
                         currentPage={currentPage}
