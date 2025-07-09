@@ -46,8 +46,10 @@ import {
     Minus,
     Pencil,
     Plus,
+    Search,
     Trash,
     Upload,
+    X,
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import Papa from "papaparse";
@@ -222,16 +224,8 @@ export default function CoursesView() {
         fetchData();
     }, []);
 
-    // Update total pages when courses or items per page changes
-    useEffect(() => {
-        setTotalPages(Math.ceil(courses.length / ITEMS_PER_PAGE));
-    }, [courses]);
-
-    // Get current courses
-    const paginatedCourses = courses.slice(
-        (currentPage - 1) * ITEMS_PER_PAGE,
-        currentPage * ITEMS_PER_PAGE
-    );
+   
+    // (Removed duplicate paginatedCourses declaration to avoid redeclaration error)
 
     const params = useParams();
 
@@ -1456,7 +1450,7 @@ if (isNaN(separatedDuration) || separatedDuration <= 0) {
             // Convert courses data to CSV rows (one row per section)
             const csvRows: string[][] = [];
 
-            courses.forEach((course) => {
+            filteredCourses.forEach((course) => {
                 // Get instructor name, handling potential undefined values
                 const instructorName =
                     course.firstName && course.lastName
@@ -1526,7 +1520,7 @@ if (isNaN(separatedDuration) || separatedDuration <= 0) {
             URL.revokeObjectURL(url);
 
             setStatusMessage({
-                text: `Successfully exported ${courses.length} courses to CSV`,
+                text: `Successfully exported ${filteredCourses.length} courses to CSV`,
                 type: "success",
             });
         } catch (error) {
@@ -1537,6 +1531,25 @@ if (isNaN(separatedDuration) || separatedDuration <= 0) {
             });
         }
     };
+//search bar function start here
+const [searchQuery, setSearchQuery] = useState("");
+// Filter courses based on search query
+const filteredCourses = courses.filter(course =>
+    course.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    course.section.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    course.major.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    `${course.firstName || ""} ${course.lastName || ""}`.toLowerCase().includes(searchQuery.toLowerCase())
+);
+
+// Get current courses
+const paginatedCourses = filteredCourses.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+);
+useEffect(() => {
+    setTotalPages(Math.ceil(filteredCourses.length / ITEMS_PER_PAGE));
+}, [filteredCourses]);
 
     return (
         <div className="space-y-4">
@@ -1586,6 +1599,32 @@ if (isNaN(separatedDuration) || separatedDuration <= 0) {
                     </Button>
                 </div>
             </div>
+            {/* Search Bar */}
+<div className="relative max-w-md">
+    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+    <Input
+        placeholder="Search courses by code, title, section, major, or instructor..."
+        value={searchQuery}
+        onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setCurrentPage(1);
+        }}
+        className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
+    />
+    {searchQuery && (
+        <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+                setSearchQuery("");
+                setCurrentPage(1);
+            }}
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+        >
+            <X className="h-3 w-3" />
+        </Button>
+    )}
+</div>
 
             {/* Compact Table Container */}
             <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
@@ -1729,7 +1768,7 @@ if (isNaN(separatedDuration) || separatedDuration <= 0) {
             </div>
 
             {/* Pagination */}
-            {courses.length > 0 && (
+            {filteredCourses.length > 0 && (
                 <div className="flex justify-center">
                     <CustomPagination
                         currentPage={currentPage}
