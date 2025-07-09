@@ -971,7 +971,7 @@ const handleClearAllClassrooms = async () => {
     className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
     disabled={classrooms.length === 0 || isLoading}
 >
-    Clear All
+<Trash className="mr-1 h-3 w-3" /> Clear All
 </Button>
                 </div>
             </div>
