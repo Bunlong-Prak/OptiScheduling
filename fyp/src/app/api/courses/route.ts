@@ -577,10 +577,58 @@ export async function PATCH(request: Request) {
 // DELETE - Remove a course (updated to handle courseHours)
 export async function DELETE(request: Request) {
     try {
-        const body = await request.json();
+        const { searchParams } = new URL(request.url);
+        const scheduleId = searchParams.get("scheduleId");
 
-        // Validate request data
+        // SCENARIO 1: Handle "Clear All" if scheduleId is provided in the URL
+        if (scheduleId) {
+            const scheduleIdNum = parseInt(scheduleId);
+            if (isNaN(scheduleIdNum)) {
+                return NextResponse.json(
+                    { error: "Invalid Schedule ID format" },
+                    { status: 400 }
+                );
+            }
+
+            // Get all courses for this schedule
+            const coursesToDelete = await db
+                .select({ id: courses.id })
+                .from(courses)
+                .where(eq(courses.scheduleId, scheduleIdNum));
+
+            if (coursesToDelete.length === 0) {
+                return NextResponse.json(
+                    { message: "No courses to delete" },
+                    { status: 200 }
+                );
+            }
+
+            // Delete courseHours, sections, and courses in the correct order
+            for (const course of coursesToDelete) {
+                const courseSections = await db
+                    .select({ id: sections.id })
+                    .from(sections)
+                    .where(eq(sections.courseId, course.id));
+                for (const section of courseSections) {
+                    await db
+                        .delete(courseHours)
+                        .where(eq(courseHours.sectionId, section.id));
+                }
+                await db
+                    .delete(sections)
+                    .where(eq(sections.courseId, course.id));
+                await db.delete(courses).where(eq(courses.id, course.id));
+            }
+
+            return NextResponse.json({
+                message: `Successfully cleared ${coursesToDelete.length} courses`,
+            });
+        }
+
+        // SCENARIO 2: Handle "Delete One" if sectionId is provided in the body
+        const body = await request.json();
         const validationResult = deleteCourseSchema.safeParse(body);
+
         if (!validationResult.success) {
             return NextResponse.json(
                 {
@@ -593,7 +641,7 @@ export async function DELETE(request: Request) {
 
         const { sectionId } = validationResult.data;
 
-        // Get the section to find its courseId
+        // Find the course ID to check for orphans later
         const sectionInfo = await db
             .select({ courseId: sections.courseId })
             .from(sections)
@@ -606,48 +654,42 @@ export async function DELETE(request: Request) {
                 { status: 404 }
             );
         }
-
         const courseId = sectionInfo[0].courseId;
 
-        // Check if the course exists
-        const existingCourse = await db.query.courses.findFirst({
-            where: eq(courses.id, courseId),
-        });
-
-        if (!existingCourse) {
-            return NextResponse.json(
-                { error: "Course not found" },
-                { status: 404 }
-            );
-        }
-
-        // First delete courseHours associated with the section
+        // 1. Delete associated courseHours for the section
         await db
             .delete(courseHours)
             .where(eq(courseHours.sectionId, sectionId));
 
-        // Then delete the section
+        // 2. Delete the section itself
         await db.delete(sections).where(eq(sections.id, sectionId));
 
-        // Check if any sections remain for this course
+        // 3. Check if the parent course has any remaining sections
         const remainingSections = await db
             .select({ id: sections.id })
             .from(sections)
-            .where(eq(sections.courseId, courseId));
+            .where(eq(sections.courseId, courseId))
+            .limit(1);
 
-        // If no sections remain, delete the course
+        // 4. If no sections remain, delete the parent course to prevent orphaned data
         if (remainingSections.length === 0) {
-            // Delete the course (majorId is now stored directly in the course table)
             await db.delete(courses).where(eq(courses.id, courseId));
         }
 
         return NextResponse.json({
-            message: "Course and associated sections deleted successfully",
+            message: "Course section deleted successfully",
         });
     } catch (error) {
-        console.error("Error deleting course:", error);
+        console.error("Error during DELETE operation:", error);
+        // Handle JSON parsing errors if the body is empty for a single-delete attempt
+        if (error instanceof SyntaxError) {
+            return NextResponse.json(
+                { error: "Invalid request. Missing sectionId in body." },
+                { status: 400 }
+            );
+        }
         return NextResponse.json(
-            { error: "Failed to delete course" },
+            { error: "Failed to perform delete operation" },
             { status: 500 }
         );
     }

@@ -1550,6 +1550,52 @@ const paginatedCourses = filteredCourses.slice(
 useEffect(() => {
     setTotalPages(Math.ceil(filteredCourses.length / ITEMS_PER_PAGE));
 }, [filteredCourses]);
+// Add this state variable with your other state variables
+const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
+
+const handleClearAllCourses = async () => {
+    // 1. Get the scheduleId from the URL params, which you already have.
+    const scheduleId = params.id;
+
+    if (!scheduleId) {
+        setStatusMessage({
+            text: "Could not find the schedule ID. Action cannot be performed.",
+            type: "error",
+        });
+        return;
+    }
+
+    try {
+        // 2. Make a SINGLE DELETE request with the scheduleId in the URL.
+        const response = await fetch(`/api/courses?scheduleId=${scheduleId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            // 3. No request body is needed.
+        });
+
+        if (response.ok) {
+            // Success! Refresh the data and show a success message.
+            await fetchData();
+            setIsClearAllDialogOpen(false);
+            setStatusMessage({
+                text: 'All courses have been successfully cleared.',
+                type: 'success',
+            });
+        } else {
+            // Handle potential errors from the API.
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to clear courses');
+        }
+    } catch (error) {
+        console.error('Error clearing all courses:', error);
+        setStatusMessage({
+            text: error instanceof Error ? error.message : 'An unknown error occurred while clearing courses.',
+            type: 'error',
+        });
+    }
+};
 
     return (
         <div className="space-y-4">
@@ -1597,6 +1643,14 @@ useEffect(() => {
                     >
                         <Plus className="mr-1 h-3 w-3" /> New Course
                     </Button>
+                    <Button
+    onClick={() => setIsClearAllDialogOpen(true)}
+    variant="outline"
+    className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
+    disabled={courses.length === 0}
+>
+    <Trash className="mr-1 h-3 w-3" /> Clear All
+</Button>
                 </div>
             </div>
             {/* Search Bar */}
@@ -3301,6 +3355,41 @@ useEffect(() => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <Dialog
+    open={isClearAllDialogOpen}
+    onOpenChange={setIsClearAllDialogOpen}
+>
+    <DialogContent className="bg-white max-w-md">
+        <DialogHeader className="border-b border-gray-200 pb-3">
+            <DialogTitle className="text-lg font-semibold text-gray-900">
+                Clear All Courses
+            </DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+            <p className="text-sm text-gray-600 mb-2">
+                Are you sure you want to delete all courses?
+            </p>
+            <p className="text-xs text-red-600 font-medium">
+                This will permanently delete {courses.length} course(s) and all their sections. This action cannot be undone.
+            </p>
+        </div>
+        <DialogFooter className="border-t border-gray-200 pt-3">
+            <Button
+                variant="outline"
+                onClick={() => setIsClearAllDialogOpen(false)}
+                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+            >
+                Cancel
+            </Button>
+            <Button
+                onClick={handleClearAllCourses}
+                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+            >
+                Clear All
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
         </div>
     );
 }

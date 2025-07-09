@@ -2770,6 +2770,28 @@ export default function TimetableViewClassroom() {
                             ? "Generating..."
                             : "Auto-Generate Schedule"}
                     </Button>
+                    {/* <Button
+                        onClick={() => {
+                            setSchedule({});
+                            setAssignedCourses([]);
+                            setAvailableCourses(prev => [...prev, ...assignedCourses.map(course => ({
+                                ...course,
+                                day: undefined,
+                                startTime: undefined,
+                                endTime: undefined,
+                                classroom: undefined,
+                                isStart: undefined,
+                                isMiddle: undefined,
+                                isEnd: undefined,
+                                colspan: undefined,
+                            }))]);
+                            showMessage("success", "Timetable cleared successfully");
+                        }}
+                        variant="outline"
+                        disabled={Object.keys(schedule).length === 0}
+                    >
+                        Clear Timetable
+                    </Button> */}
                     <Button
                         className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors"
                         onClick={saveAllAssignments}
@@ -2786,6 +2808,7 @@ export default function TimetableViewClassroom() {
                     </Button>
                 </div>
             </div>
+            
 
             <div className="mb-6 ">
                 <div className="relative max-w-md">
