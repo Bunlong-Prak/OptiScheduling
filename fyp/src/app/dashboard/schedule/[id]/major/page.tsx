@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Download, Pencil, Plus, Trash, Upload } from "lucide-react";
+import { Download, Pencil, Plus, Search, Trash, Upload, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import Papa from "papaparse";
 import { useEffect, useState } from "react";
@@ -36,6 +36,7 @@ type MajorUpdate = {
 };
 
 export default function MajorView() {
+    const [searchQuery, setSearchQuery] = useState("");
     const [majors, setMajors] = useState<Major[]>([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -67,13 +68,20 @@ export default function MajorView() {
         }
     }, [statusMessage]);
 
-    // Calculate pagination values
-    const totalPages = Math.ceil(majors.length / ITEMS_PER_PAGE);
-    const paginatedMajors = majors.slice(
-        (currentPage - 1) * ITEMS_PER_PAGE,
-        currentPage * ITEMS_PER_PAGE
-    );
+    
+    //search functionality
+    // Filter majors based on search query
+const filteredMajors = majors.filter(major =>
+    major.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    major.shortTag.toLowerCase().includes(searchQuery.toLowerCase())
+);
 
+// Calculate pagination values with filtered data
+const totalPages = Math.ceil(filteredMajors.length / ITEMS_PER_PAGE);
+const paginatedMajors = filteredMajors.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+);
     // Fetch majors
     const fetchMajors = async () => {
         try {
@@ -633,7 +641,7 @@ export default function MajorView() {
             const headers = ["name", "short_tag"];
 
             // Convert majors data to CSV rows
-            const csvRows = majors.map((major) => [major.name, major.shortTag]);
+            const csvRows = filteredMajors.map((major) => [major.name, major.shortTag]);
 
             // Combine headers and data
             const allRows = [headers, ...csvRows];
@@ -676,7 +684,7 @@ export default function MajorView() {
             document.body.removeChild(link);
 
             setStatusMessage({
-                text: `Exported ${majors.length} majors to CSV`,
+                text: `Exported ${filteredMajors.length} majors to CSV`,
                 type: "success",
             });
         } catch (error) {
@@ -736,7 +744,32 @@ export default function MajorView() {
                     </Button>
                 </div>
             </div>
-
+{/* Search Bar */}
+<div className="relative max-w-md">
+    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+    <Input
+        placeholder="Search majors by name or short tag..."
+        value={searchQuery}
+        onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setCurrentPage(1);
+        }}
+        className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
+    />
+    {searchQuery && (
+        <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+                setSearchQuery("");
+                setCurrentPage(1);
+            }}
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+        >
+            <X className="h-3 w-3" />
+        </Button>
+    )}
+</div>
             {/* Compact Table Container */}
             <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
@@ -829,7 +862,7 @@ export default function MajorView() {
             </div>
 
             {/* Pagination */}
-            {majors.length > 0 && (
+            {filteredMajors.length > 0 && (
                 <div className="flex justify-center">
                     <CustomPagination
                         currentPage={currentPage}
