@@ -224,7 +224,6 @@ export default function CoursesView() {
         fetchData();
     }, []);
 
-   
     // (Removed duplicate paginatedCourses declaration to avoid redeclaration error)
 
     const params = useParams();
@@ -1091,11 +1090,17 @@ export default function CoursesView() {
             );
         }
 
-   // In validateCourseData function, change separated_duration validation to:
-const separatedDuration = Number(row.separated_duration || row.duration);
-if (isNaN(separatedDuration) || separatedDuration <= 0) {
-    errors.push(`Row ${rowIndex + 1}: Separated duration must be a valid positive number`);
-}
+        // In validateCourseData function, change separated_duration validation to:
+        const separatedDuration = Number(
+            row.separated_duration || row.duration
+        );
+        if (isNaN(separatedDuration) || separatedDuration <= 0) {
+            errors.push(
+                `Row ${
+                    rowIndex + 1
+                }: Separated duration must be a valid positive number`
+            );
+        }
 
         // Validate capacity
         const capacity = Number(row.capacity);
@@ -1153,6 +1158,7 @@ if (isNaN(separatedDuration) || separatedDuration <= 0) {
                 : undefined,
         };
     };
+    
 
     // Group courses by code for import
     const groupCoursesByCode = (validCourses: CSVCourseRow[]) => {
@@ -1416,7 +1422,7 @@ if (isNaN(separatedDuration) || separatedDuration <= 0) {
     // File selection handler
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file && file.type === "text/csv") {
+        if (file) {
             setImportFile(file);
         } else {
             setStatusMessage({
@@ -1442,9 +1448,17 @@ if (isNaN(separatedDuration) || separatedDuration <= 0) {
         try {
             // Create CSV header to match the actual Course structure from your API
             const headers = [
-                "code", "title", "major", "color", "status",
-                "duration", "separated_duration", "capacity", 
-                "section", "classroom", "instructor_name"
+                "code",
+                "title",
+                "major",
+                "color",
+                "status",
+                "duration",
+                "separated_duration",
+                "capacity",
+                "section",
+                "classroom",
+                "instructor_name",
             ];
 
             // Convert courses data to CSV rows (one row per section)
@@ -1531,71 +1545,80 @@ if (isNaN(separatedDuration) || separatedDuration <= 0) {
             });
         }
     };
-//search bar function start here
-const [searchQuery, setSearchQuery] = useState("");
-// Filter courses based on search query
-const filteredCourses = courses.filter(course =>
-    course.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    course.section.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    course.major.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    `${course.firstName || ""} ${course.lastName || ""}`.toLowerCase().includes(searchQuery.toLowerCase())
-);
+    //search bar function start here
+    const [searchQuery, setSearchQuery] = useState("");
+    // Filter courses based on search query
+    const filteredCourses = courses.filter(
+        (course) =>
+            course.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            course.section.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            course.major.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            `${course.firstName || ""} ${course.lastName || ""}`
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase())
+    );
 
-// Get current courses
-const paginatedCourses = filteredCourses.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-);
-useEffect(() => {
-    setTotalPages(Math.ceil(filteredCourses.length / ITEMS_PER_PAGE));
-}, [filteredCourses]);
-// Add this state variable with your other state variables
-const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
+    // Get current courses
+    const paginatedCourses = filteredCourses.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+    useEffect(() => {
+        setTotalPages(Math.ceil(filteredCourses.length / ITEMS_PER_PAGE));
+    }, [filteredCourses]);
+    // Add this state variable with your other state variables
+    const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
 
-const handleClearAllCourses = async () => {
-    // 1. Get the scheduleId from the URL params, which you already have.
-    const scheduleId = params.id;
+    const handleClearAllCourses = async () => {
+        // 1. Get the scheduleId from the URL params, which you already have.
+        const scheduleId = params.id;
 
-    if (!scheduleId) {
-        setStatusMessage({
-            text: "Could not find the schedule ID. Action cannot be performed.",
-            type: "error",
-        });
-        return;
-    }
-
-    try {
-        // 2. Make a SINGLE DELETE request with the scheduleId in the URL.
-        const response = await fetch(`/api/courses?scheduleId=${scheduleId}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            // 3. No request body is needed.
-        });
-
-        if (response.ok) {
-            // Success! Refresh the data and show a success message.
-            await fetchData();
-            setIsClearAllDialogOpen(false);
+        if (!scheduleId) {
             setStatusMessage({
-                text: 'All courses have been successfully cleared.',
-                type: 'success',
+                text: "Could not find the schedule ID. Action cannot be performed.",
+                type: "error",
             });
-        } else {
-            // Handle potential errors from the API.
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to clear courses');
+            return;
         }
-    } catch (error) {
-        console.error('Error clearing all courses:', error);
-        setStatusMessage({
-            text: error instanceof Error ? error.message : 'An unknown error occurred while clearing courses.',
-            type: 'error',
-        });
-    }
-};
+
+        try {
+            // 2. Make a SINGLE DELETE request with the scheduleId in the URL.
+            const response = await fetch(
+                `/api/courses?scheduleId=${scheduleId}`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    // 3. No request body is needed.
+                }
+            );
+
+            if (response.ok) {
+                // Success! Refresh the data and show a success message.
+                await fetchData();
+                setIsClearAllDialogOpen(false);
+                setStatusMessage({
+                    text: "All courses have been successfully cleared.",
+                    type: "success",
+                });
+            } else {
+                // Handle potential errors from the API.
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to clear courses");
+            }
+        } catch (error) {
+            console.error("Error clearing all courses:", error);
+            setStatusMessage({
+                text:
+                    error instanceof Error
+                        ? error.message
+                        : "An unknown error occurred while clearing courses.",
+                type: "error",
+            });
+        }
+    };
 
     return (
         <div className="space-y-4">
@@ -1644,41 +1667,41 @@ const handleClearAllCourses = async () => {
                         <Plus className="mr-1 h-3 w-3" /> New Course
                     </Button>
                     <Button
-    onClick={() => setIsClearAllDialogOpen(true)}
-    variant="outline"
-    className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
-    disabled={courses.length === 0}
->
-    <Trash className="mr-1 h-3 w-3" /> Clear All
-</Button>
+                        onClick={() => setIsClearAllDialogOpen(true)}
+                        variant="outline"
+                        className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
+                        disabled={courses.length === 0}
+                    >
+                        <Trash className="mr-1 h-3 w-3" /> Clear All
+                    </Button>
                 </div>
             </div>
             {/* Search Bar */}
-<div className="relative max-w-md">
-    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-    <Input
-        placeholder="Search courses by code, title, section, major, or instructor..."
-        value={searchQuery}
-        onChange={(e) => {
-            setSearchQuery(e.target.value);
-            setCurrentPage(1);
-        }}
-        className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
-    />
-    {searchQuery && (
-        <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-                setSearchQuery("");
-                setCurrentPage(1);
-            }}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
-        >
-            <X className="h-3 w-3" />
-        </Button>
-    )}
-</div>
+            <div className="relative max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                    placeholder="Search courses by code, title, section, major, or instructor..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                    }}
+                    className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
+                />
+                {searchQuery && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            setSearchQuery("");
+                            setCurrentPage(1);
+                        }}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+                    >
+                        <X className="h-3 w-3" />
+                    </Button>
+                )}
+            </div>
 
             {/* Compact Table Container */}
             <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
@@ -2541,7 +2564,7 @@ const handleClearAllCourses = async () => {
             </Dialog>
 
             {/* Edit Course Dialog - Complete */}
-       
+
             <Dialog
                 open={isEditDialogOpen}
                 onOpenChange={(open) => {
@@ -2649,52 +2672,58 @@ const handleClearAllCourses = async () => {
                             </div>
                         </div>
 
-                   
-<div className="grid gap-4">
-    <div className="space-y-2">
-        <Label className="text-sm font-medium text-gray-700">
-            Duration
-        </Label>
-        <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-                <Label htmlFor="edit-duration-hours" className="text-xs text-gray-600">
-                    Hours
-                </Label>
-                <Input
-                    id="edit-duration-hours"
-                    name="durationHours"
-                    type="number"
-                    min="0"
-                    max="23"
-                    value={durationHours}
-                    onChange={handleInputChange}
-                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                    placeholder="0"
-                />
-            </div>
-            <div className="space-y-1">
-                <Label htmlFor="edit-duration-minutes" className="text-xs text-gray-600">
-                    Minutes
-                </Label>
-                <Input
-                    id="edit-duration-minutes"
-                    name="durationMinutes"
-                    type="number"
-                    min="0"
-                    max="59"
-                    step="5"
-                    value={durationMinutes}
-                    onChange={handleInputChange}
-                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                    placeholder="0"
-                />
-            </div>
-        </div>
-        <div className="text-xs text-gray-500">
-            Total: {durationHours}h {durationMinutes}m ({formData.duration.toFixed(2)} hours)
-        </div>
-    </div>
-</div>
+                        <div className="grid gap-4">
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium text-gray-700">
+                                    Duration
+                                </Label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                        <Label
+                                            htmlFor="edit-duration-hours"
+                                            className="text-xs text-gray-600"
+                                        >
+                                            Hours
+                                        </Label>
+                                        <Input
+                                            id="edit-duration-hours"
+                                            name="durationHours"
+                                            type="number"
+                                            min="0"
+                                            max="23"
+                                            value={durationHours}
+                                            onChange={handleInputChange}
+                                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label
+                                            htmlFor="edit-duration-minutes"
+                                            className="text-xs text-gray-600"
+                                        >
+                                            Minutes
+                                        </Label>
+                                        <Input
+                                            id="edit-duration-minutes"
+                                            name="durationMinutes"
+                                            type="number"
+                                            min="0"
+                                            max="59"
+                                            step="5"
+                                            value={durationMinutes}
+                                            onChange={handleInputChange}
+                                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                    Total: {durationHours}h {durationMinutes}m (
+                                    {formData.duration.toFixed(2)} hours)
+                                </div>
+                            </div>
+                        </div>
 
                         {/* Sections */}
                         <div className="space-y-4">
@@ -2708,7 +2737,6 @@ const handleClearAllCourses = async () => {
                                 </p>
                             </div>
 
-                        
                             {/* Sections List - Now appears after the add section form */}
                             {sections.length > 0 && (
                                 <div className="space-y-2">
@@ -2798,262 +2826,261 @@ const handleClearAllCourses = async () => {
                                                 </Popover>
                                             </div>
 
-                                           
-{/* Split Duration Controls */}
-<div className="mt-4 mb-4 space-y-3">
-    <div className="flex justify-between items-center mb-3">
-        <Label className="text-xs text-gray-700 mr-2">
-            Split Duration
-        </Label>
-        <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-                toggleSectionSplitControls(
-                    section.id
-                )
-            }
-            className="text-xs ml-2"
-        >
-            {section.showSplitControls
-                ? "Hide Split"
-                : "Split Duration"}
-        </Button>
-    </div>
+                                            {/* Split Duration Controls */}
+                                            <div className="mt-4 mb-4 space-y-3">
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <Label className="text-xs text-gray-700 mr-2">
+                                                        Split Duration
+                                                    </Label>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            toggleSectionSplitControls(
+                                                                section.id
+                                                            )
+                                                        }
+                                                        className="text-xs ml-2"
+                                                    >
+                                                        {section.showSplitControls
+                                                            ? "Hide Split"
+                                                            : "Split Duration"}
+                                                    </Button>
+                                                </div>
 
-    {section.showSplitControls && (
-        <div className="mt-4 mb-4">
-            <div className="text-xs text-gray-600 mb-3">
-                Original Duration:{" "}
-                {durationHours}h{" "}
-                {durationMinutes}m (
-                {formData.duration.toFixed(
-                    2
-                )}{" "}
-                hours)
-            </div>
+                                                {section.showSplitControls && (
+                                                    <div className="mt-4 mb-4">
+                                                        <div className="text-xs text-gray-600 mb-3">
+                                                            Original Duration:{" "}
+                                                            {durationHours}h{" "}
+                                                            {durationMinutes}m (
+                                                            {formData.duration.toFixed(
+                                                                2
+                                                            )}{" "}
+                                                            hours)
+                                                        </div>
 
-            {section.splitDurations.map(
-                (
-                    duration,
-                    index
-                ) => {
-                    const {
-                        hours,
-                        minutes,
-                    } =
-                        convertSplitDurationToHoursMinutes(
-                            duration
-                        );
-                    return (
-                        <div
-                            key={
-                                index
-                            }
-                            className="flex items-center gap-2 mb-3"
-                        >
-                            <Label className="text-xs w-12 mr-2">
-                                Part{" "}
-                                {index +
-                                    1}
-                                :
-                            </Label>
+                                                        {section.splitDurations.map(
+                                                            (
+                                                                duration,
+                                                                index
+                                                            ) => {
+                                                                const {
+                                                                    hours,
+                                                                    minutes,
+                                                                } =
+                                                                    convertSplitDurationToHoursMinutes(
+                                                                        duration
+                                                                    );
+                                                                return (
+                                                                    <div
+                                                                        key={
+                                                                            index
+                                                                        }
+                                                                        className="flex items-center gap-2 mb-3"
+                                                                    >
+                                                                        <Label className="text-xs w-12 mr-2">
+                                                                            Part{" "}
+                                                                            {index +
+                                                                                1}
+                                                                            :
+                                                                        </Label>
 
-                            {/* Hours Input */}
-                            <div className="flex flex-col items-center">
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    max="23"
-                                    value={
-                                        hours
-                                    }
-                                    onChange={(
-                                        e
-                                    ) =>
-                                        updateSectionSplitDurationHours(
-                                            section.id,
-                                            index,
-                                            parseInt(
-                                                e
-                                                    .target
-                                                    .value
-                                            ) ||
-                                                0
-                                        )
-                                    }
-                                    className={`w-20 text-xs transition-colors ${
-                                        isSectionSplitValid(
-                                            section.id
-                                        )
-                                            ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
-                                            : "border-red-300 bg-red-50"
-                                    }`}
-                                    placeholder="0"
-                                />
-                                <span className="text-xs text-gray-500 mt-1">
-                                    h
-                                </span>
-                            </div>
+                                                                        {/* Hours Input */}
+                                                                        <div className="flex flex-col items-center">
+                                                                            <Input
+                                                                                type="number"
+                                                                                min="0"
+                                                                                max="23"
+                                                                                value={
+                                                                                    hours
+                                                                                }
+                                                                                onChange={(
+                                                                                    e
+                                                                                ) =>
+                                                                                    updateSectionSplitDurationHours(
+                                                                                        section.id,
+                                                                                        index,
+                                                                                        parseInt(
+                                                                                            e
+                                                                                                .target
+                                                                                                .value
+                                                                                        ) ||
+                                                                                            0
+                                                                                    )
+                                                                                }
+                                                                                className={`w-20 text-xs transition-colors ${
+                                                                                    isSectionSplitValid(
+                                                                                        section.id
+                                                                                    )
+                                                                                        ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
+                                                                                        : "border-red-300 bg-red-50"
+                                                                                }`}
+                                                                                placeholder="0"
+                                                                            />
+                                                                            <span className="text-xs text-gray-500 mt-1">
+                                                                                h
+                                                                            </span>
+                                                                        </div>
 
-                            {/* Minutes Input */}
-                            <div className="flex flex-col items-center">
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    max="59"
-                                    step="5"
-                                    value={
-                                        minutes
-                                    }
-                                    onChange={(
-                                        e
-                                    ) =>
-                                        updateSectionSplitDurationMinutes(
-                                            section.id,
-                                            index,
-                                            parseInt(
-                                                e
-                                                    .target
-                                                    .value
-                                            ) ||
-                                                0
-                                        )
-                                    }
-                                    className={`w-20 text-xs transition-colors ${
-                                        isSectionSplitValid(
-                                            section.id
-                                        )
-                                            ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
-                                            : "border-red-300 bg-red-50"
-                                    }`}
-                                    placeholder="0"
-                                />
-                                <span className="text-xs text-gray-500 mt-1">
-                                    m
-                                </span>
-                            </div>
+                                                                        {/* Minutes Input */}
+                                                                        <div className="flex flex-col items-center">
+                                                                            <Input
+                                                                                type="number"
+                                                                                min="0"
+                                                                                max="59"
+                                                                                step="5"
+                                                                                value={
+                                                                                    minutes
+                                                                                }
+                                                                                onChange={(
+                                                                                    e
+                                                                                ) =>
+                                                                                    updateSectionSplitDurationMinutes(
+                                                                                        section.id,
+                                                                                        index,
+                                                                                        parseInt(
+                                                                                            e
+                                                                                                .target
+                                                                                                .value
+                                                                                        ) ||
+                                                                                            0
+                                                                                    )
+                                                                                }
+                                                                                className={`w-20 text-xs transition-colors ${
+                                                                                    isSectionSplitValid(
+                                                                                        section.id
+                                                                                    )
+                                                                                        ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
+                                                                                        : "border-red-300 bg-red-50"
+                                                                                }`}
+                                                                                placeholder="0"
+                                                                            />
+                                                                            <span className="text-xs text-gray-500 mt-1">
+                                                                                m
+                                                                            </span>
+                                                                        </div>
 
-                            {/* Total for this part */}
-                            <span className="text-xs text-gray-500 mx-2">
-                                (
-                                {duration.toFixed(
-                                    2
-                                )}
-                                h
-                                total)
-                            </span>
+                                                                        {/* Total for this part */}
+                                                                        <span className="text-xs text-gray-500 mx-2">
+                                                                            (
+                                                                            {duration.toFixed(
+                                                                                2
+                                                                            )}
+                                                                            h
+                                                                            total)
+                                                                        </span>
 
-                            {/* Remove button */}
-                            {section
-                                .splitDurations
-                                .length >
-                                1 && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        removeSectionSplit(
-                                            section.id,
-                                            index
-                                        )
-                                    }
-                                    className="h-6 w-6 p-0 ml-2"
-                                >
-                                    <Minus className="h-3 w-3" />
-                                </Button>
-                            )}
-                        </div>
-                    );
-                }
-            )}
+                                                                        {/* Remove button */}
+                                                                        {section
+                                                                            .splitDurations
+                                                                            .length >
+                                                                            1 && (
+                                                                            <Button
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                onClick={() =>
+                                                                                    removeSectionSplit(
+                                                                                        section.id,
+                                                                                        index
+                                                                                    )
+                                                                                }
+                                                                                className="h-6 w-6 p-0 ml-2"
+                                                                            >
+                                                                                <Minus className="h-3 w-3" />
+                                                                            </Button>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        )}
 
-            <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                    addSectionSplit(
-                        section.id
-                    )
-                }
-                className="w-full text-xs mt-3 mb-4"
-            >
-                <Plus className="h-3 w-3 mr-1" />
-                Add Another Part
-            </Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                addSectionSplit(
+                                                                    section.id
+                                                                )
+                                                            }
+                                                            className="w-full text-xs mt-3 mb-4"
+                                                        >
+                                                            <Plus className="h-3 w-3 mr-1" />
+                                                            Add Another Part
+                                                        </Button>
 
-            <div
-                className={`text-xs p-3 rounded transition-colors mt-4 ${
-                    isSectionSplitValid(
-                        section.id
-                    )
-                        ? "bg-green-100 border border-green-200"
-                        : "bg-red-50 border border-red-200"
-                }`}
-            >
-                <div className="flex justify-between items-center mb-2">
-                    <span className="mr-2">
-                        Total
-                        Duration:
-                    </span>
-                    <span
-                        className={`font-bold text-sm ml-2 ${
-                            isSectionSplitValid(
-                                section.id
-                            )
-                                ? "text-green-700"
-                                : "text-red-700"
-                        }`}
-                    >
-                        {(() => {
-                            const totalDecimal =
-                                getSectionTotalSplitDuration(
-                                    section.id
-                                );
-                            const {
-                                hours: totalHours,
-                                minutes:
-                                    totalMinutes,
-                            } =
-                                convertSplitDurationToHoursMinutes(
-                                    totalDecimal
-                                );
-                            return `${totalHours}h ${totalMinutes}m (${totalDecimal.toFixed(
-                                2
-                            )}) / ${durationHours}h ${durationMinutes}m (${formData.duration.toFixed(
-                                2
-                            )})`;
-                        })()}
-                    </span>
-                </div>
-                {isSectionSplitValid(
-                    section.id
-                ) ? (
-                    <div className="text-green-700 text-xs mt-2 flex items-center">
-                        <Check className="h-3 w-3 mr-2" />
-                        Duration
-                        split is
-                        valid
-                    </div>
-                ) : (
-                    <div className="text-red-700 text-xs mt-2">
-                        Total must
-                        equal course
-                        duration (
-                        {
-                            durationHours
-                        }
-                        h{" "}
-                        {
-                            durationMinutes
-                        }
-                        m)
-                    </div>
-                )}
-            </div>
-        </div>
-    )}
-</div>
+                                                        <div
+                                                            className={`text-xs p-3 rounded transition-colors mt-4 ${
+                                                                isSectionSplitValid(
+                                                                    section.id
+                                                                )
+                                                                    ? "bg-green-100 border border-green-200"
+                                                                    : "bg-red-50 border border-red-200"
+                                                            }`}
+                                                        >
+                                                            <div className="flex justify-between items-center mb-2">
+                                                                <span className="mr-2">
+                                                                    Total
+                                                                    Duration:
+                                                                </span>
+                                                                <span
+                                                                    className={`font-bold text-sm ml-2 ${
+                                                                        isSectionSplitValid(
+                                                                            section.id
+                                                                        )
+                                                                            ? "text-green-700"
+                                                                            : "text-red-700"
+                                                                    }`}
+                                                                >
+                                                                    {(() => {
+                                                                        const totalDecimal =
+                                                                            getSectionTotalSplitDuration(
+                                                                                section.id
+                                                                            );
+                                                                        const {
+                                                                            hours: totalHours,
+                                                                            minutes:
+                                                                                totalMinutes,
+                                                                        } =
+                                                                            convertSplitDurationToHoursMinutes(
+                                                                                totalDecimal
+                                                                            );
+                                                                        return `${totalHours}h ${totalMinutes}m (${totalDecimal.toFixed(
+                                                                            2
+                                                                        )}) / ${durationHours}h ${durationMinutes}m (${formData.duration.toFixed(
+                                                                            2
+                                                                        )})`;
+                                                                    })()}
+                                                                </span>
+                                                            </div>
+                                                            {isSectionSplitValid(
+                                                                section.id
+                                                            ) ? (
+                                                                <div className="text-green-700 text-xs mt-2 flex items-center">
+                                                                    <Check className="h-3 w-3 mr-2" />
+                                                                    Duration
+                                                                    split is
+                                                                    valid
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-red-700 text-xs mt-2">
+                                                                    Total must
+                                                                    equal course
+                                                                    duration (
+                                                                    {
+                                                                        durationHours
+                                                                    }
+                                                                    h{" "}
+                                                                    {
+                                                                        durationMinutes
+                                                                    }
+                                                                    m)
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
 
                                             <div className="mt-2">
                                                 <Label className="text-xs text-gray-700">
@@ -3356,40 +3383,42 @@ const handleClearAllCourses = async () => {
                 </DialogContent>
             </Dialog>
             <Dialog
-    open={isClearAllDialogOpen}
-    onOpenChange={setIsClearAllDialogOpen}
->
-    <DialogContent className="bg-white max-w-md">
-        <DialogHeader className="border-b border-gray-200 pb-3">
-            <DialogTitle className="text-lg font-semibold text-gray-900">
-                Clear All Courses
-            </DialogTitle>
-        </DialogHeader>
-        <div className="py-4">
-            <p className="text-sm text-gray-600 mb-2">
-                Are you sure you want to delete all courses?
-            </p>
-            <p className="text-xs text-red-600 font-medium">
-                This will permanently delete {courses.length} course(s) and all their sections. This action cannot be undone.
-            </p>
-        </div>
-        <DialogFooter className="border-t border-gray-200 pt-3">
-            <Button
-                variant="outline"
-                onClick={() => setIsClearAllDialogOpen(false)}
-                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                open={isClearAllDialogOpen}
+                onOpenChange={setIsClearAllDialogOpen}
             >
-                Cancel
-            </Button>
-            <Button
-                onClick={handleClearAllCourses}
-                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
-            >
-                Clear All
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
+                <DialogContent className="bg-white max-w-md">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Clear All Courses
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <p className="text-sm text-gray-600 mb-2">
+                            Are you sure you want to delete all courses?
+                        </p>
+                        <p className="text-xs text-red-600 font-medium">
+                            This will permanently delete {courses.length}{" "}
+                            course(s) and all their sections. This action cannot
+                            be undone.
+                        </p>
+                    </div>
+                    <DialogFooter className="border-t border-gray-200 pt-3">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsClearAllDialogOpen(false)}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleClearAllCourses}
+                            className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                        >
+                            Clear All
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

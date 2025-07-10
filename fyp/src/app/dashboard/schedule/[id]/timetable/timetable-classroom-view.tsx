@@ -22,7 +22,14 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, CheckCircle2, Download, Search, X } from "lucide-react";
+import {
+    AlertCircle,
+    CheckCircle2,
+    Download,
+    Plus,
+    Search,
+    X,
+} from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -35,7 +42,13 @@ const days = [
     "Saturday",
 ];
 
-type TimetableGrid = Record<string, TimetableCourse>;
+// Extended type to support multiple courses in one cell
+interface CombinedTimetableCourse extends TimetableCourse {
+    combinedCourses?: TimetableCourse[];
+    isCombined?: boolean;
+}
+
+type TimetableGrid = Record<string, CombinedTimetableCourse>;
 
 const initialSchedule: TimetableGrid = {};
 
@@ -74,7 +87,7 @@ export default function TimetableViewClassroom() {
         null
     );
     const [selectedCourse, setSelectedCourse] =
-        useState<TimetableCourse | null>(null);
+        useState<CombinedTimetableCourse | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [cellToDelete, setCellToDelete] = useState<CellToDelete>({
         day: "",
@@ -125,6 +138,11 @@ export default function TimetableViewClassroom() {
     const [originalCourseColors, setOriginalCourseColors] = useState<
         Map<string, { color: string; originalColor?: string }>
     >(new Map());
+
+    // New state for course combining
+    const [selectedCourseForCombining, setSelectedCourseForCombining] =
+        useState<TimetableCourse | null>(null);
+    const [isCombiningMode, setIsCombiningMode] = useState(false);
 
     const params = useParams();
 
@@ -261,10 +279,20 @@ export default function TimetableViewClassroom() {
         course: TimetableCourse,
         day: string,
         timeSlotIndex: number,
-        duration: number
+        duration: number,
+        targetClassroomId: string // Add target classroom parameter
     ): { isValid: boolean; conflictMessage?: string } => {
         const instructorName = course.instructor.trim();
 
+        console.log("=== INSTRUCTOR CONSTRAINT CHECK ===");
+        console.log("Course:", course.code);
+        console.log("Instructor:", instructorName);
+        console.log("Day:", day);
+        console.log("Target Classroom ID:", targetClassroomId);
+        console.log("Time slot index:", timeSlotIndex);
+        console.log("Duration:", duration);
+
+        // Check predefined instructor time constraints (unavailable times)
         const matchingConstraints = instructorConstraints.filter(
             (constraint) => {
                 const constraintInstructorName =
@@ -282,7 +310,6 @@ export default function TimetableViewClassroom() {
                 if (timeSlotIndex + i >= timeSlots.length) break;
 
                 const timeSlotObject = timeSlots[timeSlotIndex + i];
-
                 const timeRepresentations = [
                     timeSlotObject.startTime,
                     timeSlotObject.time_slot,
@@ -291,6 +318,7 @@ export default function TimetableViewClassroom() {
 
                 for (const timeRep of timeRepresentations) {
                     if (instructorConstraint.time_period.includes(timeRep)) {
+                        console.log("❌ Instructor unavailable at this time");
                         return {
                             isValid: false,
                             conflictMessage: `Instructor ${instructorName} is not available on ${day} at ${timeRep}`,
@@ -314,6 +342,9 @@ export default function TimetableViewClassroom() {
                                         periodStart
                                     ))
                             ) {
+                                console.log(
+                                    "❌ Instructor unavailable during this time period"
+                                );
                                 return {
                                     isValid: false,
                                     conflictMessage: `Instructor ${instructorName} is not available on ${day} at ${timeRep} (time constraint)`,
@@ -325,6 +356,11 @@ export default function TimetableViewClassroom() {
             }
         }
 
+        // Check for instructor conflicts with existing courses
+        console.log(
+            "=== CHECKING INSTRUCTOR CONFLICTS WITH EXISTING COURSES ==="
+        );
+
         for (let i = 0; i < duration; i++) {
             if (timeSlotIndex + i >= timeSlots.length) break;
 
@@ -332,35 +368,180 @@ export default function TimetableViewClassroom() {
                 timeSlots[timeSlotIndex + i]
             );
 
-            const conflictingCourse = Object.entries(schedule).find(
+            console.log(
+                `Checking time slot ${i + 1}/${duration}: ${currentTimeSlot}`
+            );
+
+            // Check all existing courses at this time slot
+            const conflictingCourses = Object.entries(schedule).filter(
                 ([scheduleKey, scheduledCourse]) => {
+                    // Skip self
                     if (scheduledCourse.id === course.id) {
                         return false;
                     }
 
-                    if (
-                        scheduledCourse.day === day &&
-                        scheduledCourse.instructor.trim() === instructorName
-                    ) {
-                        const keyParts = scheduleKey.split("-");
-                        const scheduleTimeSlot = keyParts[keyParts.length - 1];
-                        return scheduleTimeSlot === currentTimeSlot;
+                    // Check if it's the same day
+                    if (scheduledCourse.day !== day) {
+                        return false;
                     }
 
-                    return false;
+                    // Check if it's the same time slot
+                    const keyParts = scheduleKey.split("-");
+                    const scheduleTimeSlot = keyParts[keyParts.length - 1];
+                    const scheduleClassroomId = keyParts[keyParts.length - 2];
+
+                    if (scheduleTimeSlot !== currentTimeSlot) {
+                        return false;
+                    }
+
+                    // Check if it's the same instructor
+                    const scheduledInstructor =
+                        scheduledCourse.instructor.trim();
+                    if (scheduledInstructor !== instructorName) {
+                        return false;
+                    }
+
+                    console.log(
+                        "Found course with same instructor at same time:",
+                        {
+                            scheduledCourse: scheduledCourse.code,
+                            scheduledInstructor,
+                            scheduleClassroomId,
+                            targetClassroomId,
+                            scheduleKey,
+                        }
+                    );
+
+                    if (scheduleClassroomId === targetClassroomId) {
+                        console.log(
+                            "✅ Same classroom - allowing for course combining"
+                        );
+                        return false; // Don't consider this a conflict
+                    } else {
+                        console.log(
+                            "❌ Different classroom - instructor conflict"
+                        );
+                        return true; // This is a conflict
+                    }
                 }
             );
 
-            if (conflictingCourse) {
-                const [, conflictingScheduledCourse] = conflictingCourse;
+            if (conflictingCourses.length > 0) {
+                const [conflictKey, conflictingCourse] = conflictingCourses[0];
+                const conflictKeyParts = conflictKey.split("-");
+                const conflictClassroomId =
+                    conflictKeyParts[conflictKeyParts.length - 2];
+
+                // Find classroom name for better error message
+                const conflictClassroom = classrooms.find(
+                    (c) => c.id.toString() === conflictClassroomId
+                );
+                const targetClassroom = classrooms.find(
+                    (c) => c.id.toString() === targetClassroomId
+                );
+
+                console.log("❌ INSTRUCTOR CONFLICT DETECTED");
+                console.log("Conflicting course:", conflictingCourse.code);
+                console.log(
+                    "Conflict classroom:",
+                    conflictClassroom?.code || conflictClassroomId
+                );
+                console.log(
+                    "Target classroom:",
+                    targetClassroom?.code || targetClassroomId
+                );
+
                 return {
                     isValid: false,
-                    conflictMessage: `Instructor ${instructorName} is already teaching ${conflictingScheduledCourse.code} on ${day} at ${currentTimeSlot}`,
+                    conflictMessage: `Instructor ${instructorName} is already teaching ${
+                        conflictingCourse.code
+                    } in ${
+                        conflictClassroom?.code || "another classroom"
+                    } on ${day} at ${currentTimeSlot}. Cannot teach in multiple classrooms simultaneously.`,
                 };
             }
+
+            console.log(
+                `✅ No conflicts found for time slot: ${currentTimeSlot}`
+            );
         }
 
+        console.log("✅ All instructor constraints passed");
         return { isValid: true };
+    };
+    // New function to combine courses
+    const combineCourses = (
+        existingCourse: CombinedTimetableCourse,
+        newCourse: TimetableCourse
+    ): CombinedTimetableCourse => {
+        const combinedCourses = existingCourse.combinedCourses || [];
+
+        // Verify instructors are the same before combining
+        if (existingCourse.instructor.trim() !== newCourse.instructor.trim()) {
+            throw new Error(
+                "Cannot combine courses with different instructors"
+            );
+        }
+
+        return {
+            ...existingCourse,
+            isCombined: true,
+            combinedCourses: [...combinedCourses, newCourse],
+            // Update display name to show combination
+            name: `${existingCourse.name} + ${newCourse.name}`,
+            code: `${existingCourse.code}+${newCourse.code}`,
+            // Keep the same instructor since they must be the same
+            instructor: existingCourse.instructor,
+        };
+    };
+
+    // New function to check if courses can be combined
+    const canCombineCourses = (
+        course1: TimetableCourse,
+        course2: TimetableCourse,
+        day: string,
+        timeSlotIndex: number
+    ): { canCombine: boolean; reason?: string } => {
+        console.log("=== CHECKING IF COURSES CAN BE COMBINED ===");
+        console.log(
+            "Course 1:",
+            course1.code,
+            "Instructor:",
+            course1.instructor
+        );
+        console.log(
+            "Course 2:",
+            course2.code,
+            "Instructor:",
+            course2.instructor
+        );
+
+        // Check if instructors are the same
+        const instructor1 = course1.instructor.trim();
+        const instructor2 = course2.instructor.trim();
+
+        if (instructor1 !== instructor2) {
+            console.log("❌ Cannot combine: Different instructors");
+            return {
+                canCombine: false,
+                reason: "Cannot combine courses with different instructors",
+            };
+        }
+
+        // Check if durations match
+        if (course1.duration !== course2.duration) {
+            console.log("❌ Cannot combine: Different durations");
+            return {
+                canCombine: false,
+                reason: "Cannot combine courses with different durations",
+            };
+        }
+
+        console.log("✅ Courses can be combined: Same instructor and duration");
+
+        // Since instructors are the same, we can skip individual instructor constraint checks
+        // The combined course will have the same instructor, so constraints will be the same
+        return { canCombine: true };
     };
 
     const handleCourseClick = (course: TimetableCourse) => {
@@ -369,61 +550,6 @@ export default function TimetableViewClassroom() {
             setSplitDurations([course.duration]);
             setIsSplitDialogOpen(true);
         }
-    };
-
-    const addSplit = () => {
-        setSplitDurations((prev) => [...prev, 1]);
-    };
-
-    const removeSplit = (index: number) => {
-        if (splitDurations.length > 1) {
-            setSplitDurations((prev) => prev.filter((_, i) => i !== index));
-        }
-    };
-
-    const updateSplitDuration = (index: number, value: number) => {
-        setSplitDurations((prev) =>
-            prev.map((duration, i) =>
-                i === index ? Math.max(1, value) : duration
-            )
-        );
-    };
-
-    const getTotalSplitDuration = () => {
-        return splitDurations.reduce((sum, duration) => sum + duration, 0);
-    };
-
-    const isValidSplit = () => {
-        const total = getTotalSplitDuration();
-        return total === courseSplitConfig?.course.duration;
-    };
-
-    const applySplit = () => {
-        if (!courseSplitConfig || !isValidSplit()) return;
-
-        const { course } = courseSplitConfig;
-
-        setAvailableCourses((prev) => prev.filter((c) => c.id !== course.id));
-
-        const splitCourses = splitDurations.map((duration, index) => ({
-            ...course,
-            id: course.id ? course.id * 1000 + index + 1 : index + 1,
-            duration: duration,
-            uniqueId: `${course.code}-${course.section}-split-${index + 1}`,
-            name: `${course.name} (Part ${index + 1})`,
-        }));
-
-        setAvailableCourses((prev) => [...prev, ...splitCourses]);
-
-        setIsSplitDialogOpen(false);
-        setCourseSplitConfig(null);
-        setSplitDurations([]);
-    };
-
-    const cancelSplit = () => {
-        setIsSplitDialogOpen(false);
-        setCourseSplitConfig(null);
-        setSplitDurations([]);
     };
 
     const filteredSchedule = useMemo(() => {
@@ -435,14 +561,19 @@ export default function TimetableViewClassroom() {
         const filtered: TimetableGrid = {};
 
         Object.entries(schedule).forEach(([key, course]) => {
-            const matchesSearch =
-                course.code.toLowerCase().includes(query) ||
-                course.name.toLowerCase().includes(query) ||
-                course.instructor.toLowerCase().includes(query) ||
-                course.section.toLowerCase().includes(query);
+            const matchesSearch = (c: TimetableCourse) =>
+                c.code.toLowerCase().includes(query) ||
+                c.name.toLowerCase().includes(query) ||
+                c.instructor.toLowerCase().includes(query) ||
+                c.section.toLowerCase().includes(query);
 
-            if (matchesSearch) {
+            if (matchesSearch(course)) {
                 filtered[key] = course;
+            } else if (course.combinedCourses) {
+                const hasMatch = course.combinedCourses.some(matchesSearch);
+                if (hasMatch) {
+                    filtered[key] = course;
+                }
             }
         });
 
@@ -631,6 +762,8 @@ export default function TimetableViewClassroom() {
                         }
                     );
 
+                    console.log("Transformed courses:", transformedCourses);
+
                     setOriginalCourseColors(colorMap);
                     setAvailableCourses(transformedCourses);
                 } else {
@@ -666,11 +799,88 @@ export default function TimetableViewClassroom() {
                 }
 
                 const assignmentsData = await response.json();
+                console.log("=== FETCH TIMETABLE ASSIGNMENTS DEBUG ===");
+                console.log("Raw assignments data:", assignmentsData);
+                console.log("Raw assignments count:", assignmentsData.length);
 
+                // 🔥 CRITICAL FIX: Only collect course IDs that are PROPERLY SAVED in database
+                // Courses with day, timeslot, and null classroom should remain in available courses
+                const properlySavedCourseIds = new Set<number>();
+
+                // First pass: collect only course IDs that have complete assignment data
+                assignmentsData.forEach((assignment: any) => {
+                    if (assignment.id) {
+                        const hasDay =
+                            assignment.day && assignment.day.trim() !== "";
+                        const hasTimeSlot =
+                            assignment.timeSlot || assignment.startTime;
+                        const hasClassroom =
+                            assignment.classroom &&
+                            assignment.classroom !== null;
+                        const hasClassroomId =
+                            assignment.classroomId &&
+                            assignment.classroomId !== null;
+
+                        // Only consider it properly saved if it has complete assignment data
+                        if (
+                            hasDay &&
+                            hasTimeSlot &&
+                            (hasClassroom || hasClassroomId)
+                        ) {
+                            properlySavedCourseIds.add(assignment.id);
+                            console.log(
+                                `Found PROPERLY SAVED course ID: ${
+                                    assignment.id
+                                } (${assignment.code}) - Day: ${
+                                    assignment.day
+                                }, Time: ${
+                                    assignment.timeSlot || assignment.startTime
+                                }, Classroom: ${
+                                    assignment.classroom ||
+                                    assignment.classroomId
+                                }`
+                            );
+                        } else {
+                            console.log(
+                                `Found INCOMPLETE assignment (keeping in available): ${
+                                    assignment.id
+                                } (${assignment.code}) - Day: ${
+                                    assignment.day
+                                }, Time: ${
+                                    assignment.timeSlot || assignment.startTime
+                                }, Classroom: ${
+                                    assignment.classroom ||
+                                    assignment.classroomId
+                                }`
+                            );
+                        }
+                    }
+                });
+
+                console.log(
+                    "=== COLLECTED PROPERLY SAVED COURSE IDS FROM DATABASE ==="
+                );
+                console.log(
+                    "Total properly saved course IDs:",
+                    properlySavedCourseIds.size
+                );
+                console.log(
+                    "Properly saved course IDs:",
+                    Array.from(properlySavedCourseIds).sort()
+                );
+
+                // Process assignments for display (with auto-combining)
                 const newSchedule: TimetableGrid = {};
                 const newAssignedCourses: TimetableCourse[] = [];
 
-                assignmentsData.forEach((assignment: any) => {
+                const processedAssignments =
+                    autoCombineCourses(assignmentsData);
+                console.log(
+                    "Processed assignments after auto-combine:",
+                    processedAssignments.length
+                );
+
+                processedAssignments.forEach((assignment: any) => {
                     const courseHourId = assignment.id;
                     const sectionId = assignment.sectionId;
                     const classroomCode = assignment.classroom;
@@ -682,6 +892,10 @@ export default function TimetableViewClassroom() {
                     const originalColor = assignment.color;
                     const isOnline =
                         assignment.isOnline || assignment.classroomId === null;
+
+                    // Handle combined courses
+                    const isCombined = assignment.isCombined || false;
+                    const combinedCourses = assignment.combinedCourses || [];
 
                     const colorClassName =
                         originalColor && colors_class[originalColor]
@@ -759,25 +973,18 @@ export default function TimetableViewClassroom() {
                         ) {
                             return true;
                         }
-
                         if (ts.startTime && ts.endTime) {
                             const slotStart = parseInt(ts.startTime);
                             const slotEnd = parseInt(ts.endTime);
                             const start = parseInt(startTime);
                             return slotStart <= start && start < slotEnd;
                         }
-
                         return false;
                     });
 
                     if (startIndex === -1) {
                         console.warn(
-                            `Time slot "${startTime}" not found for course ${code}. Available time slots:`,
-                            timeSlots.map((ts) => ({
-                                key: getTimeSlotKey(ts),
-                                startTime: ts.startTime,
-                                time_slot: ts.time_slot,
-                            }))
+                            `Time slot "${startTime}" not found for course ${code}`
                         );
                         return;
                     }
@@ -786,18 +993,14 @@ export default function TimetableViewClassroom() {
                     let calculatedEndTime;
 
                     if (endTime) {
-                        const endIndex = timeSlots.findIndex((ts, index) => {
-                            if (ts.endTime === endTime) {
-                                return true;
-                            }
-
+                        const endIndex = timeSlots.findIndex((ts) => {
+                            if (ts.endTime === endTime) return true;
                             if (ts.startTime && ts.endTime) {
                                 const slotStart = parseInt(ts.startTime);
                                 const slotEnd = parseInt(ts.endTime);
                                 const end = parseInt(endTime);
                                 return slotStart < end && end <= slotEnd;
                             }
-
                             return false;
                         });
 
@@ -830,12 +1033,13 @@ export default function TimetableViewClassroom() {
                     const maxSlotsAvailable = timeSlots.length - startIndex;
                     slotsToSpan = Math.min(slotsToSpan, maxSlotsAvailable);
 
-                    const course = {
+                    // Create course object with combined course information
+                    const course: CombinedTimetableCourse = {
                         id: courseHourId,
                         capacity: assignment.capacity,
                         sectionId: sectionId,
-                        code: code,
-                        name: title,
+                        code: isCombined ? assignment.combinedCodes : code,
+                        name: isCombined ? assignment.combinedTitles : title,
                         instructor: instructorName,
                         duration: originalDuration,
                         day: day,
@@ -850,6 +1054,32 @@ export default function TimetableViewClassroom() {
                         room: isOnline ? "Online" : classroomCode,
                         originalColor: originalColor,
                         isOnline: isOnline,
+                        // Combined course properties
+                        isCombined: isCombined,
+                        combinedCourses: isCombined
+                            ? combinedCourses.map((combined: any) => ({
+                                  id: combined.id,
+                                  code: combined.code,
+                                  name: combined.title || combined.code,
+                                  capacity: combined.capacity,
+                                  color: colorClassName,
+                                  duration: parseFloat(
+                                      combined.separatedDuration ||
+                                          combined.duration ||
+                                          "1"
+                                  ),
+                                  instructor: instructorName,
+                                  sectionId: combined.sectionId,
+                                  section:
+                                      combined.sectionNumber ||
+                                      combined.section_number ||
+                                      "N/A",
+                                  room: isOnline ? "Online" : classroomCode,
+                                  originalColor: combined.color,
+                                  isOnline: isOnline,
+                                  status: isOnline ? "online" : "offline",
+                              }))
+                            : undefined,
                     };
 
                     if (
@@ -867,10 +1097,6 @@ export default function TimetableViewClassroom() {
                     const classroomIdValue = isOnline
                         ? "-1"
                         : classroom.id.toString();
-                    const timeSlotValue =
-                        assignment.startTime?.trim() || startTime?.trim();
-
-                    const baseKey = `${dayValue}-${classroomIdValue}-${timeSlotValue}`;
 
                     for (let i = 0; i < slotsToSpan; i++) {
                         if (startIndex + i >= timeSlots.length) break;
@@ -893,12 +1119,61 @@ export default function TimetableViewClassroom() {
                 setSchedule(newSchedule);
                 setAssignedCourses(newAssignedCourses);
 
-                const assignedIds = new Set(
-                    newAssignedCourses.map((c) => c.id)
+                // 🔥 CRITICAL FIX: Only filter out courses that are PROPERLY SAVED in database
+                // This should only happen when we have properly saved course IDs from the database
+                if (properlySavedCourseIds.size > 0) {
+                    console.log(
+                        "=== FILTERING AVAILABLE COURSES BASED ON PROPERLY SAVED COURSES ==="
+                    );
+                    console.log(
+                        "Available courses before filtering:",
+                        availableCourses.length
+                    );
+                    console.log(
+                        "Available courses list:",
+                        availableCourses.map((c) => `${c.code} (ID: ${c.id})`)
+                    );
+
+                    setAvailableCourses((prevAvailable) => {
+                        const filtered = prevAvailable.filter((course) => {
+                            const isProperlySaved = properlySavedCourseIds.has(
+                                course.id
+                            );
+                            if (isProperlySaved) {
+                                console.log(
+                                    `❌ Filtering out PROPERLY SAVED course: ${course.code} (ID: ${course.id})`
+                                );
+                            } else {
+                                console.log(
+                                    `✅ Keeping available course: ${course.code} (ID: ${course.id})`
+                                );
+                            }
+                            return !isProperlySaved;
+                        });
+
+                        console.log(
+                            "Available courses after filtering:",
+                            filtered.length
+                        );
+                        console.log(
+                            "Remaining available courses:",
+                            filtered.map((c) => `${c.code} (ID: ${c.id})`)
+                        );
+                        return filtered;
+                    });
+                }
+
+                console.log("=== FINAL FETCH RESULTS ===");
+                console.log(
+                    "Schedule entries created:",
+                    Object.keys(newSchedule).length
                 );
-                setAvailableCourses((prev) =>
-                    prev.filter((c) => !assignedIds.has(c.id))
+                console.log("Assigned courses:", newAssignedCourses.length);
+                console.log(
+                    "Properly saved courses in database:",
+                    properlySavedCourseIds.size
                 );
+                console.log("=== FETCH TIMETABLE ASSIGNMENTS COMPLETE ===");
             } catch (error) {
                 console.error("Error fetching timetable assignments:", error);
             } finally {
@@ -909,7 +1184,7 @@ export default function TimetableViewClassroom() {
         if (timeSlots.length > 0 && classrooms.length > 0) {
             fetchTimetableAssignments();
         }
-    }, [params.id, timeSlots, classrooms]);
+    }, [params.id, timeSlots, classrooms]); // 🔥 REMOVED availableCourses from dependency array
 
     const checkCapacityConstraints = (
         course: TimetableCourse,
@@ -1036,6 +1311,7 @@ export default function TimetableViewClassroom() {
         // Default to 1 hour if no duration info available
         return 1;
     };
+
     const parseTimeToHours = (timeStr: string): number => {
         if (!timeStr) return 0;
 
@@ -1092,6 +1368,7 @@ export default function TimetableViewClassroom() {
 
         return "Cannot drop here";
     };
+
     function calculateEndTime(startTime: string, durationHours: number) {
         const startHour = parseInt(startTime);
         return (startHour + durationHours).toString();
@@ -1112,18 +1389,137 @@ export default function TimetableViewClassroom() {
         setIsDraggingToAvailable(false);
     };
 
+    const autoCombineCourses = (assignmentsData: any[]): any[] => {
+        console.log(
+            "=== AUTO-COMBINING COURSES WITH SAME INSTRUCTOR AND DURATION ==="
+        );
+
+        // Group assignments by their schedule key (day + classroom + time)
+        const scheduleGroups = new Map<string, any[]>();
+
+        assignmentsData.forEach((assignment) => {
+            const isOnline =
+                assignment.isOnline || assignment.classroomId === null;
+            const classroomKey = isOnline
+                ? "-1"
+                : assignment.classroom || "unknown";
+            const day = assignment.day?.trim() || "unknown";
+            const startTime = assignment.startTime?.trim() || "unknown";
+
+            const scheduleKey = `${day}-${classroomKey}-${startTime}`;
+
+            if (!scheduleGroups.has(scheduleKey)) {
+                scheduleGroups.set(scheduleKey, []);
+            }
+            scheduleGroups.get(scheduleKey)!.push(assignment);
+        });
+
+        const combinedAssignments: any[] = [];
+
+        scheduleGroups.forEach((assignments, scheduleKey) => {
+            console.log(
+                `Processing schedule key: ${scheduleKey} with ${assignments.length} assignments`
+            );
+
+            if (assignments.length === 1) {
+                // Single assignment, no combining needed
+                combinedAssignments.push(assignments[0]);
+                return;
+            }
+
+            // Group by instructor and duration for potential combining
+            const instructorDurationGroups = new Map<string, any[]>();
+
+            assignments.forEach((assignment) => {
+                const instructor =
+                    `${assignment.firstName || ""} ${
+                        assignment.lastName || ""
+                    }`.trim() || "TBA";
+                const duration =
+                    assignment.separatedDuration || assignment.duration || "1";
+                const groupKey = `${instructor}-${duration}`;
+
+                if (!instructorDurationGroups.has(groupKey)) {
+                    instructorDurationGroups.set(groupKey, []);
+                }
+                instructorDurationGroups.get(groupKey)!.push(assignment);
+            });
+
+            instructorDurationGroups.forEach((groupAssignments, groupKey) => {
+                if (groupAssignments.length === 1) {
+                    // Single course in this instructor-duration group
+                    combinedAssignments.push(groupAssignments[0]);
+                } else {
+                    // Multiple courses with same instructor and duration - combine them
+                    console.log(
+                        `🔄 Auto-combining ${groupAssignments.length} courses for ${groupKey}:`
+                    );
+                    groupAssignments.forEach((assignment) => {
+                        console.log(
+                            `  - ${assignment.code} (ID: ${assignment.id})`
+                        );
+                    });
+
+                    // Use the first assignment as the base
+                    const baseAssignment = groupAssignments[0];
+                    const additionalCourses = groupAssignments.slice(1);
+
+                    // Create combined assignment with special markers
+                    const combinedAssignment = {
+                        ...baseAssignment,
+                        // Mark as combined
+                        isCombined: true,
+                        combinedCourses: additionalCourses,
+                        // Update display information
+                        combinedCodes: groupAssignments
+                            .map((a) => a.code)
+                            .join("+"),
+                        combinedTitles: groupAssignments
+                            .map((a) => a.title || a.code)
+                            .join(" + "),
+                        combinedIds: groupAssignments.map((a) => a.id),
+                    };
+
+                    combinedAssignments.push(combinedAssignment);
+
+                    console.log(
+                        `✅ Combined into: ${combinedAssignment.combinedCodes}`
+                    );
+                }
+            });
+        });
+
+        console.log(
+            `=== AUTO-COMBINE COMPLETE: ${assignmentsData.length} → ${combinedAssignments.length} ===`
+        );
+        return combinedAssignments;
+    };
+
     const saveAllAssignments = async () => {
         try {
             const validAssignedCourses =
                 assignedCourses.filter(isAssignedCourse);
 
-            const assignmentsData = validAssignedCourses.map((course) => {
+            // Process assignments and separate combined courses
+            const assignmentsData: {
+                id: any;
+                sectionId: any;
+                day: string;
+                startTime: string;
+                endTime: string;
+                classroom: string | null;
+                isOnline: boolean;
+                duration: any;
+            }[] = [];
+
+            validAssignedCourses.forEach((course) => {
                 const classroomValue = course.classroom;
                 const isOnlineClassroom =
                     !isNaN(parseInt(classroomValue)) &&
                     parseInt(classroomValue) < 0;
 
-                return {
+                // Create assignment data for the main course
+                const mainAssignment = {
                     id: course.id,
                     sectionId: course.sectionId,
                     day: course.day,
@@ -1133,15 +1529,85 @@ export default function TimetableViewClassroom() {
                     isOnline: isOnlineClassroom,
                     duration: course.duration,
                 };
+
+                // If it's a combined course, we need to save each course separately
+                if (course.isCombined && course.combinedCourses) {
+                    console.log("=== SAVING COMBINED COURSE SEPARATELY ===");
+                    console.log("Main course:", course.code);
+                    console.log(
+                        "Combined courses:",
+                        course.combinedCourses.map((c: { code: any }) => c.code)
+                    );
+
+                    // Add the main course (extract original course data from combined)
+                    const originalMainCourse = {
+                        id: course.id,
+                        sectionId: course.sectionId,
+                        day: course.day,
+                        startTime: course.startTime,
+                        endTime: course.endTime,
+                        classroom: isOnlineClassroom ? null : classroomValue,
+                        isOnline: isOnlineClassroom,
+                        duration: course.duration,
+                    };
+                    assignmentsData.push(originalMainCourse);
+
+                    // Add each combined course separately
+                    course.combinedCourses.forEach(
+                        (combinedCourse: {
+                            id: any;
+                            sectionId: any;
+                            duration: any;
+                        }) => {
+                            const combinedAssignment = {
+                                id: combinedCourse.id,
+                                sectionId: combinedCourse.sectionId,
+                                day: course.day, // Use the same schedule details
+                                startTime: course.startTime,
+                                endTime: course.endTime,
+                                classroom: isOnlineClassroom
+                                    ? null
+                                    : classroomValue,
+                                isOnline: isOnlineClassroom,
+                                duration: combinedCourse.duration,
+                            };
+                            assignmentsData.push(combinedAssignment);
+                        }
+                    );
+
+                    console.log(
+                        "Separated assignments:",
+                        assignmentsData.slice(
+                            -1 - course.combinedCourses.length
+                        )
+                    );
+                } else {
+                    // Regular single course
+                    assignmentsData.push(mainAssignment);
+                }
             });
 
-            const response = await fetch("/api/assign-time-slots", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(assignmentsData),
+            console.log("=== FINAL ASSIGNMENTS TO SAVE ===");
+            console.log("Total assignments:", assignmentsData.length);
+            assignmentsData.forEach((assignment, index) => {
+                console.log(
+                    `${index + 1}. Course ID: ${assignment.id}, Day: ${
+                        assignment.day
+                    }, Time: ${assignment.startTime}-${assignment.endTime}`
+                );
             });
+
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/assign-time-slots?scheduleId=${scheduleId}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(assignmentsData),
+                }
+            );
 
             if (response.ok) {
                 showMessage(
@@ -1184,7 +1650,117 @@ export default function TimetableViewClassroom() {
         if (!course.day || !course.classroom || !course.startTime) return;
 
         const newSchedule = { ...schedule };
+        const coursesToReturn: TimetableCourse[] = [];
 
+        // If it's a combined course, we need to handle it differently
+        if (course.isCombined && course.combinedCourses) {
+            console.log("=== SEPARATING COMBINED COURSE ===");
+
+            // Get the main course (without combined properties)
+            const mainCourse = {
+                id: course.id,
+                code: course.code.split("+")[0], // Remove the combined code part
+                name: course.name.split(" + ")[0], // Remove the combined name part
+                capacity: course.capacity,
+                color: course.color,
+                duration: course.duration,
+                instructor: course.instructor,
+                sectionId: course.sectionId,
+                section: course.section,
+                room: course.room,
+                originalColor: course.originalColor,
+                isOnline: course.isOnline,
+                status: course.status,
+                // Remove assignment properties
+                day: undefined,
+                startTime: undefined,
+                endTime: undefined,
+                classroom: undefined,
+                isStart: undefined,
+                isMiddle: undefined,
+                isEnd: undefined,
+                colspan: undefined,
+            };
+
+            // Get all combined courses
+            const combinedCourses = course.combinedCourses.map(
+                (combined: {
+                    id: any;
+                    code: any;
+                    name: any;
+                    capacity: any;
+                    color: any;
+                    duration: any;
+                    instructor: any;
+                    sectionId: any;
+                    section: any;
+                    room: any;
+                    originalColor: any;
+                    isOnline: any;
+                    status: any;
+                }) => ({
+                    id: combined.id,
+                    code: combined.code,
+                    name: combined.name,
+                    capacity: combined.capacity,
+                    color: combined.color,
+                    duration: combined.duration,
+                    instructor: combined.instructor,
+                    sectionId: combined.sectionId,
+                    section: combined.section,
+                    room: combined.room,
+                    originalColor: combined.originalColor,
+                    isOnline: combined.isOnline,
+                    status: combined.status,
+                    // Remove assignment properties
+                    day: undefined,
+                    startTime: undefined,
+                    endTime: undefined,
+                    classroom: undefined,
+                    isStart: undefined,
+                    isMiddle: undefined,
+                    isEnd: undefined,
+                    colspan: undefined,
+                })
+            );
+
+            coursesToReturn.push(mainCourse, ...combinedCourses);
+
+            console.log(
+                "Separated courses:",
+                coursesToReturn.map((c) => c.code)
+            );
+        } else {
+            // Regular single course
+            const cleanCourse = {
+                id: course.id,
+                code: course.code,
+                capacity: course.capacity,
+                name: course.name,
+                color: course.color,
+                duration: course.duration,
+                instructor: course.instructor,
+                sectionId: course.sectionId,
+                section: course.section,
+                room: course.room,
+                originalColor: course.originalColor,
+                isOnline: course.isOnline,
+                status: course.status,
+                // Remove assignment properties
+                day: undefined,
+                startTime: undefined,
+                endTime: undefined,
+                classroom: undefined,
+                isStart: undefined,
+                isMiddle: undefined,
+                isEnd: undefined,
+                colspan: undefined,
+            };
+
+            coursesToReturn.push(cleanCourse);
+        }
+
+        // Remove the course from schedule (all time slots it occupies)
         Object.keys(newSchedule).forEach((key) => {
             if (newSchedule[key].id === course.id) {
                 delete newSchedule[key];
@@ -1193,32 +1769,50 @@ export default function TimetableViewClassroom() {
 
         setSchedule(newSchedule);
 
-        const cleanCourse = {
-            id: course.id,
-            code: course.code,
-            capacity: course.capacity,
-            name: course.name,
-            color: course.color,
-            duration: course.duration,
-            instructor: course.instructor,
-            sectionId: course.sectionId,
-            section: course.section,
-            room: course.room,
-            day: undefined,
-            startTime: undefined,
-            endTime: undefined,
-            classroom: undefined,
-            isStart: undefined,
-            isMiddle: undefined,
-            isEnd: undefined,
-            colspan: undefined,
-        };
+        // Add all separated courses back to available courses
+        coursesToReturn.forEach((courseToReturn) => {
+            if (!availableCourses.some((c) => c.id === courseToReturn.id)) {
+                setAvailableCourses((prev) => [...prev, courseToReturn]);
+            }
+        });
+        console.log(
+            "Available courses after separation:",
+            availableCourses.map((c) => c.code)
+        );
 
-        if (!availableCourses.some((c) => c.id === course.id)) {
-            setAvailableCourses((prev) => [...prev, cleanCourse]);
+        // Remove from assigned courses
+        setAssignedCourses((prev) => {
+            // Remove the main course and all combined courses
+            const filteredAssigned = prev.filter((c) => {
+                if (c.id === course.id) return false;
+                if (course.isCombined && course.combinedCourses) {
+                    return !course.combinedCourses.some(
+                        (combined: { id: any }) => combined.id === c.id
+                    );
+                }
+                return true;
+            });
+            return filteredAssigned;
+        });
+
+        // Show success message
+        if (course.isCombined && course.combinedCourses) {
+            const courseNames = [
+                course.code.split("+")[0],
+                ...course.combinedCourses.map((c: { code: any }) => c.code),
+            ];
+            showMessage(
+                "success",
+                `Combined course separated: ${courseNames.join(
+                    ", "
+                )} returned to available courses`
+            );
+        } else {
+            showMessage(
+                "success",
+                `Course ${course.code} returned to available courses`
+            );
         }
-
-        setAssignedCourses((prev) => prev.filter((c) => c.id !== course.id));
     };
 
     const getTimeSlotId = (timeSlotStr: string): number => {
@@ -1269,12 +1863,22 @@ export default function TimetableViewClassroom() {
                 `Checking slot ${i}: ${currentTimeSlot} (${currentSlotDuration}h)`
             );
 
-            // Check if this slot is occupied by another course
+            // Check if this slot is occupied by another course (allow combining)
             if (conflictingCourse && conflictingCourse.id !== course.id) {
-                console.log(
-                    `  - Occupied by ${conflictingCourse.code}, stopping`
+                // Check if courses can be combined
+                const canCombine = canCombineCourses(
+                    course,
+                    conflictingCourse,
+                    day,
+                    i
                 );
-                break;
+
+                if (!canCombine.canCombine) {
+                    console.log(
+                        `  - Cannot combine with ${conflictingCourse.code}: ${canCombine.reason}`
+                    );
+                    break;
+                }
             }
 
             // Add this slot to our consecutive chain
@@ -1310,6 +1914,7 @@ export default function TimetableViewClassroom() {
         };
     };
 
+    // Modified handleDrop to support course combining
     const handleDrop = (day: string, classroomId: string, timeSlot: string) => {
         if (!draggedCourse || timeSlots.length === 0) {
             console.log("No dragged course or time slots");
@@ -1319,6 +1924,7 @@ export default function TimetableViewClassroom() {
         console.log("=== DROP VALIDATION START ===");
         console.log("Drop attempt:", {
             course: draggedCourse.code,
+            instructor: draggedCourse.instructor,
             day,
             classroomId,
             timeSlot,
@@ -1326,75 +1932,94 @@ export default function TimetableViewClassroom() {
             classroom: classrooms.find((c) => c.id.toString() === classroomId),
         });
 
-        // 1. ONLINE/OFFLINE COURSE VALIDATION
+        // 1. ONLINE/OFFLINE VALIDATION
         const isOnlineClassroom = parseInt(classroomId) < 0;
         const isCourseOnline =
             draggedCourse.status === "online" ||
             draggedCourse.isOnline === true ||
             draggedCourse.room === "Online";
 
+        console.log("Online/Offline validation:", {
+            isOnlineClassroom,
+            isCourseOnline,
+            draggedCourseStatus: draggedCourse.status,
+            draggedCourseIsOnline: draggedCourse.isOnline,
+            draggedCourseRoom: draggedCourse.room,
+        });
+
         if (isCourseOnline && !isOnlineClassroom) {
             console.log(
-                "VALIDATION FAILED: Online course to physical classroom"
+                "❌ Online course cannot be assigned to physical classroom"
             );
             showMessage(
                 "error",
-                "Online courses cannot be assigned to physical classrooms. Please use the Online rows."
+                "Online courses cannot be assigned to physical classrooms"
             );
             setDraggedCourse(null);
             setCellDragStates({});
             return;
         }
-
         if (!isCourseOnline && isOnlineClassroom) {
             console.log(
-                "VALIDATION FAILED: Physical course to online classroom"
+                "❌ Physical course cannot be assigned to online classroom"
             );
             showMessage(
                 "error",
-                "Physical courses cannot be assigned to online rows. Please use a physical classroom."
+                "Physical courses cannot be assigned to online rows"
             );
             setDraggedCourse(null);
             setCellDragStates({});
             return;
         }
 
-        // 2. STRICT CAPACITY CONSTRAINT CHECK - THIS MUST BLOCK THE DROP
-        console.log("=== CAPACITY VALIDATION ===");
-        const capacityValidationResult = validateCapacityConstraints(
-            draggedCourse,
-            classroomId,
-            classrooms
-        );
-
-        // CRITICAL: If capacity validation fails, IMMEDIATELY return and show error
-        if (!capacityValidationResult.isValid) {
-            console.log("CAPACITY VALIDATION FAILED - BLOCKING DROP");
-            console.log(
-                "Error message:",
-                capacityValidationResult.conflictMessage
+        // 2. CAPACITY CONSTRAINT VALIDATION - ENHANCED
+        console.log("=== CAPACITY VALIDATION IN handleDrop ===");
+        if (!isOnlineClassroom) {
+            const capacityValidation = validateCapacityConstraints(
+                draggedCourse,
+                classroomId,
+                classrooms
             );
 
-            showMessage(
-                "error",
-                capacityValidationResult.conflictMessage ||
-                    "Capacity constraint violation - assignment blocked"
-            );
+            console.log("Capacity validation result:", capacityValidation);
 
-            // Clean up drag state to prevent any further processing
-            setDraggedCourse(null);
-            setCellDragStates({});
-            setHoveredCell(null);
-            return; // CRITICAL: This return prevents the drop from proceeding
-        }
+            if (!capacityValidation.isValid) {
+                console.log("❌ Capacity constraint failed - blocking drop");
+                showMessage(
+                    "error",
+                    capacityValidation.conflictMessage ||
+                        "Capacity constraint failed"
+                );
+                setDraggedCourse(null);
+                setCellDragStates({});
+                return;
+            }
 
-        // Show warnings for incomplete capacity data but allow assignment
-        if (capacityValidationResult.warningMessage) {
-            console.log(
-                "Capacity warning:",
-                capacityValidationResult.warningMessage
-            );
-            // Note: We're not returning here, so assignment will continue
+            // Show capacity warning if present
+            if (capacityValidation.warningMessage) {
+                console.log(
+                    "⚠️ Capacity warning:",
+                    capacityValidation.warningMessage
+                );
+                // Continue with assignment but show warning
+            }
+
+            // Log capacity details for successful validation
+            if (capacityValidation.capacityDetails) {
+                const {
+                    courseCapacity,
+                    classroomCapacity,
+                    utilizationPercentage,
+                } = capacityValidation.capacityDetails;
+                console.log("✅ Capacity validation passed:", {
+                    courseCapacity,
+                    classroomCapacity,
+                    utilizationPercentage: utilizationPercentage + "%",
+                    availableSeats: classroomCapacity - courseCapacity,
+                });
+            }
+        } else {
+            console.log("✅ Skipping capacity validation for online classroom");
         }
 
         // 3. TIME SLOT VALIDATION
@@ -1414,28 +2039,154 @@ export default function TimetableViewClassroom() {
         const key = `${day}-${classroomId}-${timeSlot}`;
         const existingCourse = schedule[key];
 
-        // 4. EXISTING COURSE VALIDATION
-        if (existingCourse && existingCourse.id === draggedCourse.id) {
-            console.log("Course already in this position");
-            setDraggedCourse(null);
-            setCellDragStates({});
-            return;
-        }
-
+        // 4. COURSE COMBINING VALIDATION
         if (existingCourse && existingCourse.id !== draggedCourse.id) {
-            showMessage(
-                "error",
-                `This time slot is already occupied by ${existingCourse.code}. Please choose another slot.`
+            const combineCheck = canCombineCourses(
+                draggedCourse,
+                existingCourse,
+                day,
+                timeSlotIndex
             );
-            setDraggedCourse(null);
-            setCellDragStates({});
-            return;
+
+            if (!combineCheck.canCombine) {
+                showMessage(
+                    "error",
+                    combineCheck.reason || "Cannot combine these courses"
+                );
+                setDraggedCourse(null);
+                setCellDragStates({});
+                return;
+            }
+
+            // Check instructor constraints for the combined scenario
+            const constraintCheck = checkInstructorConstraints(
+                draggedCourse,
+                day,
+                timeSlotIndex,
+                draggedCourse.duration,
+                classroomId
+            );
+
+            if (!constraintCheck.isValid) {
+                showMessage(
+                    "error",
+                    constraintCheck.conflictMessage ||
+                        "Instructor time constraint conflict"
+                );
+                setDraggedCourse(null);
+                setCellDragStates({});
+                return;
+            }
+
+            // Proceed with combining
+            console.log("=== COMBINING COURSES WITH SAME INSTRUCTOR ===");
+            console.log(
+                `Combining ${draggedCourse.code} (${draggedCourse.instructor}) with ${existingCourse.code} (${existingCourse.instructor})`
+            );
+
+            try {
+                const combinedCourse = combineCourses(
+                    existingCourse,
+                    draggedCourse
+                );
+
+                // Update schedule with combined course
+                const newSchedule = { ...schedule };
+
+                // Remove dragged course from existing positions
+                Object.keys(newSchedule).forEach((scheduleKey) => {
+                    if (newSchedule[scheduleKey].id === draggedCourse.id) {
+                        delete newSchedule[scheduleKey];
+                    }
+                });
+
+                // Update existing course position with combined course
+                const slotCalculation = calculateRequiredSlots(
+                    draggedCourse,
+                    timeSlots,
+                    timeSlotIndex,
+                    schedule,
+                    day,
+                    classroomId
+                );
+
+                slotCalculation.consecutiveSlots.forEach((slotInfo, i) => {
+                    const currentKey = `${day}-${classroomId}-${slotInfo.key}`;
+                    newSchedule[currentKey] = {
+                        ...combinedCourse,
+                        isStart: i === 0,
+                        isMiddle: i > 0 && i < slotCalculation.slotsNeeded - 1,
+                        isEnd: i === slotCalculation.slotsNeeded - 1,
+                        colspan: i === 0 ? slotCalculation.slotsNeeded : 0,
+                    };
+                });
+
+                setSchedule(newSchedule);
+
+                // Remove from available courses
+                setAvailableCourses((prev) =>
+                    prev.filter((course) => course.id !== draggedCourse.id)
+                );
+
+                // Update assigned courses
+                setAssignedCourses((prev) => {
+                    const filtered = prev.filter(
+                        (c) => c.id !== draggedCourse.id
+                    );
+                    const existingIndex = filtered.findIndex(
+                        (c) => c.id === existingCourse.id
+                    );
+                    if (existingIndex !== -1) {
+                        filtered[existingIndex] = combinedCourse;
+                    } else {
+                        filtered.push(combinedCourse);
+                    }
+                    return filtered;
+                });
+
+                setDraggedCourse(null);
+                setCellDragStates({});
+                setHoveredCell(null);
+
+                // Show success message with capacity info
+                let successMessage = `Successfully combined ${draggedCourse.code} with ${existingCourse.code} (same instructor: ${existingCourse.instructor})`;
+
+                if (!isOnlineClassroom) {
+                    const capacityValidation = validateCapacityConstraints(
+                        draggedCourse,
+                        classroomId,
+                        classrooms
+                    );
+                    if (capacityValidation.capacityDetails) {
+                        const {
+                            courseCapacity,
+                            classroomCapacity,
+                            utilizationPercentage,
+                        } = capacityValidation.capacityDetails;
+                        successMessage += ` - Capacity: ${courseCapacity}/${classroomCapacity} students (${utilizationPercentage}%)`;
+                    }
+                }
+
+                showMessage("success", successMessage);
+                return;
+            } catch (error) {
+                console.error("Error combining courses:", error);
+                showMessage(
+                    "error",
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to combine courses"
+                );
+                setDraggedCourse(null);
+                setCellDragStates({});
+                return;
+            }
         }
 
+        // 5. REGULAR ASSIGNMENT VALIDATION
+        console.log("=== REGULAR ASSIGNMENT VALIDATION ===");
         console.log("Matching Time Slot:", matchingTimeSlot);
 
-        // 5. USE SHARED SLOT CALCULATION FUNCTION - CRITICAL FOR CONSISTENCY
-        console.log("=== USING SHARED SLOT CALCULATION ===");
         const slotCalculation = calculateRequiredSlots(
             draggedCourse,
             timeSlots,
@@ -1460,7 +2211,7 @@ export default function TimetableViewClassroom() {
             `✅ Consistent slot calculation: ${slotsNeeded} slots needed for ${draggedCourse.duration}h course`
         );
 
-        // 6. VERIFY NO CONFLICTS IN ALL REQUIRED SLOTS (using calculated consecutive slots)
+        // 6. VERIFY NO CONFLICTS IN ALL REQUIRED SLOTS
         console.log("=== FINAL CONFLICT CHECK ===");
         for (const slotInfo of slotCalculation.consecutiveSlots) {
             const currentKey = `${day}-${classroomId}-${slotInfo.key}`;
@@ -1470,15 +2221,25 @@ export default function TimetableViewClassroom() {
                 conflictingCourse &&
                 conflictingCourse.id !== draggedCourse.id
             ) {
-                showMessage(
-                    "error",
-                    `Cannot place course here. Time slot ${slotInfo.key} is occupied by ${conflictingCourse.code}.`
+                // Check if can combine with conflicting course
+                const combineCheck = canCombineCourses(
+                    draggedCourse,
+                    conflictingCourse,
+                    day,
+                    slotInfo.index
                 );
-                setDraggedCourse(null);
-                setCellDragStates({});
-                return;
+
+                if (!combineCheck.canCombine) {
+                    showMessage(
+                        "error",
+                        `Cannot place course here. Time slot ${slotInfo.key} is occupied by ${conflictingCourse.code} and cannot be combined: ${combineCheck.reason}`
+                    );
+                    setDraggedCourse(null);
+                    setCellDragStates({});
+                    return;
+                }
             }
-            console.log(`  ✅ Slot ${slotInfo.key} is available`);
+            console.log(`  ✅ Slot ${slotInfo.key} is available or combinable`);
         }
 
         // 7. INSTRUCTOR CONSTRAINT CHECK
@@ -1486,7 +2247,8 @@ export default function TimetableViewClassroom() {
             draggedCourse,
             day,
             timeSlotIndex,
-            slotsNeeded
+            slotsNeeded,
+            classroomId
         );
 
         if (!constraintCheck.isValid) {
@@ -1543,22 +2305,38 @@ export default function TimetableViewClassroom() {
             originalColor: draggedCourse.originalColor,
         };
 
-        // Place course in all required time slots (using our calculated consecutive slots)
+        // Place course in all required time slots
         console.log(`=== PLACING COURSE IN ${slotsNeeded} SLOTS ===`);
         slotCalculation.consecutiveSlots.forEach((slotInfo, i) => {
             const currentKey = `${day}-${classroomId}-${slotInfo.key}`;
+            const existingInSlot = newSchedule[currentKey];
 
-            console.log(
-                `  Placing in slot ${i + 1}/${slotsNeeded}: ${slotInfo.key}`
-            );
+            if (existingInSlot) {
+                // Combine with existing course
+                const combinedCourse = combineCourses(
+                    existingInSlot,
+                    assignedCourse
+                );
+                newSchedule[currentKey] = {
+                    ...combinedCourse,
+                    isStart: i === 0,
+                    isMiddle: i > 0 && i < slotsNeeded - 1,
+                    isEnd: i === slotsNeeded - 1,
+                    colspan: i === 0 ? slotsNeeded : 0,
+                };
+            } else {
+                console.log(
+                    `  Placing in slot ${i + 1}/${slotsNeeded}: ${slotInfo.key}`
+                );
 
-            newSchedule[currentKey] = {
-                ...assignedCourse,
-                isStart: i === 0,
-                isMiddle: i > 0 && i < slotsNeeded - 1,
-                isEnd: i === slotsNeeded - 1,
-                colspan: i === 0 ? slotsNeeded : 0,
-            };
+                newSchedule[currentKey] = {
+                    ...assignedCourse,
+                    isStart: i === 0,
+                    isMiddle: i > 0 && i < slotsNeeded - 1,
+                    isEnd: i === slotsNeeded - 1,
+                    colspan: i === 0 ? slotsNeeded : 0,
+                };
+            }
         });
 
         // Update state
@@ -1588,24 +2366,33 @@ export default function TimetableViewClassroom() {
         setDraggedCourse(null);
         setHoveredCell(null);
 
-        // Show success message with capacity info
+        // Show success message with capacity information
         const classroom = classrooms.find(
             (c) => c.id.toString() === classroomId
         );
-
         let successMessage = `${draggedCourse.code} assigned successfully to ${
             classroom?.code || "classroom"
         }`;
 
         // Add capacity info to success message if available
-        if (capacityValidationResult.capacityDetails) {
-            const { courseCapacity, classroomCapacity, utilizationPercentage } =
-                capacityValidationResult.capacityDetails;
-            successMessage += ` (${courseCapacity}/${classroomCapacity} students, ${utilizationPercentage}% capacity)`;
-        }
+        if (!isOnlineClassroom) {
+            const capacityResult = validateCapacityConstraints(
+                draggedCourse,
+                classroomId,
+                classrooms
+            );
+            if (capacityResult.capacityDetails) {
+                const {
+                    courseCapacity,
+                    classroomCapacity,
+                    utilizationPercentage,
+                } = capacityResult.capacityDetails;
+                successMessage += ` (${courseCapacity}/${classroomCapacity} students, ${utilizationPercentage}% capacity)`;
+            }
 
-        if (capacityValidationResult.warningMessage) {
-            successMessage += ` - Warning: ${capacityValidationResult.warningMessage}`;
+            if (capacityResult.warningMessage) {
+                successMessage += ` - Warning: ${capacityResult.warningMessage}`;
+            }
         }
 
         showMessage("success", successMessage);
@@ -1620,7 +2407,13 @@ export default function TimetableViewClassroom() {
             slotDetails: slotCalculation.consecutiveSlots.map(
                 (s) => `${s.key}(${s.duration}h)`
             ),
-            capacityDetails: capacityValidationResult.capacityDetails,
+            capacityInfo: !isOnlineClassroom
+                ? validateCapacityConstraints(
+                      draggedCourse,
+                      classroomId,
+                      classrooms
+                  ).capacityDetails
+                : "Online classroom",
         });
     };
 
@@ -1772,7 +2565,7 @@ export default function TimetableViewClassroom() {
         day: string,
         classroomId: string,
         timeSlot: string,
-        course: TimetableCourse
+        course: CombinedTimetableCourse
     ) => {
         setSelectedCourse(course);
         const timeSlotId = getTimeSlotId(timeSlot);
@@ -1837,8 +2630,7 @@ export default function TimetableViewClassroom() {
             setIsGeneratingSchedule(false);
         }
     };
-    // Make fetchTimetableAssignments a standalone function or move it inside generateSchedule
-    // For clarity and reusability, let's make it a regular function and call it in useEffect and generateSchedule
+
     const fetchTimetableAssignments = useCallback(async () => {
         if (!params.id || !timeSlots.length || !classrooms.length) return;
 
@@ -1856,15 +2648,107 @@ export default function TimetableViewClassroom() {
             }
 
             const assignmentsData = await response.json();
+            console.log("=== FETCH TIMETABLE ASSIGNMENTS START ===");
+            console.log("Raw assignments data:", assignmentsData);
+            console.log("Raw assignments count:", assignmentsData.length);
 
+            // 🔥 CRITICAL FIX: Collect ALL assigned course IDs BEFORE any processing
+            const allAssignedCourseIds = new Set<number>();
+
+            console.log(
+                "=== COLLECTING ALL ASSIGNED COURSE IDS BEFORE PROCESSING ==="
+            );
+            assignmentsData.forEach((assignment: any, index: number) => {
+                if (assignment.id) {
+                    allAssignedCourseIds.add(assignment.id);
+                    console.log(
+                        `Raw assignment ${index + 1}: ID ${
+                            assignment.id
+                        }, Code: ${assignment.code}`
+                    );
+                }
+
+                // Also check for any existing combined course data in the raw response
+                if (
+                    assignment.combinedCourses &&
+                    Array.isArray(assignment.combinedCourses)
+                ) {
+                    assignment.combinedCourses.forEach((combined: any) => {
+                        if (combined.id) {
+                            allAssignedCourseIds.add(combined.id);
+                            console.log(
+                                `  Combined course ID: ${combined.id}, Code: ${combined.code}`
+                            );
+                        }
+                    });
+                }
+
+                if (
+                    assignment.combinedIds &&
+                    Array.isArray(assignment.combinedIds)
+                ) {
+                    assignment.combinedIds.forEach((id: number) => {
+                        if (id) {
+                            allAssignedCourseIds.add(id);
+                            console.log(`  Combined ID: ${id}`);
+                        }
+                    });
+                }
+            });
+
+            console.log("=== COMPLETE LIST OF ASSIGNED COURSE IDS ===");
+            console.log(
+                "Total unique assigned course IDs:",
+                allAssignedCourseIds.size
+            );
+            console.log(
+                "All assigned course IDs:",
+                Array.from(allAssignedCourseIds).sort()
+            );
+
+            // 🔥 FILTER AVAILABLE COURSES IMMEDIATELY BEFORE PROCESSING
+            console.log(
+                "=== FILTERING AVAILABLE COURSES BEFORE PROCESSING ==="
+            );
+            setAvailableCourses((prev) => {
+                const beforeCount = prev.length;
+                console.log("Available courses BEFORE filtering:", beforeCount);
+
+                const filtered = prev.filter((course) => {
+                    const isAssigned = allAssignedCourseIds.has(course.id);
+                    console.log(
+                        `Checking course ${course.code} (ID: ${course.id}): ${
+                            isAssigned
+                                ? "ASSIGNED - FILTERING OUT"
+                                : "NOT ASSIGNED - KEEPING"
+                        }`
+                    );
+                    return !isAssigned;
+                });
+
+                console.log(
+                    `Available courses filtered: ${beforeCount} → ${filtered.length}`
+                );
+                console.log(
+                    "Remaining available courses:",
+                    filtered.map((c) => `${c.code} (ID: ${c.id})`)
+                );
+
+                return filtered;
+            });
+
+            // Now process assignments and auto-combine courses
             const newSchedule: TimetableGrid = {};
             const newAssignedCourses: TimetableCourse[] = [];
 
-            // Store all assigned course information for filtering
-            const assignedCourseKeys = new Set();
-            const assignedCourseIds = new Set();
+            const processedAssignments = autoCombineCourses(assignmentsData);
+            console.log(
+                "Processed assignments after auto-combine:",
+                processedAssignments.length
+            );
 
-            assignmentsData.forEach((assignment: any) => {
+            // Process each assignment and create schedule entries
+            processedAssignments.forEach((assignment: any) => {
                 const courseHourId = assignment.id;
                 const sectionId = assignment.sectionId;
                 const classroomCode = assignment.classroom;
@@ -1877,15 +2761,9 @@ export default function TimetableViewClassroom() {
                 const isOnline =
                     assignment.isOnline || assignment.classroomId === null;
 
-                // Track assigned courses
-                if (courseHourId) {
-                    assignedCourseIds.add(courseHourId);
-                }
-                if (code && assignment.sectionNumber) {
-                    assignedCourseKeys.add(
-                        `${code}-${assignment.sectionNumber}`
-                    );
-                }
+                // Handle combined courses
+                const isCombined = assignment.isCombined || false;
+                const combinedCourses = assignment.combinedCourses || [];
 
                 const colorClassName =
                     originalColor && colors_class[originalColor]
@@ -1906,9 +2784,8 @@ export default function TimetableViewClassroom() {
                     }
                 }
 
-                const originalDuration = parseInt(
-                    assignment.separatedDuration || assignment.duration || "1",
-                    10
+                const originalDuration = parseFloat(
+                    assignment.separatedDuration || assignment.duration || "1"
                 );
 
                 if (!courseHourId || !day || !startTime) {
@@ -1926,11 +2803,7 @@ export default function TimetableViewClassroom() {
                         classroomId = virtualClassroom.id.toString();
                     } else {
                         classroomId = "-1";
-                        classroom = {
-                            id: -1,
-                            code: "Online",
-                            capacity: 999,
-                        };
+                        classroom = { id: -1, code: "Online", capacity: 999 };
                     }
                 } else {
                     classroom = classrooms.find(
@@ -1955,25 +2828,18 @@ export default function TimetableViewClassroom() {
                     ) {
                         return true;
                     }
-
                     if (ts.startTime && ts.endTime) {
                         const slotStart = parseInt(ts.startTime);
                         const slotEnd = parseInt(ts.endTime);
                         const start = parseInt(startTime);
                         return slotStart <= start && start < slotEnd;
                     }
-
                     return false;
                 });
 
                 if (startIndex === -1) {
                     console.warn(
-                        `Time slot "${startTime}" not found for course ${code}. Available time slots:`,
-                        timeSlots.map((ts) => ({
-                            key: getTimeSlotKey(ts),
-                            startTime: ts.startTime,
-                            time_slot: ts.time_slot,
-                        }))
+                        `Time slot "${startTime}" not found for course ${code}`
                     );
                     return;
                 }
@@ -1982,18 +2848,14 @@ export default function TimetableViewClassroom() {
                 let calculatedEndTime;
 
                 if (endTime) {
-                    const endIndex = timeSlots.findIndex((ts, index) => {
-                        if (ts.endTime === endTime) {
-                            return true;
-                        }
-
+                    const endIndex = timeSlots.findIndex((ts) => {
+                        if (ts.endTime === endTime) return true;
                         if (ts.startTime && ts.endTime) {
                             const slotStart = parseInt(ts.startTime);
                             const slotEnd = parseInt(ts.endTime);
                             const end = parseInt(endTime);
                             return slotStart < end && end <= slotEnd;
                         }
-
                         return false;
                     });
 
@@ -2026,12 +2888,13 @@ export default function TimetableViewClassroom() {
                 const maxSlotsAvailable = timeSlots.length - startIndex;
                 slotsToSpan = Math.min(slotsToSpan, maxSlotsAvailable);
 
-                const course = {
+                // Create course object with combined course information
+                const course: CombinedTimetableCourse = {
                     id: courseHourId,
                     capacity: assignment.capacity,
                     sectionId: sectionId,
-                    code: code,
-                    name: title,
+                    code: isCombined ? assignment.combinedCodes : code,
+                    name: isCombined ? assignment.combinedTitles : title,
                     instructor: instructorName,
                     duration: originalDuration,
                     day: day,
@@ -2046,8 +2909,35 @@ export default function TimetableViewClassroom() {
                     room: isOnline ? "Online" : classroomCode,
                     originalColor: originalColor,
                     isOnline: isOnline,
+                    // Combined course properties
+                    isCombined: isCombined,
+                    combinedCourses: isCombined
+                        ? combinedCourses.map((combined: any) => ({
+                              id: combined.id,
+                              code: combined.code,
+                              name: combined.title || combined.code,
+                              capacity: combined.capacity,
+                              color: colorClassName,
+                              duration: parseFloat(
+                                  combined.separatedDuration ||
+                                      combined.duration ||
+                                      "1"
+                              ),
+                              instructor: instructorName,
+                              sectionId: combined.sectionId,
+                              section:
+                                  combined.sectionNumber ||
+                                  combined.section_number ||
+                                  "N/A",
+                              room: isOnline ? "Online" : classroomCode,
+                              originalColor: combined.color,
+                              isOnline: isOnline,
+                              status: isOnline ? "online" : "offline",
+                          }))
+                        : undefined,
                 };
 
+                // Add to assigned courses if not already present
                 if (
                     !newAssignedCourses.some(
                         (c) =>
@@ -2059,14 +2949,13 @@ export default function TimetableViewClassroom() {
                     newAssignedCourses.push({ ...course });
                 }
 
+                // Create schedule entries for all required time slots
                 const dayValue = assignment.day?.trim();
                 const classroomIdValue = isOnline
                     ? "-1"
                     : classroom.id.toString();
                 const timeSlotValue =
                     assignment.startTime?.trim() || startTime?.trim();
-
-                const baseKey = `${dayValue}-${classroomIdValue}-${timeSlotValue}`;
 
                 for (let i = 0; i < slotsToSpan; i++) {
                     if (startIndex + i >= timeSlots.length) break;
@@ -2086,53 +2975,33 @@ export default function TimetableViewClassroom() {
                 }
             });
 
+            // Update state with processed data
             setSchedule(newSchedule);
             setAssignedCourses(newAssignedCourses);
 
-            // Enhanced filtering logic - remove assigned courses from available courses
-            setAvailableCourses((prev) => {
-                const filtered = prev.filter((course) => {
-                    // Check by course ID
-                    if (course.id && assignedCourseIds.has(course.id)) {
-                        return false;
-                    }
-
-                    // Check by course code and section combination
-                    const courseKey = `${course.code}-${course.section}`;
-                    if (assignedCourseKeys.has(courseKey)) {
-                        return false;
-                    }
-
-                    // Check by sectionId if available
-                    if (course.sectionId) {
-                        const isAssignedBySection = newAssignedCourses.some(
-                            (assigned) =>
-                                assigned.sectionId === course.sectionId
-                        );
-                        if (isAssignedBySection) {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                });
-
-                console.log("Filtering available courses:");
-                console.log("- Original count:", prev.length);
-                console.log("- Assigned IDs:", Array.from(assignedCourseIds));
-                console.log("- Assigned keys:", Array.from(assignedCourseKeys));
-                console.log("- Filtered count:", filtered.length);
-
-                return filtered;
-            });
+            console.log("=== FINAL STATE UPDATE ===");
+            console.log(
+                "Schedule entries created:",
+                Object.keys(newSchedule).length
+            );
+            console.log("Assigned courses created:", newAssignedCourses.length);
+            console.log("=== FETCH TIMETABLE ASSIGNMENTS COMPLETE ===");
         } catch (error) {
             console.error("Error fetching timetable assignments:", error);
         } finally {
             setIsLoading(false);
         }
-    }, [params.id, timeSlots, classrooms]); // Add `useCallback` and its dependencies
-
-    // Dependency on the memoized function
+    }, [
+        params.id,
+        timeSlots,
+        classrooms,
+        autoCombineCourses,
+        calculateSlotsNeeded,
+        calculateEndTime,
+        getTimeSlotKey,
+        colors_class,
+        getConsistentCourseColor,
+    ]);
 
     const calculateSlotDuration = (slot: any): number => {
         if (slot.time_slot && slot.time_slot.includes("-")) {
@@ -2174,6 +3043,15 @@ export default function TimetableViewClassroom() {
         setIsDialogOpen(false);
 
         try {
+            // If it's a combined course, we need to handle removal differently
+            if (course.isCombined && course.combinedCourses) {
+                showMessage(
+                    "error",
+                    "Cannot remove combined course directly. Please remove individual courses first."
+                );
+                return;
+            }
+
             const response = await fetch("/api/assign-time-slots", {
                 method: "DELETE",
                 headers: {
@@ -2276,8 +3154,20 @@ export default function TimetableViewClassroom() {
             return true;
         }
 
-        // Block if slot is occupied by different course
+        // Allow combining if courses can be combined
         if (existingCourse && existingCourse.id !== draggedCourse.id) {
+            const timeSlotIndex = timeSlots.findIndex(
+                (ts) => getTimeSlotKey(ts) === timeSlot
+            );
+            const combineCheck = canCombineCourses(
+                draggedCourse,
+                existingCourse,
+                day,
+                timeSlotIndex
+            );
+            if (combineCheck.canCombine) {
+                return true;
+            }
             return false;
         }
 
@@ -2301,19 +3191,44 @@ export default function TimetableViewClassroom() {
             return false;
         }
 
-        // 2. CAPACITY CONSTRAINT VALIDATION
-        const capacityCheck = validateCapacityConstraints(
-            draggedCourse,
-            classroomId,
-            classrooms
+        // 2. CAPACITY CONSTRAINT VALIDATION - FIXED
+        console.log("=== CAPACITY VALIDATION IN checkDropValidity ===");
+        console.log(
+            "Course:",
+            draggedCourse.code,
+            "Capacity:",
+            draggedCourse.capacity
         );
+        console.log("Classroom ID:", classroomId);
 
-        if (!capacityCheck.isValid) {
-            console.log(
-                "❌ Capacity constraint failed:",
-                capacityCheck.conflictMessage
-            );
+        // Find the classroom
+        const classroom = classrooms.find(
+            (c) => c.id.toString() === classroomId
+        );
+        console.log("Found classroom:", classroom);
+
+        if (!classroom && !isOnlineClassroom) {
+            console.log("❌ Classroom not found");
             return false;
+        }
+
+        // Skip capacity check for online classrooms
+        if (!isOnlineClassroom) {
+            const capacityCheck = validateCapacityConstraints(
+                draggedCourse,
+                classroomId,
+                classrooms
+            );
+
+            console.log("Capacity check result:", capacityCheck);
+
+            if (!capacityCheck.isValid) {
+                console.log(
+                    "❌ Capacity constraint failed:",
+                    capacityCheck.conflictMessage
+                );
+                return false;
+            }
         }
 
         // 3. TIME SLOT VALIDATION
@@ -2347,7 +3262,8 @@ export default function TimetableViewClassroom() {
             draggedCourse,
             day,
             timeSlotIndex,
-            slotCalculation.slotsNeeded
+            slotCalculation.slotsNeeded,
+            classroomId
         );
 
         if (!constraintCheck.isValid) {
@@ -2429,31 +3345,41 @@ export default function TimetableViewClassroom() {
             const csvData: any[] = [];
 
             assignedCourses.forEach((course) => {
-                const dayAbbr = getDayAbbreviation(course.day || "");
-                const startPeriod = getTimePeriod(course.startTime || "");
-                const isOnline =
-                    !course.room || course.room === "TBA" || course.room === "";
-                const type = isOnline ? "online" : "offline";
+                const processCourse = (c: TimetableCourse) => {
+                    const dayAbbr = getDayAbbreviation(c.day || "");
+                    const startPeriod = getTimePeriod(c.startTime || "");
+                    const isOnline =
+                        !c.room || c.room === "TBA" || c.room === "";
+                    const type = isOnline ? "online" : "offline";
 
-                const periods: string[] = [];
-                for (let i = 0; i < course.duration; i++) {
-                    const period = startPeriod + i;
-                    const roomPart = isOnline ? "" : `${course.room}.`;
-                    const formatStr = `[${roomPart}${dayAbbr}.${period}.${type}]`;
-                    periods.push(formatStr);
+                    const periods: string[] = [];
+                    for (let i = 0; i < c.duration; i++) {
+                        const period = startPeriod + i;
+                        const roomPart = isOnline ? "" : `${c.room}.`;
+                        const formatStr = `[${roomPart}${dayAbbr}.${period}.${type}]`;
+                        periods.push(formatStr);
+                    }
+
+                    csvData.push({
+                        course_code: c.code,
+                        course_name: c.name,
+                        instructor: c.instructor,
+                        day: c.day,
+                        room: c.room || "Online",
+                        start_time: c.startTime,
+                        end_time: c.endTime,
+                        duration: c.duration,
+                        format: periods.join(", "),
+                    });
+                };
+
+                // Process main course
+                processCourse(course);
+
+                // Process combined courses if any
+                if (course.isCombined && course.combinedCourses) {
+                    course.combinedCourses.forEach(processCourse);
                 }
-
-                csvData.push({
-                    course_code: course.code,
-                    course_name: course.name,
-                    instructor: course.instructor,
-                    day: course.day,
-                    room: course.room || "Online",
-                    start_time: course.startTime,
-                    end_time: course.endTime,
-                    duration: course.duration,
-                    format: periods.join(", "),
-                });
             });
 
             if (csvData.length === 0) {
@@ -2522,6 +3448,25 @@ export default function TimetableViewClassroom() {
                 }`
             );
         }
+    };
+
+    const renderCombinedCourseCell = (course: CombinedTimetableCourse) => {
+        if (course.isCombined && course.combinedCourses) {
+            return (
+                <div className="space-y-1">
+                    {/* Main course */}
+                    <div className="text-xs font-semibold truncate">
+                        {course.code}
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="space-y-1">
+                <div className="text-xs font-semibold">{course.code}</div>
+            </div>
+        );
     };
 
     const renderEnhancedTableCellWithDebug = (
@@ -2602,7 +3547,14 @@ export default function TimetableViewClassroom() {
                         )}
                     </div>
                 )}
-
+                {dragState.isDragOver && course && dragState.isValidDrop && (
+                    <div className="absolute inset-0 border-2 border-dashed border-blue-400 rounded-sm m-1 flex items-center justify-center text-xs font-medium bg-blue-100 text-blue-700">
+                        <div className="flex items-center">
+                            <Plus className="w-3 h-3 mr-1" />
+                            <span>Combine with {course.code}</span>
+                        </div>
+                    </div>
+                )}
                 {dragState.isDragOver &&
                     dragState.isValidDrop &&
                     draggedCourse &&
@@ -2622,7 +3574,6 @@ export default function TimetableViewClassroom() {
                     hoveredCell?.time === slotKey &&
                     hoveredCell?.classroom === classroom.id.toString() &&
                     draggedCourse &&
-                    !course &&
                     !dragState.isDragOver && (
                         <div className="absolute z-50 -top-2 left-full ml-1 bg-gray-900 text-white shadow-lg p-2 rounded text-xs whitespace-nowrap max-w-xs">
                             <div className="font-semibold mb-1">
@@ -2631,10 +3582,18 @@ export default function TimetableViewClassroom() {
                                 {draggedCourse.duration > 1 ? "s" : ""}
                             </div>
 
+                            {course && (
+                                <div className="text-blue-400 mb-1">
+                                    💡 Can combine with {course.code}
+                                </div>
+                            )}
+
+                            {/* Online/Offline validation */}
                             {(() => {
                                 const isOnlineClassroom = classroom.id < 0;
                                 const isCourseOnline =
-                                    draggedCourse.status === "online";
+                                    draggedCourse.status === "online" ||
+                                    draggedCourse.isOnline === true;
 
                                 if (isCourseOnline && !isOnlineClassroom) {
                                     return (
@@ -2654,12 +3613,56 @@ export default function TimetableViewClassroom() {
                                 }
                             })()}
 
+                            {/* Capacity validation */}
+                            {(() => {
+                                const isOnlineClassroom = classroom.id < 0;
+                                if (!isOnlineClassroom) {
+                                    const capacityCheck =
+                                        validateCapacityConstraints(
+                                            draggedCourse,
+                                            classroom.id.toString(),
+                                            classrooms
+                                        );
+
+                                    if (!capacityCheck.isValid) {
+                                        return (
+                                            <div className="text-red-400 mb-1 whitespace-normal">
+                                                ⚠️{" "}
+                                                {capacityCheck.conflictMessage}
+                                            </div>
+                                        );
+                                    } else if (capacityCheck.capacityDetails) {
+                                        const {
+                                            courseCapacity,
+                                            classroomCapacity,
+                                            utilizationPercentage,
+                                        } = capacityCheck.capacityDetails;
+                                        return (
+                                            <div className="text-green-400 mb-1">
+                                                ✓ Capacity: {courseCapacity}/
+                                                {classroomCapacity} (
+                                                {utilizationPercentage}%)
+                                            </div>
+                                        );
+                                    } else if (capacityCheck.warningMessage) {
+                                        return (
+                                            <div className="text-yellow-400 mb-1 whitespace-normal">
+                                                ⚠️{" "}
+                                                {capacityCheck.warningMessage}
+                                            </div>
+                                        );
+                                    }
+                                }
+                            })()}
+
+                            {/* Instructor constraint validation */}
                             {(() => {
                                 const check = checkInstructorConstraints(
                                     draggedCourse,
                                     day,
                                     hoveredCell.index,
-                                    draggedCourse.duration
+                                    draggedCourse.duration,
+                                    classroom.id.toString()
                                 );
                                 if (!check.isValid) {
                                     return (
@@ -2676,6 +3679,7 @@ export default function TimetableViewClassroom() {
                                 }
                             })()}
 
+                            {/* Time slots information */}
                             <div className="space-y-0.5">
                                 <div className="text-xs text-gray-300 mb-1">
                                     Time slots:
@@ -2697,14 +3701,14 @@ export default function TimetableViewClassroom() {
                                                     key={i}
                                                     className={
                                                         occupied
-                                                            ? "text-red-400"
+                                                            ? "text-yellow-400"
                                                             : "text-green-400"
                                                     }
                                                 >
                                                     {slot.time_slot ||
                                                         slot.startTime}{" "}
                                                     {occupied
-                                                        ? `(${occupied.code})`
+                                                        ? `(can combine with ${occupied.code})`
                                                         : "✓"}
                                                 </div>
                                             );
@@ -2722,10 +3726,13 @@ export default function TimetableViewClassroom() {
                             </div>
                         </div>
                     )}
-
                 {course ? (
                     <div
-                        className={`${course.color} p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium hover:shadow-md`}
+                        className={`${
+                            course.color
+                        } p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium hover:shadow-md ${
+                            course.isCombined ? "border-2 border-blue-400" : ""
+                        }`}
                         onClick={() =>
                             handleScheduledCourseClick(
                                 day,
@@ -2737,7 +3744,7 @@ export default function TimetableViewClassroom() {
                         draggable
                         onDragStart={() => handleDragStart(course)}
                     >
-                        {course.code}
+                        {renderCombinedCourseCell(course)}
                     </div>
                 ) : (
                     <div className="h-6 w-full" />
@@ -2754,7 +3761,8 @@ export default function TimetableViewClassroom() {
                         Classroom View Timetable
                     </h2>
                     <p className="text-xs text-gray-600 mt-1">
-                        Manage and generate classroom schedules
+                        Manage and generate classroom schedules - drag courses
+                        to combine them
                     </p>
                 </div>
 
@@ -2770,28 +3778,6 @@ export default function TimetableViewClassroom() {
                             ? "Generating..."
                             : "Auto-Generate Schedule"}
                     </Button>
-                    {/* <Button
-                        onClick={() => {
-                            setSchedule({});
-                            setAssignedCourses([]);
-                            setAvailableCourses(prev => [...prev, ...assignedCourses.map(course => ({
-                                ...course,
-                                day: undefined,
-                                startTime: undefined,
-                                endTime: undefined,
-                                classroom: undefined,
-                                isStart: undefined,
-                                isMiddle: undefined,
-                                isEnd: undefined,
-                                colspan: undefined,
-                            }))]);
-                            showMessage("success", "Timetable cleared successfully");
-                        }}
-                        variant="outline"
-                        disabled={Object.keys(schedule).length === 0}
-                    >
-                        Clear Timetable
-                    </Button> */}
                     <Button
                         className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors"
                         onClick={saveAllAssignments}
@@ -2808,7 +3794,6 @@ export default function TimetableViewClassroom() {
                     </Button>
                 </div>
             </div>
-            
 
             <div className="mb-6 ">
                 <div className="relative max-w-md">
@@ -2842,6 +3827,19 @@ export default function TimetableViewClassroom() {
                 )}
             </div>
 
+            {/* Course Combining Instructions */}
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center text-blue-800">
+                    <Plus className="w-4 h-4 mr-2" />
+                    <strong>Course Combining:</strong>
+                </div>
+                <p className="text-sm text-blue-700 mt-1">
+                    Drag courses onto existing scheduled courses to combine them
+                    in the same time slot. Combined courses must have Same
+                    instructors and the same duration.
+                </p>
+            </div>
+
             {messages.length > 0 && (
                 <div className="mb-4 space-y-2">
                     {messages.map((message) => (
@@ -2850,7 +3848,9 @@ export default function TimetableViewClassroom() {
                             className={`flex items-center justify-between p-3 rounded-lg border ${
                                 message.type === "success"
                                     ? "bg-green-50 border-green-200 text-green-800"
-                                    : "bg-red-50 border-red-200 text-red-800"
+                                    : message.type === "error"
+                                    ? "bg-red-50 border-red-200 text-red-800"
+                                    : "bg-blue-50 border-blue-200 text-blue-800"
                             }`}
                         >
                             <div className="flex items-center">
@@ -2891,6 +3891,7 @@ export default function TimetableViewClassroom() {
                                         </th>
                                     ))}
                                 </tr>
+
                                 <tr>
                                     <th className="px-4 py-3 text-left text-xs font-medium  text-gray-500 uppercase tracking-wider w-24 border">
                                         Time
@@ -2971,35 +3972,76 @@ export default function TimetableViewClassroom() {
                     ) : availableCourses.length === 0 ? (
                         <div className="text-center py-4 text-gray-500">
                             All courses have been assigned to the timetable
+                            {/* Add this logging button for debugging */}
+                            <button
+                                onClick={() => {
+                                    console.log(
+                                        "=== AVAILABLE COURSES DEBUG INFO ==="
+                                    );
+                                    console.log(
+                                        "Available courses count:",
+                                        availableCourses.length
+                                    );
+                                    console.log(
+                                        "Available courses:",
+                                        availableCourses
+                                    );
+                                    console.log(
+                                        "Schedule keys:",
+                                        Object.keys(schedule)
+                                    );
+                                    console.log(
+                                        "Assigned courses:",
+                                        assignedCourses
+                                    );
+                                }}
+                                className="ml-2 text-blue-500 underline text-sm"
+                            >
+                                (Debug Info)
+                            </button>
                         </div>
                     ) : (
                         <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto p-2">
-                            {availableCourses.map((course) => (
-                                <div
-                                    key={course.id}
-                                    className={`${course.color} p-3 rounded-lg shadow cursor-pointer hover:shadow-md transition-all border`}
-                                    draggable
-                                    onDragStart={() => handleDragStart(course)}
-                                    onClick={() => handleCourseClick(course)}
-                                >
-                                    <h4 className="font-bold text-gray-800">
-                                        {course.code}
-                                    </h4>
-                                    <p className="text-sm font-medium">
-                                        {course.name}
-                                    </p>
-                                    <p className="text-xs mt-1 text-gray-700">
-                                        Duration: {course.duration} hour
-                                        {course.duration > 1 ? "s" : ""}
-                                    </p>
-                                    <p className="text-xs mt-1 truncate text-gray-700">
-                                        Instructor: {course.instructor}
-                                    </p>
-                                    <p className="text-xs mt-1 truncate text-gray-700">
-                                        Section: {course.section || "N/A"}
-                                    </p>
-                                </div>
-                            ))}
+                            {availableCourses.map((course, index) => {
+                                // Add logging for each rendered course
+                                console.log("Rendering available course:", {
+                                    availableCourses,
+                                });
+                                console.log(
+                                    `Rendering available course ${index}: ${course.code} (ID: ${course.id})`
+                                );
+
+                                return (
+                                    <div
+                                        key={course.id}
+                                        className={`${course.color} p-3 rounded-lg shadow cursor-pointer hover:shadow-md transition-all border`}
+                                        draggable
+                                        onDragStart={() =>
+                                            handleDragStart(course)
+                                        }
+                                        onClick={() =>
+                                            handleCourseClick(course)
+                                        }
+                                    >
+                                        <h4 className="font-bold text-gray-800">
+                                            {course.code}
+                                        </h4>
+                                        <p className="text-sm font-medium">
+                                            {course.name}
+                                        </p>
+                                        <p className="text-xs mt-1 text-gray-700">
+                                            Duration: {course.duration} hour
+                                            {course.duration > 1 ? "s" : ""}
+                                        </p>
+                                        <p className="text-xs mt-1 truncate text-gray-700">
+                                            Instructor: {course.instructor}
+                                        </p>
+                                        <p className="text-xs mt-1 truncate text-gray-700">
+                                            Section: {course.section || "N/A"}
+                                        </p>
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -3021,9 +4063,71 @@ export default function TimetableViewClassroom() {
                                         .replace("hover:", "")
                                         .replace("border-", "")}`}
                                 ></div>
-                                <h3 className="font-bold text-lg">
-                                    {selectedCourse.code}: {selectedCourse.name}
-                                </h3>
+
+                                {selectedCourse.isCombined &&
+                                selectedCourse.combinedCourses ? (
+                                    <div>
+                                        <h3 className="font-bold text-lg mb-2">
+                                            Combined Course Assignment
+                                        </h3>
+                                        <div className="space-y-3">
+                                            <div className="border rounded p-3">
+                                                <h4 className="font-semibold text-md">
+                                                    Main Course:
+                                                </h4>
+                                                <p className="text-sm">
+                                                    {selectedCourse.code}:{" "}
+                                                    {selectedCourse.name}
+                                                </p>
+                                                <p className="text-sm text-gray-600">
+                                                    Instructor:{" "}
+                                                    {selectedCourse.instructor}
+                                                </p>
+                                            </div>
+                                            {selectedCourse.combinedCourses.map(
+                                                (combined, index) => (
+                                                    <div
+                                                        key={index}
+                                                        className="border rounded p-3 bg-gray-50"
+                                                    >
+                                                        <h4 className="font-semibold text-md">
+                                                            Combined Course{" "}
+                                                            {index + 1}:
+                                                        </h4>
+                                                        <p className="text-sm">
+                                                            {combined.code}:{" "}
+                                                            {combined.name}
+                                                        </p>
+                                                        <p className="text-sm text-gray-600">
+                                                            Instructor:{" "}
+                                                            {
+                                                                combined.instructor
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <h3 className="font-bold text-lg">
+                                            {selectedCourse.code}:{" "}
+                                            {selectedCourse.name}
+                                        </h3>
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between">
+                                                <span className="text-sm text-muted-foreground">
+                                                    Instructor:
+                                                </span>
+                                                <span className="text-sm font-medium">
+                                                    {selectedCourse.instructor}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="space-y-2">
                                     <div className="flex justify-between">
                                         <span className="text-sm text-muted-foreground">
@@ -3031,14 +4135,6 @@ export default function TimetableViewClassroom() {
                                         </span>
                                         <span className="text-sm font-medium">
                                             {selectedCourse.duration} hour(s)
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-sm text-muted-foreground">
-                                            Instructor:
-                                        </span>
-                                        <span className="text-sm font-medium">
-                                            {selectedCourse.instructor}
                                         </span>
                                     </div>
                                     <div className="flex justify-between">
@@ -3069,136 +4165,6 @@ export default function TimetableViewClassroom() {
                                     </div>
                                 </div>
                             </div>
-
-                            <Dialog
-                                open={isSplitDialogOpen}
-                                onOpenChange={setIsSplitDialogOpen}
-                            >
-                                <DialogContent className="sm:max-w-lg">
-                                    <DialogHeader>
-                                        <DialogTitle>
-                                            Split Course Duration
-                                        </DialogTitle>
-                                    </DialogHeader>
-
-                                    {courseSplitConfig && (
-                                        <div className="space-y-4">
-                                            <div className="text-sm text-gray-600">
-                                                <p>
-                                                    <strong>Course:</strong>{" "}
-                                                    {
-                                                        courseSplitConfig.course
-                                                            .code
-                                                    }
-                                                </p>
-                                                <p>
-                                                    <strong>
-                                                        Total Duration:
-                                                    </strong>{" "}
-                                                    {
-                                                        courseSplitConfig.course
-                                                            .duration
-                                                    }{" "}
-                                                    hours
-                                                </p>
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <label className="text-sm font-medium">
-                                                    Split Configuration:
-                                                </label>
-                                                {splitDurations.map(
-                                                    (duration, index) => (
-                                                        <div
-                                                            key={index}
-                                                            className="flex items-center gap-2"
-                                                        >
-                                                            <span className="text-sm">
-                                                                Part {index + 1}
-                                                                :
-                                                            </span>
-                                                            <Input
-                                                                type="number"
-                                                                min="1"
-                                                                value={duration}
-                                                                onChange={(e) =>
-                                                                    updateSplitDuration(
-                                                                        index,
-                                                                        parseInt(
-                                                                            e
-                                                                                .target
-                                                                                .value
-                                                                        ) || 1
-                                                                    )
-                                                                }
-                                                                className="w-20"
-                                                            />
-                                                            <span className="text-sm">
-                                                                hour(s)
-                                                            </span>
-                                                            {splitDurations.length >
-                                                                1 && (
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() =>
-                                                                        removeSplit(
-                                                                            index
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <X className="h-4 w-4" />
-                                                                </Button>
-                                                            )}
-                                                        </div>
-                                                    )
-                                                )}
-                                            </div>
-
-                                            <div className="flex justify-between items-center">
-                                                <Button
-                                                    variant="outline"
-                                                    onClick={addSplit}
-                                                >
-                                                    Add Split
-                                                </Button>
-                                                <div className="text-sm">
-                                                    Total:{" "}
-                                                    {getTotalSplitDuration()} /{" "}
-                                                    {
-                                                        courseSplitConfig.course
-                                                            .duration
-                                                    }{" "}
-                                                    hours
-                                                </div>
-                                            </div>
-
-                                            {!isValidSplit() && (
-                                                <div className="text-red-600 text-sm">
-                                                    Total split duration must
-                                                    equal original course
-                                                    duration
-                                                </div>
-                                            )}
-
-                                            <div className="flex justify-end gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    onClick={cancelSplit}
-                                                >
-                                                    Cancel
-                                                </Button>
-                                                <Button
-                                                    onClick={applySplit}
-                                                    disabled={!isValidSplit()}
-                                                >
-                                                    Apply Split
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </DialogContent>
-                            </Dialog>
 
                             <div className="flex justify-end gap-2">
                                 <Button

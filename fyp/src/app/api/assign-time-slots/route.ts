@@ -6,7 +6,7 @@ import {
     sections,
 } from "@/drizzle/schema";
 import { db } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -102,6 +102,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
+        const { searchParams } = new URL(request.url);
+        const scheduleId = searchParams.get("scheduleId");
+
+        if (!scheduleId) {
+            return NextResponse.json(
+                { error: "scheduleId is required" },
+                { status: 400 }
+            );
+        }
+
         const body = await request.json();
 
         // Check if body is an array
@@ -124,17 +134,39 @@ export async function POST(request: Request) {
             }
         });
 
-        // Get all existing course hours
+        // Get all existing course hours for this specific schedule
         const allExistingCourseHours = await db
-            .select({ id: courseHours.id })
-            .from(courseHours);
+            .select({
+                id: courseHours.id,
+                sectionId: courseHours.sectionId,
+            })
+            .from(courseHours)
+            .innerJoin(sections, eq(courseHours.sectionId, sections.id))
+            .innerJoin(courses, eq(sections.courseId, courses.id))
+            .where(eq(courses.scheduleId, parseInt(scheduleId)));
 
-        // Find course hours that exist in database but not in request
+        // Find course hours that exist in database (for this schedule) but not in request
         const courseHoursToNull = allExistingCourseHours.filter(
             (courseHour) => !requestCourseHourIds.has(courseHour.id)
         );
 
         // Set day, timeSlot, and classroomId to null for missing course hours
+        if (courseHoursToNull.length > 0) {
+            const courseHourIdsToNull = courseHoursToNull.map((ch) => ch.id);
+
+            await db
+                .update(courseHours)
+                .set({
+                    day: null,
+                    timeSlot: null,
+                    classroomId: null,
+                })
+                .where(inArray(courseHours.id, courseHourIdsToNull));
+
+            console.log(
+                `Nullified ${courseHoursToNull.length} course hours that were not in the request for schedule ${scheduleId}`
+            );
+        }
 
         // Process each assignment
         for (const assignment of body) {
@@ -176,6 +208,28 @@ export async function POST(request: Request) {
             console.log("Time slot will be:", `${startTime} - ${endTime}`);
 
             try {
+                // Verify that the section belongs to the specified schedule
+                const sectionScheduleCheck = await db
+                    .select({ scheduleId: courses.scheduleId })
+                    .from(sections)
+                    .innerJoin(courses, eq(sections.courseId, courses.id))
+                    .where(eq(sections.id, sectionId))
+                    .limit(1);
+
+                if (
+                    sectionScheduleCheck.length === 0 ||
+                    sectionScheduleCheck[0].scheduleId !== parseInt(scheduleId)
+                ) {
+                    console.error(
+                        `Section ${sectionId} does not belong to schedule ${scheduleId}`
+                    );
+                    errors.push({
+                        sectionId,
+                        error: `Section does not belong to the specified schedule`,
+                    });
+                    continue;
+                }
+
                 // Check if course hour already exists for this section
                 const existingCourseHour = await db
                     .select({ id: courseHours.id })
@@ -198,14 +252,14 @@ export async function POST(request: Request) {
                             day: day,
                             timeSlot: `${startTime} - ${endTime}`,
                         })
-                        .where(eq(courseHours.id, id));
+                        .where(eq(courseHours.id, courseHourId));
                 } else {
                     // Create new course hour
                     console.log(
                         `Creating new course hour for section ${sectionId}...`
                     );
 
-                    await db.insert(courseHours).values({
+                    const insertResult = await db.insert(courseHours).values({
                         sectionId: sectionId,
                         day: day,
                         timeSlot: `${startTime} - ${endTime}`,
@@ -236,7 +290,7 @@ export async function POST(request: Request) {
 
                 console.log("Processing section:", sectionId);
 
-                // Update the section with the classroom ID
+                // Update the course hour with the classroom ID
                 // For online courses, set classroomId to null
                 const classroomId =
                     isOnline || !classroom ? null : parseInt(classroom);
@@ -246,7 +300,7 @@ export async function POST(request: Request) {
                     .set({
                         classroomId: classroomId,
                     })
-                    .where(eq(courseHours.id, id));
+                    .where(eq(courseHours.id, courseHourId));
 
                 // Get the updated section
                 const updatedSection = await db
@@ -286,9 +340,10 @@ export async function POST(request: Request) {
 
         // Prepare response
         const response = {
-            message: `Successfully processed ${results.length} of ${body.length} assignments`,
+            message: `Successfully processed ${results.length} of ${body.length} assignments for schedule ${scheduleId}`,
             data: results,
             nullifiedCourseHours: courseHoursToNull.length,
+            scheduleId: parseInt(scheduleId),
             ...(errors.length > 0 && {
                 errors: errors,
                 errorCount: errors.length,
@@ -308,7 +363,6 @@ export async function POST(request: Request) {
         );
     }
 }
-
 // DELETE to remove assignment (when dragging a course out of the timetable)
 export async function DELETE(request: Request) {
     try {
