@@ -332,13 +332,16 @@ export default function InstructorsView() {
                 schedule_id: Number(scheduleId),
             };
 
-            const response = await fetch("/api/instructors", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(apiData),
-            });
+            const response = await fetch(
+                `/api/instructors/?scheduleId=${scheduleId}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(apiData),
+                }
+            );
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -399,6 +402,22 @@ export default function InstructorsView() {
                 phone_number: formData.phone_number,
             });
 
+            // Check if email already exists (excluding current instructor)
+            const existingInstructor = instructors.find(
+                (instructor) =>
+                    instructor.email === validatedData.email &&
+                    instructor.id !== selectedInstructor.id
+            );
+
+            if (existingInstructor) {
+                setStatusMessage({
+                    text: "Another instructor with this email already exists",
+                    type: "error",
+                });
+                return;
+            }
+
+            // FIXED: Consistent API data structure
             const apiData = {
                 id: selectedInstructor.id,
                 instructor_id: formData.instructor_id,
@@ -409,13 +428,17 @@ export default function InstructorsView() {
                 phone_number: validatedData.phone_number || "",
             };
 
-            const response = await fetch("/api/instructors", {
-                method: "PATCH",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(apiData),
-            });
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/instructors/?scheduleId=${scheduleId}`,
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(apiData),
+                }
+            );
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -457,13 +480,17 @@ export default function InstructorsView() {
         if (!selectedInstructor) return;
 
         try {
-            const response = await fetch("/api/instructors", {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ id: selectedInstructor.id }),
-            });
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/instructors/?scheduleId=${scheduleId}`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ id: selectedInstructor.id }),
+                }
+            );
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -665,13 +692,16 @@ export default function InstructorsView() {
                                 schedule_id: Number(scheduleId),
                             };
 
-                            const response = await fetch("/api/instructors", {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                },
-                                body: JSON.stringify(apiData),
-                            });
+                            const response = await fetch(
+                                `/api/instructors/?scheduleId=${scheduleId}`,
+                                {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify(apiData),
+                                }
+                            );
 
                             if (!response.ok) {
                                 const errorData = await response.json();
@@ -948,45 +978,39 @@ export default function InstructorsView() {
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
+    // Add this state variable with your other useState declarations
+    const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
 
-    // Enhanced form field rendering with validation
-    const renderFormField = (
-        id: string,
-        name: string,
-        label: string,
-        value: string,
-        placeholder: string,
-        required: boolean = false,
-        type: string = "text"
-    ) => (
-        <div className="space-y-2">
-            <Label htmlFor={id} className="text-sm font-medium text-gray-700">
-                {label} {required && <span className="text-red-500">*</span>}
-            </Label>
-            <Input
-                id={id}
-                name={name}
-                type={type}
-                value={value}
-                onChange={handleInputChange}
-                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                    validationErrors[name as keyof ValidationErrors]
-                        ? "border-red-300 focus:border-red-500 animate-pulse"
-                        : ""
-                }`}
-                placeholder={placeholder}
-                required={required}
-            />
-            {validationErrors[name as keyof ValidationErrors] && (
-                <div className="flex items-center gap-1">
-                    <span className="text-red-500 text-xs">❌</span>
-                    <p className="text-xs text-red-600 font-medium">
-                        {validationErrors[name as keyof ValidationErrors]}
-                    </p>
-                </div>
-            )}
-        </div>
-    );
+    // Add this function with your other handler functions
+    const handleClearAllInstructors = async () => {
+        try {
+            const scheduleId = params.id;
+            // Delete all instructors one by one
+            const deletePromises = instructors.map((instructor) =>
+                fetch(`/api/instructors/?scheduleId=${scheduleId}`, {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ id: instructor.id }),
+                })
+            );
+
+            await Promise.all(deletePromises);
+            await fetchInstructors();
+            setIsClearAllDialogOpen(false);
+            setStatusMessage({
+                text: `Successfully deleted ${instructors.length} instructors`,
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error clearing all instructors:", error);
+            setStatusMessage({
+                text: "Failed to delete all instructors. Please try again.",
+                type: "error",
+            });
+        }
+    };
 
     return (
         <div className="space-y-4">
