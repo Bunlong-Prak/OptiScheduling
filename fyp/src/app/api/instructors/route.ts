@@ -1,6 +1,6 @@
 import { instructors, schedules } from "@/drizzle/schema";
 import { db } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -134,7 +134,10 @@ export async function POST(request: Request) {
 
             // FIXED: Check for duplicate email before insertion
             const existingInstructor = await db.query.instructors.findFirst({
-                where: eq(instructors.email, email),
+                where: and(
+                    eq(instructors.email, email),
+                    eq(instructors.scheduleId, schedule_id)
+                ),
             });
 
             if (existingInstructor) {

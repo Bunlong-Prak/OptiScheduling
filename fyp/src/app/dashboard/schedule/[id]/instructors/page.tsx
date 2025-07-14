@@ -147,7 +147,7 @@ export default function InstructorsView() {
                 schedule_id: Number(scheduleId), // Use schedule_id to match database
             };
 
-            const response = await fetch("/api/instructors", {
+            const response = await fetch(`/api/instructors/?scheduleId=${scheduleId}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -203,7 +203,7 @@ export default function InstructorsView() {
             // Check if email already exists (excluding current instructor)
             const existingInstructor = instructors.find(
                 (instructor) =>
-                    instructor.email === validatedData.email&&
+                    instructor.email === validatedData.email &&
                     instructor.id !== selectedInstructor.id
             );
 
@@ -226,7 +226,8 @@ export default function InstructorsView() {
                 phone_number: validatedData.phone_number || "",
             };
 
-            const response = await fetch("/api/instructors", {
+            const scheduleId = params.id;
+            const response = await fetch(`/api/instructors/?scheduleId=${scheduleId}`, {
                 method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",
@@ -269,7 +270,8 @@ export default function InstructorsView() {
         if (!selectedInstructor) return;
 
         try {
-            const response = await fetch("/api/instructors", {
+            const scheduleId = params.id;
+            const response = await fetch(`/api/instructors/?scheduleId=${scheduleId}`, {
                 method: "DELETE",
                 headers: {
                     "Content-Type": "application/json",
@@ -424,7 +426,7 @@ export default function InstructorsView() {
                                 schedule_id: Number(scheduleId),
                             };
 
-                            const response = await fetch("/api/instructors", {
+                            const response = await fetch(`/api/instructors/?scheduleId=${scheduleId}`, {
                                 method: "POST",
                                 headers: {
                                     "Content-Type": "application/json",
@@ -655,9 +657,10 @@ const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
 // Add this function with your other handler functions
 const handleClearAllInstructors = async () => {
     try {
+        const scheduleId = params.id;
         // Delete all instructors one by one
         const deletePromises = instructors.map(instructor =>
-            fetch("/api/instructors?scheduleId=${scheduleId", {
+            fetch(`/api/instructors/?scheduleId=${scheduleId}`, {
                 method: "DELETE",
                 headers: {
                     "Content-Type": "application/json",
