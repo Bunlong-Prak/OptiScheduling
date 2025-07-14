@@ -3,10 +3,7 @@
 import { Classroom, Course, Instructor, Major } from "@/app/types";
 import {
     colors,
-    ColorSelectItem,
-    ColorSelectTrigger,
     getColorName,
-    getColorNameFromHex,
     getHexFromColorName,
 } from "@/components/custom/colors";
 import CustomPagination from "@/components/custom/pagination";
@@ -76,6 +73,9 @@ export default function CoursesView() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
 
+    const [sectionValidationError, setSectionValidationError] =
+        useState<string>("");
+
     // Update sections state structure to include status and split durations
     const [sections, setSections] = useState<
         {
@@ -96,13 +96,16 @@ export default function CoursesView() {
     } | null>(null);
     const [currentInstructorOpen, setCurrentInstructorOpen] = useState(false);
 
+    const [instructorValidationError, setInstructorValidationError] =
+        useState<string>("");
+
     // State for managing major - updated to handle single selection
     const [selectedMajor, setSelectedMajor] = useState<string>("");
 
     const [formData, setFormData] = useState<{
         title: string;
         code: string;
-        color: string;
+        color: string; // This will now store hex values like "#3B82F6"
         duration: number;
         capacity: number;
         section: string;
@@ -110,7 +113,7 @@ export default function CoursesView() {
     }>({
         title: "",
         code: "",
-        color: "",
+        color: "#3B82F6", // Default hex color
         duration: 0,
         capacity: 0,
         section: "",
@@ -251,52 +254,76 @@ export default function CoursesView() {
             const courseHoursData = await response.json();
             console.log("Original API response:", courseHoursData);
 
-            // Group course hours by sectionId to reconstruct sections
+            // Group course hours by sectionId to combine separated durations
             const sectionMap = new Map();
 
             courseHoursData.forEach((courseHour: any) => {
-                const sectionKey = courseHour.id.toString();
+                const sectionKey = courseHour.sectionId.toString();
 
                 if (!sectionMap.has(sectionKey)) {
-                    // Create a new section entry
+                    // Create a new section entry with the original Course type structure
                     sectionMap.set(sectionKey, {
                         id: courseHour.id,
                         sectionId: courseHour.sectionId,
-                        courseId: courseHour.courseId,
                         title: courseHour.title,
                         code: courseHour.code,
+                        year: courseHour.year,
                         major: courseHour.major,
                         color: courseHour.color,
                         firstName: courseHour.firstName,
                         lastName: courseHour.lastName,
                         instructorId: courseHour.instructorId,
                         duration: courseHour.duration,
-                        separatedDuration: courseHour.separatedDuration,
+                        separatedDuration: courseHour.separatedDuration, // Keep original single value for backward compatibility
                         capacity: courseHour.capacity,
                         status: courseHour.status,
                         section: courseHour.section,
                         classroom: courseHour.classroom,
-                        // Store all course hours for this section
+                        // Add array to collect all separated durations for this section (including duplicates)
+                        separatedDurations: [courseHour.separatedDuration],
                         courseHours: [],
                     });
+                } else {
+                    // Always add separated duration to existing section (allow duplicates)
+                    const sectionData = sectionMap.get(sectionKey);
+                    sectionData.separatedDurations.push(
+                        courseHour.separatedDuration
+                    );
                 }
 
                 // Add this course hour to the section's course hours
                 sectionMap.get(sectionKey).courseHours.push({
-                    id: courseHour.id, // courseHours.id
+                    id: courseHour.id,
                     separatedDuration: courseHour.separatedDuration,
                     day: courseHour.day,
                     timeSlot: courseHour.timeSlot,
                 });
             });
 
-            console.log(
-                "Grouped by sectionId:",
-                Array.from(sectionMap.values())
+            // After grouping, calculate combined separated duration for each section
+            const processedCourses = Array.from(sectionMap.values()).map(
+                (course) => {
+                    // Calculate the total combined separated duration
+                    const combinedSeparatedDuration =
+                        course.separatedDurations.reduce(
+                            (total: number, duration: number) =>
+                                total + duration,
+                            0
+                        );
+
+                    return {
+                        ...course,
+                        combinedSeparatedDuration, // Add the combined total
+                        // Keep separatedDuration as the first one for backward compatibility
+                        separatedDuration: course.separatedDurations[0],
+                    };
+                }
             );
 
-            // Convert map to array for state
-            const processedCourses = Array.from(sectionMap.values());
+            console.log(
+                "Processed courses with combined durations:",
+                processedCourses
+            );
 
             // Set the processed courses to state
             setCourses(processedCourses);
@@ -469,17 +496,10 @@ export default function CoursesView() {
                 newHours,
                 durationMinutes
             );
-            console.log(
-                "Duration hours changed to:",
-                newHours,
-                "Total duration:",
-                newDuration
-            );
             setFormData({
                 ...formData,
                 duration: newDuration,
             });
-            // Update all section split durations to match new duration
             setSections(
                 sections.map((section) => ({
                     ...section,
@@ -495,17 +515,10 @@ export default function CoursesView() {
                 durationHours,
                 newMinutes
             );
-            console.log(
-                "Duration minutes changed to:",
-                newMinutes,
-                "Total duration:",
-                newDuration
-            );
             setFormData({
                 ...formData,
                 duration: newDuration,
             });
-            // Update all section split durations to match new duration
             setSections(
                 sections.map((section) => ({
                     ...section,
@@ -515,22 +528,87 @@ export default function CoursesView() {
                 }))
             );
         } else {
-            setFormData({
+            // Update formData first
+            const newFormData = {
                 ...formData,
                 [name]: value,
-            });
+            };
+            setFormData(newFormData);
+
+            // Trigger real-time validation for code and title with the new value
+            if (name === "code" || name === "title") {
+                validateFormWithNewData(newFormData);
+            }
         }
     };
 
+    const validateFormWithNewData = (newFormData: typeof formData) => {
+        const errors: typeof validationErrors = {};
+
+        // Validate course code uniqueness - only if there's input
+        if (newFormData.code.trim()) {
+            const isDuplicateCode = courses.some(
+                (course) =>
+                    course.code.toLowerCase() ===
+                        newFormData.code.trim().toLowerCase() &&
+                    (!selectedCourse ||
+                        course.sectionId !== selectedCourse.sectionId)
+            );
+            if (isDuplicateCode) {
+                errors.code = "Course code already exists";
+            }
+        }
+
+        // Validate course title uniqueness - only if there's input
+        if (newFormData.title.trim()) {
+            const isDuplicateTitle = courses.some(
+                (course) =>
+                    course.title.toLowerCase() ===
+                        newFormData.title.trim().toLowerCase() &&
+                    (!selectedCourse ||
+                        course.sectionId !== selectedCourse.sectionId)
+            );
+            if (isDuplicateTitle) {
+                errors.title = "Course title already exists";
+            }
+        }
+
+        // Validate major exists - only show "create first" message
+        if (!selectedMajor && majors.length === 0) {
+            errors.major = "Please create a major first";
+        }
+
+        setValidationErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
+
+    // Update the existing validateForm function to use current formData
+    const validateForm = () => {
+        return validateFormWithNewData(formData);
+    };
+
+    const handleMajorChange = (value: string) => {
+        setSelectedMajor(value);
+        setTimeout(validateForm, 0);
+    };
+    const handleSectionInputChange = (value: string) => {
+        setCurrentSection(value);
+        validateCurrentSection(value, currentInstructor);
+    };
+    const handleInstructorChange = (
+        instructor: { id: string; name: string } | null
+    ) => {
+        setCurrentInstructor(instructor);
+        setCurrentInstructorOpen(false);
+        validateCurrentSection(currentSection, instructor);
+    };
     const handleSelectChange = (name: string, value: string) => {
         if (name === "duration") {
             const newDuration = parseInt(value) || 1;
-            console.log("Duration changed to:", newDuration);
             setFormData({
                 ...formData,
                 [name]: newDuration,
             });
-            // Update all section split durations to match new duration
             setSections(
                 sections.map((section) => ({
                     ...section,
@@ -545,14 +623,19 @@ export default function CoursesView() {
                 [name]: value,
             });
         }
+
+        // Trigger validation after state update
+        setTimeout(validateForm, 0);
     };
 
     // Function to add a section with instructor
     const addSection = () => {
-        if (!currentSection.trim()) return;
+        if (!validateCurrentSection(currentSection, currentInstructor)) {
+            return;
+        }
 
         const newSection = {
-            id: Date.now(), // Simple ID generation
+            id: Date.now(),
             section_id: currentSection,
             instructor_id: currentInstructor?.id || undefined,
             instructor_name: currentInstructor?.name || undefined,
@@ -561,13 +644,15 @@ export default function CoursesView() {
             splitDurations: [Number(formData.duration) || 1],
         };
 
-        // Add to the end of the array instead of the beginning
         setSections((prevSections) => [...prevSections, newSection]);
-
-        // Reset form
         setCurrentSection("");
         setCurrentInstructor(null);
         setCurrentInstructorOpen(false);
+        setSectionValidationError("");
+        setInstructorValidationError("");
+
+        // Trigger validation after section is added
+        setTimeout(validateForm, 0);
     };
     // Function to update instructor for an existing section
     const updateSectionInstructor = (
@@ -608,8 +693,52 @@ export default function CoursesView() {
 
     const removeSection = (id: number) => {
         setSections(sections.filter((section) => section.id !== id));
+        setTimeout(validateForm, 0);
     };
 
+    const [validationErrors, setValidationErrors] = useState<{
+        code?: string;
+        title?: string;
+        major?: string;
+        instructor?: string;
+        sections?: string;
+    }>({});
+
+    const validateCurrentSection = (
+        sectionNumber: string,
+        instructor: { id: string; name: string } | null = currentInstructor
+    ) => {
+        // Clear previous errors
+        setSectionValidationError("");
+        setInstructorValidationError("");
+
+        let isValid = true;
+
+        // Validate section number
+        if (!sectionNumber.trim()) {
+            // Don't show error for empty section number, just return invalid
+            return false;
+        }
+
+        const isDuplicateSection = sections.some(
+            (section) =>
+                section.section_id.toLowerCase() ===
+                sectionNumber.trim().toLowerCase()
+        );
+
+        if (isDuplicateSection) {
+            setSectionValidationError("Section number already exists");
+            isValid = false;
+        }
+
+        // Validate instructor requirement
+        if (instructors.length > 0 && !instructor) {
+            setInstructorValidationError("Instructor is required");
+            isValid = false;
+        }
+
+        return isValid;
+    };
     const handleAddCourse = async () => {
         // Make sure we have at least one section and a major
         if (sections.length === 0 || !selectedMajor) {
@@ -654,7 +783,7 @@ export default function CoursesView() {
                 code: formData.code,
                 title: formData.title,
                 majorsList: [selectedMajor], // Send as an array with one element
-                color: getHexFromColorName(formData.color), // Convert to hex
+                color: formData.color,
                 duration: Number(formData.duration),
                 capacity: Number(formData.capacity),
                 // Add split duration to API payload
@@ -897,7 +1026,7 @@ export default function CoursesView() {
         setFormData({
             title: "",
             code: "",
-            color: "",
+            color: "#3B82F6", // Default hex color
             duration: 0,
             capacity: 0,
             section: "",
@@ -910,6 +1039,34 @@ export default function CoursesView() {
         setCurrentSection("");
         setCurrentInstructor(null);
         setCurrentInstructorOpen(false);
+        setValidationErrors({});
+        setSectionValidationError("");
+        setInstructorValidationError("");
+    };
+    const isFormValid = () => {
+        return (
+            Object.keys(validationErrors).length === 0 &&
+            formData.title.trim() !== "" &&
+            formData.code.trim() !== "" &&
+            selectedMajor !== "" &&
+            sections.length > 0 &&
+            !sectionValidationError &&
+            !instructorValidationError
+        );
+    };
+
+    useEffect(() => {
+        if (isAddDialogOpen || isEditDialogOpen) {
+            validateForm();
+        }
+    }, [isAddDialogOpen, isEditDialogOpen, courses, majors, instructors]);
+
+    // Instructor validation helper
+    const getInstructorValidationMessage = () => {
+        if (instructors.length === 0) {
+            return "Please create an instructor first";
+        }
+        return null;
     };
 
     const openEditDialog = (course: Course) => {
@@ -920,13 +1077,10 @@ export default function CoursesView() {
         setDurationHours(hours);
         setDurationMinutes(minutes);
 
-        // Convert hex color to color name for the form
-        const colorName = getColorNameFromHex(course.color || "");
-
         setFormData({
             title: course.title,
             code: course.code,
-            color: colorName, // Use color name instead of hex
+            color: course.color || "#3B82F6", // Use hex color directly
             duration: courseDuration,
             capacity: course.capacity,
             section: course.section,
@@ -1050,17 +1204,20 @@ export default function CoursesView() {
         ) {
             errors.push(`Row ${rowIndex + 1}: Color is required`);
         } else {
-            // Validate color exists in the colors array
+            // Validate hex color format or color names
+            const colorValue = row.color.trim();
+            const isValidHex = /^#[0-9A-F]{6}$/i.test(colorValue);
             const colorExists = colors.some(
                 (color) =>
                     getColorName(color).toLowerCase() ===
-                    row.color.trim().toLowerCase()
+                    colorValue.toLowerCase()
             );
-            if (!colorExists) {
+
+            if (!isValidHex && !colorExists) {
                 errors.push(
                     `Row ${
                         rowIndex + 1
-                    }: Color "${row.color.trim()}" is not valid. Available: ${colors
+                    }: Color "${colorValue}" is not valid. Use hex format (#3B82F6) or color names: ${colors
                         .map((c) => getColorName(c))
                         .join(", ")}`
                 );
@@ -1158,7 +1315,121 @@ export default function CoursesView() {
                 : undefined,
         };
     };
-    
+
+    const renderFormField = (
+        id: string,
+        name: string,
+        label: string,
+        value: string,
+        placeholder: string,
+        error?: string,
+        additionalMessage?: string
+    ) => (
+        <div className="space-y-2">
+            <Label htmlFor={id} className="text-sm font-medium text-gray-700">
+                {label}
+            </Label>
+            <Input
+                id={id}
+                name={name}
+                value={value}
+                onChange={handleInputChange}
+                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                    error ? "border-red-300 bg-red-50" : ""
+                }`}
+                placeholder={placeholder}
+            />
+            {error && (
+                <p className="text-xs text-red-600 flex items-center">
+                    <svg
+                        className="w-3 h-3 mr-1"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                    >
+                        <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                        />
+                    </svg>
+                    {error}
+                </p>
+            )}
+            {additionalMessage && !error && (
+                <p className="text-xs text-amber-600 flex items-center">
+                    <svg
+                        className="w-3 h-3 mr-1"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                    >
+                        <path
+                            fillRule="evenodd"
+                            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                        />
+                    </svg>
+                    {additionalMessage}
+                </p>
+            )}
+        </div>
+    );
+
+    const renderMajorSelect = () => (
+        <div className="space-y-2">
+            <Label
+                htmlFor="major"
+                className="text-sm font-medium text-gray-700"
+            >
+                Major
+            </Label>
+            <Select value={selectedMajor} onValueChange={handleMajorChange}>
+                <SelectTrigger
+                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                        validationErrors.major ? "border-red-300 bg-red-50" : ""
+                    }`}
+                >
+                    <SelectValue placeholder="Select a major" />
+                </SelectTrigger>
+                <SelectContent>
+                    {majors.map((major) => (
+                        <SelectItem key={major.id} value={major.name}>
+                            {major.name}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+            {validationErrors.major && (
+                <p className="text-xs text-red-600 flex items-center">
+                    <svg
+                        className="w-3 h-3 mr-1"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                    >
+                        <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                        />
+                    </svg>
+                    {validationErrors.major}
+                </p>
+            )}
+        </div>
+    );
+
+    const renderSubmitButton = (isEdit: boolean = false) => (
+        <Button
+            onClick={isEdit ? handleEditCourse : handleAddCourse}
+            disabled={!isFormValid()}
+            className={`text-sm px-3 py-1.5 ${
+                isFormValid()
+                    ? "bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            }`}
+        >
+            {isEdit ? "Save Changes" : "Add Course"}
+        </Button>
+    );
 
     // Group courses by code for import
     const groupCoursesByCode = (validCourses: CSVCourseRow[]) => {
@@ -1315,7 +1586,9 @@ export default function CoursesView() {
                                 code: baseCourse.code,
                                 title: baseCourse.title,
                                 majorsList: [baseCourse.major],
-                                color: getHexFromColorName(baseCourse.color),
+                                color: /^#[0-9A-F]{6}$/i.test(baseCourse.color)
+                                    ? baseCourse.color
+                                    : getHexFromColorName(baseCourse.color), // Convert color name to hex if needed
                                 duration: Number(baseCourse.duration),
                                 capacity: Number(baseCourse.capacity),
                                 sectionsList: sectionsList,
@@ -1471,16 +1744,12 @@ export default function CoursesView() {
                         ? `${course.firstName.trim()} ${course.lastName.trim()}`
                         : "";
 
-                // Convert hex color back to color name for CSV
-                const colorName =
-                    getColorNameFromHex(course.color || "") || "blue";
-
                 csvRows.push([
                     course.code || "",
                     course.title || "",
                     course.major || "",
-                    colorName,
-                    course.status || "offline", // Keep as online/offline
+                    course.color || "#3B82F6", // Export hex color directly
+                    course.status || "offline",
                     course.duration?.toString() || "1",
                     course.separatedDuration?.toString() ||
                         course.duration?.toString() ||
@@ -1492,10 +1761,8 @@ export default function CoursesView() {
                 ]);
             });
 
-            // Combine headers and data
+            // Rest of the function remains the same...
             const allRows = [headers, ...csvRows];
-
-            // Convert to CSV string with proper escaping
             const csvContent = allRows
                 .map((row) =>
                     row
@@ -1515,7 +1782,6 @@ export default function CoursesView() {
                 )
                 .join("\n");
 
-            // Create and download file
             const blob = new Blob([csvContent], {
                 type: "text/csv;charset=utf-8;",
             });
@@ -1725,10 +1991,10 @@ export default function CoursesView() {
                                     Major
                                 </th>
                                 <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider">
-                                    Total Course Duration (per week)
+                                    Total Duration (per week)
                                 </th>
                                 <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider ">
-                                    Section Duration (per week)
+                                    Split Duration (per week)
                                 </th>
                                 <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
                                     Capacity
@@ -1745,7 +2011,7 @@ export default function CoursesView() {
                             {courses.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={8}
+                                        colSpan={10}
                                         className="px-3 py-8 text-center text-gray-500 text-sm"
                                     >
                                         <div className="space-y-1">
@@ -1759,7 +2025,7 @@ export default function CoursesView() {
                             ) : paginatedCourses.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={8}
+                                        colSpan={10}
                                         className="px-3 py-8 text-center text-gray-500 text-sm"
                                     >
                                         No courses found on this page.
@@ -1776,7 +2042,22 @@ export default function CoursesView() {
                                         }`}
                                     >
                                         <td className="px-2 py-2 text-xs font-medium text-gray-900">
-                                            {course.code}
+                                            <div className="flex items-center">
+                                                {/* Color indicator */}
+                                                <div
+                                                    className="w-3 h-3 rounded-full mr-2 border border-gray-300"
+                                                    style={{
+                                                        backgroundColor:
+                                                            course.color ||
+                                                            "#3B82F6",
+                                                    }}
+                                                    title={
+                                                        course.color ||
+                                                        "#3B82F6"
+                                                    }
+                                                />
+                                                {course.code}
+                                            </div>
                                         </td>
                                         <td className="px-2 py-2 text-xs text-gray-900">
                                             {course.title}
@@ -1793,10 +2074,50 @@ export default function CoursesView() {
                                             {course.major || "—"}
                                         </td>
                                         <td className="px-2 py-2 text-xs text-gray-900">
-                                            {course.duration}
+                                            {course.duration}h
                                         </td>
                                         <td className="px-2 py-2 text-xs text-gray-900">
-                                            {course.separatedDuration}
+                                            {/* Display separated durations - check if separatedDurations array exists */}
+                                            <div className="space-y-1">
+                                                {/* Individual separated durations */}
+                                                <div className="flex flex-wrap gap-1">
+                                                    {(course as any)
+                                                        .separatedDurations &&
+                                                    (course as any)
+                                                        .separatedDurations
+                                                        .length > 0 ? (
+                                                        (
+                                                            course as any
+                                                        ).separatedDurations.map(
+                                                            (
+                                                                duration: number,
+                                                                idx: number
+                                                            ) => (
+                                                                <span
+                                                                    key={idx}
+                                                                    className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-800"
+                                                                >
+                                                                    {duration}h
+                                                                </span>
+                                                            )
+                                                        )
+                                                    ) : (
+                                                        <span className="text-gray-500">
+                                                            {
+                                                                course.separatedDuration
+                                                            }
+                                                            h
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Show combined total when there are multiple separated durations */}
+                                                {(course as any)
+                                                    .separatedDurations &&
+                                                    (course as any)
+                                                        .separatedDurations
+                                                        .length > 1}
+                                            </div>
                                         </td>
                                         <td className="px-2 py-2 text-xs text-gray-900">
                                             {course.capacity}
@@ -1804,7 +2125,7 @@ export default function CoursesView() {
                                         <td className="px-2 py-2">
                                             <span
                                                 className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                                    course.status === "online"
+                                                    course.status === "active"
                                                         ? "bg-green-100 text-green-800"
                                                         : "bg-gray-100 text-gray-800"
                                                 }`}
@@ -1855,7 +2176,7 @@ export default function CoursesView() {
                 </div>
             )}
 
-            {/* Add Course Dialog */}
+            {/* Updated Add Course Dialog with Validation */}
             <Dialog
                 open={isAddDialogOpen}
                 onOpenChange={(open) => {
@@ -1872,6 +2193,7 @@ export default function CoursesView() {
 
                     <div className="py-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
+                            {/* Course Code Field with Validation */}
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="code"
@@ -1884,10 +2206,32 @@ export default function CoursesView() {
                                     name="code"
                                     value={formData.code}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        validationErrors.code
+                                            ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                    }`}
                                     placeholder="CS101"
                                 />
+                                {validationErrors.code && (
+                                    <p className="text-xs text-red-600 flex items-center">
+                                        <svg
+                                            className="w-3 h-3 mr-1 flex-shrink-0"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                        >
+                                            <path
+                                                fillRule="evenodd"
+                                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                clipRule="evenodd"
+                                            />
+                                        </svg>
+                                        {validationErrors.code}
+                                    </p>
+                                )}
                             </div>
+
+                            {/* Course Title Field with Validation */}
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="title"
@@ -1900,12 +2244,33 @@ export default function CoursesView() {
                                     name="title"
                                     value={formData.title}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        validationErrors.title
+                                            ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                    }`}
                                     placeholder="Introduction to Programming"
                                 />
+                                {validationErrors.title && (
+                                    <p className="text-xs text-red-600 flex items-center">
+                                        <svg
+                                            className="w-3 h-3 mr-1 flex-shrink-0"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                        >
+                                            <path
+                                                fillRule="evenodd"
+                                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                clipRule="evenodd"
+                                            />
+                                        </svg>
+                                        {validationErrors.title}
+                                    </p>
+                                )}
                             </div>
                         </div>
 
+                        {/* Major Field with Validation */}
                         <div className="space-y-2">
                             <Label
                                 htmlFor="major"
@@ -1915,24 +2280,71 @@ export default function CoursesView() {
                             </Label>
                             <Select
                                 value={selectedMajor}
-                                onValueChange={setSelectedMajor}
+                                onValueChange={handleMajorChange}
                             >
-                                <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                                <SelectTrigger
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        validationErrors.major
+                                            ? "border-red-300 bg-red-50"
+                                            : ""
+                                    }`}
+                                >
                                     <SelectValue placeholder="Select a major" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {majors.map((major) => (
-                                        <SelectItem
-                                            key={major.id}
-                                            value={major.name}
-                                        >
-                                            {major.name}
-                                        </SelectItem>
-                                    ))}
+                                    {majors.length === 0 ? (
+                                        <div className="p-2 text-xs text-gray-500 text-center">
+                                            No majors available
+                                        </div>
+                                    ) : (
+                                        majors.map((major) => (
+                                            <SelectItem
+                                                key={major.id}
+                                                value={major.name}
+                                            >
+                                                {major.name}
+                                            </SelectItem>
+                                        ))
+                                    )}
                                 </SelectContent>
                             </Select>
+                            {validationErrors.major && (
+                                <p
+                                    className={`text-xs flex items-center ${
+                                        validationErrors.major.includes(
+                                            "create"
+                                        )
+                                            ? "text-amber-600"
+                                            : "text-red-600"
+                                    }`}
+                                >
+                                    <svg
+                                        className="w-3 h-3 mr-1 flex-shrink-0"
+                                        fill="currentColor"
+                                        viewBox="0 0 20 20"
+                                    >
+                                        {validationErrors.major.includes(
+                                            "create"
+                                        ) ? (
+                                            <path
+                                                fillRule="evenodd"
+                                                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                                                clipRule="evenodd"
+                                            />
+                                        ) : (
+                                            <path
+                                                fillRule="evenodd"
+                                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                clipRule="evenodd"
+                                            />
+                                        )}
+                                    </svg>
+                                    {validationErrors.major}
+                                </p>
+                            )}
                         </div>
 
+                        {/* Color Field */}
                         <div className="grid gap-4">
                             <div className="space-y-2">
                                 <Label
@@ -1941,30 +2353,106 @@ export default function CoursesView() {
                                 >
                                     Color
                                 </Label>
-                                <Select
-                                    value={formData?.color || ""}
-                                    onValueChange={(value) =>
-                                        handleSelectChange("color", value)
-                                    }
-                                >
-                                    <ColorSelectTrigger
-                                        value={formData?.color}
-                                        placeholder="Select color"
-                                    />
-                                    <SelectContent>
-                                        {colors.map((color) => (
-                                            <ColorSelectItem
-                                                key={color}
-                                                color={color}
-                                            >
-                                                {getColorName(color)}
-                                            </ColorSelectItem>
+                                <div className="flex items-center gap-3">
+                                    {/* Color picker input */}
+                                    <div className="relative">
+                                        <input
+                                            type="color"
+                                            id="color"
+                                            name="color"
+                                            value={formData?.color || "#3B82F6"} // Default to blue hex
+                                            onChange={(e) => {
+                                                const hexColor = e.target.value;
+                                                setFormData({
+                                                    ...formData,
+                                                    color: hexColor,
+                                                });
+                                                // Trigger validation after state update
+                                                setTimeout(validateForm, 0);
+                                            }}
+                                            className="w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]"
+                                            style={{
+                                                padding: "2px",
+                                                backgroundColor: "transparent",
+                                            }}
+                                        />
+                                        {/* Visual preview of selected color */}
+                                        <div
+                                            className="absolute inset-1 rounded pointer-events-none"
+                                            style={{
+                                                backgroundColor:
+                                                    formData?.color ||
+                                                    "#3B82F6",
+                                            }}
+                                        />
+                                    </div>
+
+                                    {/* Color value display */}
+                                    <div className="flex-1">
+                                        <Input
+                                            type="text"
+                                            value={formData?.color || ""}
+                                            onChange={(e) => {
+                                                const value = e.target.value;
+                                                // Validate hex color format
+                                                if (
+                                                    /^#[0-9A-F]{6}$/i.test(
+                                                        value
+                                                    ) ||
+                                                    value === ""
+                                                ) {
+                                                    setFormData({
+                                                        ...formData,
+                                                        color: value,
+                                                    });
+                                                    setTimeout(validateForm, 0);
+                                                }
+                                            }}
+                                            placeholder="#3B82F6"
+                                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm font-mono"
+                                        />
+                                    </div>
+
+                                    {/* Quick color presets */}
+                                    <div className="flex gap-1">
+                                        {[
+                                            "#3B82F6", // Blue
+                                            "#EF4444", // Red
+                                            "#10B981", // Green
+                                            "#F59E0B", // Yellow
+                                            "#8B5CF6", // Purple
+                                            "#EC4899", // Pink
+                                            "#6B7280", // Gray
+                                            "#F97316", // Orange
+                                        ].map((presetColor) => (
+                                            <button
+                                                key={presetColor}
+                                                type="button"
+                                                onClick={() => {
+                                                    setFormData({
+                                                        ...formData,
+                                                        color: presetColor,
+                                                    });
+                                                    setTimeout(validateForm, 0);
+                                                }}
+                                                className="w-6 h-6 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2F2F85] focus:ring-offset-1"
+                                                style={{
+                                                    backgroundColor:
+                                                        presetColor,
+                                                }}
+                                                title={presetColor}
+                                            />
                                         ))}
-                                    </SelectContent>
-                                </Select>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                    Choose a color for this course or enter a
+                                    custom hex value
+                                </p>
                             </div>
                         </div>
 
+                        {/* Duration and Capacity Fields */}
                         <div className="grid gap-4">
                             <div className="space-y-2">
                                 <Label className="text-sm font-medium text-gray-700">
@@ -2038,7 +2526,7 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        {/* Sections */}
+                        {/* Sections with Validation */}
                         <div className="space-y-4">
                             <div>
                                 <Label className="text-sm font-medium text-gray-700">
@@ -2065,19 +2553,42 @@ export default function CoursesView() {
                                             placeholder="Enter section number"
                                             value={currentSection}
                                             onChange={(e) =>
-                                                setCurrentSection(
+                                                handleSectionInputChange(
                                                     e.target.value
                                                 )
                                             }
-                                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                            className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                                sectionValidationError
+                                                    ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
+                                                    : ""
+                                            }`}
                                         />
+                                        {sectionValidationError && (
+                                            <p className="text-xs text-red-600 flex items-center">
+                                                <svg
+                                                    className="w-3 h-3 mr-1 flex-shrink-0"
+                                                    fill="currentColor"
+                                                    viewBox="0 0 20 20"
+                                                >
+                                                    <path
+                                                        fillRule="evenodd"
+                                                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                        clipRule="evenodd"
+                                                    />
+                                                </svg>
+                                                {sectionValidationError}
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <Label
                                             htmlFor="section-instructor"
                                             className="text-sm font-medium text-gray-700"
                                         >
-                                            Instructor
+                                            Instructor{" "}
+                                            <span className="text-red-500">
+                                                *
+                                            </span>
                                         </Label>
                                         <Popover
                                             open={currentInstructorOpen}
@@ -2089,7 +2600,14 @@ export default function CoursesView() {
                                                 <Button
                                                     variant="outline"
                                                     role="combobox"
-                                                    className="w-full justify-between border-gray-300 text-sm"
+                                                    className={`w-full justify-between text-sm ${
+                                                        instructorValidationError
+                                                            ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
+                                                            : "border-gray-300"
+                                                    }`}
+                                                    disabled={
+                                                        instructors.length === 0
+                                                    }
                                                 >
                                                     {currentInstructor?.name ||
                                                         "Select instructor..."}
@@ -2111,14 +2629,11 @@ export default function CoursesView() {
                                                                     }
                                                                     value={`${instructor.first_name} ${instructor.last_name}`}
                                                                     onSelect={() => {
-                                                                        setCurrentInstructor(
+                                                                        handleInstructorChange(
                                                                             {
                                                                                 id: instructor.id.toString(),
                                                                                 name: `${instructor.first_name} ${instructor.last_name}`,
                                                                             }
-                                                                        );
-                                                                        setCurrentInstructorOpen(
-                                                                            false
                                                                         );
                                                                     }}
                                                                 >
@@ -2143,19 +2658,64 @@ export default function CoursesView() {
                                                 </Command>
                                             </PopoverContent>
                                         </Popover>
+
+                                        {/* Show instructor validation error */}
+                                        {instructorValidationError && (
+                                            <p className="text-xs text-red-600 flex items-center">
+                                                <svg
+                                                    className="w-3 h-3 mr-1 flex-shrink-0"
+                                                    fill="currentColor"
+                                                    viewBox="0 0 20 20"
+                                                >
+                                                    <path
+                                                        fillRule="evenodd"
+                                                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                        clipRule="evenodd"
+                                                    />
+                                                </svg>
+                                                {instructorValidationError}
+                                            </p>
+                                        )}
+
+                                        {/* Show warning if no instructors available */}
+                                        {instructors.length === 0 && (
+                                            <p className="text-xs text-amber-600 flex items-center">
+                                                <svg
+                                                    className="w-3 h-3 mr-1 flex-shrink-0"
+                                                    fill="currentColor"
+                                                    viewBox="0 0 20 20"
+                                                >
+                                                    <path
+                                                        fillRule="evenodd"
+                                                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                                                        clipRule="evenodd"
+                                                    />
+                                                </svg>
+                                                Please create an instructor
+                                                first
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                                 <Button
                                     onClick={addSection}
-                                    disabled={!currentSection}
-                                    className="w-full bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm"
+                                    disabled={
+                                        !currentSection.trim() ||
+                                        !!sectionValidationError
+                                    }
+                                    className={`w-full text-sm transition-colors ${
+                                        !currentSection.trim() ||
+                                        !!sectionValidationError
+                                            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                            : "bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
+                                    }`}
                                 >
                                     <Plus className="h-3 w-3 mr-2" /> Add
                                     Section
                                 </Button>
                             </div>
 
-                            {/* Sections List - Now appears after the add section form */}
+                            {/* Existing sections list code - WITH SPLIT DURATION CONTROLS */}
                             {sections.length > 0 && (
                                 <div className="space-y-2">
                                     {sections.map((section) => (
@@ -2549,13 +3109,12 @@ export default function CoursesView() {
                         </Button>
                         <Button
                             onClick={handleAddCourse}
-                            disabled={
-                                !formData.title ||
-                                !formData.code ||
-                                !selectedMajor ||
-                                sections.length === 0
-                            }
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                            disabled={!isFormValid()}
+                            className={`text-sm px-3 py-1.5 transition-colors ${
+                                isFormValid()
+                                    ? "bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
+                                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            }`}
                         >
                             Add Course
                         </Button>
@@ -2563,8 +3122,7 @@ export default function CoursesView() {
                 </DialogContent>
             </Dialog>
 
-            {/* Edit Course Dialog - Complete */}
-
+            {/* Edit Course Dialog - Add this after your Add Course Dialog */}
             <Dialog
                 open={isEditDialogOpen}
                 onOpenChange={(open) => {
@@ -2581,6 +3139,7 @@ export default function CoursesView() {
 
                     <div className="py-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
+                            {/* Course Code Field with Validation */}
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="edit-code"
@@ -2593,9 +3152,32 @@ export default function CoursesView() {
                                     name="code"
                                     value={formData.code}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        validationErrors.code
+                                            ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                    }`}
+                                    placeholder="CS101"
                                 />
+                                {validationErrors.code && (
+                                    <p className="text-xs text-red-600 flex items-center">
+                                        <svg
+                                            className="w-3 h-3 mr-1 flex-shrink-0"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                        >
+                                            <path
+                                                fillRule="evenodd"
+                                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                clipRule="evenodd"
+                                            />
+                                        </svg>
+                                        {validationErrors.code}
+                                    </p>
+                                )}
                             </div>
+
+                            {/* Course Title Field with Validation */}
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="edit-title"
@@ -2608,11 +3190,33 @@ export default function CoursesView() {
                                     name="title"
                                     value={formData.title}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        validationErrors.title
+                                            ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                    }`}
+                                    placeholder="Introduction to Programming"
                                 />
+                                {validationErrors.title && (
+                                    <p className="text-xs text-red-600 flex items-center">
+                                        <svg
+                                            className="w-3 h-3 mr-1 flex-shrink-0"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                        >
+                                            <path
+                                                fillRule="evenodd"
+                                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                clipRule="evenodd"
+                                            />
+                                        </svg>
+                                        {validationErrors.title}
+                                    </p>
+                                )}
                             </div>
                         </div>
 
+                        {/* Major Field with Validation */}
                         <div className="space-y-2">
                             <Label
                                 htmlFor="edit-major"
@@ -2622,24 +3226,71 @@ export default function CoursesView() {
                             </Label>
                             <Select
                                 value={selectedMajor}
-                                onValueChange={setSelectedMajor}
+                                onValueChange={handleMajorChange}
                             >
-                                <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                                <SelectTrigger
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        validationErrors.major
+                                            ? "border-red-300 bg-red-50"
+                                            : ""
+                                    }`}
+                                >
                                     <SelectValue placeholder="Select a major" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {majors.map((major) => (
-                                        <SelectItem
-                                            key={major.id}
-                                            value={major.name}
-                                        >
-                                            {major.name}
-                                        </SelectItem>
-                                    ))}
+                                    {majors.length === 0 ? (
+                                        <div className="p-2 text-xs text-gray-500 text-center">
+                                            No majors available
+                                        </div>
+                                    ) : (
+                                        majors.map((major) => (
+                                            <SelectItem
+                                                key={major.id}
+                                                value={major.name}
+                                            >
+                                                {major.name}
+                                            </SelectItem>
+                                        ))
+                                    )}
                                 </SelectContent>
                             </Select>
+                            {validationErrors.major && (
+                                <p
+                                    className={`text-xs flex items-center ${
+                                        validationErrors.major.includes(
+                                            "create"
+                                        )
+                                            ? "text-amber-600"
+                                            : "text-red-600"
+                                    }`}
+                                >
+                                    <svg
+                                        className="w-3 h-3 mr-1 flex-shrink-0"
+                                        fill="currentColor"
+                                        viewBox="0 0 20 20"
+                                    >
+                                        {validationErrors.major.includes(
+                                            "create"
+                                        ) ? (
+                                            <path
+                                                fillRule="evenodd"
+                                                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                                                clipRule="evenodd"
+                                            />
+                                        ) : (
+                                            <path
+                                                fillRule="evenodd"
+                                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                clipRule="evenodd"
+                                            />
+                                        )}
+                                    </svg>
+                                    {validationErrors.major}
+                                </p>
+                            )}
                         </div>
 
+                        {/* Color Field with Color Picker */}
                         <div className="grid gap-4">
                             <div className="space-y-2">
                                 <Label
@@ -2648,30 +3299,106 @@ export default function CoursesView() {
                                 >
                                     Color
                                 </Label>
-                                <Select
-                                    value={formData?.color || ""}
-                                    onValueChange={(value) =>
-                                        handleSelectChange("color", value)
-                                    }
-                                >
-                                    <ColorSelectTrigger
-                                        value={formData?.color}
-                                        placeholder="Select color"
-                                    />
-                                    <SelectContent>
-                                        {colors.map((color) => (
-                                            <ColorSelectItem
-                                                key={color}
-                                                color={color}
-                                            >
-                                                {getColorName(color)}
-                                            </ColorSelectItem>
+                                <div className="flex items-center gap-3">
+                                    {/* Color picker input */}
+                                    <div className="relative">
+                                        <input
+                                            type="color"
+                                            id="edit-color"
+                                            name="color"
+                                            value={formData?.color || "#3B82F6"} // Default to blue hex
+                                            onChange={(e) => {
+                                                const hexColor = e.target.value;
+                                                setFormData({
+                                                    ...formData,
+                                                    color: hexColor,
+                                                });
+                                                // Trigger validation after state update
+                                                setTimeout(validateForm, 0);
+                                            }}
+                                            className="w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]"
+                                            style={{
+                                                padding: "2px",
+                                                backgroundColor: "transparent",
+                                            }}
+                                        />
+                                        {/* Visual preview of selected color */}
+                                        <div
+                                            className="absolute inset-1 rounded pointer-events-none"
+                                            style={{
+                                                backgroundColor:
+                                                    formData?.color ||
+                                                    "#3B82F6",
+                                            }}
+                                        />
+                                    </div>
+
+                                    {/* Color value display */}
+                                    <div className="flex-1">
+                                        <Input
+                                            type="text"
+                                            value={formData?.color || ""}
+                                            onChange={(e) => {
+                                                const value = e.target.value;
+                                                // Validate hex color format
+                                                if (
+                                                    /^#[0-9A-F]{6}$/i.test(
+                                                        value
+                                                    ) ||
+                                                    value === ""
+                                                ) {
+                                                    setFormData({
+                                                        ...formData,
+                                                        color: value,
+                                                    });
+                                                    setTimeout(validateForm, 0);
+                                                }
+                                            }}
+                                            placeholder="#3B82F6"
+                                            className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm font-mono"
+                                        />
+                                    </div>
+
+                                    {/* Quick color presets */}
+                                    <div className="flex gap-1">
+                                        {[
+                                            "#3B82F6", // Blue
+                                            "#EF4444", // Red
+                                            "#10B981", // Green
+                                            "#F59E0B", // Yellow
+                                            "#8B5CF6", // Purple
+                                            "#EC4899", // Pink
+                                            "#6B7280", // Gray
+                                            "#F97316", // Orange
+                                        ].map((presetColor) => (
+                                            <button
+                                                key={presetColor}
+                                                type="button"
+                                                onClick={() => {
+                                                    setFormData({
+                                                        ...formData,
+                                                        color: presetColor,
+                                                    });
+                                                    setTimeout(validateForm, 0);
+                                                }}
+                                                className="w-6 h-6 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2F2F85] focus:ring-offset-1"
+                                                style={{
+                                                    backgroundColor:
+                                                        presetColor,
+                                                }}
+                                                title={presetColor}
+                                            />
                                         ))}
-                                    </SelectContent>
-                                </Select>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                    Choose a color for this course or enter a
+                                    custom hex value
+                                </p>
                             </div>
                         </div>
 
+                        {/* Duration and Capacity Fields */}
                         <div className="grid gap-4">
                             <div className="space-y-2">
                                 <Label className="text-sm font-medium text-gray-700">
@@ -2725,19 +3452,216 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        {/* Sections */}
+                        <div className="grid gap-4">
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="edit-capacity"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Capacity
+                                </Label>
+                                <Input
+                                    id="edit-capacity"
+                                    name="capacity"
+                                    type="number"
+                                    min="1"
+                                    value={formData.capacity}
+                                    onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Sections with Validation - Same as Add Dialog */}
                         <div className="space-y-4">
                             <div>
                                 <Label className="text-sm font-medium text-gray-700">
                                     Sections
                                 </Label>
                                 <p className="text-xs text-gray-600 mt-1">
-                                    Add course sections with instructors and
+                                    Edit course sections with instructors and
                                     split durations
                                 </p>
                             </div>
 
-                            {/* Sections List - Now appears after the add section form */}
+                            {/* Add Section Form */}
+                            <div className="grid gap-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label
+                                            htmlFor="edit-section"
+                                            className="text-sm font-medium text-gray-700"
+                                        >
+                                            Section Number
+                                        </Label>
+                                        <Input
+                                            id="edit-section"
+                                            placeholder="Enter section number"
+                                            value={currentSection}
+                                            onChange={(e) =>
+                                                handleSectionInputChange(
+                                                    e.target.value
+                                                )
+                                            }
+                                            className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                                sectionValidationError
+                                                    ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
+                                                    : ""
+                                            }`}
+                                        />
+                                        {sectionValidationError && (
+                                            <p className="text-xs text-red-600 flex items-center">
+                                                <svg
+                                                    className="w-3 h-3 mr-1 flex-shrink-0"
+                                                    fill="currentColor"
+                                                    viewBox="0 0 20 20"
+                                                >
+                                                    <path
+                                                        fillRule="evenodd"
+                                                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                        clipRule="evenodd"
+                                                    />
+                                                </svg>
+                                                {sectionValidationError}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label
+                                            htmlFor="edit-section-instructor"
+                                            className="text-sm font-medium text-gray-700"
+                                        >
+                                            Instructor{" "}
+                                            <span className="text-red-500">
+                                                *
+                                            </span>
+                                        </Label>
+                                        <Popover
+                                            open={currentInstructorOpen}
+                                            onOpenChange={
+                                                setCurrentInstructorOpen
+                                            }
+                                        >
+                                            <PopoverTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    role="combobox"
+                                                    className={`w-full justify-between text-sm ${
+                                                        instructorValidationError
+                                                            ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
+                                                            : "border-gray-300"
+                                                    }`}
+                                                    disabled={
+                                                        instructors.length === 0
+                                                    }
+                                                >
+                                                    {currentInstructor?.name ||
+                                                        "Select instructor..."}
+                                                    <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-full p-0">
+                                                <Command>
+                                                    <CommandInput placeholder="Search instructor..." />
+                                                    <CommandEmpty>
+                                                        No instructor found.
+                                                    </CommandEmpty>
+                                                    <CommandGroup>
+                                                        {instructors.map(
+                                                            (instructor) => (
+                                                                <CommandItem
+                                                                    key={
+                                                                        instructor.id
+                                                                    }
+                                                                    value={`${instructor.first_name} ${instructor.last_name}`}
+                                                                    onSelect={() => {
+                                                                        handleInstructorChange(
+                                                                            {
+                                                                                id: instructor.id.toString(),
+                                                                                name: `${instructor.first_name} ${instructor.last_name}`,
+                                                                            }
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Check
+                                                                        className={`mr-2 h-3 w-3 ${
+                                                                            currentInstructor?.id ===
+                                                                            instructor.id.toString()
+                                                                                ? "opacity-100"
+                                                                                : "opacity-0"
+                                                                        }`}
+                                                                    />
+                                                                    {
+                                                                        instructor.first_name
+                                                                    }{" "}
+                                                                    {
+                                                                        instructor.last_name
+                                                                    }
+                                                                </CommandItem>
+                                                            )
+                                                        )}
+                                                    </CommandGroup>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
+
+                                        {/* Show instructor validation error */}
+                                        {instructorValidationError && (
+                                            <p className="text-xs text-red-600 flex items-center">
+                                                <svg
+                                                    className="w-3 h-3 mr-1 flex-shrink-0"
+                                                    fill="currentColor"
+                                                    viewBox="0 0 20 20"
+                                                >
+                                                    <path
+                                                        fillRule="evenodd"
+                                                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                        clipRule="evenodd"
+                                                    />
+                                                </svg>
+                                                {instructorValidationError}
+                                            </p>
+                                        )}
+
+                                        {/* Show warning if no instructors available */}
+                                        {instructors.length === 0 && (
+                                            <p className="text-xs text-amber-600 flex items-center">
+                                                <svg
+                                                    className="w-3 h-3 mr-1 flex-shrink-0"
+                                                    fill="currentColor"
+                                                    viewBox="0 0 20 20"
+                                                >
+                                                    <path
+                                                        fillRule="evenodd"
+                                                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                                                        clipRule="evenodd"
+                                                    />
+                                                </svg>
+                                                Please create an instructor
+                                                first
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                                <Button
+                                    onClick={addSection}
+                                    disabled={
+                                        !currentSection.trim() ||
+                                        !!sectionValidationError
+                                    }
+                                    className={`w-full text-sm transition-colors ${
+                                        !currentSection.trim() ||
+                                        !!sectionValidationError
+                                            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                            : "bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
+                                    }`}
+                                >
+                                    <Plus className="h-3 w-3 mr-2" /> Add
+                                    Section
+                                </Button>
+                            </div>
+
+                            {/* Existing sections list - Same as Add Dialog */}
                             {sections.length > 0 && (
                                 <div className="space-y-2">
                                     {sections.map((section) => (
@@ -2762,6 +3686,7 @@ export default function CoursesView() {
                                                     <Trash className="h-3 w-3" />
                                                 </Button>
                                             </div>
+
                                             <div className="mt-2">
                                                 <Label className="text-xs text-gray-700">
                                                     Instructor
@@ -2826,7 +3751,7 @@ export default function CoursesView() {
                                                 </Popover>
                                             </div>
 
-                                            {/* Split Duration Controls */}
+                                            {/* Split Duration Controls - Same as Add Dialog */}
                                             <div className="mt-4 mb-4 space-y-3">
                                                 <div className="flex justify-between items-center mb-3">
                                                     <Label className="text-xs text-gray-700 mr-2">
@@ -3131,13 +4056,12 @@ export default function CoursesView() {
                         </Button>
                         <Button
                             onClick={handleEditCourse}
-                            disabled={
-                                !formData.title ||
-                                !formData.code ||
-                                !selectedMajor ||
-                                sections.length === 0
-                            }
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                            disabled={!isFormValid()}
+                            className={`text-sm px-3 py-1.5 transition-colors ${
+                                isFormValid()
+                                    ? "bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
+                                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            }`}
                         >
                             Save Changes
                         </Button>

@@ -35,6 +35,12 @@ type MajorUpdate = {
     shortTag: string;
 };
 
+// Validation errors type
+type ValidationErrors = {
+    name?: string;
+    shortTag?: string;
+};
+
 export default function MajorView() {
     const [searchQuery, setSearchQuery] = useState("");
     const [majors, setMajors] = useState<Major[]>([]);
@@ -51,6 +57,13 @@ export default function MajorView() {
         shortTag: "",
     });
     const [currentPage, setCurrentPage] = useState(1);
+    const [validationErrors, setValidationErrors] = useState<ValidationErrors>(
+        {}
+    );
+    const [touchedFields, setTouchedFields] = useState<{
+        name: boolean;
+        shortTag: boolean;
+    }>({ name: false, shortTag: false });
     const params = useParams();
 
     // Load majors on component mount
@@ -68,20 +81,88 @@ export default function MajorView() {
         }
     }, [statusMessage]);
 
-    
+    // Real-time validation effect
+    useEffect(() => {
+        validateForm();
+    }, [formData, majors, selectedMajor, touchedFields]);
+
+    // Validation function
+    const validateForm = () => {
+        const errors: ValidationErrors = {};
+
+        // Validate name - only show errors if field has been touched
+        if (touchedFields.name) {
+            if (formData.name.trim() === "") {
+                errors.name = "Major name is required";
+            } else {
+                // Check for duplicate names (case-insensitive)
+                const isDuplicateName = majors.some((major) => {
+                    // If editing, exclude the current major from duplicate check
+                    if (selectedMajor && major.id === selectedMajor.id) {
+                        return false;
+                    }
+                    return (
+                        major.name.toLowerCase() ===
+                        formData.name.trim().toLowerCase()
+                    );
+                });
+
+                if (isDuplicateName) {
+                    errors.name = "A major with this name already exists";
+                }
+            }
+        }
+
+        // Validate short tag - only show errors if field has been touched
+        if (touchedFields.shortTag) {
+            if (formData.shortTag.trim() === "") {
+                errors.shortTag = "Short tag is required";
+            } else {
+                // Check for duplicate short tags (case-insensitive)
+                const isDuplicateTag = majors.some((major) => {
+                    // If editing, exclude the current major from duplicate check
+                    if (selectedMajor && major.id === selectedMajor.id) {
+                        return false;
+                    }
+                    return (
+                        major.shortTag.toLowerCase() ===
+                        formData.shortTag.trim().toLowerCase()
+                    );
+                });
+
+                if (isDuplicateTag) {
+                    errors.shortTag =
+                        "A major with this short tag already exists";
+                }
+            }
+        }
+
+        setValidationErrors(errors);
+    };
+
+    // Check if form is valid
+    const isFormValid = () => {
+        return (
+            Object.keys(validationErrors).length === 0 &&
+            formData.name.trim() !== "" &&
+            formData.shortTag.trim() !== ""
+        );
+    };
+
     //search functionality
     // Filter majors based on search query
-const filteredMajors = majors.filter(major =>
-    major.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    major.shortTag.toLowerCase().includes(searchQuery.toLowerCase())
-);
+    const filteredMajors = majors.filter(
+        (major) =>
+            major.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            major.shortTag.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
-// Calculate pagination values with filtered data
-const totalPages = Math.ceil(filteredMajors.length / ITEMS_PER_PAGE);
-const paginatedMajors = filteredMajors.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-);
+    // Calculate pagination values with filtered data
+    const totalPages = Math.ceil(filteredMajors.length / ITEMS_PER_PAGE);
+    const paginatedMajors = filteredMajors.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
     // Fetch majors
     const fetchMajors = async () => {
         try {
@@ -142,6 +223,12 @@ const paginatedMajors = filteredMajors.slice(
             ...formData,
             [name]: value,
         });
+
+        // Mark field as touched when user starts typing
+        setTouchedFields((prev) => ({
+            ...prev,
+            [name]: true,
+        }));
     };
 
     const openAddDialog = () => {
@@ -150,18 +237,19 @@ const paginatedMajors = filteredMajors.slice(
     };
 
     const handleAddMajor = async () => {
+        // Double-check validation before submitting
+        if (!isFormValid()) {
+            setStatusMessage({
+                text: "Please fix the validation errors before submitting",
+                type: "error",
+            });
+            return;
+        }
+
         try {
             const scheduleId = params.id;
             if (!scheduleId) {
                 throw new Error("Schedule ID is missing");
-            }
-
-            if (!formData.name || !formData.shortTag) {
-                setStatusMessage({
-                    text: "Name and short tag are required",
-                    type: "error",
-                });
-                return;
             }
 
             const trimmedName = formData.name.trim();
@@ -220,15 +308,16 @@ const paginatedMajors = filteredMajors.slice(
             return;
         }
 
-        try {
-            if (!formData.name || !formData.shortTag) {
-                setStatusMessage({
-                    text: "Name and short tag are required",
-                    type: "error",
-                });
-                return;
-            }
+        // Double-check validation before submitting
+        if (!isFormValid()) {
+            setStatusMessage({
+                text: "Please fix the validation errors before submitting",
+                type: "error",
+            });
+            return;
+        }
 
+        try {
             const update: MajorUpdate = {
                 id: selectedMajor.id,
                 name: formData.name.trim(),
@@ -313,6 +402,8 @@ const paginatedMajors = filteredMajors.slice(
             shortTag: "",
         });
         setSelectedMajor(null);
+        setValidationErrors({});
+        setTouchedFields({ name: false, shortTag: false });
     };
 
     const openEditDialog = (major: Major) => {
@@ -322,6 +413,8 @@ const paginatedMajors = filteredMajors.slice(
             name: major.name,
             shortTag: major.shortTag,
         });
+        // Mark fields as touched since they have existing values
+        setTouchedFields({ name: true, shortTag: true });
         setIsEditDialogOpen(true);
     };
 
@@ -641,7 +734,10 @@ const paginatedMajors = filteredMajors.slice(
             const headers = ["name", "short_tag"];
 
             // Convert majors data to CSV rows
-            const csvRows = filteredMajors.map((major) => [major.name, major.shortTag]);
+            const csvRows = filteredMajors.map((major) => [
+                major.name,
+                major.shortTag,
+            ]);
 
             // Combine headers and data
             const allRows = [headers, ...csvRows];
@@ -696,37 +792,37 @@ const paginatedMajors = filteredMajors.slice(
         }
     };
     // Add this state variable with your other useState declarations
-const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
+    const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
 
-// Add this function with your other handler functions
-const handleClearAllMajors = async () => {
-    try {
-        // Delete all majors one by one
-        const deletePromises = majors.map(major =>
-            fetch("/api/majors", {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ id: major.id }),
-            })
-        );
+    // Add this function with your other handler functions
+    const handleClearAllMajors = async () => {
+        try {
+            // Delete all majors one by one
+            const deletePromises = majors.map((major) =>
+                fetch("/api/majors", {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ id: major.id }),
+                })
+            );
 
-        await Promise.all(deletePromises);
-        await fetchMajors();
-        setIsClearAllDialogOpen(false);
-        setStatusMessage({
-            text: `Successfully deleted ${majors.length} majors`,
-            type: "success",
-        });
-    } catch (error) {
-        console.error("Error clearing all majors:", error);
-        setStatusMessage({
-            text: "Failed to delete all majors. Please try again.",
-            type: "error",
-        });
-    }
-};
+            await Promise.all(deletePromises);
+            await fetchMajors();
+            setIsClearAllDialogOpen(false);
+            setStatusMessage({
+                text: `Successfully deleted ${majors.length} majors`,
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error clearing all majors:", error);
+            setStatusMessage({
+                text: "Failed to delete all majors. Please try again.",
+                type: "error",
+            });
+        }
+    };
 
     return (
         <div className="space-y-4">
@@ -775,42 +871,41 @@ const handleClearAllMajors = async () => {
                         <Plus className="mr-1 h-3 w-3" /> New Major
                     </Button>
                     <Button
-    onClick={() => setIsClearAllDialogOpen(true)}
-    variant="outline"
-    className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
-    disabled={majors.length === 0}
->
-<Trash className="mr-1 h-3 w-3" /> Clear All
-</Button>
-
+                        onClick={() => setIsClearAllDialogOpen(true)}
+                        variant="outline"
+                        className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
+                        disabled={majors.length === 0}
+                    >
+                        <Trash className="mr-1 h-3 w-3" /> Clear All
+                    </Button>
                 </div>
             </div>
-{/* Search Bar */}
-<div className="relative max-w-md">
-    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-    <Input
-        placeholder="Search majors by name or short tag..."
-        value={searchQuery}
-        onChange={(e) => {
-            setSearchQuery(e.target.value);
-            setCurrentPage(1);
-        }}
-        className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
-    />
-    {searchQuery && (
-        <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-                setSearchQuery("");
-                setCurrentPage(1);
-            }}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
-        >
-            <X className="h-3 w-3" />
-        </Button>
-    )}
-</div>
+            {/* Search Bar */}
+            <div className="relative max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                    placeholder="Search majors by name or short tag..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                    }}
+                    className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
+                />
+                {searchQuery && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            setSearchQuery("");
+                            setCurrentPage(1);
+                        }}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+                    >
+                        <X className="h-3 w-3" />
+                    </Button>
+                )}
+            </div>
             {/* Compact Table Container */}
             <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
@@ -942,8 +1037,17 @@ const handleClearAllMajors = async () => {
                                 value={formData.name}
                                 onChange={handleInputChange}
                                 placeholder="Computer Science"
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    validationErrors.name
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                }`}
                             />
+                            {validationErrors.name && (
+                                <p className="text-xs text-red-600 mt-1">
+                                    {validationErrors.name}
+                                </p>
+                            )}
                         </div>
 
                         <div className="space-y-2">
@@ -959,8 +1063,17 @@ const handleClearAllMajors = async () => {
                                 value={formData.shortTag}
                                 onChange={handleInputChange}
                                 placeholder="CS"
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    validationErrors.shortTag
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                }`}
                             />
+                            {validationErrors.shortTag && (
+                                <p className="text-xs text-red-600 mt-1">
+                                    {validationErrors.shortTag}
+                                </p>
+                            )}
                             <span className="text-xs text-gray-500">
                                 Enter a short code for the major (e.g., CS for
                                 Computer Science).
@@ -981,7 +1094,8 @@ const handleClearAllMajors = async () => {
                         </Button>
                         <Button
                             onClick={handleAddMajor}
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                            disabled={!isFormValid()}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-300 disabled:cursor-not-allowed"
                         >
                             Add
                         </Button>
@@ -1017,8 +1131,17 @@ const handleClearAllMajors = async () => {
                                 name="name"
                                 value={formData.name}
                                 onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    validationErrors.name
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                }`}
                             />
+                            {validationErrors.name && (
+                                <p className="text-xs text-red-600 mt-1">
+                                    {validationErrors.name}
+                                </p>
+                            )}
                         </div>
 
                         <div className="space-y-2">
@@ -1033,8 +1156,17 @@ const handleClearAllMajors = async () => {
                                 name="shortTag"
                                 value={formData.shortTag}
                                 onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    validationErrors.shortTag
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : ""
+                                }`}
                             />
+                            {validationErrors.shortTag && (
+                                <p className="text-xs text-red-600 mt-1">
+                                    {validationErrors.shortTag}
+                                </p>
+                            )}
                             <span className="text-xs text-gray-500">
                                 Enter a short code for the major (e.g., CS for
                                 Computer Science).
@@ -1055,7 +1187,8 @@ const handleClearAllMajors = async () => {
                         </Button>
                         <Button
                             onClick={handleEditMajor}
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                            disabled={!isFormValid()}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-300 disabled:cursor-not-allowed"
                         >
                             Save
                         </Button>
@@ -1239,39 +1372,46 @@ const handleClearAllMajors = async () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Clear All Dialog */}
             <Dialog
-    open={isClearAllDialogOpen}
-    onOpenChange={setIsClearAllDialogOpen}
->
-    <DialogContent className="bg-white max-w-md">
-        <DialogHeader className="border-b border-gray-200 pb-3">
-            <DialogTitle className="text-lg font-semibold text-gray-900">Clear All Majors</DialogTitle>
-        </DialogHeader>
-
-        <div className="py-4">
-            <p className="text-sm text-gray-600 mb-2">
-                Are you sure you want to delete all {majors.length} majors?
-            </p>
-            <p className="text-xs text-red-600 font-medium">This action cannot be undone.</p>
-        </div>
-
-        <DialogFooter className="border-t border-gray-200 pt-3">
-            <Button
-                variant="outline"
-                onClick={() => setIsClearAllDialogOpen(false)}
-                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                open={isClearAllDialogOpen}
+                onOpenChange={setIsClearAllDialogOpen}
             >
-                Cancel
-            </Button>
-            <Button
-                onClick={handleClearAllMajors}
-                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
-            >
-                Delete All
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
+                <DialogContent className="bg-white max-w-md">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Clear All Majors
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="py-4">
+                        <p className="text-sm text-gray-600 mb-2">
+                            Are you sure you want to delete all {majors.length}{" "}
+                            majors?
+                        </p>
+                        <p className="text-xs text-red-600 font-medium">
+                            This action cannot be undone.
+                        </p>
+                    </div>
+
+                    <DialogFooter className="border-t border-gray-200 pt-3">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsClearAllDialogOpen(false)}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleClearAllMajors}
+                            className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                        >
+                            Delete All
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

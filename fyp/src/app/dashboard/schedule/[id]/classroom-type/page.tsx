@@ -41,6 +41,13 @@ export default function ClassroomTypeView() {
         name: "",
         description: "",
     });
+
+    // Add validation state
+    const [validationErrors, setValidationErrors] = useState<{
+        name?: string;
+        description?: string;
+    }>({});
+
     const [currentPage, setCurrentPage] = useState(1);
 
     // Load classroom types on component mount
@@ -57,9 +64,6 @@ export default function ClassroomTypeView() {
             return () => clearTimeout(timer);
         }
     }, [statusMessage]);
-
-    // Calculate pagination values
-    // (Removed duplicate totalPages and paginatedClassroomTypes, now handled after filtering)
 
     const params = useParams();
 
@@ -92,14 +96,62 @@ export default function ClassroomTypeView() {
         }
     };
 
+    // Real-time validation function
+    const validateForm = (name: string, description: string) => {
+        const errors: { name?: string; description?: string } = {};
+
+        // Validate name
+        if (!name.trim()) {
+            errors.name = "Name is required";
+        } else if (name.trim().length < 2) {
+            errors.name = "Name must be at least 2 characters long";
+        } else if (name.trim().length > 100) {
+            errors.name = "Name must be less than 100 characters";
+        } else {
+            // Check for duplicate names (case-insensitive)
+            const isDuplicate = classroomTypes.some((type) => {
+                // For edit mode, exclude the current item being edited
+                if (
+                    selectedClassroomType &&
+                    type.id === selectedClassroomType.id
+                ) {
+                    return false;
+                }
+                return (
+                    type.name.toLowerCase().trim() === name.toLowerCase().trim()
+                );
+            });
+
+            if (isDuplicate) {
+                errors.name = "A classroom type with this name already exists";
+            }
+        }
+
+        // Validate description (optional but if provided, check length)
+        if (description && description.trim().length > 500) {
+            errors.description = "Description must be less than 500 characters";
+        }
+
+        return errors;
+    };
+
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
     ) => {
         const { name, value } = e.target;
-        setFormData({
+        const updatedFormData = {
             ...formData,
             [name]: value,
-        });
+        };
+
+        setFormData(updatedFormData);
+
+        // Real-time validation
+        const errors = validateForm(
+            updatedFormData.name,
+            updatedFormData.description
+        );
+        setValidationErrors(errors);
     };
 
     const openAddDialog = () => {
@@ -108,11 +160,18 @@ export default function ClassroomTypeView() {
     };
 
     const handleAddClassroomType = async () => {
+        // Final validation before submission
+        const errors = validateForm(formData.name, formData.description);
+        if (Object.keys(errors).length > 0) {
+            setValidationErrors(errors);
+            return;
+        }
+
         try {
             const scheduleId = params.id;
             const apiData = {
-                name: formData.name,
-                description: formData.description || null,
+                name: formData.name.trim(),
+                description: formData.description.trim() || null,
                 scheduleId: Number(scheduleId),
             };
 
@@ -125,7 +184,10 @@ export default function ClassroomTypeView() {
             });
 
             if (!response.ok) {
-                throw new Error("Failed to create classroom type");
+                const errorData = await response.json();
+                throw new Error(
+                    errorData.error || "Failed to create classroom type"
+                );
             }
 
             await fetchClassroomTypes();
@@ -139,7 +201,10 @@ export default function ClassroomTypeView() {
         } catch (error) {
             console.error("Error adding classroom type:", error);
             setStatusMessage({
-                text: "Failed to add classroom type. Please try again.",
+                text:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to add classroom type. Please try again.",
                 type: "error",
             });
         }
@@ -148,11 +213,18 @@ export default function ClassroomTypeView() {
     const handleEditClassroomType = async () => {
         if (!selectedClassroomType) return;
 
+        // Final validation before submission
+        const errors = validateForm(formData.name, formData.description);
+        if (Object.keys(errors).length > 0) {
+            setValidationErrors(errors);
+            return;
+        }
+
         try {
             const apiData = {
                 id: selectedClassroomType.id,
-                name: formData.name,
-                description: formData.description || null,
+                name: formData.name.trim(),
+                description: formData.description.trim() || null,
             };
 
             const response = await fetch("/api/classroom-types", {
@@ -232,6 +304,7 @@ export default function ClassroomTypeView() {
             name: "",
             description: "",
         });
+        setValidationErrors({});
         setSelectedClassroomType(null);
     };
 
@@ -248,6 +321,14 @@ export default function ClassroomTypeView() {
     const openDeleteDialog = (classroomType: ClassroomType) => {
         setSelectedClassroomType(classroomType);
         setIsDeleteDialogOpen(true);
+    };
+
+    // Check if form is valid (no errors and required fields filled)
+    const isFormValid = () => {
+        return (
+            formData.name.trim() !== "" &&
+            Object.keys(validationErrors).length === 0
+        );
     };
 
     // Add these state variables to your existing state in ClassroomTypeView component
@@ -591,50 +672,59 @@ export default function ClassroomTypeView() {
             });
         }
     };
+
     const [searchQuery, setSearchQuery] = useState("");
+
     // Filter classroom types based on search query
-const filteredClassroomTypes = classroomTypes.filter(type =>
-    type.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (type.description && type.description.toLowerCase().includes(searchQuery.toLowerCase()))
-);
+    const filteredClassroomTypes = classroomTypes.filter(
+        (type) =>
+            type.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (type.description &&
+                type.description
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase()))
+    );
 
-// Calculate pagination values with filtered data
-const totalPages = Math.ceil(filteredClassroomTypes.length / ITEMS_PER_PAGE);
-const paginatedClassroomTypes = filteredClassroomTypes.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-);
-const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
+    // Calculate pagination values with filtered data
+    const totalPages = Math.ceil(
+        filteredClassroomTypes.length / ITEMS_PER_PAGE
+    );
+    const paginatedClassroomTypes = filteredClassroomTypes.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
 
-// Add this function with your other handler functions
-const handleClearAllClassroomTypes = async () => {
-    try {
-        // Delete all classroom types one by one
-        const deletePromises = classroomTypes.map(classroomType =>
-            fetch("/api/classroom-types", {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ id: classroomType.id }),
-            })
-        );
+    const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
 
-        await Promise.all(deletePromises);
-        await fetchClassroomTypes();
-        setIsClearAllDialogOpen(false);
-        setStatusMessage({
-            text: `Successfully deleted ${classroomTypes.length} classroom types`,
-            type: "success",
-        });
-    } catch (error) {
-        console.error("Error clearing all classroom types:", error);
-        setStatusMessage({
-            text: "Failed to delete all classroom types. Please try again.",
-            type: "error",
-        });
-    }
-};
+    // Add this function with your other handler functions
+    const handleClearAllClassroomTypes = async () => {
+        try {
+            // Delete all classroom types one by one
+            const deletePromises = classroomTypes.map((classroomType) =>
+                fetch("/api/classroom-types", {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ id: classroomType.id }),
+                })
+            );
+
+            await Promise.all(deletePromises);
+            await fetchClassroomTypes();
+            setIsClearAllDialogOpen(false);
+            setStatusMessage({
+                text: `Successfully deleted ${classroomTypes.length} classroom types`,
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error clearing all classroom types:", error);
+            setStatusMessage({
+                text: "Failed to delete all classroom types. Please try again.",
+                type: "error",
+            });
+        }
+    };
 
     return (
         <div className="space-y-4">
@@ -685,43 +775,43 @@ const handleClearAllClassroomTypes = async () => {
                         <Plus className="h-3 w-3" /> New Classroom Type
                     </Button>
                     <Button
-    onClick={() => setIsClearAllDialogOpen(true)}
-    variant="outline"
-    className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
-    disabled={classroomTypes.length === 0}
-    
->
-<Trash className="mr-1 h-3 w-3" /> Clear All
-
-</Button>
+                        onClick={() => setIsClearAllDialogOpen(true)}
+                        variant="outline"
+                        className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
+                        disabled={classroomTypes.length === 0}
+                    >
+                        <Trash className="mr-1 h-3 w-3" /> Clear All
+                    </Button>
                 </div>
             </div>
-{/* Search Bar */}
-<div className="relative max-w-md">
-    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-    <Input
-        placeholder="Search classroom types by name or description..."
-        value={searchQuery}
-        onChange={(e) => {
-            setSearchQuery(e.target.value);
-            setCurrentPage(1);
-        }}
-        className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
-    />
-    {searchQuery && (
-        <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-                setSearchQuery("");
-                setCurrentPage(1);
-            }}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
-        >
-            <X className="h-3 w-3" />
-        </Button>
-    )}
-</div>
+
+            {/* Search Bar */}
+            <div className="relative max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                    placeholder="Search classroom types by name or description..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                    }}
+                    className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
+                />
+                {searchQuery && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            setSearchQuery("");
+                            setCurrentPage(1);
+                        }}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+                    >
+                        <X className="h-3 w-3" />
+                    </Button>
+                )}
+            </div>
+
             {/* Compact Table Container */}
             <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
@@ -852,16 +942,25 @@ const handleClearAllClassroomTypes = async () => {
                                     htmlFor="name"
                                     className="text-sm font-medium text-gray-700"
                                 >
-                                    Name
+                                    Name <span className="text-red-500">*</span>
                                 </Label>
                                 <Input
                                     id="name"
                                     name="name"
                                     value={formData.name}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        validationErrors.name
+                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                    }`}
                                     placeholder="Enter classroom type name"
                                 />
+                                {validationErrors.name && (
+                                    <p className="text-red-500 text-xs mt-1">
+                                        {validationErrors.name}
+                                    </p>
+                                )}
                             </div>
                             <div className="space-y-2">
                                 <Label
@@ -875,10 +974,19 @@ const handleClearAllClassroomTypes = async () => {
                                     name="description"
                                     value={formData.description}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        validationErrors.description
+                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                    }`}
                                     placeholder="Enter classroom type description"
                                     rows={3}
                                 />
+                                {validationErrors.description && (
+                                    <p className="text-red-500 text-xs mt-1">
+                                        {validationErrors.description}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -896,8 +1004,8 @@ const handleClearAllClassroomTypes = async () => {
                         </Button>
                         <Button
                             onClick={handleAddClassroomType}
-                            disabled={!formData.name}
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white disabled:bg-gray-300 text-sm px-3 py-1.5"
+                            disabled={!isFormValid()}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white disabled:bg-gray-300 disabled:cursor-not-allowed text-sm px-3 py-1.5"
                         >
                             Add
                         </Button>
@@ -927,16 +1035,25 @@ const handleClearAllClassroomTypes = async () => {
                                     htmlFor="edit-name"
                                     className="text-sm font-medium text-gray-700"
                                 >
-                                    Name
+                                    Name <span className="text-red-500">*</span>
                                 </Label>
                                 <Input
                                     id="edit-name"
                                     name="name"
                                     value={formData.name}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        validationErrors.name
+                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                    }`}
                                     placeholder="Enter classroom type name"
                                 />
+                                {validationErrors.name && (
+                                    <p className="text-red-500 text-xs mt-1">
+                                        {validationErrors.name}
+                                    </p>
+                                )}
                             </div>
                             <div className="space-y-2">
                                 <Label
@@ -950,10 +1067,19 @@ const handleClearAllClassroomTypes = async () => {
                                     name="description"
                                     value={formData.description}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        validationErrors.description
+                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                    }`}
                                     placeholder="Enter classroom type description"
                                     rows={3}
                                 />
+                                {validationErrors.description && (
+                                    <p className="text-red-500 text-xs mt-1">
+                                        {validationErrors.description}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -971,8 +1097,8 @@ const handleClearAllClassroomTypes = async () => {
                         </Button>
                         <Button
                             onClick={handleEditClassroomType}
-                            disabled={!formData.name}
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white disabled:bg-gray-300 text-sm px-3 py-1.5"
+                            disabled={!isFormValid()}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white disabled:bg-gray-300 disabled:cursor-not-allowed text-sm px-3 py-1.5"
                         >
                             Save
                         </Button>
@@ -1164,39 +1290,46 @@ const handleClearAllClassroomTypes = async () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Clear All Dialog */}
             <Dialog
-    open={isClearAllDialogOpen}
-    onOpenChange={setIsClearAllDialogOpen}
->
-    <DialogContent className="bg-white max-w-md">
-        <DialogHeader className="border-b border-gray-200 pb-3">
-            <DialogTitle className="text-lg font-semibold text-gray-900">Clear All Classroom Types</DialogTitle>
-        </DialogHeader>
-
-        <div className="py-4">
-            <p className="text-sm text-gray-600 mb-2">
-                Are you sure you want to delete all {classroomTypes.length} classroom types?
-            </p>
-            <p className="text-xs text-red-600 font-medium">This action cannot be undone.</p>
-        </div>
-
-        <DialogFooter className="border-t border-gray-200 pt-3">
-            <Button
-                variant="outline"
-                onClick={() => setIsClearAllDialogOpen(false)}
-                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                open={isClearAllDialogOpen}
+                onOpenChange={setIsClearAllDialogOpen}
             >
-                Cancel
-            </Button>
-            <Button
-                onClick={handleClearAllClassroomTypes}
-                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
-            >
-                Delete All
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
+                <DialogContent className="bg-white max-w-md">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Clear All Classroom Types
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="py-4">
+                        <p className="text-sm text-gray-600 mb-2">
+                            Are you sure you want to delete all{" "}
+                            {classroomTypes.length} classroom types?
+                        </p>
+                        <p className="text-xs text-red-600 font-medium">
+                            This action cannot be undone.
+                        </p>
+                    </div>
+
+                    <DialogFooter className="border-t border-gray-200 pt-3">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsClearAllDialogOpen(false)}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleClearAllClassroomTypes}
+                            className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                        >
+                            Delete All
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

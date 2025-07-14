@@ -31,7 +31,7 @@ const saveTimetableSchema = z.object({
 });
 
 const removeTimetableAssignmentSchema = z.object({
-    sectionId: z.number(),
+    courseHoursId: z.number(),
 });
 
 // GET timetable assignments
@@ -363,31 +363,24 @@ export async function POST(request: Request) {
         );
     }
 }
-// DELETE to remove assignment (when dragging a course out of the timetable)
+
 export async function DELETE(request: Request) {
     try {
         const body = await request.json();
         const validatedData = removeTimetableAssignmentSchema.parse(body);
-        const { sectionId } = validatedData;
+        const { courseHoursId } = validatedData;
 
-        // Remove the assignment by setting courseHoursId and classroomId to null
         await db
             .update(courseHours)
             .set({
+                day: null,
+                timeSlot: null,
                 classroomId: null,
             })
-            .where(eq(courseHours.id, sectionId));
-
-        // Fetch the updated section separately
-        const updatedSection = await db
-            .select()
-            .from(sections)
-            .where(eq(sections.id, sectionId))
-            .limit(1);
+            .where(eq(courseHours.id, courseHoursId));
 
         return NextResponse.json({
             message: "Assignment removed successfully",
-            section: updatedSection[0] || { id: sectionId },
         });
     } catch (error: unknown) {
         console.error("Error removing timetable assignment:", error);

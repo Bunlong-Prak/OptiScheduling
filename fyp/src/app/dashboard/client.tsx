@@ -67,6 +67,11 @@ export default function Dashboard({ authUser }: DashboardProps) {
     >([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    // New state for time slot validation errors
+    const [timeSlotErrors, setTimeSlotErrors] = useState<{
+        [key: number]: string;
+    }>({});
+
     // Date conversion utilities
     const formatDateForInput = (dateString: string): string => {
         if (!dateString) return "";
@@ -142,6 +147,110 @@ export default function Dashboard({ authUser }: DashboardProps) {
         return `${numbersOnly.slice(0, 2)}:${numbersOnly.slice(2, 4)}`;
     };
 
+    // Enhanced validation functions
+    const timeToMinutes = (time: string): number => {
+        if (!time || !isCompleteTimeFormat(time)) return -1;
+        const [hours, minutes] = time.split(":").map(Number);
+        return hours * 60 + minutes;
+    };
+
+    const validateTimeSlot = (
+        startTime: string,
+        endTime: string
+    ): { isValid: boolean; error?: string } => {
+        // Check if both times are provided when one is provided
+        if ((startTime && !endTime) || (!startTime && endTime)) {
+            return {
+                isValid: false,
+                error: "Both start and end times must be provided",
+            };
+        }
+
+        // If both are empty, that's valid (optional time slot)
+        if (!startTime && !endTime) {
+            return { isValid: true };
+        }
+
+        // Check format
+        if (!isCompleteTimeFormat(startTime)) {
+            return {
+                isValid: false,
+                error: "Start time must be in HH:MM format",
+            };
+        }
+
+        if (!isCompleteTimeFormat(endTime)) {
+            return {
+                isValid: false,
+                error: "End time must be in HH:MM format",
+            };
+        }
+
+        // Check if end time is after start time
+        const startMinutes = timeToMinutes(startTime);
+        const endMinutes = timeToMinutes(endTime);
+
+        if (endMinutes <= startMinutes) {
+            return {
+                isValid: false,
+                error: "End time must be after start time",
+            };
+        }
+
+        return { isValid: true };
+    };
+
+    const validateAllTimeSlots = (
+        timeSlots: { startTime: string; endTime: string }[]
+    ): {
+        isValid: boolean;
+        errors: { [key: number]: string };
+    } => {
+        const errors: { [key: number]: string } = {};
+
+        // First validate each individual time slot
+        timeSlots.forEach((slot, index) => {
+            const validation = validateTimeSlot(slot.startTime, slot.endTime);
+            if (!validation.isValid && validation.error) {
+                errors[index] = validation.error;
+            }
+        });
+
+        // Then check for overlaps between consecutive time slots
+        for (let i = 0; i < timeSlots.length - 1; i++) {
+            const currentSlot = timeSlots[i];
+            const nextSlot = timeSlots[i + 1];
+
+            // Skip validation if either slot has errors or is empty
+            if (
+                errors[i] ||
+                errors[i + 1] ||
+                !currentSlot.startTime ||
+                !currentSlot.endTime ||
+                !nextSlot.startTime ||
+                !nextSlot.endTime
+            ) {
+                continue;
+            }
+
+            const currentEndMinutes = timeToMinutes(currentSlot.endTime);
+            const nextStartMinutes = timeToMinutes(nextSlot.startTime);
+
+            if (nextStartMinutes < currentEndMinutes) {
+                errors[i + 1] = `Time slot ${
+                    i + 2
+                } start time must be after time slot ${i + 1} end time (${
+                    currentSlot.endTime
+                })`;
+            }
+        }
+
+        return {
+            isValid: Object.keys(errors).length === 0,
+            errors,
+        };
+    };
+
     // Fetch schedules when component mounts
     useEffect(() => {
         fetchSchedules();
@@ -171,6 +280,9 @@ export default function Dashboard({ authUser }: DashboardProps) {
             ...prev,
             timeSlots: newTimeSlots,
         }));
+
+        // Clear errors when time slots change
+        setTimeSlotErrors({});
     }, [formData.numTimeSlots, persistentTimeSlots]);
 
     const fetchCourseCount = async (scheduleId: string) => {
@@ -286,6 +398,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
         }
     };
 
+    // Enhanced handleTimeSlotChange with real-time validation
     const handleTimeSlotChange = (
         index: number,
         field: "startTime" | "endTime",
@@ -312,6 +425,13 @@ export default function Dashboard({ authUser }: DashboardProps) {
         // Update current form data
         const updatedTimeSlots = [...formData.timeSlots];
         updatedTimeSlots[index][field] = formattedValue;
+
+        // Validate all time slots after this change
+        const validation = validateAllTimeSlots(updatedTimeSlots);
+
+        // Store validation errors in state
+        setTimeSlotErrors(validation.errors);
+
         setFormData({
             ...formData,
             timeSlots: updatedTimeSlots,
@@ -327,6 +447,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
             timeSlots: [],
         });
         setPersistentTimeSlots([]);
+        setTimeSlotErrors({});
     };
 
     const openEditDialog = (scheduleId: string, e: React.MouseEvent) => {
@@ -343,6 +464,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                 timeSlots: timeSlots,
             });
             setPersistentTimeSlots([...timeSlots]);
+            setTimeSlotErrors({});
             setIsEditDialogOpen(true);
         }
     };
@@ -357,6 +479,58 @@ export default function Dashboard({ authUser }: DashboardProps) {
         router.push(`/dashboard/schedule/${scheduleId}`);
     };
 
+    // Check for any immediate validation errors
+    const hasImmediateErrors = (): boolean => {
+        // Check for format errors
+        for (let i = 0; i < formData.timeSlots.length; i++) {
+            const slot = formData.timeSlots[i];
+            if (
+                (slot.startTime && !isCompleteTimeFormat(slot.startTime)) ||
+                (slot.endTime && !isCompleteTimeFormat(slot.endTime))
+            ) {
+                return true;
+            }
+        }
+
+        // Check for end time <= start time errors
+        for (let i = 0; i < formData.timeSlots.length; i++) {
+            const slot = formData.timeSlots[i];
+            if (
+                slot.startTime &&
+                slot.endTime &&
+                isCompleteTimeFormat(slot.startTime) &&
+                isCompleteTimeFormat(slot.endTime) &&
+                timeToMinutes(slot.endTime) <= timeToMinutes(slot.startTime)
+            ) {
+                return true;
+            }
+        }
+
+        // Check for overlap with previous time slot
+        for (let i = 1; i < formData.timeSlots.length; i++) {
+            const currentSlot = formData.timeSlots[i];
+            const previousSlot = formData.timeSlots[i - 1];
+            if (
+                currentSlot.startTime &&
+                isCompleteTimeFormat(currentSlot.startTime) &&
+                previousSlot.endTime &&
+                isCompleteTimeFormat(previousSlot.endTime) &&
+                timeToMinutes(currentSlot.startTime) <
+                    timeToMinutes(previousSlot.endTime)
+            ) {
+                return true;
+            }
+        }
+
+        // Check for validation errors from the validation system
+        if (Object.keys(timeSlotErrors).length > 0) {
+            return true;
+        }
+
+        return false;
+    };
+
+    // Enhanced validateTimeSlots function
     const validateTimeSlots = (): boolean => {
         // Validate date range
         if (formData.startDate && formData.endDate) {
@@ -369,55 +543,23 @@ export default function Dashboard({ authUser }: DashboardProps) {
             }
         }
 
-        // Validate time slots
-        for (let i = 0; i < formData.timeSlots.length; i++) {
-            const { startTime, endTime } = formData.timeSlots[i];
-
-            if (startTime && !isCompleteTimeFormat(startTime)) {
-                alert(
-                    `Please enter a valid start time in HH:MM format for time slot ${
-                        i + 1
-                    }`
-                );
-                return false;
-            }
-
-            if (endTime && !isCompleteTimeFormat(endTime)) {
-                alert(
-                    `Please enter a valid end time in HH:MM format for time slot ${
-                        i + 1
-                    }`
-                );
-                return false;
-            }
-
-            // Check if both times are provided
-            if ((startTime && !endTime) || (!startTime && endTime)) {
-                alert(
-                    `Please provide both start and end times for time slot ${
-                        i + 1
-                    }`
-                );
-                return false;
-            }
-
-            // Check if end time is after start time
-            if (startTime && endTime) {
-                const [startHour, startMin] = startTime.split(":").map(Number);
-                const [endHour, endMin] = endTime.split(":").map(Number);
-                const startMinutes = startHour * 60 + startMin;
-                const endMinutes = endHour * 60 + endMin;
-
-                if (endMinutes <= startMinutes) {
-                    alert(
-                        `End time must be after start time for time slot ${
-                            i + 1
-                        }`
-                    );
-                    return false;
-                }
-            }
+        // Check for immediate errors first
+        if (hasImmediateErrors()) {
+            alert("Please fix the time slot errors before submitting.");
+            return false;
         }
+
+        // Validate all time slots
+        const validation = validateAllTimeSlots(formData.timeSlots);
+
+        if (!validation.isValid) {
+            // Show the first error found
+            const firstErrorIndex = Object.keys(validation.errors)[0];
+            const firstError = validation.errors[parseInt(firstErrorIndex)];
+            alert(`Time slot ${parseInt(firstErrorIndex) + 1}: ${firstError}`);
+            return false;
+        }
+
         return true;
     };
 
@@ -556,6 +698,231 @@ export default function Dashboard({ authUser }: DashboardProps) {
         const hour = isStartTime ? baseHour : baseHour + 1; // End time is start time + 1
         const formattedHour = hour < 10 ? `0${hour}` : `${hour}`;
         return `${formattedHour}:00`; // Format as HH:MM
+    };
+
+    // Enhanced time slot input rendering function
+    const renderTimeSlotInputs = (dialogType: "create" | "edit") => {
+        if (formData.timeSlots.length === 0) return null;
+
+        return (
+            <div className="space-y-4">
+                <h3 className="font-semibold text-gray-900 border-b border-gray-200 pb-2">
+                    TimeSlots Configuration
+                </h3>
+                <p className="text-sm text-gray-600">
+                    Please enter times in HH:MM format (e.g., 08:00, 14:30)
+                </p>
+                {formData.timeSlots.map((timeSlot, index) => {
+                    // Check for end time less than start time
+                    const hasEndTimeError =
+                        timeSlot.startTime &&
+                        timeSlot.endTime &&
+                        isCompleteTimeFormat(timeSlot.startTime) &&
+                        isCompleteTimeFormat(timeSlot.endTime) &&
+                        timeToMinutes(timeSlot.endTime) <=
+                            timeToMinutes(timeSlot.startTime);
+
+                    // Check for overlap with previous time slot
+                    const hasPreviousOverlap =
+                        index > 0 &&
+                        timeSlot.startTime &&
+                        isCompleteTimeFormat(timeSlot.startTime) &&
+                        formData.timeSlots[index - 1].endTime &&
+                        isCompleteTimeFormat(
+                            formData.timeSlots[index - 1].endTime
+                        ) &&
+                        timeToMinutes(timeSlot.startTime) <
+                            timeToMinutes(
+                                formData.timeSlots[index - 1].endTime
+                            );
+
+                    return (
+                        <div
+                            key={index}
+                            className="grid grid-cols-2 gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50"
+                        >
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor={`${dialogType}-startTime-${index}`}
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Start Time #{index + 1}
+                                </Label>
+                                <Input
+                                    id={`${dialogType}-startTime-${index}`}
+                                    placeholder={getTimePlaceholder(
+                                        index,
+                                        true
+                                    )}
+                                    value={timeSlot.startTime}
+                                    onChange={(e) =>
+                                        handleTimeSlotChange(
+                                            index,
+                                            "startTime",
+                                            e.target.value
+                                        )
+                                    }
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white ${
+                                        (timeSlot.startTime &&
+                                            !isCompleteTimeFormat(
+                                                timeSlot.startTime
+                                            )) ||
+                                        hasPreviousOverlap ||
+                                        (timeSlotErrors[index] &&
+                                            timeSlotErrors[index].includes(
+                                                "start time"
+                                            ))
+                                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    }`}
+                                />
+                                {/* Immediate error display for start time format */}
+                                {timeSlot.startTime &&
+                                    !isCompleteTimeFormat(
+                                        timeSlot.startTime
+                                    ) && (
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-red-500 text-xs">
+                                                ⚠️
+                                            </span>
+                                            <p className="text-xs text-red-600 font-medium">
+                                                Enter time in HH:MM format
+                                            </p>
+                                        </div>
+                                    )}
+                                {/* Immediate error for start time overlap with previous slot */}
+                                {hasPreviousOverlap && (
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-red-500 text-xs">
+                                            ❌
+                                        </span>
+                                        <p className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded">
+                                            Start time must be after time slot{" "}
+                                            {index} end time (
+                                            {
+                                                formData.timeSlots[index - 1]
+                                                    .endTime
+                                            }
+                                            )
+                                        </p>
+                                    </div>
+                                )}
+                                {/* Display specific validation errors for start time */}
+                                {timeSlotErrors[index] &&
+                                    timeSlotErrors[index].includes(
+                                        "start time"
+                                    ) &&
+                                    !hasPreviousOverlap && (
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-red-500 text-xs">
+                                                ❌
+                                            </span>
+                                            <p className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded">
+                                                {timeSlotErrors[index]}
+                                            </p>
+                                        </div>
+                                    )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor={`${dialogType}-endTime-${index}`}
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    End Time #{index + 1}
+                                </Label>
+                                <Input
+                                    id={`${dialogType}-endTime-${index}`}
+                                    placeholder={getTimePlaceholder(
+                                        index,
+                                        false
+                                    )}
+                                    value={timeSlot.endTime}
+                                    onChange={(e) =>
+                                        handleTimeSlotChange(
+                                            index,
+                                            "endTime",
+                                            e.target.value
+                                        )
+                                    }
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white ${
+                                        (timeSlot.endTime &&
+                                            !isCompleteTimeFormat(
+                                                timeSlot.endTime
+                                            )) ||
+                                        hasEndTimeError ||
+                                        (timeSlotErrors[index] &&
+                                            timeSlotErrors[index].includes(
+                                                "end time"
+                                            ))
+                                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    }`}
+                                />
+                                {/* Immediate error display for end time format */}
+                                {timeSlot.endTime &&
+                                    !isCompleteTimeFormat(timeSlot.endTime) && (
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-red-500 text-xs">
+                                                ⚠️
+                                            </span>
+                                            <p className="text-xs text-red-600 font-medium">
+                                                Enter time in HH:MM format
+                                            </p>
+                                        </div>
+                                    )}
+                                {/* Immediate error for end time less than or equal to start time */}
+                                {hasEndTimeError && (
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-red-500 text-xs">
+                                            ❌
+                                        </span>
+                                        <p className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded">
+                                            End time must be after start time (
+                                            {timeSlot.startTime})
+                                        </p>
+                                    </div>
+                                )}
+                                {/* Display specific validation errors for end time */}
+                                {timeSlotErrors[index] &&
+                                    timeSlotErrors[index].includes(
+                                        "end time"
+                                    ) &&
+                                    !hasEndTimeError && (
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-red-500 text-xs">
+                                                ❌
+                                            </span>
+                                            <p className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded">
+                                                {timeSlotErrors[index]}
+                                            </p>
+                                        </div>
+                                    )}
+                            </div>
+
+                            {/* Show other general time slot validation errors */}
+                            {timeSlotErrors[index] &&
+                                !timeSlotErrors[index].includes("start time") &&
+                                !timeSlotErrors[index].includes("end time") &&
+                                !timeSlotErrors[index].includes(
+                                    "End time must be after start time"
+                                ) &&
+                                !hasPreviousOverlap && (
+                                    <div className="col-span-2">
+                                        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
+                                            <span className="text-red-500 text-sm">
+                                                🚫
+                                            </span>
+                                            <p className="text-sm text-red-700 font-medium">
+                                                {timeSlotErrors[index]}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                        </div>
+                    );
+                })}
+            </div>
+        );
     };
 
     return (
@@ -766,104 +1133,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         </div>
 
                         {/* Dynamic timeSlot inputs */}
-                        {formData.timeSlots.length > 0 && (
-                            <div className="space-y-4">
-                                <h3 className="font-semibold text-gray-900 border-b border-gray-200 pb-2">
-                                    TimeSlots Configuration
-                                </h3>
-                                <p className="text-sm text-gray-600">
-                                    Please enter times in HH:MM format (e.g.,
-                                    08:00, 14:30)
-                                </p>
-                                {formData.timeSlots.map((timeSlot, index) => (
-                                    <div
-                                        key={index}
-                                        className="grid grid-cols-2 gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50"
-                                    >
-                                        <div className="space-y-2">
-                                            <Label
-                                                htmlFor={`startTime-${index}`}
-                                                className="text-sm font-medium text-gray-700"
-                                            >
-                                                Start Time #{index + 1}
-                                            </Label>
-                                            <Input
-                                                id={`startTime-${index}`}
-                                                placeholder={getTimePlaceholder(
-                                                    index,
-                                                    true
-                                                )}
-                                                value={timeSlot.startTime}
-                                                onChange={(e) =>
-                                                    handleTimeSlotChange(
-                                                        index,
-                                                        "startTime",
-                                                        e.target.value
-                                                    )
-                                                }
-                                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white ${
-                                                    timeSlot.startTime &&
-                                                    !isCompleteTimeFormat(
-                                                        timeSlot.startTime
-                                                    )
-                                                        ? "border-red-300 focus:border-red-500"
-                                                        : ""
-                                                }`}
-                                            />
-                                            {timeSlot.startTime &&
-                                                !isCompleteTimeFormat(
-                                                    timeSlot.startTime
-                                                ) && (
-                                                    <p className="text-xs text-red-600">
-                                                        Enter time in HH:MM
-                                                        format
-                                                    </p>
-                                                )}
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label
-                                                htmlFor={`endTime-${index}`}
-                                                className="text-sm font-medium text-gray-700"
-                                            >
-                                                End Time #{index + 1}
-                                            </Label>
-                                            <Input
-                                                id={`endTime-${index}`}
-                                                placeholder={getTimePlaceholder(
-                                                    index,
-                                                    false
-                                                )}
-                                                value={timeSlot.endTime}
-                                                onChange={(e) =>
-                                                    handleTimeSlotChange(
-                                                        index,
-                                                        "endTime",
-                                                        e.target.value
-                                                    )
-                                                }
-                                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white ${
-                                                    timeSlot.endTime &&
-                                                    !isCompleteTimeFormat(
-                                                        timeSlot.endTime
-                                                    )
-                                                        ? "border-red-300 focus:border-red-500"
-                                                        : ""
-                                                }`}
-                                            />
-                                            {timeSlot.endTime &&
-                                                !isCompleteTimeFormat(
-                                                    timeSlot.endTime
-                                                ) && (
-                                                    <p className="text-xs text-red-600">
-                                                        Enter time in HH:MM
-                                                        format
-                                                    </p>
-                                                )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        {renderTimeSlotInputs("create")}
                     </div>
 
                     <DialogFooter className="border-t border-gray-200 pt-4">
@@ -877,6 +1147,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         <Button
                             onClick={handleCreateSchedule}
                             className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
+                            disabled={hasImmediateErrors()}
                         >
                             Create Schedule
                         </Button>
@@ -970,104 +1241,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         </div>
 
                         {/* Dynamic timeSlot inputs */}
-                        {formData.timeSlots.length > 0 && (
-                            <div className="space-y-4">
-                                <h3 className="font-semibold text-gray-900 border-b border-gray-200 pb-2">
-                                    TimeSlots Configuration
-                                </h3>
-                                <p className="text-sm text-gray-600">
-                                    Please enter times in HH:MM format (e.g.,
-                                    08:00, 14:30)
-                                </p>
-                                {formData.timeSlots.map((timeSlot, index) => (
-                                    <div
-                                        key={index}
-                                        className="grid grid-cols-2 gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50"
-                                    >
-                                        <div className="space-y-2">
-                                            <Label
-                                                htmlFor={`edit-startTime-${index}`}
-                                                className="text-sm font-medium text-gray-700"
-                                            >
-                                                Start Time #{index + 1}
-                                            </Label>
-                                            <Input
-                                                id={`edit-startTime-${index}`}
-                                                placeholder={getTimePlaceholder(
-                                                    index,
-                                                    true
-                                                )}
-                                                value={timeSlot.startTime}
-                                                onChange={(e) =>
-                                                    handleTimeSlotChange(
-                                                        index,
-                                                        "startTime",
-                                                        e.target.value
-                                                    )
-                                                }
-                                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white ${
-                                                    timeSlot.startTime &&
-                                                    !isCompleteTimeFormat(
-                                                        timeSlot.startTime
-                                                    )
-                                                        ? "border-red-300 focus:border-red-500"
-                                                        : ""
-                                                }`}
-                                            />
-                                            {timeSlot.startTime &&
-                                                !isCompleteTimeFormat(
-                                                    timeSlot.startTime
-                                                ) && (
-                                                    <p className="text-xs text-red-600">
-                                                        Enter time in HH:MM
-                                                        format
-                                                    </p>
-                                                )}
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label
-                                                htmlFor={`edit-endTime-${index}`}
-                                                className="text-sm font-medium text-gray-700"
-                                            >
-                                                End Time #{index + 1}
-                                            </Label>
-                                            <Input
-                                                id={`edit-endTime-${index}`}
-                                                placeholder={getTimePlaceholder(
-                                                    index,
-                                                    false
-                                                )}
-                                                value={timeSlot.endTime}
-                                                onChange={(e) =>
-                                                    handleTimeSlotChange(
-                                                        index,
-                                                        "endTime",
-                                                        e.target.value
-                                                    )
-                                                }
-                                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white ${
-                                                    timeSlot.endTime &&
-                                                    !isCompleteTimeFormat(
-                                                        timeSlot.endTime
-                                                    )
-                                                        ? "border-red-300 focus:border-red-500"
-                                                        : ""
-                                                }`}
-                                            />
-                                            {timeSlot.endTime &&
-                                                !isCompleteTimeFormat(
-                                                    timeSlot.endTime
-                                                ) && (
-                                                    <p className="text-xs text-red-600">
-                                                        Enter time in HH:MM
-                                                        format
-                                                    </p>
-                                                )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        {renderTimeSlotInputs("edit")}
                     </div>
 
                     <DialogFooter className="border-t border-gray-200 pt-4">
@@ -1081,6 +1255,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         <Button
                             onClick={handleEditSchedule}
                             className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
+                            disabled={hasImmediateErrors()}
                         >
                             Save Changes
                         </Button>

@@ -3058,7 +3058,7 @@ export default function TimetableViewClassroom() {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    id: course.id,
+                    courseHoursId: course.id,
                 }),
             });
 
@@ -3074,6 +3074,7 @@ export default function TimetableViewClassroom() {
 
             const courseId = course.id;
 
+            // Remove from schedule
             const newSchedule = { ...schedule };
             Object.keys(newSchedule).forEach((scheduleKey) => {
                 if (newSchedule[scheduleKey].id === courseId) {
@@ -3082,6 +3083,7 @@ export default function TimetableViewClassroom() {
             });
             setSchedule(newSchedule);
 
+            // Create clean course object to return to available courses
             const cleanCourse: TimetableCourse = {
                 id: course.id,
                 code: course.code,
@@ -3093,13 +3095,28 @@ export default function TimetableViewClassroom() {
                 sectionId: course.sectionId,
                 section: course.section,
                 room: course.room,
+                originalColor: course.originalColor,
+                isOnline: course.isOnline,
+                status: course.status,
+                // Remove assignment-specific properties
+                day: undefined,
+                startTime: undefined,
+                endTime: undefined,
+                classroom: undefined,
+                isStart: undefined,
+                isMiddle: undefined,
+                isEnd: undefined,
+                colspan: undefined,
             };
 
+            // Add back to available courses if not already there
             if (!availableCourses.some((c) => c.id === courseId)) {
                 setAvailableCourses((prev) => [...prev, cleanCourse]);
             }
 
+            // Remove from assigned courses
             setAssignedCourses((prev) => prev.filter((c) => c.id !== courseId));
+
             showMessage(
                 "success",
                 `Course ${course.code} removed successfully`

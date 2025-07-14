@@ -407,13 +407,16 @@ export default function ClassroomView() {
                 scheduleId: scheduleId,
             };
 
-            const response = await fetch(`/api/classrooms?scheduleId={scheduleId}`, {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(apiData),
-            });
+            const response = await fetch(
+                `/api/classrooms?scheduleId={scheduleId}`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(apiData),
+                }
+            );
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -837,82 +840,83 @@ export default function ClassroomView() {
     //search function start here
     const [searchQuery, setSearchQuery] = useState("");
     // Filter classrooms based on search query
-const filteredClassrooms = sortedClassrooms.filter(classroom =>
-    classroom.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    classroom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    classroom.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    classroom.type.toLowerCase().includes(searchQuery.toLowerCase())
-);
-// Calculate pagination values with filtered data  
-const totalPages = Math.ceil(filteredClassrooms.length / ITEMS_PER_PAGE);
-const paginatedClassrooms = filteredClassrooms.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-);
-//clear all classroom start here
-// Add this state variable with your other useState declarations
-const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
+    const filteredClassrooms = sortedClassrooms.filter(
+        (classroom) =>
+            classroom.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            classroom.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            classroom.location
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase()) ||
+            classroom.type.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    // Calculate pagination values with filtered data
+    const totalPages = Math.ceil(filteredClassrooms.length / ITEMS_PER_PAGE);
+    const paginatedClassrooms = filteredClassrooms.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+    //clear all classroom start here
+    // Add this state variable with your other useState declarations
+    const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
 
-// Add this function with your other handler functions
-const handleClearAllClassrooms = async () => {
-    try {
-        const scheduleId = params.id;
-        let deletedCount = 0;
-        let errorCount = 0;
-        
-        // Delete all classrooms one by one
-        for (const classroom of classrooms) {
-            try {
-                const response = await fetch("/api/classrooms", {
-                    method: "DELETE",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ 
-                        id: classroom.id, 
-                        scheduleId: scheduleId 
-                    }),
-                });
+    // Add this function with your other handler functions
+    const handleClearAllClassrooms = async () => {
+        try {
+            const scheduleId = params.id;
+            let deletedCount = 0;
+            let errorCount = 0;
 
-                if (response.ok) {
-                    deletedCount++;
-                } else {
+            // Delete all classrooms one by one
+            for (const classroom of classrooms) {
+                try {
+                    const response = await fetch("/api/classrooms", {
+                        method: "DELETE",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            id: classroom.id,
+                            scheduleId: scheduleId,
+                        }),
+                    });
+
+                    if (response.ok) {
+                        deletedCount++;
+                    } else {
+                        errorCount++;
+                    }
+                } catch (error) {
                     errorCount++;
                 }
-            } catch (error) {
-                errorCount++;
             }
-        }
 
-        await fetchClassrooms();
-        setIsClearAllDialogOpen(false);
-        
-        if (deletedCount === classrooms.length) {
+            await fetchClassrooms();
+            setIsClearAllDialogOpen(false);
+
+            if (deletedCount === classrooms.length) {
+                setStatusMessage({
+                    text: `Successfully deleted ${deletedCount} classrooms`,
+                    type: "success",
+                });
+            } else if (deletedCount > 0) {
+                setStatusMessage({
+                    text: `Deleted ${deletedCount} classrooms. ${errorCount} classrooms couldn't be deleted (they're being used in course schedules)`,
+                    type: "error",
+                });
+            } else {
+                setStatusMessage({
+                    text: "No classrooms could be deleted. They're all being used in course schedules.",
+                    type: "error",
+                });
+            }
+        } catch (error) {
+            console.error("Error clearing all classrooms:", error);
             setStatusMessage({
-                text: `Successfully deleted ${deletedCount} classrooms`,
-                type: "success",
-            });
-        } else if (deletedCount > 0) {
-            setStatusMessage({
-                text: `Deleted ${deletedCount} classrooms. ${errorCount} classrooms couldn't be deleted (they're being used in course schedules)`,
+                text: "Failed to delete classrooms. Please try again.",
                 type: "error",
             });
-        } else {
-            setStatusMessage({
-                text: "No classrooms could be deleted. They're all being used in course schedules.",
-                type: "error",
-            });
         }
-    } catch (error) {
-        console.error("Error clearing all classrooms:", error);
-        setStatusMessage({
-            text: "Failed to delete classrooms. Please try again.",
-            type: "error",
-        });
-    }
-};
-
-
+    };
 
     return (
         <div className="space-y-4">
@@ -966,41 +970,41 @@ const handleClearAllClassrooms = async () => {
                         <Plus className="mr-1 h-3 w-3" /> New Classroom
                     </Button>
                     <Button
-    onClick={() => setIsClearAllDialogOpen(true)}
-    variant="outline"
-    className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
-    disabled={classrooms.length === 0 || isLoading}
->
-<Trash className="mr-1 h-3 w-3" /> Clear All
-</Button>
+                        onClick={() => setIsClearAllDialogOpen(true)}
+                        variant="outline"
+                        className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
+                        disabled={classrooms.length === 0 || isLoading}
+                    >
+                        <Trash className="mr-1 h-3 w-3" /> Clear All
+                    </Button>
                 </div>
             </div>
-{/* Search Bar */}
-<div className="relative max-w-md">
-    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-    <Input
-        placeholder="Search classrooms by code, name, location, or type..."
-        value={searchQuery}
-        onChange={(e) => {
-            setSearchQuery(e.target.value);
-            setCurrentPage(1);
-        }}
-        className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
-    />
-    {searchQuery && (
-        <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-                setSearchQuery("");
-                setCurrentPage(1);
-            }}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
-        >
-            <X className="h-3 w-3" />
-        </Button>
-    )}
-</div>
+            {/* Search Bar */}
+            <div className="relative max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                    placeholder="Search classrooms by code, name, location, or type..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                    }}
+                    className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
+                />
+                {searchQuery && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            setSearchQuery("");
+                            setCurrentPage(1);
+                        }}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+                    >
+                        <X className="h-3 w-3" />
+                    </Button>
+                )}
+            </div>
             {/* Compact Table Container */}
             <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
@@ -1124,7 +1128,7 @@ const handleClearAllClassrooms = async () => {
                 </div>
             </div>
 
-            { filteredClassrooms.length > 0 && (
+            {filteredClassrooms.length > 0 && (
                 <div className="flex justify-center">
                     <CustomPagination
                         currentPage={currentPage}
@@ -1548,16 +1552,20 @@ const handleClearAllClassrooms = async () => {
                         </p>
                         <div className="bg-gray-50 p-3 rounded border space-y-1">
                             <p className="font-medium text-sm text-gray-900">
-                                <span className="text-gray-600">Code:</span> {selectedClassroom?.code}
+                                <span className="text-gray-600">Code:</span>{" "}
+                                {selectedClassroom?.code}
                             </p>
                             <p className="text-sm text-gray-700">
-                                <span className="text-gray-600">Name:</span> {selectedClassroom?.name}
+                                <span className="text-gray-600">Name:</span>{" "}
+                                {selectedClassroom?.name}
                             </p>
                             <p className="text-sm text-gray-700">
-                                <span className="text-gray-600">Location:</span> {selectedClassroom?.location}
+                                <span className="text-gray-600">Location:</span>{" "}
+                                {selectedClassroom?.location}
                             </p>
                             <p className="text-sm text-gray-700">
-                                <span className="text-gray-600">Type:</span> {selectedClassroom?.type}
+                                <span className="text-gray-600">Type:</span>{" "}
+                                {selectedClassroom?.type}
                             </p>
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
@@ -1617,7 +1625,8 @@ const handleClearAllClassrooms = async () => {
                                 className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
                             />
                             <p className="text-xs text-gray-600 mt-1">
-                                CSV should contain columns: code, name, location, type, capacity
+                                CSV should contain columns: code, name,
+                                location, type, capacity
                             </p>
                         </div>
 
@@ -1693,7 +1702,6 @@ const handleClearAllClassrooms = async () => {
                         <Button
                             variant="outline"
                             onClick={() => {
-                                
                                 resetImportState();
                                 setIsImportDialogOpen(false);
                             }}
@@ -1715,41 +1723,46 @@ const handleClearAllClassrooms = async () => {
                 </DialogContent>
             </Dialog>
             {/* Clear All Classrooms Dialog */}
-<Dialog
-    open={isClearAllDialogOpen}
-    onOpenChange={setIsClearAllDialogOpen}
->
-    <DialogContent className="bg-white max-w-md">
-        <DialogHeader className="border-b border-gray-200 pb-3">
-            <DialogTitle className="text-lg font-semibold text-gray-900">Clear All Classrooms</DialogTitle>
-        </DialogHeader>
-
-        <div className="py-4">
-            <p className="text-sm text-gray-600 mb-2">
-                Are you sure you want to delete all {classrooms.length} classrooms?
-            </p>
-            <p className="text-xs text-red-600 font-medium">This action cannot be undone.</p>
-        </div>
-
-        <DialogFooter className="border-t border-gray-200 pt-3">
-            <Button
-                variant="outline"
-                onClick={() => setIsClearAllDialogOpen(false)}
-                disabled={isLoading}
-                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+            <Dialog
+                open={isClearAllDialogOpen}
+                onOpenChange={setIsClearAllDialogOpen}
             >
-                Cancel
-            </Button>
-            <Button
-                onClick={handleClearAllClassrooms}
-                disabled={isLoading}
-                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
-            >
-                Delete All
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
+                <DialogContent className="bg-white max-w-md">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Clear All Classrooms
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="py-4">
+                        <p className="text-sm text-gray-600 mb-2">
+                            Are you sure you want to delete all{" "}
+                            {classrooms.length} classrooms?
+                        </p>
+                        <p className="text-xs text-red-600 font-medium">
+                            This action cannot be undone.
+                        </p>
+                    </div>
+
+                    <DialogFooter className="border-t border-gray-200 pt-3">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsClearAllDialogOpen(false)}
+                            disabled={isLoading}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleClearAllClassrooms}
+                            disabled={isLoading}
+                            className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                        >
+                            Delete All
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

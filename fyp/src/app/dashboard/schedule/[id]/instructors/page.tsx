@@ -19,11 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import {
-    instructorSchema,
-    validateAgainstExistingEmails,
-    validateInstructorsWithUniqueEmails,
-} from "@/lib/validations/instructors";
+import { instructorSchema } from "@/lib/validations/instructors";
 import { Download, Pencil, Plus, Search, Trash, Upload, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import Papa from "papaparse";
@@ -32,6 +28,16 @@ import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
 const ITEMS_PER_PAGE = 20;
+
+// Validation state interface
+interface ValidationErrors {
+    instructor_id?: string;
+    first_name?: string;
+    last_name?: string;
+    gender?: string;
+    email?: string;
+    phone_number?: string;
+}
 
 export default function InstructorsView() {
     const params = useParams();
@@ -43,7 +49,8 @@ export default function InstructorsView() {
         text: string;
         type: "success" | "error";
     } | null>(null);
-    const [selectedInstructor, setSelectedInstructor] = useState<Instructor | null>(null);
+    const [selectedInstructor, setSelectedInstructor] =
+        useState<Instructor | null>(null);
     const [formData, setFormData] = useState<InstructorFormData>({
         instructor_id: "",
         first_name: "",
@@ -53,6 +60,11 @@ export default function InstructorsView() {
         phone_number: "",
     });
     const [currentPage, setCurrentPage] = useState(1);
+
+    // Validation errors state
+    const [validationErrors, setValidationErrors] = useState<ValidationErrors>(
+        {}
+    );
 
     // Import state
     const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -69,11 +81,174 @@ export default function InstructorsView() {
         isImporting: false,
     });
 
+    // Search and pagination state
+    const [searchQuery, setSearchQuery] = useState("");
+    const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
+
+    // Real-time validation functions
+    const validateInstructorId = async (
+        instructorId: string
+    ): Promise<string | undefined> => {
+        if (!instructorId.trim()) {
+            return undefined; // Optional field
+        }
+
+        // Check for uniqueness in existing instructors
+        const existingInstructor = instructors.find(
+            (instructor) =>
+                instructor.instructor_id === instructorId.trim() &&
+                (!selectedInstructor || instructor.id !== selectedInstructor.id)
+        );
+
+        if (existingInstructor) {
+            return "Instructor ID already exists";
+        }
+
+        return undefined;
+    };
+
+    const validateFirstName = (firstName: string): string | undefined => {
+        if (!firstName.trim()) {
+            return "First name is required";
+        }
+        if (firstName.trim().length < 2) {
+            return "First name must be at least 2 characters";
+        }
+        if (!/^[a-zA-Z\s]+$/.test(firstName.trim())) {
+            return "First name can only contain letters and spaces";
+        }
+        return undefined;
+    };
+
+    const validateLastName = (lastName: string): string | undefined => {
+        if (!lastName.trim()) {
+            return "Last name is required";
+        }
+        if (lastName.trim().length < 2) {
+            return "Last name must be at least 2 characters";
+        }
+        if (!/^[a-zA-Z\s]+$/.test(lastName.trim())) {
+            return "Last name can only contain letters and spaces";
+        }
+        return undefined;
+    };
+
+    const validateGender = (gender: string): string | undefined => {
+        if (!gender) {
+            return "Gender is required";
+        }
+        return undefined;
+    };
+
+    const validateEmail = (email: string): string | undefined => {
+        if (!email.trim()) {
+            return "Email is required";
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email.trim())) {
+            return "Please enter a valid email address";
+        }
+
+        // Check for uniqueness
+        const existingInstructor = instructors.find(
+            (instructor) =>
+                instructor.email === email.trim() &&
+                (!selectedInstructor || instructor.id !== selectedInstructor.id)
+        );
+
+        if (existingInstructor) {
+            return "Email already exists";
+        }
+
+        return undefined;
+    };
+
+    const validatePhoneNumber = (phoneNumber: string): string | undefined => {
+        if (!phoneNumber.trim()) {
+            return undefined; // Optional field
+        }
+
+        // Allow only numbers, spaces, hyphens, parentheses, and plus sign
+        const phoneRegex = /^[\d\s\-\(\)\+]+$/;
+        if (!phoneRegex.test(phoneNumber.trim())) {
+            return "Phone number can only contain numbers and symbols (+ - ( ) space)";
+        }
+
+        // Check minimum length (at least 7 digits)
+        const digitsOnly = phoneNumber.replace(/[^\d]/g, "");
+        if (digitsOnly.length < 7) {
+            return "Phone number must contain at least 7 digits";
+        }
+
+        return undefined;
+    };
+
+    // Real-time validation on form data change
+    const validateFormField = async (fieldName: string, value: string) => {
+        let error: string | undefined;
+
+        switch (fieldName) {
+            case "instructor_id":
+                error = await validateInstructorId(value);
+                break;
+            case "first_name":
+                error = validateFirstName(value);
+                break;
+            case "last_name":
+                error = validateLastName(value);
+                break;
+            case "gender":
+                error = validateGender(value);
+                break;
+            case "email":
+                error = validateEmail(value);
+                break;
+            case "phone_number":
+                error = validatePhoneNumber(value);
+                break;
+        }
+
+        setValidationErrors((prev) => ({
+            ...prev,
+            [fieldName]: error,
+        }));
+    };
+
+    // Check if form has any validation errors
+    const hasValidationErrors = (): boolean => {
+        // Check for existing errors
+        const hasErrors = Object.values(validationErrors).some(
+            (error) => error !== undefined
+        );
+        if (hasErrors) return true;
+
+        // Check for required fields
+        if (
+            !formData.first_name.trim() ||
+            !formData.last_name.trim() ||
+            !formData.gender ||
+            !formData.email.trim()
+        ) {
+            return true;
+        }
+
+        return false;
+    };
+
+    // Format phone number input to allow only valid characters
+    const formatPhoneInput = (value: string): string => {
+        // Remove any characters that aren't digits, spaces, hyphens, parentheses, or plus
+        return value.replace(/[^\d\s\-\(\)\+]/g, "");
+    };
+
     // Fetch instructors from API
     const fetchInstructors = async () => {
         try {
             const scheduleId = params.id;
-            const response = await fetch(`/api/instructors/?scheduleId=${scheduleId}`);
+            const response = await fetch(
+                `/api/instructors/?scheduleId=${scheduleId}`
+            );
             if (!response.ok) {
                 throw new Error("Failed to fetch instructors");
             }
@@ -94,24 +269,49 @@ export default function InstructorsView() {
         fetchInstructors();
     }, []);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = async (
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
         const { name, value } = e.target;
+
+        let processedValue = value;
+
+        // Special formatting for phone number
+        if (name === "phone_number") {
+            processedValue = formatPhoneInput(value);
+        }
+
+        setFormData({
+            ...formData,
+            [name]: processedValue,
+        });
+
+        // Validate field in real-time
+        await validateFormField(name, processedValue);
+    };
+
+    const handleSelectChange = async (name: string, value: string) => {
         setFormData({
             ...formData,
             [name]: value,
         });
+
+        // Validate field in real-time
+        await validateFormField(name, value);
     };
 
-    const handleSelectChange = (name: string, value: string) => {
-        setFormData({
-            ...formData,
-            [name]: value,
-        });
-    };
-
-    // FIXED: Add Instructor with consistent field mapping
+    // FIXED: Add Instructor with enhanced validation
     const handleAddInstructor = async () => {
         try {
+            // Final validation before submit
+            if (hasValidationErrors()) {
+                setStatusMessage({
+                    text: "Please fix all validation errors before submitting",
+                    type: "error",
+                });
+                return;
+            }
+
             // Validate form data with Zod
             const validatedData = instructorSchema.parse({
                 first_name: formData.first_name,
@@ -121,30 +321,15 @@ export default function InstructorsView() {
                 phone_number: formData.phone_number,
             });
 
-            // Check if email already exists
-            const existingInstructor = instructors.find(
-                (instructor) =>
-                    instructor.email === validatedData.email
-            );
-
-            if (existingInstructor) {
-                setStatusMessage({
-                    text: "An instructor with this email already exists",
-                    type: "error",
-                });
-                return;
-            }
-
             const scheduleId = params.id;
-            // FIXED: Consistent API data structure
             const apiData = {
-                instructor_id: formData.instructor_id || "", // Include instructor_id
+                instructor_id: formData.instructor_id || "",
                 first_name: validatedData.first_name,
                 last_name: validatedData.last_name,
                 gender: validatedData.gender,
                 email: validatedData.email,
                 phone_number: validatedData.phone_number || "",
-                schedule_id: Number(scheduleId), // Use schedule_id to match database
+                schedule_id: Number(scheduleId),
             };
 
             const response = await fetch("/api/instructors", {
@@ -157,7 +342,9 @@ export default function InstructorsView() {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to create instructor");
+                throw new Error(
+                    errorData.error || "Failed to create instructor"
+                );
             }
 
             await fetchInstructors();
@@ -179,18 +366,30 @@ export default function InstructorsView() {
             } else {
                 console.error("Error adding instructor:", error);
                 setStatusMessage({
-                    text: error instanceof Error ? error.message : "Failed to add instructor. Please try again.",
+                    text:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to add instructor. Please try again.",
                     type: "error",
                 });
             }
         }
     };
 
-    // FIXED: Edit Instructor with consistent field mapping
+    // FIXED: Edit Instructor with enhanced validation
     const handleEditInstructor = async () => {
         if (!selectedInstructor) return;
 
         try {
+            // Final validation before submit
+            if (hasValidationErrors()) {
+                setStatusMessage({
+                    text: "Please fix all validation errors before submitting",
+                    type: "error",
+                });
+                return;
+            }
+
             // Validate form data with Zod
             const validatedData = instructorSchema.parse({
                 first_name: formData.first_name,
@@ -200,22 +399,6 @@ export default function InstructorsView() {
                 phone_number: formData.phone_number,
             });
 
-            // Check if email already exists (excluding current instructor)
-            const existingInstructor = instructors.find(
-                (instructor) =>
-                    instructor.email === validatedData.email&&
-                    instructor.id !== selectedInstructor.id
-            );
-
-            if (existingInstructor) {
-                setStatusMessage({
-                    text: "Another instructor with this email already exists",
-                    type: "error",
-                });
-                return;
-            }
-
-            // FIXED: Consistent API data structure
             const apiData = {
                 id: selectedInstructor.id,
                 instructor_id: formData.instructor_id,
@@ -236,7 +419,9 @@ export default function InstructorsView() {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to update instructor");
+                throw new Error(
+                    errorData.error || "Failed to update instructor"
+                );
             }
 
             await fetchInstructors();
@@ -258,7 +443,10 @@ export default function InstructorsView() {
             } else {
                 console.error("Error updating instructor:", error);
                 setStatusMessage({
-                    text: error instanceof Error ? error.message : "Failed to update instructor. Please try again.",
+                    text:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to update instructor. Please try again.",
                     type: "error",
                 });
             }
@@ -279,7 +467,9 @@ export default function InstructorsView() {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to delete instructor");
+                throw new Error(
+                    errorData.error || "Failed to delete instructor"
+                );
             }
 
             await fetchInstructors();
@@ -320,10 +510,11 @@ export default function InstructorsView() {
             Papa.parse(importFile, {
                 header: true,
                 skipEmptyLines: true,
-                transformHeader: (header) => header.trim().toLowerCase().replace(/\s+/g, "_"),
+                transformHeader: (header) =>
+                    header.trim().toLowerCase().replace(/\s+/g, "_"),
                 complete: async (results) => {
                     const csvData = results.data as any[];
-                    
+
                     // Manual validation for CSV data
                     const validInstructors: any[] = [];
                     const errors: string[] = [];
@@ -334,11 +525,15 @@ export default function InstructorsView() {
 
                         // Validate required fields
                         if (!row.first_name?.trim()) {
-                            errors.push(`Row ${rowNumber}: First name is required`);
+                            errors.push(
+                                `Row ${rowNumber}: First name is required`
+                            );
                             continue;
                         }
                         if (!row.last_name?.trim()) {
-                            errors.push(`Row ${rowNumber}: Last name is required`);
+                            errors.push(
+                                `Row ${rowNumber}: Last name is required`
+                            );
                             continue;
                         }
                         if (!row.email?.trim()) {
@@ -353,33 +548,74 @@ export default function InstructorsView() {
                         // Validate email format
                         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                         if (!emailRegex.test(row.email.trim())) {
-                            errors.push(`Row ${rowNumber}: Invalid email format`);
+                            errors.push(
+                                `Row ${rowNumber}: Invalid email format`
+                            );
                             continue;
                         }
 
                         // Validate gender
-                        const validGenders = ["Male", "Female", "male", "female"];
+                        const validGenders = [
+                            "Male",
+                            "Female",
+                            "male",
+                            "female",
+                        ];
                         if (!validGenders.includes(row.gender.trim())) {
-                            errors.push(`Row ${rowNumber}: Gender must be 'Male' or 'Female'`);
+                            errors.push(
+                                `Row ${rowNumber}: Gender must be 'Male' or 'Female'`
+                            );
                             continue;
                         }
 
                         // Check for duplicate emails in CSV
                         const duplicateInCsv = validInstructors.find(
-                            (existing) => existing.email=== row.email.trim()
+                            (existing) => existing.email === row.email.trim()
                         );
                         if (duplicateInCsv) {
-                            errors.push(`Row ${rowNumber}: Duplicate email in CSV: ${row.email}`);
+                            errors.push(
+                                `Row ${rowNumber}: Duplicate email in CSV: ${row.email}`
+                            );
                             continue;
                         }
 
                         // Check against existing instructors
                         const existingInstructor = instructors.find(
-                            (instructor) => instructor.email === row.email.trim()
+                            (instructor) =>
+                                instructor.email === row.email.trim()
                         );
                         if (existingInstructor) {
-                            errors.push(`Row ${rowNumber}: Email already exists in system: ${row.email}`);
+                            errors.push(
+                                `Row ${rowNumber}: Email already exists in system: ${row.email}`
+                            );
                             continue;
+                        }
+
+                        // Check for duplicate instructor IDs if provided
+                        if (row.instructor_id?.trim()) {
+                            const duplicateIdInCsv = validInstructors.find(
+                                (existing) =>
+                                    existing.instructor_id ===
+                                    row.instructor_id.trim()
+                            );
+                            if (duplicateIdInCsv) {
+                                errors.push(
+                                    `Row ${rowNumber}: Duplicate instructor ID in CSV: ${row.instructor_id}`
+                                );
+                                continue;
+                            }
+
+                            const existingId = instructors.find(
+                                (instructor) =>
+                                    instructor.instructor_id ===
+                                    row.instructor_id.trim()
+                            );
+                            if (existingId) {
+                                errors.push(
+                                    `Row ${rowNumber}: Instructor ID already exists: ${row.instructor_id}`
+                                );
+                                continue;
+                            }
                         }
 
                         // Add valid instructor
@@ -387,7 +623,9 @@ export default function InstructorsView() {
                             instructor_id: row.instructor_id?.trim() || "",
                             first_name: row.first_name.trim(),
                             last_name: row.last_name.trim(),
-                            gender: row.gender.trim().charAt(0).toUpperCase() + row.gender.trim().slice(1).toLowerCase(),
+                            gender:
+                                row.gender.trim().charAt(0).toUpperCase() +
+                                row.gender.trim().slice(1).toLowerCase(),
                             email: row.email.trim(),
                             phone_number: row.phone_number?.trim() || "",
                         });
@@ -404,7 +642,10 @@ export default function InstructorsView() {
                             text: "No valid instructors found in the CSV file",
                             type: "error",
                         });
-                        setImportProgress((prev) => ({ ...prev, isImporting: false }));
+                        setImportProgress((prev) => ({
+                            ...prev,
+                            isImporting: false,
+                        }));
                         return;
                     }
 
@@ -435,15 +676,23 @@ export default function InstructorsView() {
                             if (!response.ok) {
                                 const errorData = await response.json();
                                 importErrors.push(
-                                    `Failed to import ${instructor.first_name} ${instructor.last_name}: ${errorData.error || "Unknown error"}`
+                                    `Failed to import ${
+                                        instructor.first_name
+                                    } ${instructor.last_name}: ${
+                                        errorData.error || "Unknown error"
+                                    }`
                                 );
                             } else {
                                 completed++;
                             }
                         } catch (error) {
                             importErrors.push(
-                                `Failed to import ${instructor.first_name} ${instructor.last_name}: ${
-                                    error instanceof Error ? error.message : "Unknown error"
+                                `Failed to import ${instructor.first_name} ${
+                                    instructor.last_name
+                                }: ${
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Unknown error"
                                 }`
                             );
                         }
@@ -454,18 +703,28 @@ export default function InstructorsView() {
                             errors: importErrors,
                         }));
 
-                        await new Promise((resolve) => setTimeout(resolve, 100));
+                        await new Promise((resolve) =>
+                            setTimeout(resolve, 100)
+                        );
                     }
 
-                    setImportProgress((prev) => ({ ...prev, isImporting: false }));
+                    setImportProgress((prev) => ({
+                        ...prev,
+                        isImporting: false,
+                    }));
                     await fetchInstructors();
 
                     if (completed > 0) {
                         setStatusMessage({
                             text: `Successfully imported ${completed} instructor(s)${
-                                importErrors.length > 0 ? ` with ${importErrors.length} error(s)` : ""
+                                importErrors.length > 0
+                                    ? ` with ${importErrors.length} error(s)`
+                                    : ""
                             }`,
-                            type: completed === validInstructors.length ? "success" : "error",
+                            type:
+                                completed === validInstructors.length
+                                    ? "success"
+                                    : "error",
                         });
                     } else {
                         setStatusMessage({
@@ -480,7 +739,10 @@ export default function InstructorsView() {
                         text: "Failed to parse CSV file. Please check the file format.",
                         type: "error",
                     });
-                    setImportProgress((prev) => ({ ...prev, isImporting: false }));
+                    setImportProgress((prev) => ({
+                        ...prev,
+                        isImporting: false,
+                    }));
                 },
             });
         } catch (error) {
@@ -498,7 +760,7 @@ export default function InstructorsView() {
         // FIXED: Include all fields including instructor_id
         const headers = [
             "instructor_id",
-            "first_name", 
+            "first_name",
             "last_name",
             "gender",
             "email",
@@ -520,7 +782,11 @@ export default function InstructorsView() {
                 row
                     .map((field) => {
                         const fieldStr = String(field || "");
-                        if (fieldStr.includes(",") || fieldStr.includes('"') || fieldStr.includes("\n")) {
+                        if (
+                            fieldStr.includes(",") ||
+                            fieldStr.includes('"') ||
+                            fieldStr.includes("\n")
+                        ) {
                             return `"${fieldStr.replace(/"/g, '""')}"`;
                         }
                         return fieldStr;
@@ -529,7 +795,9 @@ export default function InstructorsView() {
             )
             .join("\n");
 
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const blob = new Blob([csvContent], {
+            type: "text/csv;charset=utf-8;",
+        });
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
         link.setAttribute("href", url);
@@ -588,11 +856,12 @@ export default function InstructorsView() {
             email: "",
             phone_number: "",
         });
+        setValidationErrors({});
         setSelectedInstructor(null);
     };
 
     // FIXED: Include instructor_id in edit dialog
-    const openEditDialog = (instructor: Instructor) => {
+    const openEditDialog = async (instructor: Instructor) => {
         resetForm();
         setSelectedInstructor(instructor);
         setFormData({
@@ -616,6 +885,36 @@ export default function InstructorsView() {
         setIsAddDialogOpen(true);
     };
 
+    const handleClearAllInstructors = async () => {
+        try {
+            const scheduleId = params.id;
+            // Delete all instructors one by one
+            const deletePromises = instructors.map((instructor) =>
+                fetch("/api/instructors", {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ id: instructor.id }),
+                })
+            );
+
+            await Promise.all(deletePromises);
+            await fetchInstructors();
+            setIsClearAllDialogOpen(false);
+            setStatusMessage({
+                text: `Successfully deleted ${instructors.length} instructors`,
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error clearing all instructors:", error);
+            setStatusMessage({
+                text: "Failed to delete all instructors. Please try again.",
+                type: "error",
+            });
+        }
+    };
+
     // Clear status message after 5 seconds
     useEffect(() => {
         if (statusMessage) {
@@ -627,64 +926,69 @@ export default function InstructorsView() {
     }, [statusMessage]);
 
     // Calculate pagination values
-    const [searchQuery, setSearchQuery] = useState("");
+    const filteredInstructors = useMemo(() => {
+        if (!searchQuery.trim()) return instructors;
 
-// Add this filtered instructors logic after your existing state
-const filteredInstructors = useMemo(() => {
-    if (!searchQuery.trim()) return instructors;
-    
-    const query = searchQuery.toLowerCase();
-    return instructors.filter(instructor =>
-        instructor.first_name.toLowerCase().includes(query) ||
-        instructor.last_name.toLowerCase().includes(query) ||
-        instructor.email.toLowerCase().includes(query) ||
-        (instructor.instructor_id && instructor.instructor_id.toLowerCase().includes(query)) ||
-        (instructor.phone_number && instructor.phone_number.includes(query))
-    );
-}, [instructors, searchQuery]);
-
-// Update your pagination logic to use filteredInstructors instead of instructors
-const totalPages = Math.ceil(filteredInstructors.length / ITEMS_PER_PAGE);
-const paginatedInstructors = filteredInstructors.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-);
-// Add this state variable with your other useState declarations
-const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
-
-// Add this function with your other handler functions
-const handleClearAllInstructors = async () => {
-    try {
-        // Delete all instructors one by one
-        const deletePromises = instructors.map(instructor =>
-            fetch("/api/instructors?scheduleId=${scheduleId", {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ id: instructor.id }),
-            })
+        const query = searchQuery.toLowerCase();
+        return instructors.filter(
+            (instructor) =>
+                instructor.first_name.toLowerCase().includes(query) ||
+                instructor.last_name.toLowerCase().includes(query) ||
+                instructor.email.toLowerCase().includes(query) ||
+                (instructor.instructor_id &&
+                    instructor.instructor_id.toLowerCase().includes(query)) ||
+                (instructor.phone_number &&
+                    instructor.phone_number.includes(query))
         );
+    }, [instructors, searchQuery]);
 
-        await Promise.all(deletePromises);
-        await fetchInstructors();
-        setIsClearAllDialogOpen(false);
-        setStatusMessage({
-            text: `Successfully deleted ${instructors.length} instructors`,
-            type: "success",
-        });
-    } catch (error) {
-        console.error("Error clearing all instructors:", error);
-        setStatusMessage({
-            text: "Failed to delete all instructors. Please try again.",
-            type: "error",
-        });
-    }
-};
+    // Update your pagination logic to use filteredInstructors instead of instructors
+    const totalPages = Math.ceil(filteredInstructors.length / ITEMS_PER_PAGE);
+    const paginatedInstructors = filteredInstructors.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
 
+    // Enhanced form field rendering with validation
+    const renderFormField = (
+        id: string,
+        name: string,
+        label: string,
+        value: string,
+        placeholder: string,
+        required: boolean = false,
+        type: string = "text"
+    ) => (
+        <div className="space-y-2">
+            <Label htmlFor={id} className="text-sm font-medium text-gray-700">
+                {label} {required && <span className="text-red-500">*</span>}
+            </Label>
+            <Input
+                id={id}
+                name={name}
+                type={type}
+                value={value}
+                onChange={handleInputChange}
+                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                    validationErrors[name as keyof ValidationErrors]
+                        ? "border-red-300 focus:border-red-500 animate-pulse"
+                        : ""
+                }`}
+                placeholder={placeholder}
+                required={required}
+            />
+            {validationErrors[name as keyof ValidationErrors] && (
+                <div className="flex items-center gap-1">
+                    <span className="text-red-500 text-xs">❌</span>
+                    <p className="text-xs text-red-600 font-medium">
+                        {validationErrors[name as keyof ValidationErrors]}
+                    </p>
+                </div>
+            )}
+        </div>
+    );
 
     return (
-        
         <div className="space-y-4">
             {statusMessage && (
                 <div
@@ -701,10 +1005,14 @@ const handleClearAllInstructors = async () => {
             {/* Page Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Instructors</h2>
-                    <p className="text-xs text-gray-600">Manage instructor information and details</p>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                        Instructors
+                    </h2>
+                    <p className="text-xs text-gray-600">
+                        Manage instructor information and details
+                    </p>
                 </div>
-              
+
                 <div className="flex gap-2">
                     <Button
                         onClick={() => setIsImportDialogOpen(true)}
@@ -728,15 +1036,16 @@ const handleClearAllInstructors = async () => {
                         <Plus className="mr-1 h-3 w-3" /> New Instructor
                     </Button>
                     <Button
-    onClick={() => setIsClearAllDialogOpen(true)}
-    variant="outline"
-    className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
-    disabled={instructors.length === 0}
->
-<Trash className="mr-1 h-3 w-3" /> Clear All
-</Button>
+                        onClick={() => setIsClearAllDialogOpen(true)}
+                        variant="outline"
+                        className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
+                        disabled={instructors.length === 0}
+                    >
+                        <Trash className="mr-1 h-3 w-3" /> Clear All
+                    </Button>
                 </div>
             </div>
+
             <div className="relative max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
@@ -762,77 +1071,127 @@ const handleClearAllInstructors = async () => {
                     </Button>
                 )}
             </div>
+
             {/* Table */}
             <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="bg-[#2F2F85] text-white">
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">No.</th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">Instructor ID</th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">First Name</th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">Last Name</th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">Gender</th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">Email</th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">Phone</th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">Actions</th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                    No.
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Instructor ID
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    First Name
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Last Name
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
+                                    Gender
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Email
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    Phone
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
+                                    Actions
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                        {filteredInstructors.length === 0 ? (
-    <tr>
-        <td colSpan={8} className="px-3 py-8 text-center text-gray-500 text-sm">
-            <div className="space-y-1">
-                <div>
-                    {searchQuery ? `No instructors found for "${searchQuery}"` : "No instructors found"}
-                </div>
-                <div className="text-xs">
-                    {searchQuery ? "Try a different search term" : "Add a new instructor to get started."}
-                </div>
-            </div>
-        </td>
-    </tr>
-) : (
-                                paginatedInstructors.map((instructor, index) => (
-                                    <tr
-                                        key={instructor.id}
-                                        className={`hover:bg-gray-50 transition-colors ${
-                                            index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                                        }`}
+                            {filteredInstructors.length === 0 ? (
+                                <tr>
+                                    <td
+                                        colSpan={8}
+                                        className="px-3 py-8 text-center text-gray-500 text-sm"
                                     >
-                                        <td className="px-3 py-2 text-xs text-gray-600 font-medium">
-                                            {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
-                                        </td>
-                                        <td className="px-3 py-2 text-xs font-medium text-gray-900">
-                                            {instructor.instructor_id || "-"}
-                                        </td>
-                                        <td className="px-3 py-2 text-xs font-medium text-gray-900">{instructor.first_name}</td>
-                                        <td className="px-3 py-2 text-xs font-medium text-gray-900">{instructor.last_name}</td>
-                                        <td className="px-3 py-2 text-xs text-gray-900">{instructor.gender}</td>
-                                        <td className="px-3 py-2 text-xs text-gray-900">{instructor.email}</td>
-                                        <td className="px-3 py-2 text-xs text-gray-900">{instructor.phone_number || "-"}</td>
-                                        <td className="px-3 py-2">
-                                            <div className="flex gap-1">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
-                                                    onClick={() => openEditDialog(instructor)}
-                                                >
-                                                    <Pencil className="h-3 w-3" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
-                                                    onClick={() => openDeleteDialog(instructor)}
-                                                >
-                                                    <Trash className="h-3 w-3" />
-                                                </Button>
+                                        <div className="space-y-1">
+                                            <div>
+                                                {searchQuery
+                                                    ? `No instructors found for "${searchQuery}"`
+                                                    : "No instructors found"}
                                             </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                            <div className="text-xs">
+                                                {searchQuery
+                                                    ? "Try a different search term"
+                                                    : "Add a new instructor to get started."}
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : (
+                                paginatedInstructors.map(
+                                    (instructor, index) => (
+                                        <tr
+                                            key={instructor.id}
+                                            className={`hover:bg-gray-50 transition-colors ${
+                                                index % 2 === 0
+                                                    ? "bg-white"
+                                                    : "bg-gray-50"
+                                            }`}
+                                        >
+                                            <td className="px-3 py-2 text-xs text-gray-600 font-medium">
+                                                {(currentPage - 1) *
+                                                    ITEMS_PER_PAGE +
+                                                    index +
+                                                    1}
+                                            </td>
+                                            <td className="px-3 py-2 text-xs font-medium text-gray-900">
+                                                {instructor.instructor_id ||
+                                                    "-"}
+                                            </td>
+                                            <td className="px-3 py-2 text-xs font-medium text-gray-900">
+                                                {instructor.first_name}
+                                            </td>
+                                            <td className="px-3 py-2 text-xs font-medium text-gray-900">
+                                                {instructor.last_name}
+                                            </td>
+                                            <td className="px-3 py-2 text-xs text-gray-900">
+                                                {instructor.gender}
+                                            </td>
+                                            <td className="px-3 py-2 text-xs text-gray-900">
+                                                {instructor.email}
+                                            </td>
+                                            <td className="px-3 py-2 text-xs text-gray-900">
+                                                {instructor.phone_number || "-"}
+                                            </td>
+                                            <td className="px-3 py-2">
+                                                <div className="flex gap-1">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                        onClick={() =>
+                                                            openEditDialog(
+                                                                instructor
+                                                            )
+                                                        }
+                                                    >
+                                                        <Pencil className="h-3 w-3" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                        onClick={() =>
+                                                            openDeleteDialog(
+                                                                instructor
+                                                            )
+                                                        }
+                                                    >
+                                                        <Trash className="h-3 w-3" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )
+                                )
                             )}
                         </tbody>
                     </table>
@@ -860,102 +1219,97 @@ const handleClearAllInstructors = async () => {
             >
                 <DialogContent className="bg-white max-w-lg">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Add New Instructor</DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Add New Instructor
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4 space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="instructor_id" className="text-sm font-medium text-gray-700">
-                                Instructor ID
-                            </Label>
-                            <Input
-                                id="instructor_id"
-                                name="instructor_id"
-                                value={formData.instructor_id}
-                                onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                placeholder="Enter instructor ID (optional)"
-                            />
-                        </div>
+                        {renderFormField(
+                            "instructor_id",
+                            "instructor_id",
+                            "Instructor ID",
+                            formData.instructor_id,
+                            "Enter instructor ID (optional)"
+                        )}
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="first_name" className="text-sm font-medium text-gray-700">
-                                    First Name *
-                                </Label>
-                                <Input
-                                    id="first_name"
-                                    name="first_name"
-                                    value={formData.first_name}
-                                    onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                    placeholder="Enter first name"
-                                    required
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="last_name" className="text-sm font-medium text-gray-700">
-                                    Last Name *
-                                </Label>
-                                <Input
-                                    id="last_name"
-                                    name="last_name"
-                                    value={formData.last_name}
-                                    onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                    placeholder="Enter last name"
-                                    required
-                                />
-                            </div>
+                            {renderFormField(
+                                "first_name",
+                                "first_name",
+                                "First Name",
+                                formData.first_name,
+                                "Enter first name",
+                                true
+                            )}
+                            {renderFormField(
+                                "last_name",
+                                "last_name",
+                                "Last Name",
+                                formData.last_name,
+                                "Enter last name",
+                                true
+                            )}
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="gender" className="text-sm font-medium text-gray-700">
-                                Gender *
+                            <Label
+                                htmlFor="gender"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Gender <span className="text-red-500">*</span>
                             </Label>
                             <Select
                                 value={formData.gender}
-                                onValueChange={(value) => handleSelectChange("gender", value)}
+                                onValueChange={(value) =>
+                                    handleSelectChange("gender", value)
+                                }
                             >
-                                <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                                <SelectTrigger
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        validationErrors.gender
+                                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    }`}
+                                >
                                     <SelectValue placeholder="Select gender" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Male">Male</SelectItem>
-                                    <SelectItem value="Female">Female</SelectItem>
+                                    <SelectItem value="Female">
+                                        Female
+                                    </SelectItem>
                                 </SelectContent>
                             </Select>
+                            {validationErrors.gender && (
+                                <div className="flex items-center gap-1">
+                                    <span className="text-red-500 text-xs">
+                                        ❌
+                                    </span>
+                                    <p className="text-xs text-red-600 font-medium">
+                                        {validationErrors.gender}
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="email" className="text-sm font-medium text-gray-700">
-                                Email *
-                            </Label>
-                            <Input
-                                id="email"
-                                name="email"
-                                type="email"
-                                value={formData.email}
-                                onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                placeholder="Enter email address"
-                                required
-                            />
-                        </div>
+                        {renderFormField(
+                            "email",
+                            "email",
+                            "Email",
+                            formData.email,
+                            "Enter email address",
+                            true,
+                            "email"
+                        )}
 
-                        <div className="space-y-2">
-                            <Label htmlFor="phone_number" className="text-sm font-medium text-gray-700">
-                                Phone Number
-                            </Label>
-                            <Input
-                                id="phone_number"
-                                name="phone_number"
-                                value={formData.phone_number}
-                                onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                placeholder="Enter phone number"
-                            />
-                        </div>
+                        {renderFormField(
+                            "phone_number",
+                            "phone_number",
+                            "Phone Number",
+                            formData.phone_number,
+                            "Enter phone number"
+                        )}
                     </div>
 
                     <DialogFooter className="border-t border-gray-200 pt-3">
@@ -971,7 +1325,8 @@ const handleClearAllInstructors = async () => {
                         </Button>
                         <Button
                             onClick={handleAddInstructor}
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                            disabled={hasValidationErrors()}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                         >
                             Add
                         </Button>
@@ -989,98 +1344,97 @@ const handleClearAllInstructors = async () => {
             >
                 <DialogContent className="bg-white max-w-lg">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Edit Instructor</DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Edit Instructor
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4 space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-instructor_id" className="text-sm font-medium text-gray-700">
-                                Instructor ID
-                            </Label>
-                            <Input
-                                id="edit-instructor_id"
-                                name="instructor_id"
-                                value={formData.instructor_id}
-                                onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                placeholder="Enter instructor ID (optional)"
-                            />
-                        </div>
+                        {renderFormField(
+                            "edit-instructor_id",
+                            "instructor_id",
+                            "Instructor ID",
+                            formData.instructor_id,
+                            "Enter instructor ID (optional)"
+                        )}
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-first_name" className="text-sm font-medium text-gray-700">
-                                    First Name *
-                                </Label>
-                                <Input
-                                    id="edit-first_name"
-                                    name="first_name"
-                                    value={formData.first_name}
-                                    onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                    required
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-last_name" className="text-sm font-medium text-gray-700">
-                                    Last Name *
-                                </Label>
-                                <Input
-                                    id="edit-last_name"
-                                    name="last_name"
-                                    value={formData.last_name}
-                                    onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                    required
-                                />
-                            </div>
+                            {renderFormField(
+                                "edit-first_name",
+                                "first_name",
+                                "First Name",
+                                formData.first_name,
+                                "Enter first name",
+                                true
+                            )}
+                            {renderFormField(
+                                "edit-last_name",
+                                "last_name",
+                                "Last Name",
+                                formData.last_name,
+                                "Enter last name",
+                                true
+                            )}
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="edit-gender" className="text-sm font-medium text-gray-700">
-                                Gender *
+                            <Label
+                                htmlFor="edit-gender"
+                                className="text-sm font-medium text-gray-700"
+                            >
+                                Gender <span className="text-red-500">*</span>
                             </Label>
                             <Select
                                 value={formData.gender}
-                                onValueChange={(value) => handleSelectChange("gender", value)}
+                                onValueChange={(value) =>
+                                    handleSelectChange("gender", value)
+                                }
                             >
-                                <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
+                                <SelectTrigger
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        validationErrors.gender
+                                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    }`}
+                                >
                                     <SelectValue placeholder="Select gender" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Male">Male</SelectItem>
-                                    <SelectItem value="Female">Female</SelectItem>
+                                    <SelectItem value="Female">
+                                        Female
+                                    </SelectItem>
                                 </SelectContent>
                             </Select>
+                            {validationErrors.gender && (
+                                <div className="flex items-center gap-1">
+                                    <span className="text-red-500 text-xs">
+                                        ❌
+                                    </span>
+                                    <p className="text-xs text-red-600 font-medium">
+                                        {validationErrors.gender}
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-email" className="text-sm font-medium text-gray-700">
-                                Email *
-                            </Label>
-                            <Input
-                                id="edit-email"
-                                name="email"
-                                type="email"
-                                value={formData.email}
-                                onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                                required
-                            />
-                        </div>
+                        {renderFormField(
+                            "edit-email",
+                            "email",
+                            "Email",
+                            formData.email,
+                            "Enter email address",
+                            true,
+                            "email"
+                        )}
 
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-phone_number" className="text-sm font-medium text-gray-700">
-                                Phone Number
-                            </Label>
-                            <Input
-                                id="edit-phone_number"
-                                name="phone_number"
-                                value={formData.phone_number}
-                                onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                            />
-                        </div>
+                        {renderFormField(
+                            "edit-phone_number",
+                            "phone_number",
+                            "Phone Number",
+                            formData.phone_number,
+                            "Enter phone number"
+                        )}
                     </div>
 
                     <DialogFooter className="border-t border-gray-200 pt-3">
@@ -1096,7 +1450,8 @@ const handleClearAllInstructors = async () => {
                         </Button>
                         <Button
                             onClick={handleEditInstructor}
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                            disabled={hasValidationErrors()}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                         >
                             Save
                         </Button>
@@ -1114,7 +1469,9 @@ const handleClearAllInstructors = async () => {
             >
                 <DialogContent className="bg-white max-w-md">
                     <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Delete Instructor</DialogTitle>
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Delete Instructor
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4">
@@ -1122,9 +1479,12 @@ const handleClearAllInstructors = async () => {
                             Are you sure you want to delete this instructor?
                         </p>
                         <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
-                            {selectedInstructor?.first_name} {selectedInstructor?.last_name}
+                            {selectedInstructor?.first_name}{" "}
+                            {selectedInstructor?.last_name}
                         </p>
-                        <p className="text-xs text-gray-500 mt-2">This action cannot be undone.</p>
+                        <p className="text-xs text-gray-500 mt-2">
+                            This action cannot be undone.
+                        </p>
                     </div>
 
                     <DialogFooter className="border-t border-gray-200 pt-3">
@@ -1165,7 +1525,10 @@ const handleClearAllInstructors = async () => {
 
                     <div className="py-4 space-y-4">
                         <div>
-                            <Label htmlFor="csv-file" className="text-sm font-medium text-gray-700">
+                            <Label
+                                htmlFor="csv-file"
+                                className="text-sm font-medium text-gray-700"
+                            >
                                 Select CSV File
                             </Label>
                             <Input
@@ -1177,17 +1540,21 @@ const handleClearAllInstructors = async () => {
                                 className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
                             />
                             <p className="text-xs text-gray-600 mt-1">
-                                CSV should contain columns: instructor_id (optional), first_name, last_name, gender, email, phone_number
+                                CSV should contain columns: instructor_id
+                                (optional), first_name, last_name, gender,
+                                email, phone_number
                             </p>
                         </div>
 
                         {importFile && (
                             <div className="text-xs bg-gray-50 p-2 rounded border">
                                 <p>
-                                    <strong>Selected file:</strong> {importFile.name}
+                                    <strong>Selected file:</strong>{" "}
+                                    {importFile.name}
                                 </p>
                                 <p>
-                                    <strong>Size:</strong> {(importFile.size / 1024).toFixed(2)} KB
+                                    <strong>Size:</strong>{" "}
+                                    {(importFile.size / 1024).toFixed(2)} KB
                                 </p>
                             </div>
                         )}
@@ -1197,7 +1564,8 @@ const handleClearAllInstructors = async () => {
                                 <div className="flex justify-between text-xs">
                                     <span>Progress:</span>
                                     <span>
-                                        {importProgress.completed} / {importProgress.total}
+                                        {importProgress.completed} /{" "}
+                                        {importProgress.total}
                                     </span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2">
@@ -1206,7 +1574,11 @@ const handleClearAllInstructors = async () => {
                                         style={{
                                             width:
                                                 importProgress.total > 0
-                                                    ? `${(importProgress.completed / importProgress.total) * 100}%`
+                                                    ? `${
+                                                          (importProgress.completed /
+                                                              importProgress.total) *
+                                                          100
+                                                      }%`
                                                     : "0%",
                                         }}
                                     ></div>
@@ -1216,13 +1588,20 @@ const handleClearAllInstructors = async () => {
 
                         {importProgress.errors.length > 0 && (
                             <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded border border-red-200">
-                                <p className="text-xs font-medium text-red-600 mb-1">Errors:</p>
+                                <p className="text-xs font-medium text-red-600 mb-1">
+                                    Errors:
+                                </p>
                                 <div className="text-xs space-y-1">
-                                    {importProgress.errors.map((error, index) => (
-                                        <p key={index} className="text-red-600">
-                                            {error}
-                                        </p>
-                                    ))}
+                                    {importProgress.errors.map(
+                                        (error, index) => (
+                                            <p
+                                                key={index}
+                                                className="text-red-600"
+                                            >
+                                                {error}
+                                            </p>
+                                        )
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -1245,44 +1624,53 @@ const handleClearAllInstructors = async () => {
                             disabled={!importFile || importProgress.isImporting}
                             className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
                         >
-                            {importProgress.isImporting ? "Importing..." : "Import"}
+                            {importProgress.isImporting
+                                ? "Importing..."
+                                : "Import"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Clear All Dialog */}
             <Dialog
-    open={isClearAllDialogOpen}
-    onOpenChange={setIsClearAllDialogOpen}
->
-    <DialogContent className="bg-white max-w-md">
-        <DialogHeader className="border-b border-gray-200 pb-3">
-            <DialogTitle className="text-lg font-semibold text-gray-900">Clear All Instructors</DialogTitle>
-        </DialogHeader>
-
-        <div className="py-4">
-            <p className="text-sm text-gray-600 mb-2">
-                Are you sure you want to delete all {instructors.length} instructors?
-            </p>
-            <p className="text-xs text-red-600 font-medium">This action cannot be undone.</p>
-        </div>
-
-        <DialogFooter className="border-t border-gray-200 pt-3">
-            <Button
-                variant="outline"
-                onClick={() => setIsClearAllDialogOpen(false)}
-                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                open={isClearAllDialogOpen}
+                onOpenChange={setIsClearAllDialogOpen}
             >
-                Cancel
-            </Button>
-            <Button
-                onClick={handleClearAllInstructors}
-                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
-            >
-                Delete All
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
+                <DialogContent className="bg-white max-w-md">
+                    <DialogHeader className="border-b border-gray-200 pb-3">
+                        <DialogTitle className="text-lg font-semibold text-gray-900">
+                            Clear All Instructors
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="py-4">
+                        <p className="text-sm text-gray-600 mb-2">
+                            Are you sure you want to delete all{" "}
+                            {instructors.length} instructors?
+                        </p>
+                        <p className="text-xs text-red-600 font-medium">
+                            This action cannot be undone.
+                        </p>
+                    </div>
+
+                    <DialogFooter className="border-t border-gray-200 pt-3">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsClearAllDialogOpen(false)}
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleClearAllInstructors}
+                            className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                        >
+                            Delete All
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
