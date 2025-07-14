@@ -338,10 +338,11 @@ export async function DELETE(request: Request) {
 
         // Validate request body against schema
         const validatedData = deleteInstructorSchema.parse(body);
-
         const { id } = validatedData;
 
-        // FIXED: Check if instructor exists before deletion
+        console.log(`Attempting to delete instructor ${id}`);
+
+        // Check if the instructor exists
         const existingInstructor = await db.query.instructors.findFirst({
             where: eq(instructors.id, id),
         });
@@ -353,20 +354,14 @@ export async function DELETE(request: Request) {
             );
         }
 
-        // Save instructor data before deletion
-        const instructorToDelete = {
-            id: existingInstructor.id,
-            instructor_id: existingInstructor.instructorId,
-            first_name: existingInstructor.firstName,
-            last_name: existingInstructor.lastName,
-        };
-
         // Delete the instructor
         await db.delete(instructors).where(eq(instructors.id, id));
 
+        console.log(`Successfully deleted instructor ${id}`);
+
         return NextResponse.json({
             message: "Instructor deleted successfully",
-            deletedInstructor: instructorToDelete,
+            deletedId: id,
         });
     } catch (error: unknown) {
         console.error("Error deleting instructor:", error);
@@ -384,7 +379,12 @@ export async function DELETE(request: Request) {
         }
 
         return NextResponse.json(
-            { error: "Failed to delete instructor" },
+            {
+                error:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to delete instructor",
+            },
             { status: 500 }
         );
     }

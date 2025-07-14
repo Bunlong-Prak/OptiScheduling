@@ -45,6 +45,7 @@ export default function InstructorsView() {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
     const [statusMessage, setStatusMessage] = useState<{
         text: string;
         type: "success" | "error";
@@ -83,7 +84,6 @@ export default function InstructorsView() {
 
     // Search and pagination state
     const [searchQuery, setSearchQuery] = useState("");
-    const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
 
     // Real-time validation functions
     const validateInstructorId = async (
@@ -242,6 +242,50 @@ export default function InstructorsView() {
         return value.replace(/[^\d\s\-\(\)\+]/g, "");
     };
 
+    // Render form field helper function
+    const renderFormField = (
+        id: string,
+        name: string,
+        label: string,
+        value: string,
+        placeholder: string,
+        required: boolean = false,
+        type: string = "text"
+    ) => {
+        return (
+            <div className="space-y-2">
+                <Label
+                    htmlFor={id}
+                    className="text-sm font-medium text-gray-700"
+                >
+                    {label}{" "}
+                    {required && <span className="text-red-500">*</span>}
+                </Label>
+                <Input
+                    id={id}
+                    name={name}
+                    type={type}
+                    value={value}
+                    onChange={handleInputChange}
+                    placeholder={placeholder}
+                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                        validationErrors[name as keyof ValidationErrors]
+                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                            : ""
+                    }`}
+                />
+                {validationErrors[name as keyof ValidationErrors] && (
+                    <div className="flex items-center gap-1">
+                        <span className="text-red-500 text-xs">❌</span>
+                        <p className="text-xs text-red-600 font-medium">
+                            {validationErrors[name as keyof ValidationErrors]}
+                        </p>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     // Fetch instructors from API
     const fetchInstructors = async () => {
         try {
@@ -300,7 +344,7 @@ export default function InstructorsView() {
         await validateFormField(name, value);
     };
 
-    // FIXED: Add Instructor with enhanced validation
+    // Add Instructor with enhanced validation
     const handleAddInstructor = async () => {
         try {
             // Final validation before submit
@@ -379,7 +423,7 @@ export default function InstructorsView() {
         }
     };
 
-    // FIXED: Edit Instructor with enhanced validation
+    // Edit Instructor with enhanced validation
     const handleEditInstructor = async () => {
         if (!selectedInstructor) return;
 
@@ -417,7 +461,6 @@ export default function InstructorsView() {
                 return;
             }
 
-            // FIXED: Consistent API data structure
             const apiData = {
                 id: selectedInstructor.id,
                 instructor_id: formData.instructor_id,
@@ -480,17 +523,13 @@ export default function InstructorsView() {
         if (!selectedInstructor) return;
 
         try {
-            const scheduleId = params.id;
-            const response = await fetch(
-                `/api/instructors/?scheduleId=${scheduleId}`,
-                {
-                    method: "DELETE",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ id: selectedInstructor.id }),
-                }
-            );
+            const response = await fetch("/api/instructors", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ id: selectedInstructor.id }),
+            });
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -515,7 +554,37 @@ export default function InstructorsView() {
         }
     };
 
-    // FIXED: Import CSV function with proper validation and field mapping
+    // Clear all instructors function
+    const handleClearAllInstructors = async () => {
+        try {
+            const scheduleId = params.id;
+            // Delete all instructors one by one
+            const deletePromises = instructors.map((instructor) =>
+                fetch(`/api/instructors/?scheduleId=${scheduleId}`, {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                })
+            );
+
+            await Promise.all(deletePromises);
+            await fetchInstructors();
+            setIsClearAllDialogOpen(false);
+            setStatusMessage({
+                text: `Successfully deleted ${instructors.length} instructors`,
+                type: "success",
+            });
+        } catch (error) {
+            console.error("Error clearing all instructors:", error);
+            setStatusMessage({
+                text: "Failed to delete all instructors. Please try again.",
+                type: "error",
+            });
+        }
+    };
+
+    // Import CSV function with proper validation and field mapping
     const handleImportCSV = async () => {
         if (!importFile) {
             setStatusMessage({
@@ -785,9 +854,8 @@ export default function InstructorsView() {
         }
     };
 
-    // FIXED: Export CSV function with all fields
+    // Export CSV function with all fields
     const downloadInstructorsCSV = () => {
-        // FIXED: Include all fields including instructor_id
         const headers = [
             "instructor_id",
             "first_name",
@@ -890,7 +958,7 @@ export default function InstructorsView() {
         setSelectedInstructor(null);
     };
 
-    // FIXED: Include instructor_id in edit dialog
+    // Include instructor_id in edit dialog
     const openEditDialog = async (instructor: Instructor) => {
         resetForm();
         setSelectedInstructor(instructor);
@@ -913,36 +981,6 @@ export default function InstructorsView() {
     const openAddDialog = () => {
         resetForm();
         setIsAddDialogOpen(true);
-    };
-
-    const handleClearAllInstructors = async () => {
-        try {
-            const scheduleId = params.id;
-            // Delete all instructors one by one
-            const deletePromises = instructors.map((instructor) =>
-                fetch("/api/instructors", {
-                    method: "DELETE",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ id: instructor.id }),
-                })
-            );
-
-            await Promise.all(deletePromises);
-            await fetchInstructors();
-            setIsClearAllDialogOpen(false);
-            setStatusMessage({
-                text: `Successfully deleted ${instructors.length} instructors`,
-                type: "success",
-            });
-        } catch (error) {
-            console.error("Error clearing all instructors:", error);
-            setStatusMessage({
-                text: "Failed to delete all instructors. Please try again.",
-                type: "error",
-            });
-        }
     };
 
     // Clear status message after 5 seconds
@@ -978,39 +1016,6 @@ export default function InstructorsView() {
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
-    // Add this state variable with your other useState declarations
-    const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
-
-    // Add this function with your other handler functions
-    const handleClearAllInstructors = async () => {
-        try {
-            const scheduleId = params.id;
-            // Delete all instructors one by one
-            const deletePromises = instructors.map((instructor) =>
-                fetch(`/api/instructors/?scheduleId=${scheduleId}`, {
-                    method: "DELETE",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ id: instructor.id }),
-                })
-            );
-
-            await Promise.all(deletePromises);
-            await fetchInstructors();
-            setIsClearAllDialogOpen(false);
-            setStatusMessage({
-                text: `Successfully deleted ${instructors.length} instructors`,
-                type: "success",
-            });
-        } catch (error) {
-            console.error("Error clearing all instructors:", error);
-            setStatusMessage({
-                text: "Failed to delete all instructors. Please try again.",
-                type: "error",
-            });
-        }
-    };
 
     return (
         <div className="space-y-4">

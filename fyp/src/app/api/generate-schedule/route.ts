@@ -96,6 +96,7 @@ type Course = {
     id: number;
     title: string;
     code: string;
+    capacity: number;
     duration: number;
     sections: {
         id: number;
@@ -661,6 +662,130 @@ async function fetchClassrooms(schedule_id: number) {
     }
 }
 
+function validateSchedulingUnitCapacity(
+    unit: SchedulingUnit,
+    classroomId: number,
+    classroomsData: any[]
+): { isValid: boolean; reason?: string; capacityInfo?: any } {
+    console.log("=== CAPACITY VALIDATION FOR SCHEDULING UNIT ===");
+    console.log(`Unit: ${unit.section_number} (${unit.course.code})`);
+    console.log(`Classroom ID: ${classroomId}`);
+
+    // Skip validation for online classrooms (negative IDs)
+    if (classroomId < 0) {
+        console.log("✅ Skipping capacity validation for online classroom");
+        return { isValid: true };
+    }
+
+    // Find the classroom
+    const classroom = classroomsData.find((cls) => cls.id === classroomId);
+    if (!classroom) {
+        console.log("❌ Classroom not found");
+        return {
+            isValid: false,
+            reason: `Classroom with ID ${classroomId} not found`,
+        };
+    }
+
+    // Get course capacity - check multiple possible fields
+    const getCourseCapacity = (course: any): number => {
+        const capacityFields = [
+            "capacity",
+            "enrollmentCount",
+            "studentCount",
+            "maxStudents",
+            "enrollment",
+            "classSize",
+            "students",
+        ];
+
+        for (const field of capacityFields) {
+            const value = course[field];
+            if (value !== undefined && value !== null && value !== "") {
+                const numValue =
+                    typeof value === "string"
+                        ? parseInt(value.trim(), 10)
+                        : Number(value);
+                if (!isNaN(numValue) && numValue >= 0) {
+                    console.log(
+                        `Found course capacity in field '${field}': ${numValue}`
+                    );
+                    return numValue;
+                }
+            }
+        }
+
+        console.log("No course capacity found, defaulting to 0");
+        return 0;
+    };
+
+    const courseCapacity = getCourseCapacity(unit.course);
+    const classroomCapacity = classroom.capacity || 0;
+
+    console.log(
+        `Course capacity: ${courseCapacity}, Classroom capacity: ${classroomCapacity}`
+    );
+
+    // Handle edge cases
+    if (courseCapacity === 0 && classroomCapacity === 0) {
+        console.log("⚠️ Both capacities are 0 - allowing with warning");
+        return {
+            isValid: true,
+            capacityInfo: {
+                courseCapacity,
+                classroomCapacity,
+                warning: "Both course and classroom capacity are unspecified",
+            },
+        };
+    }
+
+    if (courseCapacity === 0) {
+        console.log("⚠️ Course capacity is 0 - allowing with warning");
+        return {
+            isValid: true,
+            capacityInfo: {
+                courseCapacity,
+                classroomCapacity,
+                warning: "Course capacity not specified",
+            },
+        };
+    }
+
+    if (classroomCapacity === 0) {
+        console.log("❌ Classroom capacity is 0 but course needs students");
+        return {
+            isValid: false,
+            reason: `Classroom ${classroom.code} has no specified capacity, but course requires ${courseCapacity} students`,
+        };
+    }
+
+    // Main capacity validation
+    if (courseCapacity > classroomCapacity) {
+        const shortage = courseCapacity - classroomCapacity;
+        console.log(
+            `❌ Capacity exceeded: need ${courseCapacity}, available ${classroomCapacity}`
+        );
+        return {
+            isValid: false,
+            reason: `Course requires ${courseCapacity} students but classroom ${classroom.code} only has ${classroomCapacity} seats (${shortage} short)`,
+        };
+    }
+
+    console.log("✅ Capacity validation passed");
+    const utilizationPercentage = Math.round(
+        (courseCapacity / classroomCapacity) * 100
+    );
+
+    return {
+        isValid: true,
+        capacityInfo: {
+            courseCapacity,
+            classroomCapacity,
+            utilizationPercentage,
+        },
+    };
+}
+
 function validateSeparatedDurations(
     separatedDurations: number[],
     totalDuration: number,
@@ -804,10 +929,14 @@ function scheduleSchedulingUnit(
 ): Assignment | null {
     const duration = unit.duration;
 
+    console.log(
+        `\n=== SCHEDULING UNIT: ${unit.section_number} (${unit.course.code}) ===`
+    );
+
     // Handle null instructor_id
     if (!unit.instructor_id) {
         console.log(
-            `Section ${unit.section_number} has no assigned instructor`
+            `❌ Section ${unit.section_number} has no assigned instructor`
         );
         return null;
     }
@@ -820,18 +949,57 @@ function scheduleSchedulingUnit(
         ? `${instructor.first_name} ${instructor.last_name}`
         : "Unknown";
 
-    // Step 1: Assign classroom if not already assigned
+    // Step 1: Assign classroom if not already assigned (with enhanced capacity checking)
     if (!unit.classroom_id) {
         unit.classroom_id = assignClassroomToSection(unit, classroomsData);
     }
 
     if (!unit.classroom_id) {
         console.log(
-            `Failed to assign classroom to scheduling unit ${
+            `❌ Failed to assign classroom to scheduling unit ${
                 unit.section_number
-            } part ${unit.separationIndex + 1}`
+            } part ${
+                unit.separationIndex + 1
+            } - no classrooms with adequate capacity`
         );
         return null;
+    }
+
+    // Step 2: Validate capacity for the assigned classroom
+    const capacityValidation = validateSchedulingUnitCapacity(
+        unit,
+        unit.classroom_id,
+        classroomsData
+    );
+    if (!capacityValidation.isValid) {
+        console.log(
+            `❌ Capacity validation failed: ${capacityValidation.reason}`
+        );
+        // Try to find an alternative classroom
+        console.log("🔄 Trying to find alternative classroom...");
+
+        const alternativeClassroomId = assignClassroomToSection(
+            unit,
+            classroomsData
+        );
+        if (alternativeClassroomId) {
+            unit.classroom_id = alternativeClassroomId;
+            const retryValidation = validateSchedulingUnitCapacity(
+                unit,
+                unit.classroom_id,
+                classroomsData
+            );
+            if (!retryValidation.isValid) {
+                console.log(
+                    `❌ Alternative classroom also failed capacity validation: ${retryValidation.reason}`
+                );
+                return null;
+            }
+            console.log("✅ Alternative classroom found and validated");
+        } else {
+            console.log("❌ No alternative classroom found");
+            return null;
+        }
     }
 
     // Get classroom info
@@ -848,6 +1016,18 @@ function scheduleSchedulingUnit(
         ? "Online"
         : "Unknown";
 
+    console.log(`✅ Classroom assigned and validated: ${classroomCode}`);
+    if (capacityValidation.capacityInfo) {
+        const { courseCapacity, classroomCapacity, utilizationPercentage } =
+            capacityValidation.capacityInfo;
+        console.log(
+            `📊 Capacity utilization: ${courseCapacity}/${classroomCapacity} (${
+                utilizationPercentage || "N/A"
+            }%)`
+        );
+    }
+
+    // Continue with rest of scheduling logic...
     // Get instructor constraints
     const instructorConstraints = timeConstraints.filter(
         (constraint) => constraint.instructor_id === unit.instructor_id
@@ -857,7 +1037,9 @@ function scheduleSchedulingUnit(
     const possibleCombinations = findPossibleTimeSlots(timeSlots, duration);
 
     if (possibleCombinations.length === 0) {
-        console.log(`No possible combinations found for ${duration}h duration`);
+        console.log(
+            `❌ No possible combinations found for ${duration}h duration`
+        );
         return null;
     }
 
@@ -876,8 +1058,6 @@ function scheduleSchedulingUnit(
         const dayConstraints = instructorConstraints.filter(
             (constraint) => constraint.day === day
         );
-
-        // Get available time slots for this instructor on this day
         const availableTimeSlots =
             dayConstraints.length > 0 ? dayConstraints[0].timeSlots : undefined;
 
@@ -918,7 +1098,6 @@ function scheduleSchedulingUnit(
                     instructorGrid
                 );
 
-                // For non-consecutive combinations, we need to handle start/end times differently
                 const sortedCombination = combination.sort((a, b) => {
                     const startA = a.split("-")[0];
                     const startB = b.split("-")[0];
@@ -939,6 +1118,20 @@ function scheduleSchedulingUnit(
                 console.log(`✅ Time slots: ${combination.join(", ")}`);
                 console.log(`✅ ${validation.message}`);
 
+                // Log capacity info in success
+                if (capacityValidation.capacityInfo && unit.classroom_id! > 0) {
+                    const {
+                        courseCapacity,
+                        classroomCapacity,
+                        utilizationPercentage,
+                    } = capacityValidation.capacityInfo;
+                    console.log(
+                        `📊 Final capacity: ${courseCapacity}/${classroomCapacity} students (${
+                            utilizationPercentage || "N/A"
+                        }%)`
+                    );
+                }
+
                 return {
                     section_id: unit.section_id,
                     course_code: unit.course.code,
@@ -956,7 +1149,7 @@ function scheduleSchedulingUnit(
     }
 
     console.log(
-        `Could not find available time slot combination for scheduling unit ${
+        `❌ Could not find available time slot combination for scheduling unit ${
             unit.section_number
         } part ${unit.separationIndex + 1} (${duration} hours)`
     );
@@ -1018,12 +1211,20 @@ function generateSchedule(
     timeSlots: string[]
 ): Assignment[] {
     console.log(
-        "Starting schedule generation with improved time slot logic..."
+        "=== STARTING SCHEDULE GENERATION WITH CAPACITY VALIDATION ==="
     );
 
     const assignments: Assignment[] = [];
     const scheduleGrid = initializeScheduleGrid(classroomsData, timeSlots);
     const instructorGrid = initializeInstructorGrid(instructorsData, timeSlots);
+
+    // Track capacity issues
+    const capacityIssues: Array<{
+        section: string;
+        course: string;
+        requiredCapacity: number;
+        issue: string;
+    }> = [];
 
     // Create scheduling units from courses
     const schedulingUnits = createSchedulingUnits(coursesData);
@@ -1047,7 +1248,7 @@ function generateSchedule(
     });
 
     console.log(
-        `Processing ${schedulingUnits.length} scheduling units with improved logic...`
+        `Processing ${schedulingUnits.length} scheduling units with capacity validation...`
     );
 
     for (const unit of schedulingUnits) {
@@ -1080,12 +1281,79 @@ function generateSchedule(
                     unit.separationIndex + 1
                 }`
             );
+
+            // Check if it was a capacity issue
+            const getCourseCapacity = (course: any): number => {
+                const capacityFields = [
+                    "capacity",
+                    "enrollmentCount",
+                    "studentCount",
+                    "maxStudents",
+                ];
+                for (const field of capacityFields) {
+                    const value = course[field];
+                    if (value !== undefined && value !== null && value !== "") {
+                        const numValue =
+                            typeof value === "string"
+                                ? parseInt(value.trim(), 10)
+                                : Number(value);
+                        if (!isNaN(numValue) && numValue >= 0) return numValue;
+                    }
+                }
+                return 0;
+            };
+
+            const courseCapacity = getCourseCapacity(unit.course);
+            const suitableClassrooms = classroomsData.filter(
+                (cls) =>
+                    cls.capacity >= courseCapacity &&
+                    cls.capacity >= (unit.course.capacity || 0)
+            );
+
+            if (suitableClassrooms.length === 0 && courseCapacity > 0) {
+                capacityIssues.push({
+                    section: unit.section_number,
+                    course: unit.course.code,
+                    requiredCapacity: courseCapacity,
+                    issue: `No classroom large enough (need ${courseCapacity} seats)`,
+                });
+            }
         }
     }
 
+    // Report capacity issues
+    if (capacityIssues.length > 0) {
+        console.log("\n=== CAPACITY ISSUES SUMMARY ===");
+        console.log(
+            `Found ${capacityIssues.length} sections with capacity issues:`
+        );
+        capacityIssues.forEach((issue) => {
+            console.log(
+                `❌ ${issue.course} (${issue.section}): ${issue.issue}`
+            );
+        });
+
+        // Find largest classroom for reference
+        const largestClassroom = classroomsData.reduce(
+            (largest, current) =>
+                current.capacity > largest.capacity ? current : largest,
+            { capacity: 0, code: "none" }
+        );
+        console.log(
+            `📊 Largest available classroom: ${largestClassroom.code} (${largestClassroom.capacity} seats)`
+        );
+    }
+
+    console.log(`\n=== SCHEDULE GENERATION COMPLETED ===`);
     console.log(
-        `\nSchedule generation completed. Generated ${assignments.length} assignments out of ${schedulingUnits.length} units.`
+        `Generated ${assignments.length} assignments out of ${schedulingUnits.length} units.`
     );
+    if (capacityIssues.length > 0) {
+        console.log(
+            `⚠️  ${capacityIssues.length} units failed due to capacity constraints.`
+        );
+    }
+
     return assignments;
 }
 function initializeInstructorGrid(
@@ -1155,7 +1423,7 @@ function assignClassroomToSection(
     section: any,
     classroomsData: any[]
 ): number | null {
-    console.log(`Assigning classroom to section ${section.number}`);
+    console.log(`=== ASSIGNING CLASSROOM TO SECTION ${section.number} ===`);
 
     // Check if the section is online
     if (section.status === "online") {
@@ -1172,24 +1440,84 @@ function assignClassroomToSection(
         return onlineClassroomIds[randomIndex];
     }
 
-    // For offline courses, proceed with normal classroom assignment
-    const suitableClassrooms = classroomsData.filter(
-        (classroom) => classroom.capacity >= (section.course.capacity || 0)
+    // Get course capacity for filtering
+    const getCourseCapacity = (course: any): number => {
+        const capacityFields = [
+            "capacity",
+            "enrollmentCount",
+            "studentCount",
+            "maxStudents",
+            "enrollment",
+            "classSize",
+        ];
+        for (const field of capacityFields) {
+            const value = course[field];
+            if (value !== undefined && value !== null && value !== "") {
+                const numValue =
+                    typeof value === "string"
+                        ? parseInt(value.trim(), 10)
+                        : Number(value);
+                if (!isNaN(numValue) && numValue >= 0) {
+                    return numValue;
+                }
+            }
+        }
+        return 0;
+    };
+
+    const courseCapacity = getCourseCapacity(section.course);
+    console.log(`Course capacity needed: ${courseCapacity}`);
+
+    // Filter classrooms by capacity AND course capacity requirements
+    const suitableClassrooms = classroomsData.filter((classroom) => {
+        // First check: classroom must have enough seats for the course's base capacity
+        const hasEnoughSeats =
+            classroom.capacity >= (section.course.capacity || 0);
+
+        // Second check: classroom must have enough seats for the actual course enrollment
+        const meetsCapacityRequirement =
+            courseCapacity === 0 || classroom.capacity >= courseCapacity;
+
+        console.log(
+            `Classroom ${classroom.code}: capacity=${
+                classroom.capacity
+            }, courseCapacity=${courseCapacity}, suitable=${
+                hasEnoughSeats && meetsCapacityRequirement
+            }`
+        );
+
+        return hasEnoughSeats && meetsCapacityRequirement;
+    });
+
+    console.log(
+        `Found ${suitableClassrooms.length} suitable classrooms out of ${classroomsData.length} total`
     );
 
     if (suitableClassrooms.length === 0) {
-        console.log("No suitable classrooms found");
+        console.log("❌ No suitable classrooms found with adequate capacity");
+
+        // Log details about why classrooms were rejected
+        classroomsData.forEach((classroom) => {
+            const reason =
+                classroom.capacity < courseCapacity
+                    ? `too small (${classroom.capacity} < ${courseCapacity})`
+                    : "other criteria not met";
+            console.log(`  - ${classroom.code}: ${reason}`);
+        });
+
         return null;
     }
 
+    // Randomly select from suitable classrooms
     const randomIndex = Math.floor(Math.random() * suitableClassrooms.length);
     const assignedClassroom = suitableClassrooms[randomIndex];
 
+    console.log(
+        `✅ Assigned classroom: ${assignedClassroom.code} (capacity: ${assignedClassroom.capacity})`
+    );
     return assignedClassroom.id;
 }
 
-// UPDATED: Modified to include classroom_id in the Assignment object
-// Schedule a section by finding available time slots
 function scheduleSection(
     section: any,
     timeConstraints: TimeConstraint[],

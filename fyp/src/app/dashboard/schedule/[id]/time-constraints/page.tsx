@@ -564,7 +564,13 @@ export default function TimeConstraintView() {
 
     // Delete constraint
     const handleDeleteConstraint = async () => {
-        if (!selectedGroupedConstraint || !selectedDay) return;
+        if (!selectedGroupedConstraint || !selectedDay) {
+            console.error("Missing required data for delete:", {
+                selectedGroupedConstraint,
+                selectedDay,
+            });
+            return;
+        }
 
         setIsLoading(true);
         try {
@@ -575,6 +581,8 @@ export default function TimeConstraintView() {
                 scheduleId: Number(scheduleId),
             };
 
+            console.log("Sending delete request with data:", apiData); // Debug log
+
             const response = await fetch("/api/time-constraints", {
                 method: "DELETE",
                 headers: {
@@ -583,14 +591,32 @@ export default function TimeConstraintView() {
                 body: JSON.stringify(apiData),
             });
 
+            // Log the response for debugging
+            const responseText = await response.text();
+            console.log("Delete response:", response.status, responseText);
+
             if (!response.ok) {
-                const errorData = await response.json();
+                let errorData;
+                try {
+                    errorData = JSON.parse(responseText);
+                } catch {
+                    errorData = {
+                        error: `HTTP ${response.status}: ${responseText}`,
+                    };
+                }
                 throw new Error(
                     errorData.error || "Failed to delete constraint"
                 );
             }
 
+            // Parse the response
+            const result = JSON.parse(responseText);
+            console.log("Delete successful:", result);
+
+            // Refresh the constraints list
             await fetchConstraints();
+
+            // Close dialog and reset state
             setIsDeleteDialogOpen(false);
             setSelectedGroupedConstraint(null);
             setSelectedDay(null);
@@ -897,40 +923,52 @@ export default function TimeConstraintView() {
                         </div>
 
                         {/* Day selection with checkboxes */}
-                       {/* Day selection with checkboxes */}
-<div className="space-y-2">
-    <Label className="text-sm font-medium text-gray-700">Days</Label>
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-        {enhancedFormData.dayConstraints.map((dayConstraint, index) => (
-            <div
-                key={dayConstraint.day}
-                className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-colors ${
-                    dayConstraint.selected
-                        ? "bg-blue-50 border-blue-200 shadow-sm"
-                        : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300"
-                }`}
-                onClick={() => handleDaySelection(index, !dayConstraint.selected)}
-            >
-                <Checkbox
-                    id={`day-${dayConstraint.day}`}
-                    checked={dayConstraint.selected}
-                    onCheckedChange={(checked) =>
-                        handleDaySelection(index, checked as boolean)
-                    }
-                />
-                <label
-                    htmlFor={`day-${dayConstraint.day}`}
-                    className="text-sm font-medium text-gray-700 cursor-pointer flex-1"
-                >
-                    {dayConstraint.day}
-                </label>
-                {dayConstraint.selected && (
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                )}
-            </div>
-        ))}
-    </div>
-</div>
+                        {/* Day selection with checkboxes */}
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium text-gray-700">
+                                Days
+                            </Label>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                {enhancedFormData.dayConstraints.map(
+                                    (dayConstraint, index) => (
+                                        <div
+                                            key={dayConstraint.day}
+                                            className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                                                dayConstraint.selected
+                                                    ? "bg-blue-50 border-blue-200 shadow-sm"
+                                                    : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+                                            }`}
+                                            onClick={() =>
+                                                handleDaySelection(
+                                                    index,
+                                                    !dayConstraint.selected
+                                                )
+                                            }
+                                        >
+                                            <Checkbox
+                                                id={`day-${dayConstraint.day}`}
+                                                checked={dayConstraint.selected}
+                                                onCheckedChange={(checked) =>
+                                                    handleDaySelection(
+                                                        index,
+                                                        checked as boolean
+                                                    )
+                                                }
+                                            />
+                                            <label
+                                                htmlFor={`day-${dayConstraint.day}`}
+                                                className="text-sm font-medium text-gray-700 cursor-pointer flex-1"
+                                            >
+                                                {dayConstraint.day}
+                                            </label>
+                                            {dayConstraint.selected && (
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                            )}
+                                        </div>
+                                    )
+                                )}
+                            </div>
+                        </div>
 
                         {/* Tabs for each selected day */}
                         {enhancedFormData.dayConstraints.some(

@@ -218,6 +218,21 @@ export const instructorTimeConstraint = mysqlTable(
     }
 );
 
+export const instructorTimeConstraintRelations = relations(
+    instructorTimeConstraint,
+    ({ many, one }) => ({
+        instructor: one(instructors, {
+            fields: [instructorTimeConstraint.instructorId],
+            references: [instructors.id],
+        }),
+        schedule: one(schedules, {
+            fields: [instructorTimeConstraint.scheduleId],
+            references: [schedules.id],
+        }),
+        days: many(instructorTimeConstraintDay),
+    })
+);
+
 // Schedule Time Period Table
 export const instructorTimeConstraintDay = mysqlTable(
     "instructor_time_constraint_days",
@@ -232,6 +247,17 @@ export const instructorTimeConstraintDay = mysqlTable(
     }
 );
 
+export const instructorTimeConstraintDayRelations = relations(
+    instructorTimeConstraintDay,
+    ({ many, one }) => ({
+        instructorTimeConstraint: one(instructorTimeConstraint, {
+            fields: [instructorTimeConstraintDay.instructorTimeConstraintId],
+            references: [instructorTimeConstraint.id],
+        }),
+        timeSlots: many(instructorTimeConstraintTimeSlot),
+    })
+);
+
 export const instructorTimeConstraintTimeSlot = mysqlTable(
     "instructor_time_constraint_time_slots",
     {
@@ -243,4 +269,16 @@ export const instructorTimeConstraintTimeSlot = mysqlTable(
             .notNull()
             .references(() => instructorTimeConstraintDay.id),
     }
+);
+
+export const instructorTimeConstraintTimeSlotRelations = relations(
+    instructorTimeConstraintTimeSlot,
+    ({ one }) => ({
+        day: one(instructorTimeConstraintDay, {
+            fields: [
+                instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId,
+            ],
+            references: [instructorTimeConstraintDay.id],
+        }),
+    })
 );
