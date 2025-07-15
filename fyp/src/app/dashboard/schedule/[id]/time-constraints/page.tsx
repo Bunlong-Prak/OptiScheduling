@@ -22,10 +22,21 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, Pencil, Plus, Trash, X } from "lucide-react";
+import { Check, ChevronsUpDown, Clock, Pencil, Plus, Trash, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+  import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+  } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+  
 // Define how many items to show per page
 const ITEMS_PER_PAGE = 12;
 
@@ -729,8 +740,9 @@ export default function TimeConstraintView() {
             (day) => day.selected && day.timeSlots.length > 0
         ).length;
     };
+    const [open, setOpen] = useState(false);
 
-    // Rest of the component...
+
 
     return (
         <div className="space-y-4">
@@ -897,29 +909,58 @@ export default function TimeConstraintView() {
                             >
                                 Instructor
                             </Label>
-                            <Select
-                                value={
-                                    enhancedFormData.instructor_id
-                                        ? enhancedFormData.instructor_id.toString()
-                                        : ""
-                                }
-                                onValueChange={handleInstructorChange}
+                            <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+            <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={open}
+                className="w-full justify-between border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+            >
+                {enhancedFormData.instructor_id
+                    ? instructors.find(
+                          (instructor) => instructor.id === enhancedFormData.instructor_id
+                      )?.first_name + " " + instructors.find(
+                          (instructor) => instructor.id === enhancedFormData.instructor_id
+                      )?.last_name
+                    : "Select instructor..."}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-full p-0" align="start">
+            <Command>
+                <CommandInput 
+                    placeholder="Search instructors..." 
+                    className="h-9"
+                />
+                <CommandList>
+                    <CommandEmpty>No instructor found.</CommandEmpty>
+                    <CommandGroup>
+                        {instructors.map((instructor) => (
+                            <CommandItem
+                                key={instructor.id}
+                                value={`${instructor.first_name} ${instructor.last_name}`}
+                                onSelect={() => {
+                                    handleInstructorChange(instructor.id.toString())
+                                    setOpen(false)
+                                }}
                             >
-                                <SelectTrigger className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm">
-                                    <SelectValue placeholder="Select instructor" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {instructors.map((instructor) => (
-                                        <SelectItem
-                                            key={instructor.id}
-                                            value={instructor.id.toString()}
-                                        >
-                                            {instructor.first_name}{" "}
-                                            {instructor.last_name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                <Check
+                                    className={cn(
+                                        "mr-2 h-4 w-4",
+                                        enhancedFormData.instructor_id === instructor.id
+                                            ? "opacity-100"
+                                            : "opacity-0"
+                                    )}
+                                />
+                                {instructor.first_name} {instructor.last_name}
+                            </CommandItem>
+                        ))}
+                    </CommandGroup>
+                </CommandList>
+            </Command>
+        </PopoverContent>
+    </Popover>
                         </div>
 
                         {/* Day selection with checkboxes */}
