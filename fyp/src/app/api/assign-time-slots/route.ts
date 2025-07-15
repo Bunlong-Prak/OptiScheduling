@@ -6,7 +6,7 @@ import {
     sections,
 } from "@/drizzle/schema";
 import { db } from "@/lib/db";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -122,14 +122,14 @@ export async function POST(request: Request) {
             );
         }
 
-        // Validate each item in the array
         const results = [];
         const errors = [];
 
         // Extract all course hour IDs from the request
         const requestCourseHourIds = new Set();
         body.forEach((assignment) => {
-            if (assignment.id) {
+            // Only add 'id' if it's a valid number, indicating an existing course hour
+            if (assignment.id && typeof assignment.id === "number") {
                 requestCourseHourIds.add(assignment.id);
             }
         });
@@ -145,7 +145,8 @@ export async function POST(request: Request) {
             .innerJoin(courses, eq(sections.courseId, courses.id))
             .where(eq(courses.scheduleId, parseInt(scheduleId)));
 
-        // Find course hours that exist in database (for this schedule) but not in request
+        // Find course hours that exist in database (for this schedule) but not in request body
+        // These are the course hours that should be unassigned (day, timeSlot, classroomId set to null)
         const courseHoursToNull = allExistingCourseHours.filter(
             (courseHour) => !requestCourseHourIds.has(courseHour.id)
         );
@@ -168,7 +169,7 @@ export async function POST(request: Request) {
             );
         }
 
-        // Process each assignment
+        // Process each assignment from the request body
         for (const assignment of body) {
             const validationResult = saveTimetableSchema.safeParse(assignment);
 
@@ -181,11 +182,11 @@ export async function POST(request: Request) {
                     assignment,
                     error: validationResult.error.errors,
                 });
-                continue;
+                continue; // Skip to the next assignment if validation fails
             }
 
             const {
-                id,
+                id, // This is the courseHour.id from the frontend, if it exists
                 sectionId,
                 day,
                 startTime,
@@ -195,8 +196,9 @@ export async function POST(request: Request) {
                 duration,
             } = validationResult.data;
 
-            // Debug logging
+            // Debug logging for the assignment data
             console.log("Assignment data:", {
+                id,
                 sectionId,
                 day,
                 startTime,
@@ -208,7 +210,7 @@ export async function POST(request: Request) {
             console.log("Time slot will be:", `${startTime} - ${endTime}`);
 
             try {
-                // Verify that the section belongs to the specified schedule
+                // First, verify that the section belongs to the specified schedule
                 const sectionScheduleCheck = await db
                     .select({ scheduleId: courses.scheduleId })
                     .from(sections)
@@ -227,71 +229,92 @@ export async function POST(request: Request) {
                         sectionId,
                         error: `Section does not belong to the specified schedule`,
                     });
-                    continue;
+                    continue; // Skip to the next assignment if section doesn't match schedule
                 }
 
-                // Check if course hour already exists for this section
-                const existingCourseHour = await db
-                    .select({ id: courseHours.id })
-                    .from(courseHours)
-                    .where(eq(courseHours.sectionId, sectionId))
-                    .limit(1);
+                let currentCourseHourId: number | null = id; // This variable will hold the ID of the course hour being processed (either existing or newly created)
 
-                let courseHourId;
+                // If an 'id' is provided in the assignment, attempt to update that specific course hour
+                if (currentCourseHourId) {
+                    const existingCourseHourById = await db
+                        .select({ id: courseHours.id })
+                        .from(courseHours)
+                        .where(eq(courseHours.id, currentCourseHourId))
+                        .limit(1); // Should only find one if ID is unique and valid
 
-                if (existingCourseHour.length > 0) {
-                    // Update existing course hour
-                    courseHourId = existingCourseHour[0].id;
-                    console.log(
-                        `Updating existing course hour with ID: ${courseHourId} for section ${sectionId}...`
-                    );
+                    if (existingCourseHourById.length > 0) {
+                        // Course hour with the given ID exists, so update it
+                        console.log(
+                            `Updating existing course hour with ID: ${currentCourseHourId} for section ${sectionId}...`
+                        );
+                        await db
+                            .update(courseHours)
+                            .set({
+                                day: day,
+                                timeSlot: `${startTime} - ${endTime}`,
+                                separatedDuration: duration, // Ensure duration is also updated
+                            })
+                            .where(eq(courseHours.id, currentCourseHourId));
+                    } else {
+                        // If an ID was provided but no matching course hour was found,
+                        // it implies either an invalid ID was sent or it's a new entry that
+                        // was mistakenly given an ID. In this scenario, we'll treat it as a new creation.
+                        console.warn(
+                            `Provided courseHour ID ${currentCourseHourId} not found. Creating a new course hour for section ${sectionId}.`
+                        );
+                        currentCourseHourId = null; // Force creation of a new one by setting ID to null
+                    }
+                }
 
-                    await db
-                        .update(courseHours)
-                        .set({
-                            day: day,
-                            timeSlot: `${startTime} - ${endTime}`,
-                        })
-                        .where(eq(courseHours.id, courseHourId));
-                } else {
-                    // Create new course hour
+                // If no ID was provided (currentCourseHourId is null), or if the provided ID didn't exist, create a new course hour.
+                if (!currentCourseHourId) {
                     console.log(
                         `Creating new course hour for section ${sectionId}...`
                     );
 
-                    const insertResult = await db.insert(courseHours).values({
+                    // Insert the new course hour into the database
+                    await db.insert(courseHours).values({
                         sectionId: sectionId,
                         day: day,
                         timeSlot: `${startTime} - ${endTime}`,
                         separatedDuration: duration,
                     });
 
-                    // Get the created course hour ID
+                    const whereConditions = [
+                        eq(courseHours.sectionId, sectionId),
+                        eq(courseHours.day, day),
+                        eq(courseHours.timeSlot, `${startTime} - ${endTime}`),
+                    ];
+                    if (typeof duration !== "undefined") {
+                        whereConditions.push(
+                            eq(courseHours.separatedDuration, duration)
+                        );
+                    }
+
                     const createdCourseHour = await db
                         .select({ id: courseHours.id })
                         .from(courseHours)
-                        .where(eq(courseHours.sectionId, sectionId))
-                        .limit(1);
+                        .where(and(...whereConditions))
+                        .limit(1); // Limit to 1, assuming these conditions uniquely identify the new row
 
                     if (createdCourseHour.length === 0) {
                         console.error(
-                            `Failed to create course hour for section ${sectionId}`
+                            `Failed to retrieve ID for newly created course hour for section ${sectionId}`
                         );
                         errors.push({
                             sectionId,
-                            error: "Failed to create course hour",
+                            error: "Failed to create and retrieve course hour ID",
                         });
-                        continue;
+                        continue; // Skip to the next assignment if we can't get the new ID
                     }
-
-                    courseHourId = createdCourseHour[0].id;
-                    console.log(`Created course hour with ID: ${courseHourId}`);
+                    currentCourseHourId = createdCourseHour[0].id; // Assign the newly created ID
+                    console.log(
+                        `Created course hour with ID: ${currentCourseHourId}`
+                    );
                 }
 
-                console.log("Processing section:", sectionId);
-
-                // Update the course hour with the classroom ID
-                // For online courses, set classroomId to null
+                // Now, update the classroom ID for the identified or newly created course hour.
+                // For online courses or if classroom is not provided, set classroomId to null.
                 const classroomId =
                     isOnline || !classroom ? null : parseInt(classroom);
 
@@ -300,20 +323,19 @@ export async function POST(request: Request) {
                     .set({
                         classroomId: classroomId,
                     })
-                    .where(eq(courseHours.id, courseHourId));
+                    .where(eq(courseHours.id, currentCourseHourId)); // Use the currentCourseHourId for the update
 
-                // Get the updated section
+                // Fetch the updated section and the full course hour data to include in the response
                 const updatedSection = await db
                     .select()
                     .from(sections)
                     .where(eq(sections.id, sectionId))
                     .limit(1);
 
-                // Get the full course hour data to include in response
                 const fullCourseHour = await db
                     .select()
                     .from(courseHours)
-                    .where(eq(courseHours.id, courseHourId))
+                    .where(eq(courseHours.id, currentCourseHourId))
                     .limit(1);
 
                 results.push({
@@ -338,13 +360,14 @@ export async function POST(request: Request) {
             }
         }
 
-        // Prepare response
+        // Prepare the final response
         const response = {
             message: `Successfully processed ${results.length} of ${body.length} assignments for schedule ${scheduleId}`,
             data: results,
             nullifiedCourseHours: courseHoursToNull.length,
             scheduleId: parseInt(scheduleId),
             ...(errors.length > 0 && {
+                // Only include errors if there are any
                 errors: errors,
                 errorCount: errors.length,
             }),

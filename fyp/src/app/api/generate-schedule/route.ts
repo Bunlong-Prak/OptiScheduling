@@ -191,6 +191,7 @@ export async function POST(request: Request) {
         // 1. Fetch all the required data
         const coursesData = await fetchCourses(schedule_id);
         const timeConstraints = await fetchTimeConstraints(schedule_id);
+        console.log("Time Constraints:", timeConstraints);
         const classroomsData = await fetchClassrooms(schedule_id);
         const instructorsData = await fetchInstructors(schedule_id);
 
@@ -946,7 +947,7 @@ function scheduleSchedulingUnit(
         (inst) => inst.id === unit.instructor_id
     );
     const instructorName = instructor
-        ? `${instructor.first_name} ${instructor.last_name}`
+        ? `${instructor.firstName} ${instructor.lastName}`
         : "Unknown";
 
     // Step 1: Assign classroom if not already assigned (with enhanced capacity checking)
@@ -982,7 +983,11 @@ function scheduleSchedulingUnit(
             unit,
             classroomsData
         );
-        if (alternativeClassroomId) {
+        if (
+            alternativeClassroomId &&
+            alternativeClassroomId !== unit.classroom_id
+        ) {
+            // Ensure it's a *different* alternative
             unit.classroom_id = alternativeClassroomId;
             const retryValidation = validateSchedulingUnitCapacity(
                 unit,
@@ -997,7 +1002,9 @@ function scheduleSchedulingUnit(
             }
             console.log("✅ Alternative classroom found and validated");
         } else {
-            console.log("❌ No alternative classroom found");
+            console.log(
+                "❌ No alternative classroom found or existing one is best fit"
+            );
             return null;
         }
     }
@@ -1008,11 +1015,9 @@ function scheduleSchedulingUnit(
     );
     const classroomCode = classroom
         ? classroom.code
-        : unit.classroom_id === -1
-        ? "Online"
-        : unit.classroom_id === -2
-        ? "Online"
-        : unit.classroom_id === -3
+        : unit.classroom_id === -1 ||
+          unit.classroom_id === -2 ||
+          unit.classroom_id === -3
         ? "Online"
         : "Unknown";
 
@@ -1022,23 +1027,23 @@ function scheduleSchedulingUnit(
             capacityValidation.capacityInfo;
         console.log(
             `📊 Capacity utilization: ${courseCapacity}/${classroomCapacity} (${
-                utilizationPercentage || "N/A"
+                utilizationPercentage.toFixed(2) || "N/A"
             }%)`
         );
     }
 
     // Continue with rest of scheduling logic...
-    // Get instructor constraints
+    // Get instructor constraints for this specific instructor
     const instructorConstraints = timeConstraints.filter(
         (constraint) => constraint.instructor_id === unit.instructor_id
     );
 
-    // Find ALL possible combinations (not just consecutive)
+    // Find ALL possible consecutive combinations of time slots
     const possibleCombinations = findPossibleTimeSlots(timeSlots, duration);
 
     if (possibleCombinations.length === 0) {
         console.log(
-            `❌ No possible combinations found for ${duration}h duration`
+            `❌ No possible consecutive combinations found for ${duration}h duration`
         );
         return null;
     }
@@ -1049,21 +1054,35 @@ function scheduleSchedulingUnit(
 
     // Try to schedule on each day
     const availableDays = [...DAYS];
-    shuffleArray(availableDays);
+    shuffleArray(availableDays); // Randomize days to distribute load
 
     for (const day of availableDays) {
         console.log(`Trying to schedule on ${day} for ${duration} hours`);
 
-        // Check if instructor is available on this day
-        const dayConstraints = instructorConstraints.filter(
+        // Get instructor's specific available time slots for this day
+        // If no specific constraint for the day, assume all time slots are available for the instructor on that day
+        const dayConstraint = instructorConstraints.find(
             (constraint) => constraint.day === day
         );
-        const availableTimeSlots =
-            dayConstraints.length > 0 ? dayConstraints[0].timeSlots : undefined;
 
+        let instructorAvailableTimeSlots: string[];
+        if (dayConstraint) {
+            const unavailableTimeSlots = dayConstraint.timeSlots;
+            instructorAvailableTimeSlots = timeSlots.filter(
+                (slot) => !unavailableTimeSlots.includes(slot)
+            );
+            console.log(
+                `⛔ Instructor unavailable on ${day}: ${unavailableTimeSlots.join(
+                    ", "
+                )}`
+            );
+        } else {
+            instructorAvailableTimeSlots = [...timeSlots];
+            console.log(`✅ Instructor fully available on ${day}`);
+        }
         // Try each possible combination
         for (const combination of possibleCombinations) {
-            // Validate the combination
+            // Validate the combination (e.g., correct number of slots for duration)
             const validation = validateTimeSlotAssignment(
                 combination,
                 duration,
@@ -1075,7 +1094,7 @@ function scheduleSchedulingUnit(
                 continue;
             }
 
-            // Check if this combination is available
+            // Check if this combination is available for classroom AND instructor, considering constraints
             if (
                 canScheduleAtTime(
                     day,
@@ -1084,7 +1103,7 @@ function scheduleSchedulingUnit(
                     unit.instructor_id,
                     scheduleGrid,
                     instructorGrid,
-                    availableTimeSlots
+                    instructorAvailableTimeSlots // Pass instructor's specific available time slots
                 )
             ) {
                 // Mark slots as occupied
@@ -1127,7 +1146,7 @@ function scheduleSchedulingUnit(
                     } = capacityValidation.capacityInfo;
                     console.log(
                         `📊 Final capacity: ${courseCapacity}/${classroomCapacity} students (${
-                            utilizationPercentage || "N/A"
+                            utilizationPercentage.toFixed(2) || "N/A"
                         }%)`
                     );
                 }
@@ -1142,7 +1161,7 @@ function scheduleSchedulingUnit(
                     end_time: endTime,
                     classroom_code: classroomCode,
                     classroom_id: unit.classroom_id!,
-                    courseHours_id: unit.courseHours_id,
+                    courseHours_id: unit.courseHours_id, // This might need to be generated or retrieved if it's a new entry
                 };
             }
         }
@@ -1229,6 +1248,8 @@ function generateSchedule(
     // Create scheduling units from courses
     const schedulingUnits = createSchedulingUnits(coursesData);
 
+    console.log("Created Scheduling Units:", schedulingUnits);
+
     // Sort by duration (longest first) and then by priority
     schedulingUnits.sort((a, b) => {
         // First priority: longer durations first
@@ -1246,6 +1267,8 @@ function generateSchedule(
         if (!aHasConstraints && bHasConstraints) return 1;
         return 0;
     });
+
+    console.log("Sorted Scheduling Units:", schedulingUnits);
 
     console.log(
         `Processing ${schedulingUnits.length} scheduling units with capacity validation...`
@@ -1518,159 +1541,6 @@ function assignClassroomToSection(
     return assignedClassroom.id;
 }
 
-function scheduleSection(
-    section: any,
-    timeConstraints: TimeConstraint[],
-    classroomsData: any[],
-    instructorsData: any[],
-    timeSlots: string[],
-    scheduleGrid: ScheduleGrid,
-    instructorGrid: InstructorGrid // NEW: Added instructor grid parameter
-): Assignment | null {
-    const course = section.course;
-    const duration = course.duration;
-
-    // Get instructor info
-    const instructor = instructorsData.find(
-        (inst) => inst.id === section.instructor_id
-    );
-    const instructorName = instructor
-        ? `${instructor.first_name} ${instructor.last_name}`
-        : "Unknown";
-
-    // Get classroom info
-    const classroom = classroomsData.find(
-        (cls) => cls.id === section.classroom_id
-    );
-    const classroomCode = classroom
-        ? classroom.code
-        : section.classroom_id === -1
-        ? "Online"
-        : section.classroom_id === -2
-        ? "Online"
-        : section.classroom_id === -3
-        ? "Online"
-        : "Unknown";
-
-    // Get instructor constraints
-    const instructorConstraints = timeConstraints.filter(
-        (constraint) => constraint.instructor_id === section.instructor_id
-    );
-
-    // Find possible time slot combinations that fit the duration
-    const possibleSlots = findPossibleTimeSlots(timeSlots, duration);
-    console.log("possible slot", possibleSlots);
-    console.log(
-        `Found ${possibleSlots.length} possible time slot combinations for duration ${duration}`
-    );
-
-    // Try to schedule on each day
-    const availableDays = [...DAYS];
-    shuffleArray(availableDays);
-
-    for (const day of availableDays) {
-        console.log(`Trying to schedule on ${day}`);
-
-        // Check if instructor is available on this day
-        const dayConstraints = instructorConstraints.filter(
-            (constraint) => constraint.day === day
-        );
-
-        // If instructor has constraints for this day, check availability
-        if (dayConstraints.length > 0) {
-            const availableTimeSlots = dayConstraints[0].timeSlots;
-
-            // Find a suitable time slot combination
-            for (const slotCombination of possibleSlots) {
-                if (
-                    canScheduleAtTime(
-                        day,
-                        slotCombination,
-                        section.classroom_id,
-                        section.instructor_id, // NEW: Pass instructor ID
-                        scheduleGrid,
-                        instructorGrid, // NEW: Pass instructor grid
-                        availableTimeSlots
-                    )
-                ) {
-                    // Mark both classroom and instructor slots as occupied
-                    markSlotsAsOccupied(
-                        day,
-                        slotCombination,
-                        section.classroom_id,
-                        section.instructor_id, // NEW: Pass instructor ID
-                        section.id,
-                        scheduleGrid,
-                        instructorGrid // NEW: Pass instructor grid
-                    );
-
-                    const startTime = getStartTime(slotCombination);
-                    const endTime = getEndTime(slotCombination);
-
-                    // UPDATED: Include classroom_id in the returned Assignment
-                    return {
-                        section_id: section.id,
-                        course_code: course.code,
-                        course_title: course.title,
-                        instructor_name: instructorName,
-                        day: day,
-                        start_time: startTime,
-                        end_time: endTime,
-                        classroom_code: classroomCode,
-                        classroom_id: section.classroom_id, // NEW: Added classroom_id
-                    };
-                }
-            }
-        } else {
-            // No constraints for this instructor on this day, try any available slot
-            for (const slotCombination of possibleSlots) {
-                if (
-                    canScheduleAtTime(
-                        day,
-                        slotCombination,
-                        section.classroom_id,
-                        section.instructor_id, // NEW: Pass instructor ID
-                        scheduleGrid,
-                        instructorGrid // NEW: Pass instructor grid
-                    )
-                ) {
-                    // Mark both classroom and instructor slots as occupied
-                    markSlotsAsOccupied(
-                        day,
-                        slotCombination,
-                        section.classroom_id,
-                        section.instructor_id, // NEW: Pass instructor ID
-                        section.id,
-                        scheduleGrid,
-                        instructorGrid // NEW: Pass instructor grid
-                    );
-
-                    const startTime = getStartTime(slotCombination);
-                    const endTime = getEndTime(slotCombination);
-
-                    // UPDATED: Include classroom_id in the returned Assignment
-                    return {
-                        section_id: section.id,
-                        course_code: course.code,
-                        course_title: course.title,
-                        instructor_name: instructorName,
-                        day: day,
-                        start_time: startTime,
-                        end_time: endTime,
-                        classroom_code: classroomCode,
-                        classroom_id: section.classroom_id, // NEW: Added classroom_id
-                    };
-                }
-            }
-        }
-    }
-
-    console.log(
-        `Could not find available time slot for section ${section.number}`
-    );
-    return null;
-}
-
 function findConsecutiveCombinations(
     timeSlots: string[],
     durationHours: number,
@@ -1920,50 +1790,44 @@ function canScheduleAtTime(
     day: string,
     slotCombination: string[],
     classroomId: number,
-    instructorId: number, // NEW: Added instructor ID parameter
+    instructorId: number,
     scheduleGrid: ScheduleGrid,
-    instructorGrid: InstructorGrid, // NEW: Added instructor grid parameter
-    instructorAvailableSlots?: string[]
+    instructorGrid: InstructorGrid,
+    instructorAvailableSlots: string[]
 ): boolean {
-    // Check if all required slots are available in the classroom
     for (const timeSlot of slotCombination) {
-        // Check classroom availability
+        // ✅ Check if instructor is available at this slot
+        if (!instructorAvailableSlots.includes(timeSlot)) {
+            console.log(
+                `❌ Instructor ${instructorId} is unavailable at ${day} ${timeSlot}`
+            );
+            return false;
+        }
+
+        // ✅ Check classroom availability
         const classroomKey = `${day}-${classroomId}-${timeSlot}`;
         const classroomSlot = scheduleGrid.get(classroomKey);
-
         if (!classroomSlot || !classroomSlot.isAvailable) {
             console.log(
-                `❌ Classroom ${classroomId} not available at ${day} ${timeSlot}`
+                `❌ Classroom ${classroomId} is not available at ${day} ${timeSlot}`
             );
             return false;
         }
 
-        // NEW: Check instructor availability
+        // ✅ Check instructor availability in grid
         const instructorKey = `${day}-${instructorId}-${timeSlot}`;
         const instructorSlot = instructorGrid.get(instructorKey);
-
         if (!instructorSlot || !instructorSlot.isAvailable) {
             console.log(
-                `❌ Instructor ${instructorId} not available at ${day} ${timeSlot}`
-            );
-            return false;
-        }
-
-        // If instructor has time constraints, check if this slot is in their available slots
-        if (
-            instructorAvailableSlots &&
-            !instructorAvailableSlots.includes(timeSlot)
-        ) {
-            console.log(
-                `❌ Instructor ${instructorId} has time constraint at ${day} ${timeSlot}`
+                `❌ Instructor ${instructorId} is already scheduled at ${day} ${timeSlot}`
             );
             return false;
         }
     }
 
     console.log(
-        `✅ Both classroom ${classroomId} and instructor ${instructorId} available for ${day} ${slotCombination.join(
-            ","
+        `✅ Classroom ${classroomId} and instructor ${instructorId} are available at ${day} for ${slotCombination.join(
+            ", "
         )}`
     );
     return true;

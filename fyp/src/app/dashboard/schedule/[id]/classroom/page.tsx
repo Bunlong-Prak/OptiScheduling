@@ -19,11 +19,21 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Download, Pencil, Plus, Search, Trash, Upload, X } from "lucide-react";
+import {
+    CheckCircle,
+    Download,
+    Pencil,
+    Plus,
+    Search,
+    Trash,
+    Upload,
+    X,
+    XCircle,
+} from "lucide-react";
 import { useParams } from "next/navigation";
 import Papa from "papaparse";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface ClassroomType {
     id: number;
@@ -39,6 +49,16 @@ interface FormErrors {
 }
 
 const ITEMS_PER_PAGE = 20;
+
+// Message types
+type MessageType = "success" | "error";
+
+type Message = {
+    id: string;
+    type: MessageType;
+    title: string;
+    description: string;
+};
 
 export default function ClassroomView() {
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
@@ -60,11 +80,119 @@ export default function ClassroomView() {
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [isTypesLoading, setIsTypesLoading] = useState(false);
-    const [statusMessage, setStatusMessage] = useState<{
-        text: string;
-        type: "success" | "error" | "info";
-    } | null>(null);
+
+    // New enhanced message system
+    const [messages, setMessages] = useState<Message[]>([]);
+    const messageTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
     const params = useParams();
+
+    // Cleanup function for message timers
+    useEffect(() => {
+        return () => {
+            // Clear all timers when component unmounts
+            messageTimersRef.current.forEach((timer) => {
+                clearTimeout(timer);
+            });
+            messageTimersRef.current.clear();
+        };
+    }, []);
+
+    // Enhanced message utility functions
+    const clearAllMessages = () => {
+        // Clear all existing timers
+        messageTimersRef.current.forEach((timer) => {
+            clearTimeout(timer);
+        });
+        messageTimersRef.current.clear();
+
+        // Clear all messages
+        setMessages([]);
+    };
+
+    const addMessage = (
+        type: MessageType,
+        title: string,
+        description: string
+    ) => {
+        // Clear any existing messages first to prevent duplicates
+        clearAllMessages();
+
+        const newMessage: Message = {
+            id: Date.now().toString(),
+            type,
+            title,
+            description,
+        };
+
+        setMessages([newMessage]); // Only set this one message
+
+        // Set auto-removal timer
+        const timer = setTimeout(() => {
+            removeMessage(newMessage.id);
+        }, 5000);
+
+        messageTimersRef.current.set(newMessage.id, timer);
+    };
+
+    const removeMessage = (messageId: string) => {
+        // Clear the timer for this message
+        const timer = messageTimersRef.current.get(messageId);
+        if (timer) {
+            clearTimeout(timer);
+            messageTimersRef.current.delete(messageId);
+        }
+
+        // Remove the message
+        setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+    };
+
+    const showSuccessMessage = (title: string, description: string) => {
+        addMessage("success", title, description);
+    };
+
+    const showErrorMessage = (title: string, description: string) => {
+        addMessage("error", title, description);
+    };
+
+    // Message component
+    const MessageBanner = ({ message }: { message: Message }) => (
+        <div
+            className={`max-w-md p-4 rounded-lg shadow-xl border-l-4 transition-all duration-300 ease-in-out ${
+                message.type === "success"
+                    ? "bg-green-50 border-green-500 text-green-800"
+                    : "bg-red-50 border-red-500 text-red-800"
+            }`}
+        >
+            <div className="flex items-start justify-between">
+                <div className="flex items-start gap-3">
+                    {message.type === "success" ? (
+                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    ) : (
+                        <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                        <h4 className="font-semibold text-sm">
+                            {message.title}
+                        </h4>
+                        <p className="text-sm mt-1 opacity-90">
+                            {message.description}
+                        </p>
+                    </div>
+                </div>
+                <button
+                    onClick={() => removeMessage(message.id)}
+                    className={`ml-2 p-1 rounded-full hover:bg-opacity-20 transition-colors flex-shrink-0 ${
+                        message.type === "success"
+                            ? "hover:bg-green-600"
+                            : "hover:bg-red-600"
+                    }`}
+                >
+                    <X className="h-4 w-4" />
+                </button>
+            </div>
+        </div>
+    );
 
     // Sort classrooms by room number in ascending order
     const sortClassrooms = (classroomList: Classroom[]): Classroom[] => {
@@ -181,6 +309,10 @@ export default function ClassroomView() {
             setClassroomTypes(data);
         } catch (error) {
             console.error("Error fetching classroom types:", error);
+            showErrorMessage(
+                "Failed to Load Classroom Types",
+                "Could not load classroom types. Please try again."
+            );
         } finally {
             setIsTypesLoading(false);
         }
@@ -201,10 +333,10 @@ export default function ClassroomView() {
             setClassrooms(data);
         } catch (error) {
             console.error("Error fetching classrooms:", error);
-            setStatusMessage({
-                text: "Failed to load classrooms. Please try again.",
-                type: "error",
-            });
+            showErrorMessage(
+                "Failed to Load Classrooms",
+                "Could not load classrooms. Please try again."
+            );
         } finally {
             setIsLoading(false);
         }
@@ -214,17 +346,6 @@ export default function ClassroomView() {
         fetchClassrooms();
         fetchClassroomTypes();
     }, []);
-
-    // Clear status message after 3 seconds
-    useEffect(() => {
-        if (statusMessage) {
-            const timer = setTimeout(() => {
-                setStatusMessage(null);
-            }, 3000);
-
-            return () => clearTimeout(timer);
-        }
-    }, [statusMessage]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -322,19 +443,18 @@ export default function ClassroomView() {
             await fetchClassrooms();
             setIsAddDialogOpen(false);
             resetForm();
-            setStatusMessage({
-                text: "Classroom added successfully",
-                type: "success",
-            });
+            showSuccessMessage(
+                "Classroom Added Successfully",
+                `Classroom ${formData.code} has been added successfully.`
+            );
         } catch (error) {
             console.error("Error adding classroom:", error);
-            setStatusMessage({
-                text:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to add classroom. Please try again.",
-                type: "error",
-            });
+            showErrorMessage(
+                "Failed to Add Classroom",
+                error instanceof Error
+                    ? error.message
+                    : "Failed to add classroom. Please try again."
+            );
         } finally {
             setIsLoading(false);
         }
@@ -377,19 +497,18 @@ export default function ClassroomView() {
             await fetchClassrooms();
             setIsEditDialogOpen(false);
             resetForm();
-            setStatusMessage({
-                text: "Classroom updated successfully",
-                type: "success",
-            });
+            showSuccessMessage(
+                "Classroom Updated Successfully",
+                `Classroom ${formData.code} has been updated successfully.`
+            );
         } catch (error) {
             console.error("Error updating classroom:", error);
-            setStatusMessage({
-                text:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to update classroom. Please try again.",
-                type: "error",
-            });
+            showErrorMessage(
+                "Failed to Update Classroom",
+                error instanceof Error
+                    ? error.message
+                    : "Failed to update classroom. Please try again."
+            );
         } finally {
             setIsLoading(false);
         }
@@ -397,6 +516,8 @@ export default function ClassroomView() {
 
     const handleDeleteClassroom = async () => {
         if (!selectedClassroom) return;
+
+        const classroomCode = selectedClassroom.code;
 
         setIsLoading(true);
         try {
@@ -427,19 +548,18 @@ export default function ClassroomView() {
 
             await fetchClassrooms();
             setIsDeleteDialogOpen(false);
-            setStatusMessage({
-                text: "Classroom deleted successfully",
-                type: "success",
-            });
+            showSuccessMessage(
+                "Classroom Deleted Successfully",
+                `Classroom ${classroomCode} has been deleted successfully.`
+            );
         } catch (error) {
             console.error("Error deleting classroom:", error);
-            setStatusMessage({
-                text:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to delete classroom. Please try again.",
-                type: "error",
-            });
+            showErrorMessage(
+                "Failed to Delete Classroom",
+                error instanceof Error
+                    ? error.message
+                    : "Failed to delete classroom. Please try again."
+            );
         } finally {
             setIsLoading(false);
         }
@@ -583,10 +703,10 @@ export default function ClassroomView() {
 
     const handleImportCSV = async () => {
         if (!importFile) {
-            setStatusMessage({
-                text: "Please select a CSV file to import",
-                type: "error",
-            });
+            showErrorMessage(
+                "No File Selected",
+                "Please select a CSV file to import"
+            );
             return;
         }
 
@@ -644,10 +764,10 @@ export default function ClassroomView() {
                     }));
 
                     if (validClassrooms.length === 0) {
-                        setStatusMessage({
-                            text: "No valid classrooms found in the CSV file",
-                            type: "error",
-                        });
+                        showErrorMessage(
+                            "No Valid Classrooms",
+                            "No valid classrooms found in the CSV file"
+                        );
                         setImportProgress((prev) => ({
                             ...prev,
                             isImporting: false,
@@ -715,30 +835,27 @@ export default function ClassroomView() {
                     await fetchClassrooms();
 
                     if (completed > 0) {
-                        setStatusMessage({
-                            text: `Successfully imported ${completed} classroom(s)${
+                        showSuccessMessage(
+                            "Import Completed",
+                            `Successfully imported ${completed} classroom(s)${
                                 importErrors.length > 0
                                     ? ` with ${importErrors.length} error(s)`
                                     : ""
-                            }`,
-                            type:
-                                completed === validClassrooms.length
-                                    ? "success"
-                                    : "error",
-                        });
+                            }`
+                        );
                     } else {
-                        setStatusMessage({
-                            text: "Failed to import any classrooms",
-                            type: "error",
-                        });
+                        showErrorMessage(
+                            "Import Failed",
+                            "Failed to import any classrooms"
+                        );
                     }
                 },
                 error: (error) => {
                     console.error("CSV parsing error:", error);
-                    setStatusMessage({
-                        text: "Failed to parse CSV file. Please check the file format.",
-                        type: "error",
-                    });
+                    showErrorMessage(
+                        "CSV Parse Error",
+                        "Failed to parse CSV file. Please check the file format."
+                    );
                     setImportProgress((prev) => ({
                         ...prev,
                         isImporting: false,
@@ -747,10 +864,10 @@ export default function ClassroomView() {
             });
         } catch (error) {
             console.error("Import error:", error);
-            setStatusMessage({
-                text: "Failed to import classrooms. Please try again.",
-                type: "error",
-            });
+            showErrorMessage(
+                "Import Failed",
+                "Failed to import classrooms. Please try again."
+            );
             setImportProgress((prev) => ({ ...prev, isImporting: false }));
         }
     };
@@ -758,12 +875,20 @@ export default function ClassroomView() {
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
+            if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
+                showErrorMessage(
+                    "Invalid File Type",
+                    "Please select a valid CSV file"
+                );
+                event.target.value = "";
+                return;
+            }
             setImportFile(file);
         } else {
-            setStatusMessage({
-                text: "Please select a valid CSV file",
-                type: "error",
-            });
+            showErrorMessage(
+                "No File Selected",
+                "Please select a valid CSV file"
+            );
             event.target.value = "";
         }
     };
@@ -825,18 +950,19 @@ export default function ClassroomView() {
             link.click();
             document.body.removeChild(link);
 
-            setStatusMessage({
-                text: `Exported ${filteredClassrooms.length} classrooms to CSV`,
-                type: "success",
-            });
+            showSuccessMessage(
+                "Export Successful",
+                `Exported ${filteredClassrooms.length} classrooms to CSV`
+            );
         } catch (error) {
             console.error("Error exporting CSV:", error);
-            setStatusMessage({
-                text: "Failed to export classrooms. Please try again.",
-                type: "error",
-            });
+            showErrorMessage(
+                "Export Failed",
+                "Failed to export classrooms. Please try again."
+            );
         }
     };
+
     //search function start here
     const [searchQuery, setSearchQuery] = useState("");
     // Filter classrooms based on search query
@@ -855,12 +981,15 @@ export default function ClassroomView() {
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
+
     //clear all classroom start here
     // Add this state variable with your other useState declarations
     const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
 
     // Add this function with your other handler functions
     const handleClearAllClassrooms = async () => {
+        const classroomCount = classrooms.length;
+
         try {
             const scheduleId = params.id;
             let deletedCount = 0;
@@ -893,876 +1022,922 @@ export default function ClassroomView() {
             await fetchClassrooms();
             setIsClearAllDialogOpen(false);
 
-            if (deletedCount === classrooms.length) {
-                setStatusMessage({
-                    text: `Successfully deleted ${deletedCount} classrooms`,
-                    type: "success",
-                });
+            if (deletedCount === classroomCount) {
+                showSuccessMessage(
+                    "All Classrooms Deleted",
+                    `Successfully deleted ${deletedCount} classrooms`
+                );
             } else if (deletedCount > 0) {
-                setStatusMessage({
-                    text: `Deleted ${deletedCount} classrooms. ${errorCount} classrooms couldn't be deleted (they're being used in course schedules)`,
-                    type: "error",
-                });
+                showErrorMessage(
+                    "Partial Deletion",
+                    `Deleted ${deletedCount} classrooms. ${errorCount} classrooms couldn't be deleted (they're being used in course schedules)`
+                );
             } else {
-                setStatusMessage({
-                    text: "No classrooms could be deleted. They're all being used in course schedules.",
-                    type: "error",
-                });
+                showErrorMessage(
+                    "Deletion Failed",
+                    "No classrooms could be deleted. They're all being used in course schedules."
+                );
             }
         } catch (error) {
             console.error("Error clearing all classrooms:", error);
-            setStatusMessage({
-                text: "Failed to delete classrooms. Please try again.",
-                type: "error",
-            });
+            showErrorMessage(
+                "Failed to Delete All Classrooms",
+                "Failed to delete classrooms. Please try again."
+            );
         }
     };
 
     return (
-        <div className="space-y-4">
-            {statusMessage && (
-                <div
-                    className={`p-3 rounded border text-sm ${
-                        statusMessage.type === "success"
-                            ? "bg-green-50 text-green-800 border-green-200"
-                            : statusMessage.type === "error"
-                            ? "bg-red-50 text-red-800 border-red-200"
-                            : "bg-blue-50 text-blue-800 border-blue-200"
-                    }`}
-                >
-                    {statusMessage.text}
+        <>
+            {/* Messages - OUTSIDE the main content flow */}
+            {messages.length > 0 && (
+                <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
+                    <div className="pointer-events-auto space-y-2">
+                        {messages.map((message) => (
+                            <MessageBanner key={message.id} message={message} />
+                        ))}
+                    </div>
                 </div>
             )}
 
-            {/* Page Header */}
-            <div className="flex justify-between items-center">
-                <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                        Classrooms
-                    </h2>
-                    <p className="text-xs text-gray-600">
-                        Manage classroom details and capacity (sorted by room
-                        number)
-                    </p>
+            {/* Main content - completely separate */}
+            <div className="space-y-4">
+                {/* Page Header */}
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h2 className="text-lg font-semibold text-gray-900">
+                            Classrooms
+                        </h2>
+                        <p className="text-xs text-gray-600">
+                            Manage classroom details and capacity (sorted by
+                            room number)
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button
+                            onClick={() => setIsImportDialogOpen(true)}
+                            variant="outline"
+                            className="border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md"
+                            disabled={isLoading}
+                        >
+                            <Upload className="mr-1 h-3 w-3" /> Import CSV
+                        </Button>
+                        <Button
+                            onClick={downloadClassroomsCSV}
+                            variant="outline"
+                            className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
+                            disabled={
+                                filteredClassrooms.length === 0 || isLoading
+                            }
+                        >
+                            <Download className="mr-1 h-3 w-3" /> Export CSV
+                        </Button>
+                        <Button
+                            onClick={() => setIsAddDialogOpen(true)}
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors"
+                            disabled={isLoading}
+                        >
+                            <Plus className="mr-1 h-3 w-3" /> New Classroom
+                        </Button>
+                        <Button
+                            onClick={() => setIsClearAllDialogOpen(true)}
+                            variant="outline"
+                            className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
+                            disabled={classrooms.length === 0 || isLoading}
+                        >
+                            <Trash className="mr-1 h-3 w-3" /> Clear All
+                        </Button>
+                    </div>
                 </div>
-                <div className="flex gap-2">
-                    <Button
-                        onClick={() => setIsImportDialogOpen(true)}
-                        variant="outline"
-                        className="border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md"
-                        disabled={isLoading}
-                    >
-                        <Upload className="mr-1 h-3 w-3" /> Import CSV
-                    </Button>
-                    <Button
-                        onClick={downloadClassroomsCSV}
-                        variant="outline"
-                        className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
-                        disabled={filteredClassrooms.length === 0 || isLoading}
-                    >
-                        <Download className="mr-1 h-3 w-3" /> Export CSV
-                    </Button>
-                    <Button
-                        onClick={() => setIsAddDialogOpen(true)}
-                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors"
-                        disabled={isLoading}
-                    >
-                        <Plus className="mr-1 h-3 w-3" /> New Classroom
-                    </Button>
-                    <Button
-                        onClick={() => setIsClearAllDialogOpen(true)}
-                        variant="outline"
-                        className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
-                        disabled={classrooms.length === 0 || isLoading}
-                    >
-                        <Trash className="mr-1 h-3 w-3" /> Clear All
-                    </Button>
-                </div>
-            </div>
-            {/* Search Bar */}
-            <div className="relative max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                    placeholder="Search classrooms by code, name, location, or type..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        setCurrentPage(1);
-                    }}
-                    className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
-                />
-                {searchQuery && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                            setSearchQuery("");
+
+                {/* Search Bar */}
+                <div className="relative max-w-md">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                        placeholder="Search classrooms by code, name, location, or type..."
+                        value={searchQuery}
+                        onChange={(e) => {
+                            setSearchQuery(e.target.value);
                             setCurrentPage(1);
                         }}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
-                    >
-                        <X className="h-3 w-3" />
-                    </Button>
-                )}
-            </div>
-            {/* Compact Table Container */}
-            <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-[#2F2F85] text-white">
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
-                                    No.
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
-                                    Code
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
-                                    Name
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
-                                    Location
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
-                                    Type
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
-                                    Capacity
-                                </th>
-                                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                            {isLoading ? (
-                                <tr>
-                                    <td
-                                        colSpan={7}
-                                        className="px-3 py-8 text-center text-gray-500 text-sm"
-                                    >
-                                        Loading...
-                                    </td>
+                        className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
+                    />
+                    {searchQuery && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                setSearchQuery("");
+                                setCurrentPage(1);
+                            }}
+                            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+                        >
+                            <X className="h-3 w-3" />
+                        </Button>
+                    )}
+                </div>
+
+                {/* Compact Table Container */}
+                <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="bg-[#2F2F85] text-white">
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                        No.
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                        Code
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                        Name
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                        Location
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                        Type
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
+                                        Capacity
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
+                                        Actions
+                                    </th>
                                 </tr>
-                            ) : paginatedClassrooms.length === 0 ? (
-                                <tr>
-                                    <td
-                                        colSpan={7}
-                                        className="px-3 py-8 text-center text-gray-500 text-sm"
-                                    >
-                                        <div className="space-y-1">
-                                            <div>No classrooms found</div>
-                                            <div className="text-xs">
-                                                Add a new classroom to get
-                                                started.
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : (
-                                paginatedClassrooms.map((classroom, index) => (
-                                    <tr
-                                        key={classroom.id}
-                                        className={`hover:bg-gray-50 transition-colors ${
-                                            index % 2 === 0
-                                                ? "bg-white"
-                                                : "bg-gray-50"
-                                        }`}
-                                    >
-                                        <td className="px-3 py-2 text-xs text-gray-600 font-medium">
-                                            {(currentPage - 1) *
-                                                ITEMS_PER_PAGE +
-                                                index +
-                                                1}
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                                {isLoading ? (
+                                    <tr>
+                                        <td
+                                            colSpan={7}
+                                            className="px-3 py-8 text-center text-gray-500 text-sm"
+                                        >
+                                            Loading...
                                         </td>
-                                        <td className="px-3 py-2 text-xs font-medium text-gray-900">
-                                            {classroom.code}
-                                        </td>
-                                        <td className="px-3 py-2 text-xs text-gray-900">
-                                            {classroom.name}
-                                        </td>
-                                        <td className="px-3 py-2 text-xs text-gray-900">
-                                            {classroom.location}
-                                        </td>
-                                        <td className="px-3 py-2 text-xs text-gray-900">
-                                            {classroom.type}
-                                        </td>
-                                        <td className="px-3 py-2 text-xs text-gray-900">
-                                            {classroom.capacity}
-                                        </td>
-                                        <td className="px-3 py-2">
-                                            <div className="flex gap-1">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
-                                                    onClick={() =>
-                                                        openEditDialog(
-                                                            classroom
-                                                        )
-                                                    }
-                                                    disabled={isLoading}
-                                                >
-                                                    <Pencil className="h-3 w-3" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
-                                                    onClick={() =>
-                                                        openDeleteDialog(
-                                                            classroom
-                                                        )
-                                                    }
-                                                    disabled={isLoading}
-                                                >
-                                                    <Trash className="h-3 w-3" />
-                                                </Button>
+                                    </tr>
+                                ) : paginatedClassrooms.length === 0 ? (
+                                    <tr>
+                                        <td
+                                            colSpan={7}
+                                            className="px-3 py-8 text-center text-gray-500 text-sm"
+                                        >
+                                            <div className="space-y-1">
+                                                <div>
+                                                    {searchQuery
+                                                        ? `No classrooms found for "${searchQuery}"`
+                                                        : "No classrooms found"}
+                                                </div>
+                                                <div className="text-xs">
+                                                    {searchQuery
+                                                        ? "Try a different search term"
+                                                        : "Add a new classroom to get started."}
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {filteredClassrooms.length > 0 && (
-                <div className="flex justify-center">
-                    <CustomPagination
-                        currentPage={currentPage}
-                        totalPages={totalPages}
-                        onPageChange={setCurrentPage}
-                    />
-                </div>
-            )}
-
-            {/* Add Classroom Dialog */}
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogContent className="bg-white max-w-md">
-                    <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">
-                            Add New Classroom
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    <div className="py-4 space-y-4">
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="code"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Classroom Code{" "}
-                                <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="code"
-                                name="code"
-                                value={formData.code}
-                                onChange={handleInputChange}
-                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.code
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
-                                }`}
-                                placeholder="Enter classroom code (e.g., 101, 119)"
-                            />
-                            {formErrors.code && (
-                                <p className="text-xs text-red-600">
-                                    {formErrors.code}
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="name"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Classroom Name{" "}
-                                <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="name"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleInputChange}
-                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.name
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
-                                }`}
-                                placeholder="Enter classroom name"
-                            />
-                            {formErrors.name && (
-                                <p className="text-xs text-red-600">
-                                    {formErrors.name}
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="location"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Location <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="location"
-                                name="location"
-                                value={formData.location}
-                                onChange={handleInputChange}
-                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.location
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
-                                }`}
-                                placeholder="Enter location"
-                            />
-                            {formErrors.location && (
-                                <p className="text-xs text-red-600">
-                                    {formErrors.location}
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="type"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Type <span className="text-red-500">*</span>
-                            </Label>
-                            <Select
-                                value={formData.type}
-                                onValueChange={(value) =>
-                                    handleSelectChange("type", value)
-                                }
-                            >
-                                <SelectTrigger
-                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                        formErrors.type
-                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                            : ""
-                                    }`}
-                                >
-                                    <SelectValue placeholder="Select type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {isTypesLoading ? (
-                                        <SelectItem value="loading" disabled>
-                                            Loading classroom types...
-                                        </SelectItem>
-                                    ) : classroomTypes.length === 0 ? (
-                                        <SelectItem value="none" disabled>
-                                            No classroom types available
-                                        </SelectItem>
-                                    ) : (
-                                        classroomTypes.map((type) => (
-                                            <SelectItem
-                                                key={type.id}
-                                                value={type.name}
+                                ) : (
+                                    paginatedClassrooms.map(
+                                        (classroom, index) => (
+                                            <tr
+                                                key={classroom.id}
+                                                className={`hover:bg-gray-50 transition-colors ${
+                                                    index % 2 === 0
+                                                        ? "bg-white"
+                                                        : "bg-gray-50"
+                                                }`}
                                             >
-                                                {type.name}
-                                            </SelectItem>
-                                        ))
-                                    )}
-                                </SelectContent>
-                            </Select>
-                            {formErrors.type && (
-                                <p className="text-xs text-red-600">
-                                    {formErrors.type}
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="capacity"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Capacity <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="capacity"
-                                name="capacity"
-                                type="number"
-                                value={formData.capacity}
-                                onChange={handleInputChange}
-                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.capacity
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
-                                }`}
-                                placeholder="Enter capacity (1-100)"
-                                min="1"
-                                max="100"
-                            />
-                            {formErrors.capacity && (
-                                <p className="text-xs text-red-600">
-                                    {formErrors.capacity}
-                                </p>
-                            )}
-                        </div>
+                                                <td className="px-3 py-2 text-xs text-gray-600 font-medium">
+                                                    {(currentPage - 1) *
+                                                        ITEMS_PER_PAGE +
+                                                        index +
+                                                        1}
+                                                </td>
+                                                <td className="px-3 py-2 text-xs font-medium text-gray-900">
+                                                    {classroom.code}
+                                                </td>
+                                                <td className="px-3 py-2 text-xs text-gray-900">
+                                                    {classroom.name}
+                                                </td>
+                                                <td className="px-3 py-2 text-xs text-gray-900">
+                                                    {classroom.location}
+                                                </td>
+                                                <td className="px-3 py-2 text-xs text-gray-900">
+                                                    {classroom.type}
+                                                </td>
+                                                <td className="px-3 py-2 text-xs text-gray-900">
+                                                    {classroom.capacity}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    <div className="flex gap-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                            onClick={() =>
+                                                                openEditDialog(
+                                                                    classroom
+                                                                )
+                                                            }
+                                                            disabled={isLoading}
+                                                        >
+                                                            <Pencil className="h-3 w-3" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                            onClick={() =>
+                                                                openDeleteDialog(
+                                                                    classroom
+                                                                )
+                                                            }
+                                                            disabled={isLoading}
+                                                        >
+                                                            <Trash className="h-3 w-3" />
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )
+                                    )
+                                )}
+                            </tbody>
+                        </table>
                     </div>
+                </div>
 
-                    <DialogFooter className="border-t border-gray-200 pt-3">
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setIsAddDialogOpen(false);
-                                resetForm();
-                            }}
-                            disabled={isLoading}
-                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleAddClassroom}
-                            disabled={
-                                isLoading ||
-                                Object.values(formErrors).some(
-                                    (error) => error !== undefined
-                                )
-                            }
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
-                        >
-                            {isLoading ? "Adding..." : "Add"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Edit Classroom Dialog */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogContent className="bg-white max-w-md">
-                    <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">
-                            Edit Classroom
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    <div className="py-4 space-y-4">
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="edit-code"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Classroom Code{" "}
-                                <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="edit-code"
-                                name="code"
-                                value={formData.code}
-                                onChange={handleInputChange}
-                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.code
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
-                                }`}
-                                placeholder="Enter classroom code (e.g., 101, 2A1)"
-                            />
-                            {formErrors.code && (
-                                <p className="text-xs text-red-600">
-                                    {formErrors.code}
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="edit-name"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Classroom Name{" "}
-                                <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="edit-name"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleInputChange}
-                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.name
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
-                                }`}
-                                placeholder="Enter classroom name"
-                            />
-                            {formErrors.name && (
-                                <p className="text-xs text-red-600">
-                                    {formErrors.name}
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="edit-location"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Location <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="edit-location"
-                                name="location"
-                                value={formData.location}
-                                onChange={handleInputChange}
-                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.location
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
-                                }`}
-                                placeholder="Enter location"
-                            />
-                            {formErrors.location && (
-                                <p className="text-xs text-red-600">
-                                    {formErrors.location}
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="edit-type"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Type <span className="text-red-500">*</span>
-                            </Label>
-                            <Select
-                                value={formData.type}
-                                onValueChange={(value) =>
-                                    handleSelectChange("type", value)
-                                }
-                            >
-                                <SelectTrigger
-                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                        formErrors.type
-                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                            : ""
-                                    }`}
-                                >
-                                    <SelectValue placeholder="Select type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {isTypesLoading ? (
-                                        <SelectItem value="loading" disabled>
-                                            Loading classroom types...
-                                        </SelectItem>
-                                    ) : classroomTypes.length === 0 ? (
-                                        <SelectItem value="none" disabled>
-                                            No classroom types available
-                                        </SelectItem>
-                                    ) : (
-                                        classroomTypes.map((type) => (
-                                            <SelectItem
-                                                key={type.id}
-                                                value={type.name}
-                                            >
-                                                {type.name}
-                                            </SelectItem>
-                                        ))
-                                    )}
-                                </SelectContent>
-                            </Select>
-                            {formErrors.type && (
-                                <p className="text-xs text-red-600">
-                                    {formErrors.type}
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="edit-capacity"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Capacity <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="edit-capacity"
-                                name="capacity"
-                                type="number"
-                                value={formData.capacity}
-                                onChange={handleInputChange}
-                                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                    formErrors.capacity
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : ""
-                                }`}
-                                placeholder="Enter capacity (1-100)"
-                                min="1"
-                                max="100"
-                            />
-                            {formErrors.capacity && (
-                                <p className="text-xs text-red-600">
-                                    {formErrors.capacity}
-                                </p>
-                            )}
-                        </div>
+                {/* Pagination */}
+                {filteredClassrooms.length > 0 && totalPages > 1 && (
+                    <div className="flex justify-center">
+                        <CustomPagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={setCurrentPage}
+                        />
                     </div>
+                )}
 
-                    <DialogFooter className="border-t border-gray-200 pt-3">
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setIsEditDialogOpen(false);
-                                resetForm();
-                            }}
-                            disabled={isLoading}
-                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleEditClassroom}
-                            disabled={
-                                isLoading ||
-                                Object.values(formErrors).some(
-                                    (error) => error !== undefined
-                                )
-                            }
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
-                        >
-                            {isLoading ? "Saving..." : "Save"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                {/* Add Classroom Dialog */}
+                <Dialog
+                    open={isAddDialogOpen}
+                    onOpenChange={(open) => {
+                        if (!open) resetForm();
+                        setIsAddDialogOpen(open);
+                    }}
+                >
+                    <DialogContent className="bg-white max-w-md">
+                        <DialogHeader className="border-b border-gray-200 pb-3">
+                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                                Add New Classroom
+                            </DialogTitle>
+                        </DialogHeader>
 
-            {/* Delete Classroom Dialog */}
-            <Dialog
-                open={isDeleteDialogOpen}
-                onOpenChange={setIsDeleteDialogOpen}
-            >
-                <DialogContent className="bg-white max-w-md">
-                    <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">
-                            Delete Classroom
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    <div className="py-4">
-                        <p className="text-sm text-gray-600 mb-2">
-                            Are you sure you want to delete this classroom?
-                        </p>
-                        <div className="bg-gray-50 p-3 rounded border space-y-1">
-                            <p className="font-medium text-sm text-gray-900">
-                                <span className="text-gray-600">Code:</span>{" "}
-                                {selectedClassroom?.code}
-                            </p>
-                            <p className="text-sm text-gray-700">
-                                <span className="text-gray-600">Name:</span>{" "}
-                                {selectedClassroom?.name}
-                            </p>
-                            <p className="text-sm text-gray-700">
-                                <span className="text-gray-600">Location:</span>{" "}
-                                {selectedClassroom?.location}
-                            </p>
-                            <p className="text-sm text-gray-700">
-                                <span className="text-gray-600">Type:</span>{" "}
-                                {selectedClassroom?.type}
-                            </p>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2">
-                            This action cannot be undone.
-                        </p>
-                    </div>
-
-                    <DialogFooter className="border-t border-gray-200 pt-3">
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsDeleteDialogOpen(false)}
-                            disabled={isLoading}
-                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleDeleteClassroom}
-                            disabled={isLoading}
-                            className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
-                        >
-                            {isLoading ? "Deleting..." : "Delete"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Import CSV Dialog */}
-            <Dialog
-                open={isImportDialogOpen}
-                onOpenChange={(open) => {
-                    if (!open) resetImportState();
-                    setIsImportDialogOpen(open);
-                }}
-            >
-                <DialogContent className="bg-white max-w-md">
-                    <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">
-                            Import Classrooms from CSV
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    <div className="py-4 space-y-4">
-                        <div>
-                            <Label
-                                htmlFor="csv-file"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Select CSV File
-                            </Label>
-                            <Input
-                                id="csv-file"
-                                type="file"
-                                accept=".csv"
-                                onChange={handleFileSelect}
-                                disabled={importProgress.isImporting}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
-                            />
-                            <p className="text-xs text-gray-600 mt-1">
-                                CSV should contain columns: code, name,
-                                location, type, capacity
-                            </p>
-                        </div>
-
-                        {importFile && (
-                            <div className="text-xs bg-gray-50 p-2 rounded border">
-                                <p>
-                                    <strong>Selected file:</strong>{" "}
-                                    {importFile.name}
-                                </p>
-                                <p>
-                                    <strong>Size:</strong>{" "}
-                                    {(importFile.size / 1024).toFixed(2)} KB
-                                </p>
-                            </div>
-                        )}
-
-                        {importProgress.isImporting && (
+                        <div className="py-4 space-y-4">
                             <div className="space-y-2">
-                                <div className="flex justify-between text-xs">
-                                    <span>Progress:</span>
-                                    <span>
-                                        {importProgress.completed} /{" "}
-                                        {importProgress.total}
-                                    </span>
-                                </div>
-                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                    <div
-                                        className="bg-[#2F2F85] h-2 rounded-full transition-all duration-300"
-                                        style={{
-                                            width:
-                                                importProgress.total > 0
-                                                    ? `${
-                                                          (importProgress.completed /
-                                                              importProgress.total) *
-                                                          100
-                                                      }%`
-                                                    : "0%",
-                                        }}
-                                    ></div>
-                                </div>
+                                <Label
+                                    htmlFor="code"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Classroom Code{" "}
+                                    <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                    id="code"
+                                    name="code"
+                                    value={formData.code}
+                                    onChange={handleInputChange}
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        formErrors.code
+                                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    }`}
+                                    placeholder="Enter classroom code (e.g., 101, 119)"
+                                />
+                                {formErrors.code && (
+                                    <p className="text-xs text-red-600 font-medium">
+                                        {formErrors.code}
+                                    </p>
+                                )}
                             </div>
-                        )}
 
-                        {importProgress.errors.length > 0 && (
-                            <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded border border-red-200">
-                                <p className="text-xs font-medium text-red-600 mb-1">
-                                    Errors ({importProgress.errors.length}):
-                                </p>
-                                <div className="text-xs space-y-1">
-                                    {importProgress.errors
-                                        .slice(0, 10)
-                                        .map((error, index) => (
-                                            <p
-                                                key={index}
-                                                className="text-red-600"
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="name"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Classroom Name{" "}
+                                    <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                    id="name"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleInputChange}
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        formErrors.name
+                                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    }`}
+                                    placeholder="Enter classroom name"
+                                />
+                                {formErrors.name && (
+                                    <p className="text-xs text-red-600 font-medium">
+                                        {formErrors.name}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="location"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Location{" "}
+                                    <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                    id="location"
+                                    name="location"
+                                    value={formData.location}
+                                    onChange={handleInputChange}
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        formErrors.location
+                                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    }`}
+                                    placeholder="Enter location"
+                                />
+                                {formErrors.location && (
+                                    <p className="text-xs text-red-600 font-medium">
+                                        {formErrors.location}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="type"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Type <span className="text-red-500">*</span>
+                                </Label>
+                                <Select
+                                    value={formData.type}
+                                    onValueChange={(value) =>
+                                        handleSelectChange("type", value)
+                                    }
+                                >
+                                    <SelectTrigger
+                                        className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                            formErrors.type
+                                                ? "border-red-300 focus:border-red-500 animate-pulse"
+                                                : ""
+                                        }`}
+                                    >
+                                        <SelectValue placeholder="Select type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {isTypesLoading ? (
+                                            <SelectItem
+                                                value="loading"
+                                                disabled
                                             >
-                                                {error}
-                                            </p>
-                                        ))}
-                                    {importProgress.errors.length > 10 && (
-                                        <p className="text-red-600 font-medium">
-                                            ... and{" "}
-                                            {importProgress.errors.length - 10}{" "}
-                                            more errors
-                                        </p>
-                                    )}
-                                </div>
+                                                Loading classroom types...
+                                            </SelectItem>
+                                        ) : classroomTypes.length === 0 ? (
+                                            <SelectItem value="none" disabled>
+                                                No classroom types available
+                                            </SelectItem>
+                                        ) : (
+                                            classroomTypes.map((type) => (
+                                                <SelectItem
+                                                    key={type.id}
+                                                    value={type.name}
+                                                >
+                                                    {type.name}
+                                                </SelectItem>
+                                            ))
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                                {formErrors.type && (
+                                    <p className="text-xs text-red-600 font-medium">
+                                        {formErrors.type}
+                                    </p>
+                                )}
                             </div>
-                        )}
-                    </div>
 
-                    <DialogFooter className="border-t border-gray-200 pt-3">
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                resetImportState();
-                                setIsImportDialogOpen(false);
-                            }}
-                            disabled={importProgress.isImporting}
-                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleImportCSV}
-                            disabled={!importFile || importProgress.isImporting}
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
-                        >
-                            {importProgress.isImporting
-                                ? "Importing..."
-                                : "Import"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-            {/* Clear All Classrooms Dialog */}
-            <Dialog
-                open={isClearAllDialogOpen}
-                onOpenChange={setIsClearAllDialogOpen}
-            >
-                <DialogContent className="bg-white max-w-md">
-                    <DialogHeader className="border-b border-gray-200 pb-3">
-                        <DialogTitle className="text-lg font-semibold text-gray-900">
-                            Clear All Classrooms
-                        </DialogTitle>
-                    </DialogHeader>
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="capacity"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Capacity{" "}
+                                    <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                    id="capacity"
+                                    name="capacity"
+                                    type="number"
+                                    value={formData.capacity}
+                                    onChange={handleInputChange}
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        formErrors.capacity
+                                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    }`}
+                                    placeholder="Enter capacity (1-100)"
+                                    min="1"
+                                    max="100"
+                                />
+                                {formErrors.capacity && (
+                                    <p className="text-xs text-red-600 font-medium">
+                                        {formErrors.capacity}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
 
-                    <div className="py-4">
-                        <p className="text-sm text-gray-600 mb-2">
-                            Are you sure you want to delete all{" "}
-                            {classrooms.length} classrooms?
-                        </p>
-                        <p className="text-xs text-red-600 font-medium">
-                            This action cannot be undone.
-                        </p>
-                    </div>
+                        <DialogFooter className="border-t border-gray-200 pt-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    resetForm();
+                                    setIsAddDialogOpen(false);
+                                }}
+                                disabled={isLoading}
+                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleAddClassroom}
+                                disabled={
+                                    isLoading ||
+                                    Object.values(formErrors).some(
+                                        (error) => error !== undefined
+                                    )
+                                }
+                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                                {isLoading ? "Adding..." : "Add"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
-                    <DialogFooter className="border-t border-gray-200 pt-3">
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsClearAllDialogOpen(false)}
-                            disabled={isLoading}
-                            className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleClearAllClassrooms}
-                            disabled={isLoading}
-                            className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
-                        >
-                            Delete All
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
+                {/* Edit Classroom Dialog */}
+                <Dialog
+                    open={isEditDialogOpen}
+                    onOpenChange={(open) => {
+                        if (!open) resetForm();
+                        setIsEditDialogOpen(open);
+                    }}
+                >
+                    <DialogContent className="bg-white max-w-md">
+                        <DialogHeader className="border-b border-gray-200 pb-3">
+                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                                Edit Classroom
+                            </DialogTitle>
+                        </DialogHeader>
+
+                        <div className="py-4 space-y-4">
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="edit-code"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Classroom Code{" "}
+                                    <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                    id="edit-code"
+                                    name="code"
+                                    value={formData.code}
+                                    onChange={handleInputChange}
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        formErrors.code
+                                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    }`}
+                                    placeholder="Enter classroom code (e.g., 101, 2A1)"
+                                />
+                                {formErrors.code && (
+                                    <p className="text-xs text-red-600 font-medium">
+                                        {formErrors.code}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="edit-name"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Classroom Name{" "}
+                                    <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                    id="edit-name"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleInputChange}
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        formErrors.name
+                                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    }`}
+                                    placeholder="Enter classroom name"
+                                />
+                                {formErrors.name && (
+                                    <p className="text-xs text-red-600 font-medium">
+                                        {formErrors.name}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="edit-location"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Location{" "}
+                                    <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                    id="edit-location"
+                                    name="location"
+                                    value={formData.location}
+                                    onChange={handleInputChange}
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        formErrors.location
+                                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    }`}
+                                    placeholder="Enter location"
+                                />
+                                {formErrors.location && (
+                                    <p className="text-xs text-red-600 font-medium">
+                                        {formErrors.location}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="edit-type"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Type <span className="text-red-500">*</span>
+                                </Label>
+                                <Select
+                                    value={formData.type}
+                                    onValueChange={(value) =>
+                                        handleSelectChange("type", value)
+                                    }
+                                >
+                                    <SelectTrigger
+                                        className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                            formErrors.type
+                                                ? "border-red-300 focus:border-red-500 animate-pulse"
+                                                : ""
+                                        }`}
+                                    >
+                                        <SelectValue placeholder="Select type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {isTypesLoading ? (
+                                            <SelectItem
+                                                value="loading"
+                                                disabled
+                                            >
+                                                Loading classroom types...
+                                            </SelectItem>
+                                        ) : classroomTypes.length === 0 ? (
+                                            <SelectItem value="none" disabled>
+                                                No classroom types available
+                                            </SelectItem>
+                                        ) : (
+                                            classroomTypes.map((type) => (
+                                                <SelectItem
+                                                    key={type.id}
+                                                    value={type.name}
+                                                >
+                                                    {type.name}
+                                                </SelectItem>
+                                            ))
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                                {formErrors.type && (
+                                    <p className="text-xs text-red-600 font-medium">
+                                        {formErrors.type}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="edit-capacity"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Capacity{" "}
+                                    <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                    id="edit-capacity"
+                                    name="capacity"
+                                    type="number"
+                                    value={formData.capacity}
+                                    onChange={handleInputChange}
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                        formErrors.capacity
+                                            ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    }`}
+                                    placeholder="Enter capacity (1-100)"
+                                    min="1"
+                                    max="100"
+                                />
+                                {formErrors.capacity && (
+                                    <p className="text-xs text-red-600 font-medium">
+                                        {formErrors.capacity}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <DialogFooter className="border-t border-gray-200 pt-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    resetForm();
+                                    setIsEditDialogOpen(false);
+                                }}
+                                disabled={isLoading}
+                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleEditClassroom}
+                                disabled={
+                                    isLoading ||
+                                    Object.values(formErrors).some(
+                                        (error) => error !== undefined
+                                    )
+                                }
+                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                                {isLoading ? "Saving..." : "Save"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Delete Classroom Dialog */}
+                <Dialog
+                    open={isDeleteDialogOpen}
+                    onOpenChange={(open) => {
+                        if (!open) setSelectedClassroom(null);
+                        setIsDeleteDialogOpen(open);
+                    }}
+                >
+                    <DialogContent className="bg-white max-w-md">
+                        <DialogHeader className="border-b border-gray-200 pb-3">
+                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                                Delete Classroom
+                            </DialogTitle>
+                        </DialogHeader>
+
+                        <div className="py-4">
+                            <p className="text-sm text-gray-600 mb-2">
+                                Are you sure you want to delete this classroom?
+                            </p>
+                            <div className="bg-gray-50 p-3 rounded border space-y-1">
+                                <p className="font-medium text-sm text-gray-900">
+                                    <span className="text-gray-600">Code:</span>{" "}
+                                    {selectedClassroom?.code}
+                                </p>
+                                <p className="text-sm text-gray-700">
+                                    <span className="text-gray-600">Name:</span>{" "}
+                                    {selectedClassroom?.name}
+                                </p>
+                                <p className="text-sm text-gray-700">
+                                    <span className="text-gray-600">
+                                        Location:
+                                    </span>{" "}
+                                    {selectedClassroom?.location}
+                                </p>
+                                <p className="text-sm text-gray-700">
+                                    <span className="text-gray-600">Type:</span>{" "}
+                                    {selectedClassroom?.type}
+                                </p>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">
+                                This action cannot be undone.
+                            </p>
+                        </div>
+
+                        <DialogFooter className="border-t border-gray-200 pt-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setSelectedClassroom(null);
+                                    setIsDeleteDialogOpen(false);
+                                }}
+                                disabled={isLoading}
+                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleDeleteClassroom}
+                                disabled={isLoading}
+                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                            >
+                                {isLoading ? "Deleting..." : "Delete"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Import CSV Dialog */}
+                <Dialog
+                    open={isImportDialogOpen}
+                    onOpenChange={(open) => {
+                        if (!open) resetImportState();
+                        setIsImportDialogOpen(open);
+                    }}
+                >
+                    <DialogContent className="bg-white max-w-md">
+                        <DialogHeader className="border-b border-gray-200 pb-3">
+                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                                Import Classrooms from CSV
+                            </DialogTitle>
+                        </DialogHeader>
+
+                        <div className="py-4 space-y-4">
+                            <div>
+                                <Label
+                                    htmlFor="csv-file"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Select CSV File
+                                </Label>
+                                <Input
+                                    id="csv-file"
+                                    type="file"
+                                    accept=".csv"
+                                    onChange={handleFileSelect}
+                                    disabled={importProgress.isImporting}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
+                                />
+                                <p className="text-xs text-gray-600 mt-1">
+                                    CSV should contain columns: code, name,
+                                    location, type, capacity
+                                </p>
+                            </div>
+
+                            {importFile && (
+                                <div className="text-xs bg-gray-50 p-2 rounded border">
+                                    <p>
+                                        <strong>Selected file:</strong>{" "}
+                                        {importFile.name}
+                                    </p>
+                                    <p>
+                                        <strong>Size:</strong>{" "}
+                                        {(importFile.size / 1024).toFixed(2)} KB
+                                    </p>
+                                </div>
+                            )}
+
+                            {importProgress.isImporting && (
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-xs">
+                                        <span>Progress:</span>
+                                        <span>
+                                            {importProgress.completed} /{" "}
+                                            {importProgress.total}
+                                        </span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                        <div
+                                            className="bg-[#2F2F85] h-2 rounded-full transition-all duration-300"
+                                            style={{
+                                                width:
+                                                    importProgress.total > 0
+                                                        ? `${
+                                                              (importProgress.completed /
+                                                                  importProgress.total) *
+                                                              100
+                                                          }%`
+                                                        : "0%",
+                                            }}
+                                        ></div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {importProgress.errors.length > 0 && (
+                                <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded border border-red-200">
+                                    <p className="text-xs font-medium text-red-600 mb-1">
+                                        Errors ({importProgress.errors.length}):
+                                    </p>
+                                    <div className="text-xs space-y-1">
+                                        {importProgress.errors
+                                            .slice(0, 10)
+                                            .map((error, index) => (
+                                                <p
+                                                    key={index}
+                                                    className="text-red-600"
+                                                >
+                                                    {error}
+                                                </p>
+                                            ))}
+                                        {importProgress.errors.length > 10 && (
+                                            <p className="text-red-600 font-medium">
+                                                ... and{" "}
+                                                {importProgress.errors.length -
+                                                    10}{" "}
+                                                more errors
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <DialogFooter className="border-t border-gray-200 pt-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    resetImportState();
+                                    setIsImportDialogOpen(false);
+                                }}
+                                disabled={importProgress.isImporting}
+                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleImportCSV}
+                                disabled={
+                                    !importFile || importProgress.isImporting
+                                }
+                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                            >
+                                {importProgress.isImporting
+                                    ? "Importing..."
+                                    : "Import"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Clear All Classrooms Dialog */}
+                <Dialog
+                    open={isClearAllDialogOpen}
+                    onOpenChange={setIsClearAllDialogOpen}
+                >
+                    <DialogContent className="bg-white max-w-md">
+                        <DialogHeader className="border-b border-gray-200 pb-3">
+                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                                Clear All Classrooms
+                            </DialogTitle>
+                        </DialogHeader>
+
+                        <div className="py-4">
+                            <p className="text-sm text-gray-600 mb-2">
+                                Are you sure you want to delete all{" "}
+                                {classrooms.length} classrooms?
+                            </p>
+                            <p className="text-xs text-red-600 font-medium">
+                                This action cannot be undone.
+                            </p>
+                        </div>
+
+                        <DialogFooter className="border-t border-gray-200 pt-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsClearAllDialogOpen(false)}
+                                disabled={isLoading}
+                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleClearAllClassrooms}
+                                disabled={isLoading}
+                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                            >
+                                Delete All
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </div>
+        </>
     );
 }

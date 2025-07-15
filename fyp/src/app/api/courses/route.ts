@@ -464,69 +464,165 @@ export async function PATCH(request: Request) {
                 .where(eq(courses.id, courseId));
         }
 
-        // STEP 2: Update ONLY the specific section being edited
+        // STEP 2: Update existing sections and create new sections
         if (sectionsList && sectionsList.length > 0) {
-            // Only process the first section since we're editing one specific section
-            const sectionData = sectionsList[0];
-            const { section, instructorId, status, splitDurations } =
-                sectionData;
+            for (const sectionData of sectionsList) {
+                const { section, instructorId, status, splitDurations } =
+                    sectionData;
 
-            // Update the specific section being edited
-            const sectionUpdateData: any = {
-                number: section,
-                status: status || "offline",
-            };
+                // Check if section with this number already exists for this course
+                const existingSection = await db
+                    .select({ id: sections.id })
+                    .from(sections)
+                    .where(
+                        and(
+                            eq(sections.courseId, courseId),
+                            eq(sections.number, section)
+                        )
+                    )
+                    .limit(1);
 
-            // Handle instructor assignment/removal for this specific section
-            if (
-                instructorId !== undefined &&
-                instructorId !== null &&
-                instructorId !== ""
-            ) {
-                sectionUpdateData.instructorId = parseInt(instructorId);
-            } else {
-                sectionUpdateData.instructorId = null;
-            }
+                let currentSectionId;
 
-            // Update only the specific section
-            await db
-                .update(sections)
-                .set(sectionUpdateData)
-                .where(eq(sections.id, sectionId));
+                if (existingSection.length > 0) {
+                    // Section exists - update it
+                    currentSectionId = existingSection[0].id;
 
-            // STEP 3: Update courseHours for this specific section
-            // Always delete existing courseHours for this section first
-            await db
-                .delete(courseHours)
-                .where(eq(courseHours.sectionId, sectionId));
+                    const sectionUpdateData: any = {
+                        number: section,
+                        status: status || "offline",
+                    };
 
-            if (splitDurations && splitDurations.length > 0) {
-                // Insert new courseHours based on split durations
-                for (const timeSlot of splitDurations) {
-                    const { separatedDuration } = timeSlot;
+                    // Handle instructor assignment/removal
+                    if (
+                        instructorId !== undefined &&
+                        instructorId !== null &&
+                        instructorId !== ""
+                    ) {
+                        sectionUpdateData.instructorId = parseInt(instructorId);
+                    } else {
+                        sectionUpdateData.instructorId = null;
+                    }
 
-                    // Use separatedDuration if provided, otherwise use course duration
+                    // Update the existing section
+                    await db
+                        .update(sections)
+                        .set(sectionUpdateData)
+                        .where(eq(sections.id, currentSectionId));
+                } else {
+                    // Section doesn't exist - create it
+                    const sectionInsertData: any = {
+                        number: section,
+                        status: status || "offline",
+                        courseId: courseId,
+                    };
+
+                    // Handle instructor assignment
+                    if (
+                        instructorId !== undefined &&
+                        instructorId !== null &&
+                        instructorId !== ""
+                    ) {
+                        sectionInsertData.instructorId = parseInt(instructorId);
+                    }
+
+                    // Insert new section
+                    const insertResult = await db
+                        .insert(sections)
+                        .values(sectionInsertData);
+
+                    currentSectionId = insertResult[0].insertId;
+                }
+
+                // STEP 3: Update courseHours for this section
+                // Check existing courseHours for this section
+                const existingCourseHours = await db
+                    .select({ id: courseHours.id })
+                    .from(courseHours)
+                    .where(eq(courseHours.sectionId, currentSectionId));
+
+                if (splitDurations && splitDurations.length > 0) {
+                    // If we have split durations, we need to handle multiple courseHours
+
+                    // If existing courseHours count matches splitDurations count, update them
+                    if (existingCourseHours.length === splitDurations.length) {
+                        // Update existing courseHours
+                        for (let i = 0; i < splitDurations.length; i++) {
+                            const timeSlot = splitDurations[i];
+                            const { separatedDuration } = timeSlot;
+
+                            const durationToUse =
+                                separatedDuration !== undefined
+                                    ? separatedDuration
+                                    : duration !== undefined
+                                    ? duration
+                                    : existingCourse.duration;
+
+                            await db
+                                .update(courseHours)
+                                .set({ separatedDuration: durationToUse })
+                                .where(
+                                    eq(
+                                        courseHours.id,
+                                        existingCourseHours[i].id
+                                    )
+                                );
+                        }
+                    } else {
+                        // Different count - delete all existing and insert new ones
+                        await db
+                            .delete(courseHours)
+                            .where(eq(courseHours.sectionId, currentSectionId));
+
+                        for (const timeSlot of splitDurations) {
+                            const { separatedDuration } = timeSlot;
+
+                            const durationToUse =
+                                separatedDuration !== undefined
+                                    ? separatedDuration
+                                    : duration !== undefined
+                                    ? duration
+                                    : existingCourse.duration;
+
+                            await db.insert(courseHours).values({
+                                separatedDuration: durationToUse,
+                                sectionId: currentSectionId,
+                            });
+                        }
+                    }
+                } else {
+                    // No split durations - we want single courseHour
                     const durationToUse =
-                        separatedDuration !== undefined
-                            ? separatedDuration
-                            : duration !== undefined
+                        duration !== undefined
                             ? duration
                             : existingCourse.duration;
 
-                    await db.insert(courseHours).values({
-                        separatedDuration: durationToUse,
-                        sectionId: sectionId,
-                    });
-                }
-            } else {
-                // No split durations, create single courseHour with course duration
-                const durationToUse =
-                    duration !== undefined ? duration : existingCourse.duration;
+                    if (existingCourseHours.length === 1) {
+                        // Update the existing single courseHour
+                        await db
+                            .update(courseHours)
+                            .set({ separatedDuration: durationToUse })
+                            .where(
+                                eq(courseHours.id, existingCourseHours[0].id)
+                            );
+                    } else if (existingCourseHours.length > 1) {
+                        // Multiple courseHours exist but we want single - delete all and create one
+                        await db
+                            .delete(courseHours)
+                            .where(eq(courseHours.sectionId, currentSectionId));
 
-                await db.insert(courseHours).values({
-                    separatedDuration: durationToUse,
-                    sectionId: sectionId,
-                });
+                        await db.insert(courseHours).values({
+                            separatedDuration: durationToUse,
+                            sectionId: currentSectionId,
+                        });
+                    } else {
+                        // No courseHours exist - create one
+                        await db.insert(courseHours).values({
+                            separatedDuration: durationToUse,
+                            sectionId: currentSectionId,
+                        });
+                    }
+                }
             }
         }
 

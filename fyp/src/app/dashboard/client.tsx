@@ -21,9 +21,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BookOpen, Pencil, Plus, Trash, Users } from "lucide-react";
+import {
+    BookOpen,
+    CheckCircle,
+    Pencil,
+    Plus,
+    Trash,
+    Users,
+    X,
+    XCircle,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Type definitions
 type Schedule = {
@@ -38,6 +47,16 @@ type Schedule = {
         startTime: string;
         endTime: string;
     }[];
+};
+
+// Message types
+type MessageType = "success" | "error";
+
+type Message = {
+    id: string;
+    type: MessageType;
+    title: string;
+    description: string;
 };
 
 interface DashboardProps {
@@ -61,6 +80,10 @@ export default function Dashboard({ authUser }: DashboardProps) {
         timeSlots: [] as { startTime: string; endTime: string }[],
     });
 
+    // Message state with better management
+    const [messages, setMessages] = useState<Message[]>([]);
+    const messageTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
     // Persistent state to store all time slot values
     const [persistentTimeSlots, setPersistentTimeSlots] = useState<
         { startTime: string; endTime: string }[]
@@ -71,6 +94,116 @@ export default function Dashboard({ authUser }: DashboardProps) {
     const [timeSlotErrors, setTimeSlotErrors] = useState<{
         [key: number]: string;
     }>({});
+
+    // Loading states for operations
+    const [isCreating, setIsCreating] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    // Cleanup function for message timers
+    useEffect(() => {
+        return () => {
+            // Clear all timers when component unmounts
+            messageTimersRef.current.forEach((timer) => {
+                clearTimeout(timer);
+            });
+            messageTimersRef.current.clear();
+        };
+    }, []);
+
+    const isFormValid = (): boolean => {
+        // Check required fields
+        if (!formData.name.trim()) return false;
+        if (!formData.startDate) return false;
+        if (!formData.endDate) return false;
+
+        // If numTimeSlots is specified and > 0, validate time slots
+        const numSlots =
+            typeof formData.numTimeSlots === "string"
+                ? formData.numTimeSlots === ""
+                    ? 0
+                    : parseInt(formData.numTimeSlots)
+                : formData.numTimeSlots;
+
+        if (numSlots > 0) {
+            // Check that all time slots have both start and end times filled
+            for (let i = 0; i < formData.timeSlots.length; i++) {
+                const slot = formData.timeSlots[i];
+
+                // If either start or end time is empty, form is invalid
+                if (!slot.startTime.trim() || !slot.endTime.trim()) {
+                    return false;
+                }
+
+                // If time format is incomplete, form is invalid
+                if (
+                    !isCompleteTimeFormat(slot.startTime) ||
+                    !isCompleteTimeFormat(slot.endTime)
+                ) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    };
+
+    // Enhanced message utility functions
+    const clearAllMessages = () => {
+        // Clear all existing timers
+        messageTimersRef.current.forEach((timer) => {
+            clearTimeout(timer);
+        });
+        messageTimersRef.current.clear();
+
+        // Clear all messages
+        setMessages([]);
+    };
+
+    const addMessage = (
+        type: MessageType,
+        title: string,
+        description: string
+    ) => {
+        // Clear any existing messages first to prevent duplicates
+        clearAllMessages();
+
+        const newMessage: Message = {
+            id: Date.now().toString(),
+            type,
+            title,
+            description,
+        };
+
+        setMessages([newMessage]); // Only set this one message
+
+        // Set auto-removal timer
+        const timer = setTimeout(() => {
+            removeMessage(newMessage.id);
+        }, 5000);
+
+        messageTimersRef.current.set(newMessage.id, timer);
+    };
+
+    const removeMessage = (messageId: string) => {
+        // Clear the timer for this message
+        const timer = messageTimersRef.current.get(messageId);
+        if (timer) {
+            clearTimeout(timer);
+            messageTimersRef.current.delete(messageId);
+        }
+
+        // Remove the message
+        setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+    };
+
+    const showSuccessMessage = (title: string, description: string) => {
+        addMessage("success", title, description);
+    };
+
+    const showErrorMessage = (title: string, description: string) => {
+        addMessage("error", title, description);
+    };
 
     // Date conversion utilities
     const formatDateForInput = (dateString: string): string => {
@@ -251,6 +384,14 @@ export default function Dashboard({ authUser }: DashboardProps) {
         };
     };
 
+    const hasAnyErrors = (): boolean => {
+        // Check if form is valid first
+        if (!isFormValid()) return true;
+
+        // Then check for immediate validation errors
+        return hasImmediateErrors();
+    };
+
     // Fetch schedules when component mounts
     useEffect(() => {
         fetchSchedules();
@@ -323,13 +464,14 @@ export default function Dashboard({ authUser }: DashboardProps) {
         }
     };
 
-    const fetchSchedules = async () => {
+    const fetchSchedules = async (silent: boolean = false) => {
         setIsLoading(true);
-        const userId = authUser.id; // Assuming authUser has an id property
+        const userId = authUser.id;
         try {
             const response = await fetch(`/api/schedules?userId=${userId}`);
             if (!response.ok) {
-                throw new Error("Failed to fetch schedules");
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to fetch schedules");
             }
             const data = await response.json();
 
@@ -351,8 +493,8 @@ export default function Dashboard({ authUser }: DashboardProps) {
                     return {
                         id: schedule.id.toString(),
                         name: schedule.name,
-                        startDate: startDateStr, // Already formatted as "15 Jan, 2025"
-                        endDate: endDateStr || startDateStr, // Use endDateStr if available, otherwise use startDateStr
+                        startDate: startDateStr,
+                        endDate: endDateStr || startDateStr,
                         courses: courseCount,
                         instructors: instructorCount,
                         timeSlots: schedule.timeSlots || [],
@@ -361,8 +503,16 @@ export default function Dashboard({ authUser }: DashboardProps) {
             );
 
             setSchedules(processedSchedules);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error fetching schedules:", error);
+            // Only show error message if not in silent mode
+            if (!silent) {
+                showErrorMessage(
+                    "Failed to Load Schedules",
+                    error.message ||
+                        "An error occurred while fetching schedules."
+                );
+            }
         } finally {
             setIsLoading(false);
         }
@@ -538,14 +688,20 @@ export default function Dashboard({ authUser }: DashboardProps) {
             const endDate = new Date(formData.endDate);
 
             if (endDate < startDate) {
-                alert("End date cannot be before start date.");
+                showErrorMessage(
+                    "Invalid Date Range",
+                    "End date cannot be before start date."
+                );
                 return false;
             }
         }
 
         // Check for immediate errors first
         if (hasImmediateErrors()) {
-            alert("Please fix the time slot errors before submitting.");
+            showErrorMessage(
+                "Invalid Time Slots",
+                "Please fix the time slot errors before submitting."
+            );
             return false;
         }
 
@@ -556,7 +712,10 @@ export default function Dashboard({ authUser }: DashboardProps) {
             // Show the first error found
             const firstErrorIndex = Object.keys(validation.errors)[0];
             const firstError = validation.errors[parseInt(firstErrorIndex)];
-            alert(`Time slot ${parseInt(firstErrorIndex) + 1}: ${firstError}`);
+            showErrorMessage(
+                "Time Slot Validation Error",
+                `Time slot ${parseInt(firstErrorIndex) + 1}: ${firstError}`
+            );
             return false;
         }
 
@@ -568,6 +727,22 @@ export default function Dashboard({ authUser }: DashboardProps) {
             return;
         }
 
+        if (!formData.name.trim()) {
+            showErrorMessage("Validation Error", "Schedule name is required.");
+            return;
+        }
+
+        if (!formData.startDate) {
+            showErrorMessage("Validation Error", "Start date is required.");
+            return;
+        }
+
+        if (!formData.endDate) {
+            showErrorMessage("Validation Error", "End date is required.");
+            return;
+        }
+
+        setIsCreating(true);
         try {
             // Convert numTimeSlots to number for API
             const numSlots =
@@ -584,7 +759,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                 endDate: formData.endDate,
                 numberOfTimeSlots: numSlots,
                 timeSlots: formData.timeSlots,
-                userId: authUser.id, // Replace with actual user ID
+                userId: authUser.id,
             };
 
             const response = await fetch("/api/schedules", {
@@ -595,18 +770,33 @@ export default function Dashboard({ authUser }: DashboardProps) {
                 body: JSON.stringify(apiData),
             });
 
+            const responseData = await response.json();
+
             if (!response.ok) {
-                throw new Error("Failed to create schedule");
+                throw new Error(
+                    responseData.error || "Failed to create schedule"
+                );
             }
 
-            // Refresh the schedules list
-            await fetchSchedules();
-
-            // Close dialog and reset form
+            // Close dialog and reset form first
             setIsCreateDialogOpen(false);
             resetForm();
-        } catch (error) {
+
+            // Then refresh and show success message
+            await fetchSchedules(true);
+            showSuccessMessage(
+                "Schedule Created Successfully",
+                `Schedule "${formData.name}" has been created successfully.`
+            );
+        } catch (error: any) {
             console.error("Error creating schedule:", error);
+            showErrorMessage(
+                "Failed to Create Schedule",
+                error.message ||
+                    "An error occurred while creating the schedule."
+            );
+        } finally {
+            setIsCreating(false);
         }
     };
 
@@ -616,6 +806,24 @@ export default function Dashboard({ authUser }: DashboardProps) {
         if (!validateTimeSlots()) {
             return;
         }
+
+        if (!formData.name.trim()) {
+            showErrorMessage("Validation Error", "Schedule name is required.");
+            return;
+        }
+
+        if (!formData.startDate) {
+            showErrorMessage("Validation Error", "Start date is required.");
+            return;
+        }
+
+        if (!formData.endDate) {
+            showErrorMessage("Validation Error", "End date is required.");
+            return;
+        }
+
+        setIsUpdating(true);
+        const scheduleName = formData.name; // Store the name before reset
 
         try {
             const selectedSchedule = schedules.find(
@@ -632,8 +840,6 @@ export default function Dashboard({ authUser }: DashboardProps) {
                 userId: authUser.id,
             };
 
-            console.log("Sending update data:", apiData);
-
             const response = await fetch("/api/schedules", {
                 method: "PATCH",
                 headers: {
@@ -645,24 +851,41 @@ export default function Dashboard({ authUser }: DashboardProps) {
             const responseData = await response.json();
 
             if (!response.ok) {
-                console.error("Update failed:", responseData);
                 throw new Error(
                     responseData.error || "Failed to update schedule"
                 );
             }
 
-            console.log("Update successful:", responseData);
-
-            await fetchSchedules();
+            // Close dialog and reset form first
             setIsEditDialogOpen(false);
             resetForm();
-        } catch (error) {
+
+            // Then refresh and show success message
+            await fetchSchedules(true);
+            showSuccessMessage(
+                "Schedule Updated Successfully",
+                `Schedule "${scheduleName}" has been updated successfully.`
+            );
+        } catch (error: any) {
             console.error("Error updating schedule:", error);
+            showErrorMessage(
+                "Failed to Update Schedule",
+                error.message ||
+                    "An error occurred while updating the schedule."
+            );
+        } finally {
+            setIsUpdating(false);
         }
     };
 
     const handleDeleteSchedule = async () => {
         if (!selectedScheduleId) return;
+
+        setIsDeleting(true);
+        const scheduleToDelete = schedules.find(
+            (s) => s.id === selectedScheduleId
+        );
+        const scheduleName = scheduleToDelete?.name || "Unknown";
 
         try {
             const apiData = {
@@ -677,18 +900,33 @@ export default function Dashboard({ authUser }: DashboardProps) {
                 body: JSON.stringify(apiData),
             });
 
+            const responseData = await response.json();
+
             if (!response.ok) {
-                throw new Error("Failed to delete schedule");
+                throw new Error(
+                    responseData.error || "Failed to delete schedule"
+                );
             }
 
-            // Refresh the schedule list
-            await fetchSchedules();
-
-            // Close dialog
+            // Close dialog first
             setIsDeleteDialogOpen(false);
             setSelectedScheduleId(null);
-        } catch (error) {
+
+            // Then refresh and show success message
+            await fetchSchedules(true);
+            showSuccessMessage(
+                "Schedule Deleted Successfully",
+                `Schedule "${scheduleName}" has been deleted successfully.`
+            );
+        } catch (error: any) {
             console.error("Error deleting schedule:", error);
+            showErrorMessage(
+                "Failed to Delete Schedule",
+                error.message ||
+                    "An error occurred while deleting the schedule."
+            );
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -750,10 +988,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 </Label>
                                 <Input
                                     id={`${dialogType}-startTime-${index}`}
-                                    placeholder={getTimePlaceholder(
-                                        index,
-                                        true
-                                    )}
+                                    placeholder="HH:MM"
                                     value={timeSlot.startTime}
                                     onChange={(e) =>
                                         handleTimeSlotChange(
@@ -832,10 +1067,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 </Label>
                                 <Input
                                     id={`${dialogType}-endTime-${index}`}
-                                    placeholder={getTimePlaceholder(
-                                        index,
-                                        false
-                                    )}
+                                    placeholder="HH:MM"
                                     value={timeSlot.endTime}
                                     onChange={(e) =>
                                         handleTimeSlotChange(
@@ -925,372 +1157,432 @@ export default function Dashboard({ authUser }: DashboardProps) {
         );
     };
 
-    return (
-        <div className="space-y-8">
-            {/* Page Header */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-                <div className="flex items-center justify-between">
+    // Message component
+    const MessageBanner = ({ message }: { message: Message }) => (
+        <div
+            className={`max-w-md p-4 rounded-lg shadow-xl border-l-4 transition-all duration-300 ease-in-out ${
+                message.type === "success"
+                    ? "bg-green-50 border-green-500 text-green-800"
+                    : "bg-red-50 border-red-500 text-red-800"
+            }`}
+        >
+            <div className="flex items-start justify-between">
+                <div className="flex items-start gap-3">
+                    {message.type === "success" ? (
+                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    ) : (
+                        <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    )}
                     <div>
-                        <h1 className="text-2xl font-semibold text-gray-900">
-                            Schedules
-                        </h1>
-                        <p className="text-sm text-gray-600 mt-1">
-                            Manage your academic schedules and time slots
+                        <h4 className="font-semibold text-sm">
+                            {message.title}
+                        </h4>
+                        <p className="text-sm mt-1 opacity-90">
+                            {message.description}
                         </p>
                     </div>
-                    <Button
-                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors"
-                        onClick={() => {
-                            resetForm();
-                            setIsCreateDialogOpen(true);
-                        }}
-                    >
-                        <Plus className="mr-2 h-4 w-4" /> New Schedule
-                    </Button>
                 </div>
+                <button
+                    onClick={() => removeMessage(message.id)}
+                    className={`ml-2 p-1 rounded-full hover:bg-opacity-20 transition-colors flex-shrink-0 ${
+                        message.type === "success"
+                            ? "hover:bg-green-600"
+                            : "hover:bg-red-600"
+                    }`}
+                >
+                    <X className="h-4 w-4" />
+                </button>
             </div>
+        </div>
+    );
 
-            {isLoading ? (
-                <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
-                    <div className="text-gray-600">Loading schedules...</div>
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    {schedules.map((schedule) => (
-                        <div
-                            key={schedule.id}
-                            className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:bg-gray-50 transition-colors shadow-sm"
-                            onClick={() => navigateToSchedule(schedule.id)}
-                        >
-                            <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                    <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                                        {schedule.name}
-                                    </h2>
-                                    <p className="text-sm text-gray-600 mb-4">
-                                        {schedule.startDate}{" "}
-                                        {schedule.endDate
-                                            ? `- ${schedule.endDate}`
-                                            : ""}
-                                    </p>
-                                </div>
-                                <div className="flex gap-2 ml-4">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-9 w-9 text-gray-500 hover:text-[#2F2F85] hover:bg-blue-50"
-                                        onClick={(e) =>
-                                            openEditDialog(schedule.id, e)
-                                        }
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-9 w-9 text-gray-500 hover:text-red-600 hover:bg-red-50"
-                                        onClick={(e) =>
-                                            openDeleteDialog(schedule.id, e)
-                                        }
-                                    >
-                                        <Trash className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-8 pt-4 border-t border-gray-100">
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
-                                    <BookOpen className="h-4 w-4 text-teal-600" />
-                                    <span className="font-medium">
-                                        {schedule.courses}
-                                    </span>
-                                    <span>Courses</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
-                                    <Users className="h-4 w-4 text-purple-600" />
-                                    <span className="font-medium">
-                                        {schedule.instructors}
-                                    </span>
-                                    <span>Instructors</span>
-                                </div>
-                                {schedule.timeSlots &&
-                                    schedule.timeSlots.length > 0 && (
-                                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                                            <span className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
-                                                <span className="text-white text-xs">
-                                                    ⏰
-                                                </span>
-                                            </span>
-                                            <span className="font-medium">
-                                                {schedule.timeSlots.length}
-                                            </span>
-                                            <span>TimeSlots</span>
-                                        </div>
-                                    )}
-                            </div>
-                        </div>
-                    ))}
-
-                    {schedules.length === 0 && (
-                        <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
-                            <div className="text-gray-500 mb-2">
-                                No schedules found
-                            </div>
-                            <div className="text-sm text-gray-400">
-                                Create a new schedule to get started.
-                            </div>
-                        </div>
-                    )}
+    return (
+        <>
+            {messages.length > 0 && (
+                <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
+                    <div className="pointer-events-auto space-y-2">
+                        {messages.map((message) => (
+                            <MessageBanner key={message.id} message={message} />
+                        ))}
+                    </div>
                 </div>
             )}
-
-            {/* Create Schedule Dialog */}
-            <Dialog
-                open={isCreateDialogOpen}
-                onOpenChange={setIsCreateDialogOpen}
-            >
-                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-white">
-                    <DialogHeader className="border-b border-gray-200 pb-4">
-                        <DialogTitle className="text-xl font-semibold text-gray-900">
-                            Create New Schedule
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    <div className="grid gap-6 py-6">
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="name"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Schedule Name
-                            </Label>
-                            <Input
-                                id="name"
-                                name="name"
-                                placeholder="Schedule 1"
-                                value={formData.name}
-                                onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:border-[#2F2F85]"
-                            />
+            <div className="space-y-8">
+                <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h1 className="text-2xl font-semibold text-gray-900">
+                                Schedules
+                            </h1>
+                            <p className="text-sm text-gray-600 mt-1">
+                                Manage your academic schedules and time slots
+                            </p>
                         </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label
-                                    htmlFor="startDate"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    Start Date
-                                </Label>
-                                <Input
-                                    id="startDate"
-                                    name="startDate"
-                                    type="date"
-                                    value={formData.startDate}
-                                    onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label
-                                    htmlFor="endDate"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    End Date
-                                </Label>
-                                <Input
-                                    id="endDate"
-                                    name="endDate"
-                                    type="date"
-                                    min={formData.startDate || undefined}
-                                    value={formData.endDate}
-                                    onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
-                                />
-                            </div>
-                        </div>
-
-                        {/* TimeSlot input */}
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="numTimeSlots"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Number of TimeSlots
-                            </Label>
-                            <Input
-                                id="numTimeSlots"
-                                name="numTimeSlots"
-                                type="number"
-                                min="0"
-                                max="24"
-                                placeholder="Enter number of timeSlots needed"
-                                value={formData.numTimeSlots}
-                                onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
-                            />
-                        </div>
-
-                        {/* Dynamic timeSlot inputs */}
-                        {renderTimeSlotInputs("create")}
+                        <Button
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors"
+                            onClick={() => {
+                                resetForm();
+                                setIsCreateDialogOpen(true);
+                            }}
+                        >
+                            <Plus className="mr-2 h-4 w-4" /> New Schedule
+                        </Button>
                     </div>
+                </div>
 
-                    <DialogFooter className="border-t border-gray-200 pt-4">
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsCreateDialogOpen(false)}
-                            className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleCreateSchedule}
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
-                            disabled={hasImmediateErrors()}
-                        >
-                            Create Schedule
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Edit Schedule Dialog */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-white">
-                    <DialogHeader className="border-b border-gray-200 pb-4">
-                        <DialogTitle className="text-xl font-semibold text-gray-900">
-                            Edit Schedule
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    <div className="grid gap-6 py-6">
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="edit-name"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Schedule Name
-                            </Label>
-                            <Input
-                                id="edit-name"
-                                name="name"
-                                placeholder="Schedule 1"
-                                value={formData.name}
-                                onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
-                            />
+                {isLoading ? (
+                    <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
+                        <div className="text-gray-600">
+                            Loading schedules...
                         </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label
-                                    htmlFor="edit-startDate"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    Start Date
-                                </Label>
-                                <Input
-                                    id="edit-startDate"
-                                    name="startDate"
-                                    type="date"
-                                    value={formData.startDate}
-                                    onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label
-                                    htmlFor="edit-endDate"
-                                    className="text-sm font-medium text-gray-700"
-                                >
-                                    End Date
-                                </Label>
-                                <Input
-                                    id="edit-endDate"
-                                    name="endDate"
-                                    type="date"
-                                    min={formData.startDate || undefined}
-                                    value={formData.endDate}
-                                    onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
-                                />
-                            </div>
-                        </div>
-
-                        {/* TimeSlot input */}
-                        <div className="space-y-2">
-                            <Label
-                                htmlFor="edit-numTimeSlots"
-                                className="text-sm font-medium text-gray-700"
-                            >
-                                Number of TimeSlots
-                            </Label>
-                            <Input
-                                id="edit-numTimeSlots"
-                                name="numTimeSlots"
-                                type="number"
-                                min="0"
-                                max="24"
-                                placeholder="Enter number of timeSlots needed"
-                                value={formData.numTimeSlots}
-                                onChange={handleInputChange}
-                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
-                            />
-                        </div>
-
-                        {/* Dynamic timeSlot inputs */}
-                        {renderTimeSlotInputs("edit")}
                     </div>
+                ) : (
+                    <div className="space-y-4">
+                        {schedules.map((schedule) => (
+                            <div
+                                key={schedule.id}
+                                className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:bg-gray-50 transition-colors shadow-sm"
+                                onClick={() => navigateToSchedule(schedule.id)}
+                            >
+                                <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                        <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                                            {schedule.name}
+                                        </h2>
+                                        <p className="text-sm text-gray-600 mb-4">
+                                            {schedule.startDate}{" "}
+                                            {schedule.endDate
+                                                ? `- ${schedule.endDate}`
+                                                : ""}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-2 ml-4">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-9 w-9 text-gray-500 hover:text-[#2F2F85] hover:bg-blue-50"
+                                            onClick={(e) =>
+                                                openEditDialog(schedule.id, e)
+                                            }
+                                        >
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-9 w-9 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                            onClick={(e) =>
+                                                openDeleteDialog(schedule.id, e)
+                                            }
+                                        >
+                                            <Trash className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
 
-                    <DialogFooter className="border-t border-gray-200 pt-4">
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsEditDialogOpen(false)}
-                            className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleEditSchedule}
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
-                            disabled={hasImmediateErrors()}
-                        >
-                            Save Changes
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                                <div className="flex items-center gap-8 pt-4 border-t border-gray-100">
+                                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                                        <BookOpen className="h-4 w-4 text-teal-600" />
+                                        <span className="font-medium">
+                                            {schedule.courses}
+                                        </span>
+                                        <span>Courses</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                                        <Users className="h-4 w-4 text-purple-600" />
+                                        <span className="font-medium">
+                                            {schedule.instructors}
+                                        </span>
+                                        <span>Instructors</span>
+                                    </div>
+                                    {schedule.timeSlots &&
+                                        schedule.timeSlots.length > 0 && (
+                                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                                                <span className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
+                                                    <span className="text-white text-xs">
+                                                        ⏰
+                                                    </span>
+                                                </span>
+                                                <span className="font-medium">
+                                                    {schedule.timeSlots.length}
+                                                </span>
+                                                <span>TimeSlots</span>
+                                            </div>
+                                        )}
+                                </div>
+                            </div>
+                        ))}
 
-            {/* Delete Schedule Dialog */}
-            <AlertDialog
-                open={isDeleteDialogOpen}
-                onOpenChange={setIsDeleteDialogOpen}
-            >
-                <AlertDialogContent className="bg-white">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="text-xl font-semibold text-gray-900">
-                            Delete Schedule
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-gray-600">
-                            Are you sure you want to delete this schedule? This
-                            action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel className="border-gray-300 text-gray-700 hover:bg-gray-50">
-                            Cancel
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handleDeleteSchedule}
-                            className="bg-red-600 hover:bg-red-700 text-white"
-                        >
-                            Delete
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </div>
+                        {schedules.length === 0 && (
+                            <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
+                                <div className="text-gray-500 mb-2">
+                                    No schedules found
+                                </div>
+                                <div className="text-sm text-gray-400">
+                                    Create a new schedule to get started.
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Create Schedule Dialog */}
+                <Dialog
+                    open={isCreateDialogOpen}
+                    onOpenChange={setIsCreateDialogOpen}
+                >
+                    <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-white">
+                        <DialogHeader className="border-b border-gray-200 pb-4">
+                            <DialogTitle className="text-xl font-semibold text-gray-900">
+                                Create New Schedule
+                            </DialogTitle>
+                        </DialogHeader>
+
+                        <div className="grid gap-6 py-6">
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="name"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Schedule Name
+                                </Label>
+                                <Input
+                                    id="name"
+                                    name="name"
+                                    placeholder="Schedule 1"
+                                    value={formData.name}
+                                    onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:border-[#2F2F85]"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label
+                                        htmlFor="startDate"
+                                        className="text-sm font-medium text-gray-700"
+                                    >
+                                        Start Date
+                                    </Label>
+                                    <Input
+                                        id="startDate"
+                                        name="startDate"
+                                        type="date"
+                                        value={formData.startDate}
+                                        onChange={handleInputChange}
+                                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label
+                                        htmlFor="endDate"
+                                        className="text-sm font-medium text-gray-700"
+                                    >
+                                        End Date
+                                    </Label>
+                                    <Input
+                                        id="endDate"
+                                        name="endDate"
+                                        type="date"
+                                        min={formData.startDate || undefined}
+                                        value={formData.endDate}
+                                        onChange={handleInputChange}
+                                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* TimeSlot input */}
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="numTimeSlots"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Number of TimeSlots
+                                </Label>
+                                <Input
+                                    id="numTimeSlots"
+                                    name="numTimeSlots"
+                                    type="number"
+                                    min="0"
+                                    max="24"
+                                    placeholder="Enter number of time slots needed"
+                                    value={formData.numTimeSlots}
+                                    onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                />
+                            </div>
+
+                            {/* Dynamic timeSlot inputs */}
+                            {renderTimeSlotInputs("create")}
+                        </div>
+
+                        <DialogFooter className="border-t border-gray-200 pt-4">
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsCreateDialogOpen(false)}
+                                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                                disabled={isCreating}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleCreateSchedule}
+                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
+                                disabled={hasAnyErrors() || isCreating}
+                            >
+                                {isCreating ? "Creating..." : "Create Schedule"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Edit Schedule Dialog */}
+                <Dialog
+                    open={isEditDialogOpen}
+                    onOpenChange={setIsEditDialogOpen}
+                >
+                    <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-white">
+                        <DialogHeader className="border-b border-gray-200 pb-4">
+                            <DialogTitle className="text-xl font-semibold text-gray-900">
+                                Edit Schedule
+                            </DialogTitle>
+                        </DialogHeader>
+
+                        <div className="grid gap-6 py-6">
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="edit-name"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Schedule Name
+                                </Label>
+                                <Input
+                                    id="edit-name"
+                                    name="name"
+                                    placeholder="Schedule 1"
+                                    value={formData.name}
+                                    onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label
+                                        htmlFor="edit-startDate"
+                                        className="text-sm font-medium text-gray-700"
+                                    >
+                                        Start Date
+                                    </Label>
+                                    <Input
+                                        id="edit-startDate"
+                                        name="startDate"
+                                        type="date"
+                                        value={formData.startDate}
+                                        onChange={handleInputChange}
+                                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label
+                                        htmlFor="edit-endDate"
+                                        className="text-sm font-medium text-gray-700"
+                                    >
+                                        End Date
+                                    </Label>
+                                    <Input
+                                        id="edit-endDate"
+                                        name="endDate"
+                                        type="date"
+                                        min={formData.startDate || undefined}
+                                        value={formData.endDate}
+                                        onChange={handleInputChange}
+                                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* TimeSlot input */}
+                            <div className="space-y-2">
+                                <Label
+                                    htmlFor="edit-numTimeSlots"
+                                    className="text-sm font-medium text-gray-700"
+                                >
+                                    Number of TimeSlots
+                                </Label>
+                                <Input
+                                    id="edit-numTimeSlots"
+                                    name="numTimeSlots"
+                                    type="number"
+                                    min="0"
+                                    max="24"
+                                    placeholder="Enter number of time slots needed"
+                                    value={formData.numTimeSlots}
+                                    onChange={handleInputChange}
+                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                />
+                            </div>
+
+                            {/* Dynamic timeSlot inputs */}
+                            {renderTimeSlotInputs("edit")}
+                        </div>
+
+                        <DialogFooter className="border-t border-gray-200 pt-4">
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsEditDialogOpen(false)}
+                                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                                disabled={isUpdating}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleEditSchedule}
+                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
+                                disabled={hasAnyErrors() || isUpdating}
+                            >
+                                {isUpdating ? "Saving..." : "Save Changes"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Delete Schedule Dialog */}
+                <AlertDialog
+                    open={isDeleteDialogOpen}
+                    onOpenChange={setIsDeleteDialogOpen}
+                >
+                    <AlertDialogContent className="bg-white">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="text-xl font-semibold text-gray-900">
+                                Delete Schedule
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-gray-600">
+                                Are you sure you want to delete this schedule?
+                                This action cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel
+                                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                                disabled={isDeleting}
+                            >
+                                Cancel
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={handleDeleteSchedule}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? "Deleting..." : "Delete"}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
+        </>
     );
 }
