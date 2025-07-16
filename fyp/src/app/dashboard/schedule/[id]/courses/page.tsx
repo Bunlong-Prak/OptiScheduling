@@ -631,8 +631,8 @@ export default function CoursesView() {
         if (name === "durationHours") {
             setDurationHours(value); // store raw string
 
-            const hours = parseInt(value, 10);
-            const minutes = parseInt(durationMinutes, 10);
+            const hours = parseInt(value === "" ? "0" : value, 10);
+            const minutes = parseInt(durationMinutes === "" ? "0" : durationMinutes, 10);
 
             if (!isNaN(hours) && !isNaN(minutes)) {
                 const newDuration = convertToDecimalHours(hours, minutes);
@@ -647,13 +647,13 @@ export default function CoursesView() {
                             : [newDuration],
                     }))
                 );
-                validateFormWithNewData(newFormData);
+                validateField("duration", newDuration);
             }
         } else if (name === "durationMinutes") {
             setDurationMinutes(value); // store raw string
 
-            const hours = parseInt(durationHours, 10);
-            const minutes = parseInt(value, 10);
+            const hours = parseInt(durationHours === "" ? "0" : durationHours, 10);
+            const minutes = parseInt(value === "" ? "0" : value, 10);
 
             if (!isNaN(hours) && !isNaN(minutes)) {
                 const newDuration = convertToDecimalHours(hours, minutes);
@@ -668,7 +668,7 @@ export default function CoursesView() {
                             : [newDuration],
                     }))
                 );
-                validateFormWithNewData(newFormData);
+                validateField("duration", newDuration);
             }
         } else {
             // Update formData first
@@ -678,51 +678,76 @@ export default function CoursesView() {
             };
             setFormData(newFormData);
 
-            // Trigger real-time validation for code and title with the new value
-            if (name === "code" || name === "title" || name === "capacity") {
-                validateFormWithNewData(newFormData);
+            // if name is keyof formdata, live validate
+            if (formData.hasOwnProperty(name)) {
+                validateField(name as keyof typeof formData, value);
             }
         }
     };
 
-    const validateFormWithNewData = (newFormData: typeof formData) => {
-        const errors: typeof validationErrors = {};
-        
-        // Validate major exists - only show "create first" message
+    // Individual field validation functions
+    const validateMajor = (major: string) => {
         if (!selectedMajor && majors.length === 0) {
-            errors.major = "Please create a major first";
+            return "Please create a major first";
         }
-
-        if (!newFormData.major) {
-            errors.major = "Please select a major";
+        if (!major) {
+            return "Please select a major";
         }
+        return undefined;
+    };
 
-        // Duration validation
+    const validateDuration = (duration: number) => {
         const durationSchema = z
             .number({ invalid_type_error: "Duration is required" })
             .min(0.01, "Duration must be at least 0.01 hours")
             .max(6, "Cannot exceed 6 hours");
-        const durationResult = durationSchema.safeParse(
-            Number(newFormData.duration)
-        );
+        const durationResult = durationSchema.safeParse(Number(duration));
         if (!durationResult.success) {
-            errors.duration = durationResult.error.errors[0].message;
+            return durationResult.error.errors[0].message;
         }
+        return undefined;
+    };
 
-        // Capacity validation
+    const validateCapacity = (capacity: number) => {
         const capacitySchema = z
             .number({ invalid_type_error: "Capacity is required" })
             .min(0, "Capacity must be at least 0")
             .max(100, "Capacity cannot exceed 100 students");
-        const capacityResult = capacitySchema.safeParse(
-            Number(newFormData.capacity)
-        );
+        const capacityResult = capacitySchema.safeParse(Number(capacity));
         if (!capacityResult.success) {
-            errors.capacity = capacityResult.error.errors[0].message;
+            return capacityResult.error.errors[0].message;
         }
+        return undefined;
+    };
+
+    // Main form validation using individual field validators
+    const validateFormWithNewData = (newFormData: typeof formData) => {
+        const errors: typeof validationErrors = {};
+
+        const majorError = validateMajor(newFormData.major);
+        if (majorError) errors.major = majorError;
+
+        const durationError = validateDuration(newFormData.duration);
+        if (durationError) errors.duration = durationError;
+
+        const capacityError = validateCapacity(newFormData.capacity);
+        if (capacityError) errors.capacity = capacityError;
 
         setValidationErrors(errors);
         return Object.keys(errors).length === 0;
+    };
+
+    const validateField = (field: keyof typeof formData, value: any) => {
+        let error: string | undefined;
+        if (field === "major") error = validateMajor(value);
+        if (field === "duration") error = validateDuration(value);
+        if (field === "capacity") error = validateCapacity(value);
+
+        setValidationErrors((prev) => ({
+            ...prev,
+            [field]: error,
+        }));
+        return !error;
     };
 
     // Update the existing validateForm function to use current formData
@@ -733,7 +758,7 @@ export default function CoursesView() {
     const handleMajorChange = (value: string) => {
         setSelectedMajor(value);
         setFormData({ ...formData, major: value });
-        validateFormWithNewData({ ...formData, major: value });
+        validateField("major", value);
     };
 
     const handleSectionInputChange = (value: string) => {
@@ -911,6 +936,14 @@ export default function CoursesView() {
         return Math.floor(value * 100) / 100; // Truncate to 2 decimals, don't round
     }
     const handleAddCourse = async () => {
+        if (!validateForm()) {
+            showErrorMessage(
+                "Validation Error",
+                "Please fix the errors in the form"
+            );
+            return;
+        }
+
         // Make sure we have at least one section and a major
         if (sections.length === 0 || !selectedMajor) {
             showErrorMessage(
@@ -995,6 +1028,14 @@ export default function CoursesView() {
     };
 
     const handleEditCourse = async () => {
+        if (!validateForm()) {
+            showErrorMessage(
+                "Validation Error",
+                "Please fix the errors in the form"
+            );
+            return;
+        }
+
         // Make sure we have at least one section and a major
         if (sections.length === 0 || !selectedMajor) {
             showErrorMessage(
@@ -1211,18 +1252,18 @@ export default function CoursesView() {
         );
     };
 
-    useEffect(() => {
-        if (isAddDialogOpen || isEditDialogOpen) {
-            validateForm();
-        }
-    }, [
-        isAddDialogOpen,
-        isEditDialogOpen,
-        courses,
-        majors,
-        instructors,
-        classroomTypes,
-    ]);
+    // useEffect(() => {
+    //     if (isAddDialogOpen || isEditDialogOpen) {
+    //         validateForm();
+    //     }
+    // }, [
+    //     isAddDialogOpen,
+    //     isEditDialogOpen,
+    //     courses,
+    //     majors,
+    //     instructors,
+    //     classroomTypes,
+    // ]);
 
     // Instructor validation helper
     const getInstructorValidationMessage = () => {
