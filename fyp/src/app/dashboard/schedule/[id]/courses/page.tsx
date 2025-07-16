@@ -71,7 +71,6 @@ export default function CoursesView() {
     const [courses, setCourses] = useState<Course[]>([]);
     const [majors, setMajors] = useState<Major[]>([]);
     const [instructors, setInstructors] = useState<Instructor[]>([]);
-    const [classrooms, setClassrooms] = useState<Classroom[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
 
@@ -649,34 +648,6 @@ export default function CoursesView() {
     const validateFormWithNewData = (newFormData: typeof formData) => {
         const errors: typeof validationErrors = {};
 
-        // Validate course code uniqueness - only if there's input
-        if (newFormData.code.trim()) {
-            const isDuplicateCode = courses.some(
-                (course) =>
-                    course.code.toLowerCase() ===
-                        newFormData.code.trim().toLowerCase() &&
-                    (!selectedCourse ||
-                        course.sectionId !== selectedCourse.sectionId)
-            );
-            if (isDuplicateCode) {
-                errors.code = "Course code already exists";
-            }
-        }
-
-        // Validate course title uniqueness - only if there's input
-        if (newFormData.title.trim()) {
-            const isDuplicateTitle = courses.some(
-                (course) =>
-                    course.title.toLowerCase() ===
-                        newFormData.title.trim().toLowerCase() &&
-                    (!selectedCourse ||
-                        course.sectionId !== selectedCourse.sectionId)
-            );
-            if (isDuplicateTitle) {
-                errors.title = "Course title already exists";
-            }
-        }
-
         // Validate major exists - only show "create first" message
         if (!selectedMajor && majors.length === 0) {
             errors.major = "Please create a major first";
@@ -994,7 +965,7 @@ export default function CoursesView() {
                 code: formData.code,
                 title: formData.title,
                 majorsList: [selectedMajor],
-                color: getHexFromColorName(formData.color),
+                color: formData.color,
                 duration: Number(formData.duration) || 1,
                 capacity: Number(formData.capacity) || 1,
                 sectionsList: sections.map((item) => ({
