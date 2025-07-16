@@ -25,7 +25,7 @@ const sectionSchema = z.object({
         id: z.number().optional(),
         name: z.string().optional(),
         description: z.string().optional(),
-    }).optional(),
+    }).optional().nullable(),
     splitDurations: z
         .array(
             z.object({
