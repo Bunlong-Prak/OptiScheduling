@@ -1744,7 +1744,7 @@ export default function CoursesView() {
                             errors: importErrors,
                         }));
 
-                        await new Promise((resolve) => setTimeout(resolve, 30));
+                        await new Promise((resolve) => setTimeout(resolve, 10));
                     }
 
                     setImportProgress((prev) => ({

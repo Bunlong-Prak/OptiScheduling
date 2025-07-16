@@ -730,7 +730,7 @@ export default function ClassroomTypeView() {
 
                         // Small delay to prevent overwhelming the server
                         await new Promise((resolve) =>
-                            setTimeout(resolve, 100)
+                            setTimeout(resolve, 30)
                         );
                     }
 

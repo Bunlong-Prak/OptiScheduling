@@ -1,4 +1,16 @@
-import { schedules, scheduleTimeSlots } from "@/drizzle/schema";
+import {
+    classroomTypes,
+    courseHours,
+    courses,
+    instructors,
+    instructorTimeConstraint,
+    instructorTimeConstraintDay,
+    instructorTimeConstraintTimeSlot,
+    majors,
+    schedules,
+    scheduleTimeSlots,
+    sections,
+} from "@/drizzle/schema";
 import { db } from "@/lib/db";
 import { generateAcademicYear } from "@/lib/utils";
 import {
@@ -228,7 +240,93 @@ export async function DELETE(request: Request) {
         const validatedData = deleteScheduleSchema.parse(body);
         const { id } = validatedData;
 
-        await db.delete(schedules).where(eq(schedules.id, id));
+        // Manual deletion due to foreign key constraints
+        await db.transaction(async (tx) => {
+            // 1. Delete instructor time constraint time slots first
+            const constraints = await tx
+                .select({ id: instructorTimeConstraint.id })
+                .from(instructorTimeConstraint)
+                .where(eq(instructorTimeConstraint.scheduleId, id));
+
+            for (const constraint of constraints) {
+                const days = await tx
+                    .select({ id: instructorTimeConstraintDay.id })
+                    .from(instructorTimeConstraintDay)
+                    .where(
+                        eq(
+                            instructorTimeConstraintDay.instructorTimeConstraintId,
+                            constraint.id
+                        )
+                    );
+
+                for (const day of days) {
+                    await tx
+                        .delete(instructorTimeConstraintTimeSlot)
+                        .where(
+                            eq(
+                                instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId,
+                                day.id
+                            )
+                        );
+                }
+
+                await tx
+                    .delete(instructorTimeConstraintDay)
+                    .where(
+                        eq(
+                            instructorTimeConstraintDay.instructorTimeConstraintId,
+                            constraint.id
+                        )
+                    );
+            }
+
+            await tx
+                .delete(instructorTimeConstraint)
+                .where(eq(instructorTimeConstraint.scheduleId, id));
+
+            // 2. Delete course hours and sections first (these cascade from courses)
+            const coursesInSchedule = await tx
+                .select({ id: courses.id })
+                .from(courses)
+                .where(eq(courses.scheduleId, id));
+
+            for (const course of coursesInSchedule) {
+                const sectionsInCourse = await tx
+                    .select({ id: sections.id })
+                    .from(sections)
+                    .where(eq(sections.courseId, course.id));
+
+                for (const section of sectionsInCourse) {
+                    await tx
+                        .delete(courseHours)
+                        .where(eq(courseHours.sectionId, section.id));
+                }
+
+                await tx
+                    .delete(sections)
+                    .where(eq(sections.courseId, course.id));
+            }
+
+            // 3. Delete courses BEFORE majors (courses reference majors)
+            await tx.delete(courses).where(eq(courses.scheduleId, id));
+
+            // 4. Now safe to delete majors
+            await tx.delete(majors).where(eq(majors.scheduleId, id));
+
+            // 5. Delete other direct children
+            await tx
+                .delete(classroomTypes)
+                .where(eq(classroomTypes.scheduleId, id));
+
+            await tx.delete(instructors).where(eq(instructors.scheduleId, id));
+
+            await tx
+                .delete(scheduleTimeSlots)
+                .where(eq(scheduleTimeSlots.scheduleId, id));
+
+            // 6. Finally delete the schedule
+            await tx.delete(schedules).where(eq(schedules.id, id));
+        });
 
         return NextResponse.json({
             message: "Schedule deleted successfully",

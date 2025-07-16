@@ -854,7 +854,7 @@ export default function MajorView() {
 
                         // Small delay to prevent overwhelming the server
                         await new Promise((resolve) =>
-                            setTimeout(resolve, 100)
+                            setTimeout(resolve, 30)
                         );
                     }
 

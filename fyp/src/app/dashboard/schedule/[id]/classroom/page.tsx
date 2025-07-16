@@ -923,7 +923,7 @@ export default function ClassroomView() {
                         }));
 
                         await new Promise((resolve) =>
-                            setTimeout(resolve, 100)
+                            setTimeout(resolve, 30)
                         );
                     }
 

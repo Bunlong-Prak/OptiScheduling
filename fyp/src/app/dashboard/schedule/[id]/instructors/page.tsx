@@ -243,51 +243,14 @@ export default function InstructorsView() {
     const [hasDuplicateName, setHasDuplicateName] = useState<boolean>(false);
     const [duplicateNameInfo, setDuplicateNameInfo] = useState<string>("");
 
-    const checkInstructorNameDuplicate = async (
-        firstName: string
-    ): Promise<{ hasDuplicate: boolean; info: string }> => {
-        try {
-            const scheduleId = params.id;
-
-            // Fetch all instructors from API to check for name duplicates
-            const response = await fetch(
-                `/api/instructors/?scheduleId=${scheduleId}`
-            );
-            if (!response.ok) {
-                throw new Error("Failed to fetch instructors");
-            }
-
-            const apiInstructors = await response.json();
-
-            // Check if any other instructor has the same first and last name combination
-            const duplicateInstructor = apiInstructors.find(
-                (instructor: any) =>
-                    instructor.first_name.toLowerCase().trim() ===
-                    firstName.toLowerCase().trim()
-            );
-
-            if (duplicateInstructor) {
-                return {
-                    hasDuplicate: true,
-                    info: `An instructor with the name "${firstName}" already assigned to the course 
-                    `,
-                };
-            }
-
-            return { hasDuplicate: false, info: "" };
-        } catch (error) {
-            console.error("Error checking instructor name duplicate:", error);
-            return { hasDuplicate: false, info: "" };
-        }
-    };
 
     const checkInstructorAssignments = async (
-        instructorFirstName: string
+        instructor: Instructor
     ): Promise<{ hasAssignments: boolean; info: string }> => {
         try {
             setIsCheckingAssignments(true);
             const scheduleId = params.id;
-
+    
             // Fetch courses for this schedule to check for instructor assignments
             const response = await fetch(
                 `/api/courses/?scheduleId=${scheduleId}`
@@ -295,22 +258,16 @@ export default function InstructorsView() {
             if (!response.ok) {
                 throw new Error("Failed to fetch courses");
             }
-
+    
             const courses = await response.json();
-
-            // Check if any course sections are assigned to this instructor by first name
+    
+            // Check if any course has instructorID matching this instructor's instructor_id
+            // Note: Using instructor.instructor_id instead of instructor.id
             const assignedCourses = courses.filter((course: any) => {
-                return (
-                    course.sections &&
-                    course.sections.some(
-                        (section: any) =>
-                            section.instructor &&
-                            section.instructor.toLowerCase() ===
-                                instructorFirstName.toLowerCase()
-                    )
-                );
+                // Check against instructor_id field (the one used in course assignments)
+                return course.instructorID === instructor.id;
             });
-
+    
             if (assignedCourses.length > 0) {
                 const courseNames = assignedCourses
                     .map((course: any) => course.title)
@@ -320,7 +277,7 @@ export default function InstructorsView() {
                     info: `This instructor is assigned to ${assignedCourses.length} course(s): ${courseNames}`,
                 };
             }
-
+    
             return { hasAssignments: false, info: "" };
         } catch (error) {
             console.error("Error checking instructor assignments:", error);
@@ -995,7 +952,7 @@ export default function InstructorsView() {
                         }));
 
                         await new Promise((resolve) =>
-                            setTimeout(resolve, 100)
+                            setTimeout(resolve, 30)
                         );
                     }
 
@@ -1155,21 +1112,12 @@ export default function InstructorsView() {
     const openEditDialog = async (instructor: Instructor) => {
         resetForm();
         setSelectedInstructor(instructor);
-
-        // Check for instructor assignments by first name
-        const assignmentCheck = await checkInstructorAssignments(
-            instructor.first_name
-        );
+    
+        // Check for instructor assignments using the instructor object
+        const assignmentCheck = await checkInstructorAssignments(instructor);
         setHasAssignedCourses(assignmentCheck.hasAssignments);
         setAssignedCoursesInfo(assignmentCheck.info);
-
-        // Check for name duplicates
-        const nameCheck = await checkInstructorNameDuplicate(
-            instructor.first_name
-        );
-        setHasDuplicateName(nameCheck.hasDuplicate);
-        setDuplicateNameInfo(nameCheck.info);
-
+    
         setFormData({
             instructor_id: instructor.instructor_id || "",
             first_name: instructor.first_name,
@@ -1180,24 +1128,15 @@ export default function InstructorsView() {
         });
         setIsEditDialogOpen(true);
     };
-
+    
     const openDeleteDialog = async (instructor: Instructor) => {
         setSelectedInstructor(instructor);
-
-        // Check for instructor assignments by first name
-        const assignmentCheck = await checkInstructorAssignments(
-            instructor.first_name
-        );
+    
+        // Check for instructor assignments using the instructor object
+        const assignmentCheck = await checkInstructorAssignments(instructor);
         setHasAssignedCourses(assignmentCheck.hasAssignments);
         setAssignedCoursesInfo(assignmentCheck.info);
-
-        // Check for name duplicates
-        const nameCheck = await checkInstructorNameDuplicate(
-            instructor.first_name
-        );
-        setHasDuplicateName(nameCheck.hasDuplicate);
-        setDuplicateNameInfo(nameCheck.info);
-
+    
         setIsDeleteDialogOpen(true);
     };
 
