@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "1d5ab04e-34c8-4397-9275-20c30ab31527",
+  "id": "6ac2f4f7-eed1-4be3-bf46-bb5ccf1b39d9",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classroom_types": {
@@ -37,21 +37,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "classroom_types_schedule_id_schedules_id_fk": {
-          "name": "classroom_types_schedule_id_schedules_id_fk",
-          "tableFrom": "classroom_types",
-          "tableTo": "schedules",
-          "columnsFrom": [
-            "schedule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "classroom_types_id": {
           "name": "classroom_types_id",
@@ -110,21 +96,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "classrooms_classroom_type_id_classroom_types_id_fk": {
-          "name": "classrooms_classroom_type_id_classroom_types_id_fk",
-          "tableFrom": "classrooms",
-          "tableTo": "classroom_types",
-          "columnsFrom": [
-            "classroom_type_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "classrooms_id": {
           "name": "classrooms_id",
@@ -183,34 +155,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "course_hours_classroom_id_classrooms_id_fk": {
-          "name": "course_hours_classroom_id_classrooms_id_fk",
-          "tableFrom": "course_hours",
-          "tableTo": "classrooms",
-          "columnsFrom": [
-            "classroom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "course_hours_section_id_sections_id_fk": {
-          "name": "course_hours_section_id_sections_id_fk",
-          "tableFrom": "course_hours",
-          "tableTo": "sections",
-          "columnsFrom": [
-            "section_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "course_hours_id": {
           "name": "course_hours_id",
@@ -283,34 +228,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "courses_schedule_id_schedules_id_fk": {
-          "name": "courses_schedule_id_schedules_id_fk",
-          "tableFrom": "courses",
-          "tableTo": "schedules",
-          "columnsFrom": [
-            "schedule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "courses_major_id_majors_id_fk": {
-          "name": "courses_major_id_majors_id_fk",
-          "tableFrom": "courses",
-          "tableTo": "majors",
-          "columnsFrom": [
-            "major_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "courses_id": {
           "name": "courses_id",
@@ -348,34 +266,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "instructor_time_constraints_instructor_id_instructors_id_fk": {
-          "name": "instructor_time_constraints_instructor_id_instructors_id_fk",
-          "tableFrom": "instructor_time_constraints",
-          "tableTo": "instructors",
-          "columnsFrom": [
-            "instructor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "instructor_time_constraints_schedule_id_schedules_id_fk": {
-          "name": "instructor_time_constraints_schedule_id_schedules_id_fk",
-          "tableFrom": "instructor_time_constraints",
-          "tableTo": "schedules",
-          "columnsFrom": [
-            "schedule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "instructor_time_constraints_id": {
           "name": "instructor_time_constraints_id",
@@ -413,21 +304,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "instructor_time_constraint_days_instructor_time_constraint_id_instructor_time_constraints_id_fk": {
-          "name": "instructor_time_constraint_days_instructor_time_constraint_id_instructor_time_constraints_id_fk",
-          "tableFrom": "instructor_time_constraint_days",
-          "tableTo": "instructor_time_constraints",
-          "columnsFrom": [
-            "instructor_time_constraint_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "instructor_time_constraint_days_id": {
           "name": "instructor_time_constraint_days_id",
@@ -465,21 +342,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "instructor_time_constraint_time_slots_instructor_time_constraint_day_id_instructor_time_constraint_days_id_fk": {
-          "name": "instructor_time_constraint_time_slots_instructor_time_constraint_day_id_instructor_time_constraint_days_id_fk",
-          "tableFrom": "instructor_time_constraint_time_slots",
-          "tableTo": "instructor_time_constraint_days",
-          "columnsFrom": [
-            "instructor_time_constraint_day_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "instructor_time_constraint_time_slots_id": {
           "name": "instructor_time_constraint_time_slots_id",
@@ -552,21 +415,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "instructors_schedule_id_schedules_id_fk": {
-          "name": "instructors_schedule_id_schedules_id_fk",
-          "tableFrom": "instructors",
-          "tableTo": "schedules",
-          "columnsFrom": [
-            "schedule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "instructors_id": {
           "name": "instructors_id",
@@ -611,21 +460,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "majors_schedule_id_schedules_id_fk": {
-          "name": "majors_schedule_id_schedules_id_fk",
-          "tableFrom": "majors",
-          "tableTo": "schedules",
-          "columnsFrom": [
-            "schedule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "majors_id": {
           "name": "majors_id",
@@ -670,21 +505,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "schedule_time_slots_schedule_id_schedules_id_fk": {
-          "name": "schedule_time_slots_schedule_id_schedules_id_fk",
-          "tableFrom": "schedule_time_slots",
-          "tableTo": "schedules",
-          "columnsFrom": [
-            "schedule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "schedule_time_slots_id": {
           "name": "schedule_time_slots_id",
@@ -736,21 +557,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "schedules_user_id_users_id_fk": {
-          "name": "schedules_user_id_users_id_fk",
-          "tableFrom": "schedules",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "schedules_id": {
           "name": "schedules_id",
@@ -802,34 +609,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "sections_course_id_courses_id_fk": {
-          "name": "sections_course_id_courses_id_fk",
-          "tableFrom": "sections",
-          "tableTo": "courses",
-          "columnsFrom": [
-            "course_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "sections_instructor_id_instructors_id_fk": {
-          "name": "sections_instructor_id_instructors_id_fk",
-          "tableFrom": "sections",
-          "tableTo": "instructors",
-          "columnsFrom": [
-            "instructor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "sections_id": {
           "name": "sections_id",
@@ -884,21 +664,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "sessions_user_id_users_id_fk": {
-          "name": "sessions_user_id_users_id_fk",
-          "tableFrom": "sessions",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
         "sessions_id": {
           "name": "sessions_id",
