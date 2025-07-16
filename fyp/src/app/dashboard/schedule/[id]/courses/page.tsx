@@ -632,7 +632,10 @@ export default function CoursesView() {
             setDurationHours(value); // store raw string
 
             const hours = parseInt(value === "" ? "0" : value, 10);
-            const minutes = parseInt(durationMinutes === "" ? "0" : durationMinutes, 10);
+            const minutes = parseInt(
+                durationMinutes === "" ? "0" : durationMinutes,
+                10
+            );
 
             if (!isNaN(hours) && !isNaN(minutes)) {
                 const newDuration = convertToDecimalHours(hours, minutes);
@@ -652,7 +655,10 @@ export default function CoursesView() {
         } else if (name === "durationMinutes") {
             setDurationMinutes(value); // store raw string
 
-            const hours = parseInt(durationHours === "" ? "0" : durationHours, 10);
+            const hours = parseInt(
+                durationHours === "" ? "0" : durationHours,
+                10
+            );
             const minutes = parseInt(value === "" ? "0" : value, 10);
 
             if (!isNaN(hours) && !isNaN(minutes)) {
@@ -671,6 +677,7 @@ export default function CoursesView() {
                 validateField("duration", newDuration);
             }
         } else {
+            console.log(`Updating formData for ${name} with value:`, value);
             // Update formData first
             const newFormData = {
                 ...formData,
@@ -683,6 +690,11 @@ export default function CoursesView() {
                 validateField(name as keyof typeof formData, value);
             }
         }
+    };
+
+    const handleColorChange = (color: string) => {
+        setFormData({ ...formData, color });
+        validateField("color", color);
     };
 
     // Individual field validation functions
@@ -733,8 +745,43 @@ export default function CoursesView() {
         const capacityError = validateCapacity(newFormData.capacity);
         if (capacityError) errors.capacity = capacityError;
 
+        const codeError = validateCode(newFormData.code);
+        if (codeError) errors.code = codeError;
+
+        const titleError = validateTitle(newFormData.title);
+        if (titleError) errors.title = titleError;
+
+        const colorError = validateColor(newFormData.color);
+        if (colorError) errors.color = colorError;
+
         setValidationErrors(errors);
         return Object.keys(errors).length === 0;
+    };
+
+    const validateColor = (color: string) => {
+        if (!color) {
+            return "Color is required";
+        }
+        // Check if the color is a valid hex code
+        const hexRegex = /^#([0-9A-F]{3}|[0-9A-F]{6})$/i;
+        if (!hexRegex.test(color)) {
+            return "Invalid color format. Use hex format like #RRGGBB";
+        }
+        return undefined;
+    };
+
+    const validateCode = (code: string) => {
+        if (!code) {
+            return "Course code is required";
+        }
+        return undefined;
+    };
+
+    const validateTitle = (title: string) => {
+        if (!title) {
+            return "Course title is required";
+        }
+        return undefined;
     };
 
     const validateField = (field: keyof typeof formData, value: any) => {
@@ -742,16 +789,24 @@ export default function CoursesView() {
         if (field === "major") error = validateMajor(value);
         if (field === "duration") error = validateDuration(value);
         if (field === "capacity") error = validateCapacity(value);
+        if (field === "code") error = validateCode(value);
+        if (field === "title") error = validateTitle(value);
+        if (field === "color") error = validateColor(value);
 
-        setValidationErrors((prev) => ({
-            ...prev,
-            [field]: error,
-        }));
+        setValidationErrors((prev) => {
+            const updated = { ...prev };
+            if (error) {
+                updated[field as keyof typeof updated] = error;
+            } else {
+                delete updated[field as keyof typeof updated];
+            }
+            return updated;
+        });
         return !error;
     };
 
-    // Update the existing validateForm function to use current formData
     const validateForm = () => {
+        // Validate all fields using the new validation function
         return validateFormWithNewData(formData);
     };
 
@@ -895,6 +950,7 @@ export default function CoursesView() {
         sections?: string;
         duration?: string;
         capacity?: string;
+        color?: string;
     }>({});
 
     const validateCurrentSection = (
@@ -2701,13 +2757,7 @@ export default function CoursesView() {
                                                     formData?.color || "#3B82F6"
                                                 }
                                                 onChange={(e) => {
-                                                    const hexColor =
-                                                        e.target.value;
-                                                    setFormData({
-                                                        ...formData,
-                                                        color: hexColor,
-                                                    });
-                                                    setTimeout(validateForm, 0);
+                                                    handleColorChange(e.target.value);
                                                 }}
                                                 className="w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]"
                                                 style={{
@@ -2732,23 +2782,7 @@ export default function CoursesView() {
                                                 type="text"
                                                 value={formData?.color || ""}
                                                 onChange={(e) => {
-                                                    const value =
-                                                        e.target.value;
-                                                    if (
-                                                        /^#[0-9A-F]{6}$/i.test(
-                                                            value
-                                                        ) ||
-                                                        value === ""
-                                                    ) {
-                                                        setFormData({
-                                                            ...formData,
-                                                            color: value,
-                                                        });
-                                                        setTimeout(
-                                                            validateForm,
-                                                            0
-                                                        );
-                                                    }
+                                                    handleColorChange(e.target.value);
                                                 }}
                                                 placeholder="#3B82F6"
                                                 className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm font-mono"
@@ -2770,16 +2804,9 @@ export default function CoursesView() {
                                                 <button
                                                     key={presetColor}
                                                     type="button"
-                                                    onClick={() => {
-                                                        setFormData({
-                                                            ...formData,
-                                                            color: presetColor,
-                                                        });
-                                                        setTimeout(
-                                                            validateForm,
-                                                            0
-                                                        );
-                                                    }}
+                                                    onClick={
+                                                        () => handleColorChange(presetColor)
+                                                    }
                                                     className="w-6 h-6 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2F2F85] focus:ring-offset-1"
                                                     style={{
                                                         backgroundColor:
@@ -2794,6 +2821,11 @@ export default function CoursesView() {
                                         Choose a color for this course or enter
                                         a custom hex value
                                     </p>
+                                    {validationErrors.color && (
+                                        <ErrorLabel>
+                                            {validationErrors.color}
+                                        </ErrorLabel>
+                                    )}
                                 </div>
                             </div>
 
@@ -3760,16 +3792,9 @@ export default function CoursesView() {
                                                 value={
                                                     formData?.color || "#3B82F6"
                                                 } // Default to blue hex
-                                                onChange={(e) => {
-                                                    const hexColor =
-                                                        e.target.value;
-                                                    setFormData({
-                                                        ...formData,
-                                                        color: hexColor,
-                                                    });
-                                                    // Trigger validation after state update
-                                                    setTimeout(validateForm, 0);
-                                                }}
+                                                onChange={
+                                                    (e) => handleColorChange(e.target.value)
+                                                }
                                                 className="w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]"
                                                 style={{
                                                     padding: "2px",
@@ -3793,26 +3818,9 @@ export default function CoursesView() {
                                             <Input
                                                 type="text"
                                                 value={formData?.color || ""}
-                                                onChange={(e) => {
-                                                    const value =
-                                                        e.target.value;
-                                                    // Validate hex color format
-                                                    if (
-                                                        /^#[0-9A-F]{6}$/i.test(
-                                                            value
-                                                        ) ||
-                                                        value === ""
-                                                    ) {
-                                                        setFormData({
-                                                            ...formData,
-                                                            color: value,
-                                                        });
-                                                        setTimeout(
-                                                            validateForm,
-                                                            0
-                                                        );
-                                                    }
-                                                }}
+                                                onChange={
+                                                    (e) => handleColorChange(e.target.value)
+                                                }
                                                 placeholder="#3B82F6"
                                                 className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm font-mono"
                                             />
@@ -3834,14 +3842,7 @@ export default function CoursesView() {
                                                     key={presetColor}
                                                     type="button"
                                                     onClick={() => {
-                                                        setFormData({
-                                                            ...formData,
-                                                            color: presetColor,
-                                                        });
-                                                        setTimeout(
-                                                            validateForm,
-                                                            0
-                                                        );
+                                                        handleColorChange(presetColor);
                                                     }}
                                                     className="w-6 h-6 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2F2F85] focus:ring-offset-1"
                                                     style={{
@@ -3857,6 +3858,11 @@ export default function CoursesView() {
                                         Choose a color for this course or enter
                                         a custom hex value
                                     </p>
+                                    {validationErrors.color && (
+                                        <ErrorLabel>
+                                            {validationErrors.color}
+                                        </ErrorLabel>
+                                    )}
                                 </div>
                             </div>
 
