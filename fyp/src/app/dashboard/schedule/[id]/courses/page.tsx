@@ -1927,7 +1927,6 @@ export default function CoursesView() {
                 "separated_duration",
                 "capacity",
                 "section",
-                "classroom",
                 "instructor_name",
             ];
 
