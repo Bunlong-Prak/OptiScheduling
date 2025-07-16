@@ -31,10 +31,11 @@ export const users = mysqlTable("users", {
     }),
 });
 
-export const userRelations = relations(users, ({ many, one }) => ({
+export const userRelations = relations(users, ({ many }) => ({
     schedules: many(schedules),
     sessions: many(sessions),
 }));
+
 // Session Table
 export const sessions = mysqlTable("sessions", {
     id: varchar("id", {
@@ -43,12 +44,9 @@ export const sessions = mysqlTable("sessions", {
     expiresAt: datetime("expire_at").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
-    userId: varchar("user_id", { length: 100 })
-        .notNull()
-        .references(() => users.id, {
-            onDelete: "cascade",
-        }),
+    userId: varchar("user_id", { length: 100 }).notNull(),
 });
+
 export const sessionsRelations = relations(sessions, ({ one }) => ({
     user: one(users, {
         fields: [sessions.userId],
@@ -62,14 +60,10 @@ export const schedules = mysqlTable("schedules", {
     name: varchar("name", { length: 255 }).notNull(),
     academicYear: varchar("academic_year", { length: 255 }).notNull(),
     numberOfTimeSlots: int("number_of_time_slots").notNull(),
-    userId: varchar("user_id", { length: 255 })
-        .notNull()
-        .references(() => users.id, {
-            onDelete: "cascade",
-        }),
+    userId: varchar("user_id", { length: 255 }).notNull(),
 });
 
-export const scheduleRelations = relations(schedules, ({ many, one }) => ({
+export const scheduleRelations = relations(schedules, ({ many }) => ({
     courses: many(courses),
     scheduleTimePeriods: many(scheduleTimeSlots),
 }));
@@ -79,11 +73,7 @@ export const scheduleTimeSlots = mysqlTable("schedule_time_slots", {
     id: int("id").primaryKey().autoincrement(),
     startTime: varchar("start_time", { length: 50 }).notNull(),
     endTime: varchar("end_time", { length: 50 }).notNull(),
-    scheduleId: int("schedule_id")
-        .notNull()
-        .references(() => schedules.id, {
-            onDelete: "cascade",
-        }), // Foreign key to the Schedule table
+    scheduleId: int("schedule_id").notNull(),
 });
 
 export const courses = mysqlTable("courses", {
@@ -93,16 +83,8 @@ export const courses = mysqlTable("courses", {
     color: varchar("color", { length: 50 }),
     capacity: int("capacity").notNull(),
     duration: float("duration").notNull(),
-
-    scheduleId: int("schedule_id")
-        .notNull()
-        .references(() => schedules.id, {
-            onDelete: "cascade",
-        }), // Foreign key to Schedule
-    majorId: int("major_id")
-        .notNull()
-        .references(() => majors.id),
-    // Foreign key to Major
+    scheduleId: int("schedule_id").notNull(),
+    majorId: int("major_id").notNull(),
 });
 
 export const courseRelations = relations(courses, ({ many, one }) => ({
@@ -115,16 +97,11 @@ export const sections = mysqlTable("sections", {
     id: int("id").primaryKey().autoincrement(),
     number: varchar("number", { length: 50 }).notNull(),
     status: varchar("status", { length: 50 }),
-    courseId: int("course_id")
-        .notNull()
-        .references(() => courses.id, { onDelete: "cascade" }), // Foreign key to Course
-
-    instructorId: int("instructor_id").references(() => instructors.id, {
-        onDelete: "cascade",
-    }), // Foreign key to Instructor
+    courseId: int("course_id").notNull(),
+    instructorId: int("instructor_id"),
 });
 
-export const sectionRelations = relations(sections, ({ many, one }) => ({
+export const sectionRelations = relations(sections, ({ many }) => ({
     courseHours: many(courseHours),
     classrooms: many(classrooms),
 }));
@@ -134,23 +111,15 @@ export const courseHours = mysqlTable("course_hours", {
     day: varchar("day", { length: 50 }),
     timeSlot: varchar("time_slot", { length: 50 }),
     separatedDuration: float("separated_duration"),
-    classroomId: int("classroom_id").references(() => classrooms.id), // Foreign key to Classrooms
-    sectionId: int("section_id")
-        .notNull()
-        .references(() => sections.id, {
-            onDelete: "cascade",
-        }), // Foreign key to Section
+    classroomId: int("classroom_id"),
+    sectionId: int("section_id").notNull(),
 });
 
 export const majors = mysqlTable("majors", {
     id: int("id").primaryKey().autoincrement(),
     name: varchar("name", { length: 255 }).notNull(),
     shortTag: varchar("short_tag", { length: 50 }).notNull(),
-    scheduleId: int("schedule_id")
-        .notNull()
-        .references(() => schedules.id, {
-            onDelete: "cascade",
-        }),
+    scheduleId: int("schedule_id").notNull(),
 });
 
 export const classrooms = mysqlTable("classrooms", {
@@ -159,22 +128,14 @@ export const classrooms = mysqlTable("classrooms", {
     code: varchar("code", { length: 255 }).notNull(),
     capacity: int("capacity").notNull(),
     location: varchar("location", { length: 255 }),
-    classroomTypeId: int("classroom_type_id")
-        .notNull()
-        .references(() => classroomTypes.id, {
-            onDelete: "cascade",
-        }),
+    classroomTypeId: int("classroom_type_id").notNull(),
 });
 
 export const classroomTypes = mysqlTable("classroom_types", {
     id: int("id").primaryKey().autoincrement(),
     name: varchar("name", { length: 255 }).notNull(),
-    description: varchar("description", { length: 500 }), // Optional description field
-    scheduleId: int("schedule_id")
-        .notNull()
-        .references(() => schedules.id, {
-            onDelete: "cascade",
-        }),
+    description: varchar("description", { length: 500 }),
+    scheduleId: int("schedule_id").notNull(),
 });
 
 export const classroomTypeRelations = relations(classroomTypes, ({ many }) => ({
@@ -196,14 +157,10 @@ export const instructors = mysqlTable("instructors", {
     gender: varchar("gender", { length: 50 }).notNull(),
     email: varchar("email", { length: 255 }).notNull(),
     phoneNumber: varchar("phone_number", { length: 50 }).notNull(),
-    scheduleId: int("schedule_id")
-        .notNull()
-        .references(() => schedules.id, {
-            onDelete: "cascade",
-        }),
+    scheduleId: int("schedule_id").notNull(),
 });
 
-export const instructorRelations = relations(instructors, ({ many, one }) => ({
+export const instructorRelations = relations(instructors, ({ many }) => ({
     instructorUnavailableDays: many(instructorTimeConstraint),
     majors: many(majors),
 }));
@@ -212,16 +169,8 @@ export const instructorTimeConstraint = mysqlTable(
     "instructor_time_constraints",
     {
         id: int("id").primaryKey().autoincrement(),
-        instructorId: int("instructor_id")
-            .notNull()
-            .references(() => instructors.id, {
-                onDelete: "cascade",
-            }),
-        scheduleId: int("schedule_id")
-            .notNull()
-            .references(() => schedules.id, {
-                onDelete: "cascade",
-            }), // Foreign key to Instructor
+        instructorId: int("instructor_id").notNull(),
+        scheduleId: int("schedule_id").notNull(),
     }
 );
 
@@ -248,11 +197,7 @@ export const instructorTimeConstraintDay = mysqlTable(
         day: varchar("day", {
             length: 50,
         }).notNull(),
-        instructorTimeConstraintId: int("instructor_time_constraint_id")
-            .notNull()
-            .references(() => instructorTimeConstraint.id, {
-                onDelete: "cascade",
-            }),
+        instructorTimeConstraintId: int("instructor_time_constraint_id").notNull(),
     }
 );
 
@@ -274,11 +219,7 @@ export const instructorTimeConstraintTimeSlot = mysqlTable(
         timeSlot: varchar("time_slot", {
             length: 50,
         }).notNull(),
-        instructorTimeConstraintDayId: int("instructor_time_constraint_day_id")
-            .notNull()
-            .references(() => instructorTimeConstraintDay.id, {
-                onDelete: "cascade",
-            }),
+        instructorTimeConstraintDayId: int("instructor_time_constraint_day_id").notNull(),
     }
 );
 
