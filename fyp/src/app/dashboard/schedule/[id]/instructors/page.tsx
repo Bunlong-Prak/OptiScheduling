@@ -183,18 +183,18 @@ export default function InstructorsView() {
                     : "bg-red-50 border-red-500 text-red-800"
             }`}
         >
-            <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
+            <div className='flex items-start justify-between'>
+                <div className='flex items-start gap-3'>
                     {message.type === "success" ? (
-                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                        <CheckCircle className='h-5 w-5 text-green-600 flex-shrink-0 mt-0.5' />
                     ) : (
-                        <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <XCircle className='h-5 w-5 text-red-600 flex-shrink-0 mt-0.5' />
                     )}
                     <div>
-                        <h4 className="font-semibold text-sm">
+                        <h4 className='font-semibold text-sm'>
                             {message.title}
                         </h4>
-                        <p className="text-sm mt-1 opacity-90">
+                        <p className='text-sm mt-1 opacity-90'>
                             {message.description}
                         </p>
                     </div>
@@ -207,7 +207,7 @@ export default function InstructorsView() {
                             : "hover:bg-red-600"
                     }`}
                 >
-                    <X className="h-4 w-4" />
+                    <X className='h-4 w-4' />
                 </button>
             </div>
         </div>
@@ -243,6 +243,10 @@ export default function InstructorsView() {
     const [hasDuplicateName, setHasDuplicateName] = useState<boolean>(false);
     const [duplicateNameInfo, setDuplicateNameInfo] = useState<string>("");
 
+    useEffect(() => {
+        console.log({ hasAssignedCourses });
+    }, [hasAssignedCourses]);
+
     const checkInstructorNameDuplicate = async (
         firstName: string
     ): Promise<{ hasDuplicate: boolean; info: string }> => {
@@ -266,10 +270,12 @@ export default function InstructorsView() {
                     firstName.toLowerCase().trim()
             );
 
+            console.log({ duplicateInstructor });
+
             if (duplicateInstructor) {
                 return {
                     hasDuplicate: true,
-                    info: `An instructor with the name "${firstName}" already assigned to the course 
+                    info: `An instructor with the name "${firstName}" already assigned to the course
                     `,
                 };
             }
@@ -476,13 +482,13 @@ export default function InstructorsView() {
         disabled: boolean = false
     ) => {
         return (
-            <div className="space-y-2">
+            <div className='space-y-2'>
                 <Label
                     htmlFor={id}
-                    className="text-sm font-medium text-gray-700"
+                    className='text-sm font-medium text-gray-700'
                 >
                     {label}{" "}
-                    {required && <span className="text-red-500">*</span>}
+                    {required && <span className='text-red-500'>*</span>}
                 </Label>
                 <Input
                     id={id}
@@ -503,9 +509,9 @@ export default function InstructorsView() {
                     }`}
                 />
                 {validationErrors[name as keyof ValidationErrors] && (
-                    <div className="flex items-center gap-1">
-                        <span className="text-red-500 text-xs">❌</span>
-                        <p className="text-xs text-red-600 font-medium">
+                    <div className='flex items-center gap-1'>
+                        <span className='text-red-500 text-xs'>❌</span>
+                        <p className='text-xs text-red-600 font-medium'>
                             {validationErrors[name as keyof ValidationErrors]}
                         </p>
                     </div>
@@ -681,10 +687,47 @@ export default function InstructorsView() {
                 return;
             }
 
+            const apiData = {
+                id: selectedInstructor.id,
+                instructor_id: formData.instructor_id,
+                first_name: formData.first_name,
+                last_name: formData.last_name,
+                gender: formData.gender,
+                email: formData.email,
+                phone_number: formData.phone_number,
+            };
+
+            const response = await fetch("/api/instructors", {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiData),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(
+                    errorData.error || "Failed to delete instructor"
+                );
+            }
+
+            await fetchInstructors();
+            setIsEditDialogOpen(false);
+            setSelectedInstructor(null);
+            showSuccessMessage(
+                "Instructor Edited Successfully",
+                `Instructor has been edited successfully.`
+            );
+
             // Rest of the existing handleEditInstructor logic...
             // (keeping the existing validation and API call logic)
         } catch (error) {
-            // Existing error handling...
+            console.error(error);
+            showErrorMessage(
+                "Failed to delete instructor",
+                "Something went wrong. Please try again later."
+            );
         }
     };
 
@@ -1164,11 +1207,11 @@ export default function InstructorsView() {
         setAssignedCoursesInfo(assignmentCheck.info);
 
         // Check for name duplicates
-        const nameCheck = await checkInstructorNameDuplicate(
-            instructor.first_name
-        );
-        setHasDuplicateName(nameCheck.hasDuplicate);
-        setDuplicateNameInfo(nameCheck.info);
+        // const nameCheck = await checkInstructorNameDuplicate(
+        //     instructor.first_name
+        // );
+        // setHasDuplicateName(nameCheck.hasDuplicate);
+        // setDuplicateNameInfo(nameCheck.info);
 
         setFormData({
             instructor_id: instructor.instructor_id || "",
@@ -1192,11 +1235,11 @@ export default function InstructorsView() {
         setAssignedCoursesInfo(assignmentCheck.info);
 
         // Check for name duplicates
-        const nameCheck = await checkInstructorNameDuplicate(
-            instructor.first_name
-        );
-        setHasDuplicateName(nameCheck.hasDuplicate);
-        setDuplicateNameInfo(nameCheck.info);
+        // const nameCheck = await checkInstructorNameDuplicate(
+        //     instructor.first_name
+        // );
+        // setHasDuplicateName(nameCheck.hasDuplicate);
+        // setDuplicateNameInfo(nameCheck.info);
 
         setIsDeleteDialogOpen(true);
     };
@@ -1234,8 +1277,8 @@ export default function InstructorsView() {
         <>
             {/* Messages - OUTSIDE the main content flow */}
             {messages.length > 0 && (
-                <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
-                    <div className="pointer-events-auto space-y-2">
+                <div className='fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none'>
+                    <div className='pointer-events-auto space-y-2'>
                         {messages.map((message) => (
                             <MessageBanner key={message.id} message={message} />
                         ))}
@@ -1244,123 +1287,123 @@ export default function InstructorsView() {
             )}
 
             {/* Main content - completely separate */}
-            <div className="space-y-4">
+            <div className='space-y-4'>
                 {/* Page Header */}
-                <div className="flex justify-between items-center">
+                <div className='flex justify-between items-center'>
                     <div>
-                        <h2 className="text-lg font-semibold text-gray-900">
+                        <h2 className='text-lg font-semibold text-gray-900'>
                             Instructors
                         </h2>
-                        <p className="text-xs text-gray-600">
+                        <p className='text-xs text-gray-600'>
                             Manage instructor information and details
                         </p>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className='flex gap-2'>
                         <Button
                             onClick={() => setIsImportDialogOpen(true)}
-                            variant="outline"
-                            className="border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md"
+                            variant='outline'
+                            className='border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md'
                         >
-                            <Upload className="mr-1 h-3 w-3" /> Import CSV
+                            <Upload className='mr-1 h-3 w-3' /> Import CSV
                         </Button>
                         <Button
                             onClick={downloadInstructorsCSV}
-                            variant="outline"
-                            className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
+                            variant='outline'
+                            className='border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md'
                             disabled={instructors.length === 0}
                         >
-                            <Download className="mr-1 h-3 w-3" /> Export CSV
+                            <Download className='mr-1 h-3 w-3' /> Export CSV
                         </Button>
                         <Button
                             onClick={openAddDialog}
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors"
+                            className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors'
                         >
-                            <Plus className="mr-1 h-3 w-3" /> New Instructor
+                            <Plus className='mr-1 h-3 w-3' /> New Instructor
                         </Button>
                         <Button
                             onClick={() => setIsClearAllDialogOpen(true)}
-                            variant="outline"
-                            className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
+                            variant='outline'
+                            className='border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md'
                             disabled={instructors.length === 0}
                         >
-                            <Trash className="mr-1 h-3 w-3" /> Clear All
+                            <Trash className='mr-1 h-3 w-3' /> Clear All
                         </Button>
                     </div>
                 </div>
 
-                <div className="relative max-w-md">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <div className='relative max-w-md'>
+                    <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400' />
                     <Input
-                        placeholder="Search instructors by name, email, ID, or phone..."
+                        placeholder='Search instructors by name, email, ID, or phone...'
                         value={searchQuery}
                         onChange={(e) => {
                             setSearchQuery(e.target.value);
                             setCurrentPage(1);
                         }}
-                        className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
+                        className='pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md'
                     />
                     {searchQuery && (
                         <Button
-                            variant="ghost"
-                            size="sm"
+                            variant='ghost'
+                            size='sm'
                             onClick={() => {
                                 setSearchQuery("");
                                 setCurrentPage(1);
                             }}
-                            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+                            className='absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100'
                         >
-                            <X className="h-3 w-3" />
+                            <X className='h-3 w-3' />
                         </Button>
                     )}
                 </div>
 
                 {/* Table */}
-                <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                <div className='bg-white rounded border border-gray-200 shadow-sm overflow-hidden'>
+                    <div className='overflow-x-auto'>
+                        <table className='w-full text-sm'>
                             <thead>
-                                <tr className="bg-[#2F2F85] text-white">
-                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                <tr className='bg-[#2F2F85] text-white'>
+                                    <th className='px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16'>
                                         No.
                                     </th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    <th className='px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider'>
                                         Instructor ID
                                     </th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    <th className='px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider'>
                                         First Name
                                     </th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    <th className='px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider'>
                                         Last Name
                                     </th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
+                                    <th className='px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20'>
                                         Gender
                                     </th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    <th className='px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider'>
                                         Email
                                     </th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    <th className='px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider'>
                                         Phone
                                     </th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20">
+                                    <th className='px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider w-20'>
                                         Actions
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-200">
+                            <tbody className='divide-y divide-gray-200'>
                                 {filteredInstructors.length === 0 ? (
                                     <tr>
                                         <td
                                             colSpan={8}
-                                            className="px-3 py-8 text-center text-gray-500 text-sm"
+                                            className='px-3 py-8 text-center text-gray-500 text-sm'
                                         >
-                                            <div className="space-y-1">
+                                            <div className='space-y-1'>
                                                 <div>
                                                     {searchQuery
                                                         ? `No instructors found for "${searchQuery}"`
                                                         : "No instructors found"}
                                                 </div>
-                                                <div className="text-xs">
+                                                <div className='text-xs'>
                                                     {searchQuery
                                                         ? "Try a different search term"
                                                         : "Add a new instructor to get started."}
@@ -1379,57 +1422,57 @@ export default function InstructorsView() {
                                                         : "bg-gray-50"
                                                 }`}
                                             >
-                                                <td className="px-3 py-2 text-xs text-gray-600 font-medium">
+                                                <td className='px-3 py-2 text-xs text-gray-600 font-medium'>
                                                     {(currentPage - 1) *
                                                         ITEMS_PER_PAGE +
                                                         index +
                                                         1}
                                                 </td>
-                                                <td className="px-3 py-2 text-xs font-medium text-gray-900">
+                                                <td className='px-3 py-2 text-xs font-medium text-gray-900'>
                                                     {instructor.instructor_id ||
                                                         "-"}
                                                 </td>
-                                                <td className="px-3 py-2 text-xs font-medium text-gray-900">
+                                                <td className='px-3 py-2 text-xs font-medium text-gray-900'>
                                                     {instructor.first_name}
                                                 </td>
-                                                <td className="px-3 py-2 text-xs font-medium text-gray-900">
+                                                <td className='px-3 py-2 text-xs font-medium text-gray-900'>
                                                     {instructor.last_name}
                                                 </td>
-                                                <td className="px-3 py-2 text-xs text-gray-900">
+                                                <td className='px-3 py-2 text-xs text-gray-900'>
                                                     {instructor.gender}
                                                 </td>
-                                                <td className="px-3 py-2 text-xs text-gray-900">
+                                                <td className='px-3 py-2 text-xs text-gray-900'>
                                                     {instructor.email}
                                                 </td>
-                                                <td className="px-3 py-2 text-xs text-gray-900">
+                                                <td className='px-3 py-2 text-xs text-gray-900'>
                                                     {instructor.phone_number ||
                                                         "-"}
                                                 </td>
-                                                <td className="px-3 py-2">
-                                                    <div className="flex gap-1">
+                                                <td className='px-3 py-2'>
+                                                    <div className='flex gap-1'>
                                                         <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                            variant='ghost'
+                                                            size='icon'
+                                                            className='h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100'
                                                             onClick={() =>
                                                                 openEditDialog(
                                                                     instructor
                                                                 )
                                                             }
                                                         >
-                                                            <Pencil className="h-3 w-3" />
+                                                            <Pencil className='h-3 w-3' />
                                                         </Button>
                                                         <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                            variant='ghost'
+                                                            size='icon'
+                                                            className='h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50'
                                                             onClick={() =>
                                                                 openDeleteDialog(
                                                                     instructor
                                                                 )
                                                             }
                                                         >
-                                                            <Trash className="h-3 w-3" />
+                                                            <Trash className='h-3 w-3' />
                                                         </Button>
                                                     </div>
                                                 </td>
@@ -1444,7 +1487,7 @@ export default function InstructorsView() {
 
                 {/* Pagination */}
                 {filteredInstructors.length > 0 && totalPages > 1 && (
-                    <div className="flex justify-center">
+                    <div className='flex justify-center'>
                         <CustomPagination
                             currentPage={currentPage}
                             totalPages={totalPages}
@@ -1461,14 +1504,14 @@ export default function InstructorsView() {
                         setIsAddDialogOpen(open);
                     }}
                 >
-                    <DialogContent className="bg-white max-w-lg">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-lg'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Add New Instructor
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="py-4 space-y-4">
+                        <div className='py-4 space-y-4'>
                             {renderFormField(
                                 "instructor_id",
                                 "instructor_id",
@@ -1477,7 +1520,7 @@ export default function InstructorsView() {
                                 "Enter instructor ID (optional)"
                             )}
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className='grid grid-cols-2 gap-4'>
                                 {renderFormField(
                                     "first_name",
                                     "first_name",
@@ -1496,13 +1539,13 @@ export default function InstructorsView() {
                                 )}
                             </div>
 
-                            <div className="space-y-2">
+                            <div className='space-y-2'>
                                 <Label
-                                    htmlFor="gender"
-                                    className="text-sm font-medium text-gray-700"
+                                    htmlFor='gender'
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Gender{" "}
-                                    <span className="text-red-500">*</span>
+                                    <span className='text-red-500'>*</span>
                                 </Label>
                                 <Select
                                     value={formData.gender}
@@ -1517,23 +1560,23 @@ export default function InstructorsView() {
                                                 : ""
                                         }`}
                                     >
-                                        <SelectValue placeholder="Select gender" />
+                                        <SelectValue placeholder='Select gender' />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="Male">
+                                        <SelectItem value='Male'>
                                             Male
                                         </SelectItem>
-                                        <SelectItem value="Female">
+                                        <SelectItem value='Female'>
                                             Female
                                         </SelectItem>
                                     </SelectContent>
                                 </Select>
                                 {validationErrors.gender && (
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-red-500 text-xs">
+                                    <div className='flex items-center gap-1'>
+                                        <span className='text-red-500 text-xs'>
                                             ❌
                                         </span>
-                                        <p className="text-xs text-red-600 font-medium">
+                                        <p className='text-xs text-red-600 font-medium'>
                                             {validationErrors.gender}
                                         </p>
                                     </div>
@@ -1559,21 +1602,21 @@ export default function InstructorsView() {
                             )}
                         </div>
 
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => {
                                     resetForm();
                                     setIsAddDialogOpen(false);
                                 }}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
                             <Button
                                 onClick={handleAddInstructor}
                                 disabled={hasValidationErrors()}
-                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed'
                             >
                                 Add
                             </Button>
@@ -1589,26 +1632,26 @@ export default function InstructorsView() {
                         setIsEditDialogOpen(open);
                     }}
                 >
-                    <DialogContent className="bg-white max-w-lg">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-lg'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Edit Instructor
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="py-4 space-y-4">
+                        <div className='py-4 space-y-4'>
                             {/* Warning message when instructor has assignments */}
                             {hasAssignedCourses && (
-                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-red-600 text-sm">
+                                <div className='bg-red-50 border border-red-200 rounded-lg p-3 mb-4'>
+                                    <div className='flex items-center gap-2'>
+                                        <span className='text-red-600 text-sm'>
                                             🚫
                                         </span>
-                                        <p className="text-sm text-red-800 font-medium">
+                                        <p className='text-sm text-red-800 font-medium'>
                                             This instructor cannot be edited
                                         </p>
                                     </div>
-                                    <p className="text-xs text-red-700 mt-1 ml-6">
+                                    <p className='text-xs text-red-700 mt-1 ml-6'>
                                         {assignedCoursesInfo}. Please remove all
                                         course assignments before editing this
                                         instructor.
@@ -1618,28 +1661,28 @@ export default function InstructorsView() {
 
                             {/* Warning message when instructor has duplicate name */}
                             {hasDuplicateName && !hasAssignedCourses && (
-                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-red-600 text-sm">
+                                <div className='bg-red-50 border border-red-200 rounded-lg p-3 mb-4'>
+                                    <div className='flex items-center gap-2'>
+                                        <span className='text-red-600 text-sm'>
                                             🚫
                                         </span>
-                                        <p className="text-sm text-red-800 font-medium">
+                                        <p className='text-sm text-red-800 font-medium'>
                                             This instructor cannot be edited
                                         </p>
                                     </div>
-                                    <p className="text-xs text-red-700 mt-1 ml-6">
+                                    <p className='text-xs text-red-700 mt-1 ml-6'>
                                         {duplicateNameInfo}.
                                     </p>
                                 </div>
                             )}
 
                             {isCheckingAssignments && (
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-blue-600 text-sm">
+                                <div className='bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4'>
+                                    <div className='flex items-center gap-2'>
+                                        <span className='text-blue-600 text-sm'>
                                             ℹ️
                                         </span>
-                                        <p className="text-sm text-blue-800">
+                                        <p className='text-sm text-blue-800'>
                                             Checking for course assignments and
                                             duplicate names...
                                         </p>
@@ -1661,7 +1704,7 @@ export default function InstructorsView() {
                                     isCheckingAssignments
                             )}
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className='grid grid-cols-2 gap-4'>
                                 {renderFormField(
                                     "edit-first_name",
                                     "first_name",
@@ -1688,13 +1731,13 @@ export default function InstructorsView() {
                                 )}
                             </div>
 
-                            <div className="space-y-2">
+                            <div className='space-y-2'>
                                 <Label
-                                    htmlFor="edit-gender"
-                                    className="text-sm font-medium text-gray-700"
+                                    htmlFor='edit-gender'
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Gender{" "}
-                                    <span className="text-red-500">*</span>
+                                    <span className='text-red-500'>*</span>
                                 </Label>
                                 <Select
                                     value={formData.gender}
@@ -1720,23 +1763,23 @@ export default function InstructorsView() {
                                                 : ""
                                         }`}
                                     >
-                                        <SelectValue placeholder="Select gender" />
+                                        <SelectValue placeholder='Select gender' />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="Male">
+                                        <SelectItem value='Male'>
                                             Male
                                         </SelectItem>
-                                        <SelectItem value="Female">
+                                        <SelectItem value='Female'>
                                             Female
                                         </SelectItem>
                                     </SelectContent>
                                 </Select>
                                 {validationErrors.gender && (
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-red-500 text-xs">
+                                    <div className='flex items-center gap-1'>
+                                        <span className='text-red-500 text-xs'>
                                             ❌
                                         </span>
-                                        <p className="text-xs text-red-600 font-medium">
+                                        <p className='text-xs text-red-600 font-medium'>
                                             {validationErrors.gender}
                                         </p>
                                     </div>
@@ -1770,14 +1813,14 @@ export default function InstructorsView() {
                             )}
                         </div>
 
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => {
                                     resetForm();
                                     setIsEditDialogOpen(false);
                                 }}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
@@ -1789,7 +1832,7 @@ export default function InstructorsView() {
                                     hasDuplicateName ||
                                     isCheckingAssignments
                                 }
-                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed'
                             >
                                 {hasAssignedCourses || hasDuplicateName
                                     ? "Cannot Edit"
@@ -1807,26 +1850,26 @@ export default function InstructorsView() {
                         setIsDeleteDialogOpen(open);
                     }}
                 >
-                    <DialogContent className="bg-white max-w-md">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-md'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Delete Instructor
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="py-4">
+                        <div className='py-4'>
                             {/* Warning message when instructor has assignments */}
                             {hasAssignedCourses && (
-                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-red-600 text-sm">
+                                <div className='bg-red-50 border border-red-200 rounded-lg p-3 mb-4'>
+                                    <div className='flex items-center gap-2'>
+                                        <span className='text-red-600 text-sm'>
                                             🚫
                                         </span>
-                                        <p className="text-sm text-red-800 font-medium">
+                                        <p className='text-sm text-red-800 font-medium'>
                                             This instructor cannot be deleted
                                         </p>
                                     </div>
-                                    <p className="text-xs text-red-700 mt-1 ml-6">
+                                    <p className='text-xs text-red-700 mt-1 ml-6'>
                                         {assignedCoursesInfo}. Please remove all
                                         course assignments before deleting this
                                         instructor.
@@ -1836,28 +1879,28 @@ export default function InstructorsView() {
 
                             {/* Warning message when instructor has duplicate name */}
                             {hasDuplicateName && !hasAssignedCourses && (
-                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-red-600 text-sm">
+                                <div className='bg-red-50 border border-red-200 rounded-lg p-3 mb-4'>
+                                    <div className='flex items-center gap-2'>
+                                        <span className='text-red-600 text-sm'>
                                             🚫
                                         </span>
-                                        <p className="text-sm text-red-800 font-medium">
+                                        <p className='text-sm text-red-800 font-medium'>
                                             This instructor cannot be deleted
                                         </p>
                                     </div>
-                                    <p className="text-xs text-red-700 mt-1 ml-6">
+                                    <p className='text-xs text-red-700 mt-1 ml-6'>
                                         {duplicateNameInfo}.
                                     </p>
                                 </div>
                             )}
 
                             {isCheckingAssignments && (
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-blue-600 text-sm">
+                                <div className='bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4'>
+                                    <div className='flex items-center gap-2'>
+                                        <span className='text-blue-600 text-sm'>
                                             ℹ️
                                         </span>
-                                        <p className="text-sm text-blue-800">
+                                        <p className='text-sm text-blue-800'>
                                             Checking for course assignments and
                                             duplicate names...
                                         </p>
@@ -1870,15 +1913,15 @@ export default function InstructorsView() {
                                 !hasDuplicateName &&
                                 !isCheckingAssignments && (
                                     <>
-                                        <p className="text-sm text-gray-600 mb-2">
+                                        <p className='text-sm text-gray-600 mb-2'>
                                             Are you sure you want to delete this
                                             instructor?
                                         </p>
-                                        <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
+                                        <p className='font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border'>
                                             {selectedInstructor?.first_name}{" "}
                                             {selectedInstructor?.last_name}
                                         </p>
-                                        <p className="text-xs text-gray-500 mt-2">
+                                        <p className='text-xs text-gray-500 mt-2'>
                                             This action cannot be undone.
                                         </p>
                                     </>
@@ -1886,11 +1929,11 @@ export default function InstructorsView() {
 
                             {/* Show instructor info even when disabled */}
                             {(hasAssignedCourses || hasDuplicateName) && (
-                                <div className="mt-4">
-                                    <p className="text-sm text-gray-600 mb-2">
+                                <div className='mt-4'>
+                                    <p className='text-sm text-gray-600 mb-2'>
                                         Instructor Details:
                                     </p>
-                                    <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
+                                    <p className='font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border'>
                                         {selectedInstructor?.first_name}{" "}
                                         {selectedInstructor?.last_name}
                                     </p>
@@ -1898,14 +1941,14 @@ export default function InstructorsView() {
                             )}
                         </div>
 
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => {
                                     setSelectedInstructor(null);
                                     setIsDeleteDialogOpen(false);
                                 }}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
@@ -1916,7 +1959,7 @@ export default function InstructorsView() {
                                     hasDuplicateName ||
                                     isCheckingAssignments
                                 }
-                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                className='bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed'
                             >
                                 {hasAssignedCourses || hasDuplicateName
                                     ? "Cannot Delete"
@@ -1934,30 +1977,30 @@ export default function InstructorsView() {
                         setIsImportDialogOpen(open);
                     }}
                 >
-                    <DialogContent className="bg-white max-w-md">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-md'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Import Instructors from CSV
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="py-4 space-y-4">
+                        <div className='py-4 space-y-4'>
                             <div>
                                 <Label
-                                    htmlFor="csv-file"
-                                    className="text-sm font-medium text-gray-700"
+                                    htmlFor='csv-file'
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Select CSV File
                                 </Label>
                                 <Input
-                                    id="csv-file"
-                                    type="file"
-                                    accept=".csv"
+                                    id='csv-file'
+                                    type='file'
+                                    accept='.csv'
                                     onChange={handleFileSelect}
                                     disabled={importProgress.isImporting}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
+                                    className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1'
                                 />
-                                <p className="text-xs text-gray-600 mt-1">
+                                <p className='text-xs text-gray-600 mt-1'>
                                     CSV should contain columns: instructor_id
                                     (optional), first_name, last_name, gender,
                                     email, phone_number
@@ -1965,7 +2008,7 @@ export default function InstructorsView() {
                             </div>
 
                             {importFile && (
-                                <div className="text-xs bg-gray-50 p-2 rounded border">
+                                <div className='text-xs bg-gray-50 p-2 rounded border'>
                                     <p>
                                         <strong>Selected file:</strong>{" "}
                                         {importFile.name}
@@ -1978,17 +2021,17 @@ export default function InstructorsView() {
                             )}
 
                             {importProgress.isImporting && (
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-xs">
+                                <div className='space-y-2'>
+                                    <div className='flex justify-between text-xs'>
                                         <span>Progress:</span>
                                         <span>
                                             {importProgress.completed} /{" "}
                                             {importProgress.total}
                                         </span>
                                     </div>
-                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div className='w-full bg-gray-200 rounded-full h-2'>
                                         <div
-                                            className="bg-[#2F2F85] h-2 rounded-full transition-all duration-300"
+                                            className='bg-[#2F2F85] h-2 rounded-full transition-all duration-300'
                                             style={{
                                                 width:
                                                     importProgress.total > 0
@@ -2005,16 +2048,16 @@ export default function InstructorsView() {
                             )}
 
                             {importProgress.errors.length > 0 && (
-                                <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded border border-red-200">
-                                    <p className="text-xs font-medium text-red-600 mb-1">
+                                <div className='max-h-32 overflow-y-auto bg-red-50 p-2 rounded border border-red-200'>
+                                    <p className='text-xs font-medium text-red-600 mb-1'>
                                         Errors:
                                     </p>
-                                    <div className="text-xs space-y-1">
+                                    <div className='text-xs space-y-1'>
                                         {importProgress.errors.map(
                                             (error, index) => (
                                                 <p
                                                     key={index}
-                                                    className="text-red-600"
+                                                    className='text-red-600'
                                                 >
                                                     {error}
                                                 </p>
@@ -2025,15 +2068,15 @@ export default function InstructorsView() {
                             )}
                         </div>
 
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => {
                                     resetImportState();
                                     setIsImportDialogOpen(false);
                                 }}
                                 disabled={importProgress.isImporting}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
@@ -2042,7 +2085,7 @@ export default function InstructorsView() {
                                 disabled={
                                     !importFile || importProgress.isImporting
                                 }
-                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                                className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5'
                             >
                                 {importProgress.isImporting
                                     ? "Importing..."
@@ -2057,34 +2100,34 @@ export default function InstructorsView() {
                     open={isClearAllDialogOpen}
                     onOpenChange={setIsClearAllDialogOpen}
                 >
-                    <DialogContent className="bg-white max-w-md">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-md'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Clear All Instructors
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="py-4">
-                            <p className="text-sm text-gray-600 mb-2">
+                        <div className='py-4'>
+                            <p className='text-sm text-gray-600 mb-2'>
                                 Are you sure you want to delete all{" "}
                                 {instructors.length} instructors?
                             </p>
-                            <p className="text-xs text-red-600 font-medium">
+                            <p className='text-xs text-red-600 font-medium'>
                                 This action cannot be undone.
                             </p>
                         </div>
 
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => setIsClearAllDialogOpen(false)}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
                             <Button
                                 onClick={handleClearAllInstructors}
-                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                                className='bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5'
                             >
                                 Delete All
                             </Button>
