@@ -3891,7 +3891,13 @@ export default function TimetableViewClassroom() {
                     !course && (
                         <div className='absolute inset-0 pointer-events-none z-10'>
                             <div
-                                className={`${draggedCourse.color} opacity-60 rounded m-1 p-1 border-2 border-dashed border-blue-400`}
+                                // className={`${draggedCourse.color} opacity-60 rounded m-1 p-1 border-2 border-dashed border-blue-400`}
+
+                                className={` opacity-60 rounded m-1 p-1 border-2 border-dashed border-blue-400`}
+                                style={{
+                                    backgroundColor:
+                                        draggedCourse.originalColor,
+                                }}
                             >
                                 <div className='font-semibold text-xs'>
                                     {draggedCourse.code}
@@ -4058,11 +4064,15 @@ export default function TimetableViewClassroom() {
                     )}
                 {course ? (
                     <div
-                        className={`${
-                            course.color
-                        } p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium hover:shadow-md ${
+                        // className={`${
+                        //     course.color
+                        // } p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium hover:shadow-md ${
+                        //     course.isCombined ? "border-2 border-blue-400" : ""
+                        // }`}
+                        className={`p-1 rounded cursor-pointer text-center border shadow-sm transition-all font-medium hover:shadow-md ${
                             course.isCombined ? "border-2 border-blue-400" : ""
                         }`}
+                        style={{ backgroundColor: course.originalColor }}
                         onClick={() =>
                             handleScheduledCourseClick(
                                 day,
