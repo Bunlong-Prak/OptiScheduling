@@ -1294,6 +1294,7 @@ function validateTimeSlotAssignment(
     actualDuration: number;
     message: string;
     hasGaps: boolean;
+    assignmentType: "continuous" | "adjacent" | "dispersed";
 } {
     if (slotCombination.length === 0) {
         return {
@@ -1301,6 +1302,7 @@ function validateTimeSlotAssignment(
             actualDuration: 0,
             message: `No time slots provided for section ${sectionNumber}`,
             hasGaps: false,
+            assignmentType: "dispersed",
         };
     }
 
@@ -1314,32 +1316,32 @@ function validateTimeSlotAssignment(
             actualDuration: actualDuration,
             message: `Duration mismatch for section ${sectionNumber}: available ${actualDuration}h, needed ${durationHours}h`,
             hasGaps: false,
+            assignmentType: "dispersed",
         };
     }
 
-    // Check if slots are continuous
+    // Determine assignment type
     const isContinuous = areTimeSlotsContinuous(slotCombination);
+    const isAdjacent = areTimeSlotsAdjacent(slotCombination);
 
+    let assignmentType: "continuous" | "adjacent" | "dispersed";
     if (isContinuous) {
-        return {
-            isValid: true,
-            actualDuration: actualDuration,
-            message: `Valid continuous assignment for section ${sectionNumber}: ${slotCombination.join(
-                ", "
-            )} (${actualDuration}h)`,
-            hasGaps: false,
-        };
+        assignmentType = "continuous";
+    } else if (isAdjacent) {
+        assignmentType = "adjacent";
     } else {
-        // NEW: Allow non-continuous slots with gaps
-        return {
-            isValid: true,
-            actualDuration: actualDuration,
-            message: `Valid gap-tolerant assignment for section ${sectionNumber}: ${slotCombination.join(
-                ", "
-            )} (${actualDuration}h with gaps)`,
-            hasGaps: true,
-        };
+        assignmentType = "dispersed";
     }
+
+    return {
+        isValid: true,
+        actualDuration: actualDuration,
+        message: `Valid ${assignmentType} assignment for section ${sectionNumber}: ${slotCombination.join(
+            ", "
+        )} (${actualDuration}h)`,
+        hasGaps: !isContinuous,
+        assignmentType: assignmentType,
+    };
 }
 function findGapTolerantCombinations(
     timeSlots: string[],
@@ -1681,13 +1683,14 @@ function findPossibleTimeSlots(
     durationHours: number
 ): string[][] {
     console.log(
-        `Finding combinations (allowing gaps) for ${durationHours} hours from ${timeSlots.length} available slots`
+        `Finding all possible combinations for ${durationHours} hours from ${timeSlots.length} slots`
     );
 
     const combinations: string[][] = [];
     const tolerance = 0.01;
 
-    // Strategy 1: Try continuous combinations first (preferred)
+    // Strategy 1: Try continuous combinations first (highest priority)
+    console.log("=== Strategy 1: Looking for continuous combinations ===");
     const consecutiveCombinations = findConsecutiveCombinations(
         timeSlots,
         durationHours,
@@ -1701,29 +1704,301 @@ function findPossibleTimeSlots(
         );
     }
 
-    // Strategy 2: NEW - Find gap-tolerant combinations
-    const gapTolerantCombinations = findGapTolerantCombinations(
+    // Strategy 2: Try adjacent combinations (allowing small gaps)
+    console.log("=== Strategy 2: Looking for adjacent combinations ===");
+    const adjacentCombinations = findAdjacentTimeSlotCombinations(
         timeSlots,
         durationHours,
         tolerance
     );
 
-    if (gapTolerantCombinations.length > 0) {
-        combinations.push(...gapTolerantCombinations);
+    if (adjacentCombinations.length > 0) {
+        combinations.push(...adjacentCombinations);
         console.log(
-            `✅ Found ${gapTolerantCombinations.length} gap-tolerant combinations`
+            `✅ Found ${adjacentCombinations.length} adjacent combinations`
         );
     }
 
-    // Remove duplicates and shuffle for randomization
+    // Strategy 3: Fallback to any valid combination (if needed)
+    if (combinations.length === 0) {
+        console.log("=== Strategy 3: Looking for any valid combinations ===");
+        const fallbackCombinations = findAllValidCombinations(
+            timeSlots,
+            durationHours,
+            tolerance
+        );
+
+        if (fallbackCombinations.length > 0) {
+            combinations.push(...fallbackCombinations);
+            console.log(
+                `✅ Found ${fallbackCombinations.length} fallback combinations`
+            );
+        }
+    }
+
+    // Remove duplicates and prioritize by type
     const uniqueCombinations = removeDuplicateCombinations(combinations);
-    shuffleArray(uniqueCombinations);
+
+    // Sort combinations: continuous first, then adjacent, then others
+    uniqueCombinations.sort((a, b) => {
+        const aContinuous = areTimeSlotsContinuous(a);
+        const bContinuous = areTimeSlotsContinuous(b);
+        const aAdjacent = areTimeSlotsAdjacent(a);
+        const bAdjacent = areTimeSlotsAdjacent(b);
+
+        if (aContinuous && !bContinuous) return -1;
+        if (!aContinuous && bContinuous) return 1;
+        if (aAdjacent && !bAdjacent) return -1;
+        if (!aAdjacent && bAdjacent) return 1;
+        return 0;
+    });
 
     console.log(
-        `Generated ${uniqueCombinations.length} total time slot combinations for ${durationHours} hours`
+        `Generated ${uniqueCombinations.length} total combinations for ${durationHours} hours`
     );
 
+    // Log the example you mentioned
+    if (Math.abs(durationHours - 1.66) < tolerance) {
+        console.log("\n=== Example for 1.66h course ===");
+        console.log(
+            "Available slots: 08:00-08:50 (0.83h), 09:00-09:50 (0.83h), 10:00-10:50 (0.83h)"
+        );
+        console.log("Expected combinations:");
+        console.log("1. [08:00-08:50, 09:00-09:50] = 1.66h");
+        console.log("2. [09:00-09:50, 10:00-10:50] = 1.66h");
+
+        uniqueCombinations.forEach((combo, index) => {
+            const totalDuration = calculateCombinationDuration(combo);
+            const isAdjacent = areTimeSlotsAdjacent(combo);
+            console.log(
+                `Found combination ${index + 1}: [${combo.join(
+                    ", "
+                )}] = ${totalDuration}h (adjacent: ${isAdjacent})`
+            );
+        });
+    }
+
     return uniqueCombinations;
+}
+
+function areTimeSlotsAdjacent(slotCombination: string[]): boolean {
+    if (slotCombination.length <= 1) return true;
+
+    // Sort slots by start time
+    const sortedSlots = [...slotCombination].sort((a, b) => {
+        const startA = a.split("-")[0];
+        const startB = b.split("-")[0];
+        return startA.localeCompare(startB);
+    });
+
+    // Check each adjacent pair - allow small gaps (like 10 minutes)
+    for (let i = 0; i < sortedSlots.length - 1; i++) {
+        const currentSlot = sortedSlots[i];
+        const nextSlot = sortedSlots[i + 1];
+
+        const currentEndTime = currentSlot.split("-")[1];
+        const nextStartTime = nextSlot.split("-")[0];
+
+        // Calculate gap in minutes
+        const currentEnd = timeToMinutes(currentEndTime);
+        const nextStart = timeToMinutes(nextStartTime);
+        const gapMinutes = nextStart - currentEnd;
+
+        // Allow gaps up to 30 minutes (adjustable)
+        const maxGapMinutes = 30;
+
+        if (gapMinutes > maxGapMinutes) {
+            console.log(
+                `❌ Gap too large between ${currentSlot} and ${nextSlot}: ${gapMinutes} minutes`
+            );
+            return false;
+        }
+
+        if (gapMinutes < 0) {
+            console.log(
+                `❌ Time slots overlap: ${currentSlot} and ${nextSlot}`
+            );
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Helper function to convert time string to minutes
+function timeToMinutes(timeStr: string): number {
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    return hours * 60 + minutes;
+}
+
+// Fallback function to find any valid combinations
+function findAllValidCombinations(
+    timeSlots: string[],
+    durationHours: number,
+    tolerance: number
+): string[][] {
+    console.log(`Finding any valid combinations for ${durationHours} hours`);
+
+    const combinations: string[][] = [];
+
+    // Use a more efficient approach instead of generating all subsets
+    // Try combinations of increasing length
+    for (
+        let comboLength = 1;
+        comboLength <= Math.min(timeSlots.length, 5);
+        comboLength++
+    ) {
+        const combos = generateCombinationsOfLength(timeSlots, comboLength);
+
+        for (const combo of combos) {
+            const totalDuration = calculateCombinationDuration(combo);
+
+            if (Math.abs(totalDuration - durationHours) < tolerance) {
+                // Sort by start time
+                const sortedCombo = combo.sort((a, b) => {
+                    const startA = a.split("-")[0];
+                    const startB = b.split("-")[0];
+                    return startA.localeCompare(startB);
+                });
+
+                combinations.push(sortedCombo);
+                console.log(
+                    `✅ Found valid combination: [${sortedCombo.join(
+                        ", "
+                    )}] = ${totalDuration}h`
+                );
+            }
+        }
+
+        // If we found combinations, prioritize shorter combinations
+        if (combinations.length > 0) {
+            break;
+        }
+    }
+
+    return combinations;
+}
+
+function generateCombinationsOfLength(
+    arr: string[],
+    length: number
+): string[][] {
+    if (length === 1) {
+        return arr.map((item) => [item]);
+    }
+
+    const combinations: string[][] = [];
+
+    for (let i = 0; i <= arr.length - length; i++) {
+        const rest = generateCombinationsOfLength(arr.slice(i + 1), length - 1);
+        for (const combination of rest) {
+            combinations.push([arr[i], ...combination]);
+        }
+    }
+
+    return combinations;
+}
+
+function findAdjacentTimeSlotCombinations(
+    timeSlots: string[],
+    durationHours: number,
+    tolerance: number = 0.01
+): string[][] {
+    console.log(
+        `Finding adjacent combinations for ${durationHours} hours from ${timeSlots.length} slots`
+    );
+
+    const combinations: string[][] = [];
+
+    // Try all possible starting positions
+    for (let startIndex = 0; startIndex < timeSlots.length; startIndex++) {
+        const startSlot = timeSlots[startIndex];
+        const startDuration = calculateTimeSlotDuration(startSlot);
+
+        console.log(
+            `Trying start slot ${startSlot} (${startDuration}h) at index ${startIndex}`
+        );
+
+        // If single slot matches exactly
+        if (Math.abs(startDuration - durationHours) < tolerance) {
+            combinations.push([startSlot]);
+            console.log(`✅ Single slot exact match: ${startSlot}`);
+            continue;
+        }
+
+        // If start slot is larger than required duration, skip
+        if (startDuration > durationHours + tolerance) {
+            console.log(
+                `❌ Start slot too large: ${startDuration}h > ${durationHours}h`
+            );
+            continue;
+        }
+
+        // Build combination with adjacent slots
+        const combination = [startSlot];
+        let totalDuration = startDuration;
+        let remainingDuration = durationHours - startDuration;
+
+        // Look for adjacent slots (allowing gaps)
+        for (
+            let nextIndex = startIndex + 1;
+            nextIndex < timeSlots.length;
+            nextIndex++
+        ) {
+            const nextSlot = timeSlots[nextIndex];
+            const nextDuration = calculateTimeSlotDuration(nextSlot);
+
+            console.log(
+                `  Checking next slot: ${nextSlot} (${nextDuration}h), remaining: ${remainingDuration}h`
+            );
+
+            // If this slot exactly matches remaining duration
+            if (Math.abs(nextDuration - remainingDuration) < tolerance) {
+                combination.push(nextSlot);
+                totalDuration += nextDuration;
+                console.log(
+                    `✅ Found exact adjacent match: [${combination.join(
+                        ", "
+                    )}] = ${totalDuration}h`
+                );
+                combinations.push([...combination]);
+                break;
+            }
+
+            // If this slot is smaller than remaining duration, add it and continue
+            if (nextDuration < remainingDuration - tolerance) {
+                combination.push(nextSlot);
+                totalDuration += nextDuration;
+                remainingDuration -= nextDuration;
+                console.log(
+                    `  Added slot: ${nextSlot}, total: ${totalDuration}h, remaining: ${remainingDuration}h`
+                );
+
+                // Check if we're close enough to the target
+                if (remainingDuration < tolerance) {
+                    console.log(
+                        `✅ Found complete adjacent combination: [${combination.join(
+                            ", "
+                        )}] = ${totalDuration}h`
+                    );
+                    combinations.push([...combination]);
+                    break;
+                }
+                continue;
+            }
+
+            // If this slot is larger than remaining duration, we can't use it
+            if (nextDuration > remainingDuration + tolerance) {
+                console.log(
+                    `❌ Next slot too large: ${nextDuration}h > ${remainingDuration}h remaining`
+                );
+                break;
+            }
+        }
+    }
+
+    console.log(`Found ${combinations.length} adjacent combinations`);
+    return combinations;
 }
 
 function findContinuousTimeSlotCombination(
@@ -2104,6 +2379,39 @@ function getStartTime(slotCombination: string[]): string {
 
     return sortedSlots[0].split("-")[0];
 }
+
+function testExample() {
+    console.log("=== Testing Example: 1.66h course ===");
+
+    const timeSlots = ["08:00-08:50", "09:00-09:50", "10:00-10:50"];
+    const courseDuration = 1.66;
+
+    console.log(`Time slots: ${timeSlots.join(", ")}`);
+    console.log(
+        `Each slot duration: ${calculateTimeSlotDuration(timeSlots[0])}h`
+    );
+    console.log(`Course duration needed: ${courseDuration}h`);
+
+    const combinations = findPossibleTimeSlots(timeSlots, courseDuration);
+
+    console.log(`\nFound ${combinations.length} combinations:`);
+    combinations.forEach((combo, index) => {
+        const totalDuration = calculateCombinationDuration(combo);
+        const validation = validateTimeSlotAssignment(
+            combo,
+            courseDuration,
+            "TEST"
+        );
+        console.log(
+            `${index + 1}. [${combo.join(", ")}] = ${totalDuration}h (${
+                validation.assignmentType
+            })`
+        );
+    });
+
+    return combinations;
+}
+
 function getEndTime(slotCombination: string[]): string {
     if (slotCombination.length === 0) {
         throw new Error("Slot combination cannot be empty");
