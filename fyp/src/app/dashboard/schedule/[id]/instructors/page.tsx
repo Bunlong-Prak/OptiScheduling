@@ -243,10 +243,6 @@ export default function InstructorsView() {
     const [hasDuplicateName, setHasDuplicateName] = useState<boolean>(false);
     const [duplicateNameInfo, setDuplicateNameInfo] = useState<string>("");
 
-    useEffect(() => {
-        console.log({ hasAssignedCourses });
-    }, [hasAssignedCourses]);
-
     const checkInstructorNameDuplicate = async (
         firstName: string
     ): Promise<{ hasDuplicate: boolean; info: string }> => {
@@ -288,7 +284,7 @@ export default function InstructorsView() {
     };
 
     const checkInstructorAssignments = async (
-        instructorFirstName: string
+        instructorId: number
     ): Promise<{ hasAssignments: boolean; info: string }> => {
         try {
             setIsCheckingAssignments(true);
@@ -306,17 +302,10 @@ export default function InstructorsView() {
 
             // Check if any course sections are assigned to this instructor by first name
             const assignedCourses = courses.filter((course: any) => {
-                return (
-                    course.sections &&
-                    course.sections.some(
-                        (section: any) =>
-                            section.instructor &&
-                            section.instructor.toLowerCase() ===
-                                instructorFirstName.toLowerCase()
-                    )
-                );
+                return course.instructorId == instructorId;
             });
 
+            console.log({ assignedCourses });
             if (assignedCourses.length > 0) {
                 const courseNames = assignedCourses
                     .map((course: any) => course.title)
@@ -1200,9 +1189,7 @@ export default function InstructorsView() {
         setSelectedInstructor(instructor);
 
         // Check for instructor assignments by first name
-        const assignmentCheck = await checkInstructorAssignments(
-            instructor.first_name
-        );
+        const assignmentCheck = await checkInstructorAssignments(instructor.id);
         setHasAssignedCourses(assignmentCheck.hasAssignments);
         setAssignedCoursesInfo(assignmentCheck.info);
 
@@ -1228,9 +1215,7 @@ export default function InstructorsView() {
         setSelectedInstructor(instructor);
 
         // Check for instructor assignments by first name
-        const assignmentCheck = await checkInstructorAssignments(
-            instructor.first_name
-        );
+        const assignmentCheck = await checkInstructorAssignments(instructor.id);
         setHasAssignedCourses(assignmentCheck.hasAssignments);
         setAssignedCoursesInfo(assignmentCheck.info);
 
