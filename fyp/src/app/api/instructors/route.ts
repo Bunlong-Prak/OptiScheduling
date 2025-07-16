@@ -336,11 +336,9 @@ export async function DELETE(request: Request) {
     try {
         const body = await request.json();
 
-        // Validate request body against schema
+        // Handle single instructor deletion
         const validatedData = deleteInstructorSchema.parse(body);
         const { id } = validatedData;
-
-        console.log(`Attempting to delete instructor ${id}`);
 
         // Check if the instructor exists
         const existingInstructor = await db.query.instructors.findFirst({
@@ -356,7 +354,6 @@ export async function DELETE(request: Request) {
 
         // Delete the instructor
         await db.delete(instructors).where(eq(instructors.id, id));
-
         console.log(`Successfully deleted instructor ${id}`);
 
         return NextResponse.json({

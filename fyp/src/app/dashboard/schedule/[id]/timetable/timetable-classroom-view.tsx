@@ -6,7 +6,6 @@ import {
     Course,
     CourseHour,
     isAssignedCourse,
-    ScheduleResponse,
     TimetableCourse,
 } from "@/app/types";
 
@@ -24,14 +23,15 @@ import {
 import { Input } from "@/components/ui/input";
 import {
     AlertCircle,
-    CheckCircle2,
+    CheckCircle,
     Download,
     Plus,
     Search,
     X,
+    XCircle,
 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const days = [
     "Monday",
@@ -51,7 +51,48 @@ interface CombinedTimetableCourse extends TimetableCourse {
 type TimetableGrid = Record<string, CombinedTimetableCourse>;
 
 const initialSchedule: TimetableGrid = {};
+interface SchedulingError {
+    section_id: number;
+    section_number: string;
+    course_code: string;
+    course_title: string;
+    instructor_name: string;
+    error_type:
+        | "CAPACITY_CONSTRAINT"
+        | "TIME_CONSTRAINT"
+        | "INSTRUCTOR_CONFLICT"
+        | "NO_AVAILABLE_SLOTS"
+        | "NO_CLASSROOM"
+        | "DURATION_MISMATCH"
+        | "UNKNOWN_ERROR";
+    error_message: string;
+    details?: {
+        required_capacity?: number;
+        available_capacity?: number;
+        conflicting_course?: string;
+        conflicting_instructor?: string;
+        required_duration?: number;
+        available_duration?: number;
+        attempted_day?: string;
+        attempted_time?: string;
+        attempted_classroom?: string;
+    };
+}
 
+interface EnhancedScheduleResponse {
+    success: boolean;
+    message: string;
+    schedule: any[];
+    stats: {
+        totalCourses: number;
+        totalSections: number;
+        scheduledAssignments: number;
+        constraintsApplied: number;
+        failedAssignments: number;
+    };
+    errors: SchedulingError[];
+    warnings: string[];
+}
 interface CourseSplitConfig {
     course: TimetableCourse;
     splits: number[];
@@ -143,24 +184,115 @@ export default function TimetableViewClassroom() {
     const [selectedCourseForCombining, setSelectedCourseForCombining] =
         useState<TimetableCourse | null>(null);
     const [isCombiningMode, setIsCombiningMode] = useState(false);
+    type MessageType = "success" | "error";
 
+    type Message = {
+        id: string;
+        type: MessageType;
+        description: string;
+    };
+
+    const messageTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
+    // Cleanup function for message timers
+    useEffect(() => {
+        return () => {
+            // Clear all timers when component unmounts
+            messageTimersRef.current.forEach((timer) => {
+                clearTimeout(timer);
+            });
+            messageTimersRef.current.clear();
+        };
+    }, []);
+
+    // Enhanced message utility functions
+    const clearAllMessages = () => {
+        // Clear all existing timers
+        messageTimersRef.current.forEach((timer) => {
+            clearTimeout(timer);
+        });
+        messageTimersRef.current.clear();
+
+        // Clear all messages
+        setMessages([]);
+    };
+
+    const addMessage = (type: MessageType, description: string) => {
+        // Clear any existing messages first to prevent duplicates
+        clearAllMessages();
+
+        const newMessage: Message = {
+            id: Date.now().toString(),
+            type,
+            description,
+        };
+
+        setMessages([newMessage]); // Only set this one message
+
+        // Set auto-removal timer
+        const timer = setTimeout(() => {
+            removeMessage(newMessage.id);
+        }, 5000);
+
+        messageTimersRef.current.set(newMessage.id, timer);
+    };
+
+    const removeMessage = (messageId: string) => {
+        // Clear the timer for this message
+        const timer = messageTimersRef.current.get(messageId);
+        if (timer) {
+            clearTimeout(timer);
+            messageTimersRef.current.delete(messageId);
+        }
+
+        // Remove the message
+        setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+    };
+
+    const showSuccessMessage = (description: string) => {
+        addMessage("success", description);
+    };
+
+    const showErrorMessage = (description: string) => {
+        addMessage("error", description);
+    };
+
+    // Message component
+    const MessageBanner = ({ message }: { message: Message }) => (
+        <div
+            className={`max-w-md p-4 rounded-lg shadow-xl border-l-4 transition-all duration-300 ease-in-out ${
+                message.type === "success"
+                    ? "bg-green-50 border-green-500 text-green-800"
+                    : "bg-red-50 border-red-500 text-red-800"
+            }`}
+        >
+            <div className="flex items-start justify-between">
+                <div className="flex items-start gap-3">
+                    {message.type === "success" ? (
+                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    ) : (
+                        <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                        <p className="text-sm mt-1 opacity-90">
+                            {message.description}
+                        </p>
+                    </div>
+                </div>
+                <button
+                    onClick={() => removeMessage(message.id)}
+                    className={`ml-2 p-1 rounded-full hover:bg-opacity-20 transition-colors flex-shrink-0 ${
+                        message.type === "success"
+                            ? "hover:bg-green-600"
+                            : "hover:bg-red-600"
+                    }`}
+                >
+                    <X className="h-4 w-4" />
+                </button>
+            </div>
+        </div>
+    );
     const params = useParams();
-
-    const showMessage = (type: "success" | "error", text: string) => {
-        const id = messageIdCounter;
-        setMessageIdCounter((prev) => prev + 1);
-
-        const newMessage: Message = { id, type, text };
-        setMessages((prev) => [...prev, newMessage]);
-
-        setTimeout(() => {
-            setMessages((prev) => prev.filter((msg) => msg.id !== id));
-        }, 3000);
-    };
-
-    const removeMessage = (id: number) => {
-        setMessages((prev) => prev.filter((msg) => msg.id !== id));
-    };
 
     const normalizeTimeSlot = (timeSlot: any) => {
         if (!timeSlot) return "";
@@ -216,18 +348,6 @@ export default function TimetableViewClassroom() {
         return timeSlot.toString();
     };
 
-    const formatTimeSlotForDisplay = (timeSlot: any) => {
-        const normalized = normalizeTimeSlot(timeSlot);
-        if (normalized.includes("-")) {
-            return normalized.replace("-", " - ");
-        }
-        return normalized;
-    };
-
-    const areTimeSlotsEqual = (slot1: any, slot2: any) => {
-        return normalizeTimeSlot(slot1) === normalizeTimeSlot(slot2);
-    };
-
     const areTimeSlotsConsecutive = (slots: any[]): boolean => {
         if (!slots || slots.length < 2) return false;
 
@@ -262,6 +382,16 @@ export default function TimetableViewClassroom() {
         }
 
         return true;
+    };
+
+    // Helper function to format decimals to 2 places
+    const formatDecimal = (value: number): number => {
+        return Math.round(value * 100) / 100;
+    };
+
+    // Helper function to format decimals to 2 places as string
+    const formatDecimalString = (value: number): string => {
+        return value.toFixed(2);
     };
 
     const parseTimeSlot = (timeSlotStr: any) => {
@@ -489,7 +619,7 @@ export default function TimetableViewClassroom() {
             combinedCourses: [...combinedCourses, newCourse],
             // Update display name to show combination
             name: `${existingCourse.name} + ${newCourse.name}`,
-            code: `${existingCourse.code}+${newCourse.code}`,
+            code: `${existingCourse.code} + ${newCourse.code}`,
             // Keep the same instructor since they must be the same
             instructor: existingCourse.instructor,
         };
@@ -1334,41 +1464,6 @@ export default function TimetableViewClassroom() {
         return 0;
     };
 
-    const getDropValidationMessage = (
-        day: string,
-        classroomId: string,
-        timeSlot: string
-    ): string => {
-        if (!draggedCourse || timeSlots.length === 0)
-            return "No course selected";
-
-        const isOnlineClassroom = parseInt(classroomId) < 0;
-        const isCourseOnline =
-            draggedCourse.status === "online" ||
-            draggedCourse.isOnline === true;
-
-        if (isCourseOnline && !isOnlineClassroom) {
-            return "Online courses cannot be assigned to physical classrooms";
-        }
-        if (!isCourseOnline && isOnlineClassroom) {
-            return "Physical courses cannot be assigned to online rows";
-        }
-
-        const matchingTimeSlot = timeSlots.find(
-            (ts) => getTimeSlotKey(ts) === timeSlot
-        );
-        if (!matchingTimeSlot) return "Invalid time slot";
-
-        const slotDuration = getSlotDurationHours(matchingTimeSlot);
-        const courseDuration = draggedCourse.duration;
-
-        if (courseDuration < slotDuration) {
-            return `Course duration (${courseDuration}h) is shorter than time slot (${slotDuration}h)`;
-        }
-
-        return "Cannot drop here";
-    };
-
     function calculateEndTime(startTime: string, durationHours: number) {
         const startHour = parseInt(startTime);
         return (startHour + durationHours).toString();
@@ -1610,15 +1705,13 @@ export default function TimetableViewClassroom() {
             );
 
             if (response.ok) {
-                showMessage(
-                    "success",
+                showSuccessMessage(
                     `Successfully saved ${assignmentsData.length} course assignments!`
                 );
             } else {
                 const errorData = await response.json();
                 console.error("Failed to save assignments:", errorData);
-                showMessage(
-                    "error",
+                showErrorMessage(
                     `Failed to save assignments: ${
                         errorData.error || "Unknown error"
                     }`
@@ -1626,8 +1719,7 @@ export default function TimetableViewClassroom() {
             }
         } catch (error) {
             console.error("Error saving assignments:", error);
-            showMessage(
-                "error",
+            showErrorMessage(
                 `Error saving assignments: ${
                     error instanceof Error ? error.message : "Unknown error"
                 }`
@@ -1801,15 +1893,13 @@ export default function TimetableViewClassroom() {
                 course.code.split("+")[0],
                 ...course.combinedCourses.map((c: { code: any }) => c.code),
             ];
-            showMessage(
-                "success",
+            showSuccessMessage(
                 `Combined course separated: ${courseNames.join(
                     ", "
                 )} returned to available courses`
             );
         } else {
-            showMessage(
-                "success",
+            showErrorMessage(
                 `Course ${course.code} returned to available courses`
             );
         }
@@ -1951,8 +2041,7 @@ export default function TimetableViewClassroom() {
             console.log(
                 "❌ Online course cannot be assigned to physical classroom"
             );
-            showMessage(
-                "error",
+            showErrorMessage(
                 "Online courses cannot be assigned to physical classrooms"
             );
             setDraggedCourse(null);
@@ -1963,8 +2052,7 @@ export default function TimetableViewClassroom() {
             console.log(
                 "❌ Physical course cannot be assigned to online classroom"
             );
-            showMessage(
-                "error",
+            showErrorMessage(
                 "Physical courses cannot be assigned to online rows"
             );
             setDraggedCourse(null);
@@ -1985,8 +2073,7 @@ export default function TimetableViewClassroom() {
 
             if (!capacityValidation.isValid) {
                 console.log("❌ Capacity constraint failed - blocking drop");
-                showMessage(
-                    "error",
+                showErrorMessage(
                     capacityValidation.conflictMessage ||
                         "Capacity constraint failed"
                 );
@@ -2029,7 +2116,7 @@ export default function TimetableViewClassroom() {
 
         if (!matchingTimeSlot) {
             console.error(`Time slot ${timeSlot} not found`);
-            showMessage("error", "Invalid time slot selected");
+            showErrorMessage("Invalid time slot selected");
             setDraggedCourse(null);
             setCellDragStates({});
             return;
@@ -2049,8 +2136,7 @@ export default function TimetableViewClassroom() {
             );
 
             if (!combineCheck.canCombine) {
-                showMessage(
-                    "error",
+                showErrorMessage(
                     combineCheck.reason || "Cannot combine these courses"
                 );
                 setDraggedCourse(null);
@@ -2068,8 +2154,7 @@ export default function TimetableViewClassroom() {
             );
 
             if (!constraintCheck.isValid) {
-                showMessage(
-                    "error",
+                showErrorMessage(
                     constraintCheck.conflictMessage ||
                         "Instructor time constraint conflict"
                 );
@@ -2167,12 +2252,11 @@ export default function TimetableViewClassroom() {
                     }
                 }
 
-                showMessage("success", successMessage);
+                showSuccessMessage(successMessage);
                 return;
             } catch (error) {
                 console.error("Error combining courses:", error);
-                showMessage(
-                    "error",
+                showErrorMessage(
                     error instanceof Error
                         ? error.message
                         : "Failed to combine courses"
@@ -2197,8 +2281,7 @@ export default function TimetableViewClassroom() {
         );
 
         if (!slotCalculation.canAccommodate) {
-            showMessage(
-                "error",
+            showErrorMessage(
                 `Cannot place ${draggedCourse.duration}-hour course here. Need ${draggedCourse.duration}h but only ${slotCalculation.totalDuration}h available consecutively.`
             );
             setDraggedCourse(null);
@@ -2230,8 +2313,7 @@ export default function TimetableViewClassroom() {
                 );
 
                 if (!combineCheck.canCombine) {
-                    showMessage(
-                        "error",
+                    showErrorMessage(
                         `Cannot place course here. Time slot ${slotInfo.key} is occupied by ${conflictingCourse.code} and cannot be combined: ${combineCheck.reason}`
                     );
                     setDraggedCourse(null);
@@ -2252,8 +2334,7 @@ export default function TimetableViewClassroom() {
         );
 
         if (!constraintCheck.isValid) {
-            showMessage(
-                "error",
+            showErrorMessage(
                 constraintCheck.conflictMessage ||
                     "Instructor time constraint conflict"
             );
@@ -2395,7 +2476,7 @@ export default function TimetableViewClassroom() {
             }
         }
 
-        showMessage("success", successMessage);
+        showSuccessMessage(successMessage);
 
         console.log("=== ASSIGNMENT COMPLETED SUCCESSFULLY ===");
         console.log("Course assignment completed:", {
@@ -2575,7 +2656,7 @@ export default function TimetableViewClassroom() {
 
     const generateSchedule = async () => {
         if (!params.id) {
-            showMessage("error", "Schedule ID is missing");
+            showErrorMessage("Schedule ID is missing");
             return;
         }
 
@@ -2600,8 +2681,9 @@ export default function TimetableViewClassroom() {
                 );
             }
 
-            const data: ScheduleResponse = await response.json();
+            const data: EnhancedScheduleResponse = await response.json();
 
+            // Update stats if available
             if (data.stats) {
                 setGenerationStats(data.stats);
             }
@@ -2610,18 +2692,71 @@ export default function TimetableViewClassroom() {
                 // After successful generation, re-fetch assignments to update the timetable
                 await fetchTimetableAssignments();
                 setScheduleGenerated(true);
-                showMessage("success", "Schedule generated successfully!");
+
+                // Show main success/partial success message
+                if (data.success) {
+                    showSuccessMessage(
+                        `Schedule generated successfully! ${data.stats.scheduledAssignments} courses scheduled.`
+                    );
+                } else {
+                    const successCount = data.stats.scheduledAssignments;
+                    const failedCount = data.stats.failedAssignments;
+
+                    showSuccessMessage(
+                        `Partial schedule generated: ${successCount} courses scheduled, ${failedCount} failed.`
+                    );
+                }
+
+                // Display warnings if any
+                if (data.warnings && data.warnings.length > 0) {
+                    data.warnings.forEach((warning, index) => {
+                        setTimeout(() => {
+                            showErrorMessage(`Warning: ${warning}`);
+                        }, 1000 + index * 800);
+                    });
+                }
+
+                // Display detailed error messages for failed courses
+                if (data.errors && data.errors.length > 0) {
+                    // Group errors by type for better organization
+                    const errorGroups = groupErrorsByType(data.errors);
+
+                    let messageDelay = 2000; // Start after 2 seconds
+
+                    Object.entries(errorGroups).forEach(
+                        ([errorType, errors]) => {
+                            const errorTypeDisplay = getErrorTypeDisplayName(
+                                errorType as SchedulingError["error_type"]
+                            );
+
+                            errors.forEach((error) => {
+                                setTimeout(() => {
+                                    const detailedMessage =
+                                        formatErrorMessage(error);
+                                    showErrorMessage(detailedMessage);
+                                }, messageDelay);
+
+                                messageDelay += 1200; // Stagger messages by 1.2 seconds
+                            });
+                        }
+                    );
+
+                    // Show summary message at the end
+                    setTimeout(() => {
+                        showErrorMessage(
+                            `Schedule generation completed with ${data.errors.length} course(s) that could not be scheduled. Check individual error messages above for details.`
+                        );
+                    }, messageDelay + 500);
+                }
             } else {
                 console.error("Invalid schedule data format", data);
-                showMessage(
-                    "error",
+                showErrorMessage(
                     "Failed to process the generated schedule data."
                 );
             }
         } catch (error) {
             console.error("Error generating schedule:", error);
-            showMessage(
-                "error",
+            showErrorMessage(
                 `Error generating schedule: ${
                     error instanceof Error ? error.message : "Unknown error"
                 }`
@@ -2630,6 +2765,191 @@ export default function TimetableViewClassroom() {
             setIsGeneratingSchedule(false);
         }
     };
+
+    const groupErrorsByType = (
+        errors: SchedulingError[]
+    ): Record<string, SchedulingError[]> => {
+        return errors.reduce((groups, error) => {
+            const type = error.error_type;
+            if (!groups[type]) {
+                groups[type] = [];
+            }
+            groups[type].push(error);
+            return groups;
+        }, {} as Record<string, SchedulingError[]>);
+    };
+
+    // Helper function to get user-friendly error type names
+    const getErrorTypeDisplayName = (
+        errorType: SchedulingError["error_type"]
+    ): string => {
+        switch (errorType) {
+            case "CAPACITY_CONSTRAINT":
+                return "Capacity Issues";
+            case "TIME_CONSTRAINT":
+                return "Time Constraints";
+            case "INSTRUCTOR_CONFLICT":
+                return "Instructor Conflicts";
+            case "NO_AVAILABLE_SLOTS":
+                return "No Available Time Slots";
+            case "NO_CLASSROOM":
+                return "No Classroom Available";
+            case "DURATION_MISMATCH":
+                return "Duration Mismatches";
+            default:
+                return "Unknown Errors";
+        }
+    };
+
+    // Helper function to format error messages with details
+    const formatErrorMessage = (error: SchedulingError): string => {
+        let message = `${error.course_code} (${error.section_number}): ${error.error_message}`;
+
+        // Add specific details based on error type
+        if (error.details) {
+            switch (error.error_type) {
+                case "CAPACITY_CONSTRAINT":
+                    if (
+                        error.details.required_capacity &&
+                        error.details.available_capacity
+                    ) {
+                        message += ` (Needs ${error.details.required_capacity} seats, largest classroom has ${error.details.available_capacity})`;
+                    }
+                    break;
+
+                case "INSTRUCTOR_CONFLICT":
+                    if (error.details.conflicting_course) {
+                        message += ` (Conflicts with ${error.details.conflicting_course})`;
+                    }
+                    if (
+                        error.details.attempted_day &&
+                        error.details.attempted_time
+                    ) {
+                        message += ` on ${error.details.attempted_day} at ${error.details.attempted_time}`;
+                    }
+                    break;
+
+                case "TIME_CONSTRAINT":
+                    if (
+                        error.details.attempted_day &&
+                        error.details.attempted_time
+                    ) {
+                        message += ` (Instructor unavailable on ${error.details.attempted_day} at ${error.details.attempted_time})`;
+                    }
+                    break;
+
+                case "DURATION_MISMATCH":
+                    if (error.details.required_duration) {
+                        message += ` (Requires ${
+                            error.details.required_duration
+                        } hour${
+                            error.details.required_duration > 1 ? "s" : ""
+                        })`;
+                    }
+                    break;
+
+                case "NO_AVAILABLE_SLOTS":
+                    if (
+                        error.details.attempted_classroom &&
+                        error.details.attempted_day
+                    ) {
+                        message += ` (No slots available in ${error.details.attempted_classroom} on ${error.details.attempted_day})`;
+                    }
+                    break;
+            }
+        }
+
+        return message;
+    };
+
+    // Enhanced error display component (optional - for future use in dialogs)
+    const ErrorSummaryDialog = ({
+        errors,
+        isOpen,
+        onClose,
+    }: {
+        errors: SchedulingError[];
+        isOpen: boolean;
+        onClose: () => void;
+    }) => {
+        const errorGroups = groupErrorsByType(errors);
+
+        return (
+            <Dialog open={isOpen} onOpenChange={onClose}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center text-red-600">
+                            <AlertCircle className="w-5 h-5 mr-2" />
+                            Scheduling Errors ({errors.length} courses failed)
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-6">
+                        {Object.entries(errorGroups).map(
+                            ([errorType, typeErrors]) => (
+                                <div key={errorType} className="space-y-3">
+                                    <h3 className="font-semibold text-gray-800 border-b pb-1">
+                                        {getErrorTypeDisplayName(
+                                            errorType as SchedulingError["error_type"]
+                                        )}
+                                        <span className="text-sm text-gray-500 ml-2">
+                                            ({typeErrors.length} course
+                                            {typeErrors.length > 1 ? "s" : ""})
+                                        </span>
+                                    </h3>
+
+                                    <div className="space-y-2">
+                                        {typeErrors.map((error) => (
+                                            <div
+                                                key={error.section_id}
+                                                className="p-3 bg-red-50 border border-red-200 rounded"
+                                            >
+                                                <div className="font-medium text-red-800">
+                                                    {error.course_code} -{" "}
+                                                    {error.section_number}
+                                                </div>
+                                                <div className="text-sm text-red-700 mt-1">
+                                                    {error.course_title}
+                                                </div>
+                                                <div className="text-sm text-red-600 mt-1">
+                                                    Instructor:{" "}
+                                                    {error.instructor_name}
+                                                </div>
+                                                <div className="text-sm text-red-800 mt-2">
+                                                    {formatErrorMessage(error)}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )
+                        )}
+                    </div>
+
+                    <div className="flex justify-end pt-4 border-t">
+                        <Button onClick={onClose} variant="outline">
+                            Close
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        );
+    };
+
+    // Usage in the component:
+    // Add these state variables to your component
+    const [schedulingErrors, setSchedulingErrors] = useState<SchedulingError[]>(
+        []
+    );
+    const [isErrorDialogOpen, setIsErrorDialogOpen] = useState(false);
+
+    // // In the generateSchedule function, after receiving the response:
+    // // Store the errors for potential dialog display
+    // if (data.errors && data.errors.length > 0) {
+    //     setSchedulingErrors(data.errors);
+    //     // Optionally auto-open error dialog for detailed view
+    //     // setTimeout(() => setIsErrorDialogOpen(true), 3000);
+    // }
 
     const fetchTimetableAssignments = useCallback(async () => {
         if (!params.id || !timeSlots.length || !classrooms.length) return;
@@ -3045,8 +3365,7 @@ export default function TimetableViewClassroom() {
         try {
             // If it's a combined course, we need to handle removal differently
             if (course.isCombined && course.combinedCourses) {
-                showMessage(
-                    "error",
+                showErrorMessage(
                     "Cannot remove combined course directly. Please remove individual courses first."
                 );
                 return;
@@ -3117,10 +3436,7 @@ export default function TimetableViewClassroom() {
             // Remove from assigned courses
             setAssignedCourses((prev) => prev.filter((c) => c.id !== courseId));
 
-            showMessage(
-                "success",
-                `Course ${course.code} removed successfully`
-            );
+            showSuccessMessage(`Course ${course.code} removed successfully`);
         } catch (error) {
             console.error("Error removing course:", error);
 
@@ -3129,7 +3445,7 @@ export default function TimetableViewClassroom() {
                     ? error.message
                     : "Failed to remove course from timetable";
 
-            showMessage("error", `Error: ${errorMessage}`);
+            showErrorMessage(`Error: ${errorMessage}`);
             setIsDialogOpen(true);
         }
     };
@@ -3341,8 +3657,7 @@ export default function TimetableViewClassroom() {
     const exportOldSystemFormat = () => {
         try {
             if (!schedule || Object.keys(schedule).length === 0) {
-                showMessage(
-                    "error",
+                showErrorMessage(
                     "No schedule data to export. Please generate or create a schedule first."
                 );
                 return;
@@ -3355,7 +3670,7 @@ export default function TimetableViewClassroom() {
             });
 
             if (assignedCourses.length === 0) {
-                showMessage("error", "No assigned courses found to export.");
+                showErrorMessage("No assigned courses found to export.");
                 return;
             }
 
@@ -3400,7 +3715,7 @@ export default function TimetableViewClassroom() {
             });
 
             if (csvData.length === 0) {
-                showMessage("error", "No data to export after processing.");
+                showErrorMessage("No data to export after processing.");
                 return;
             }
 
@@ -3452,14 +3767,12 @@ export default function TimetableViewClassroom() {
             link.click();
             document.body.removeChild(link);
 
-            showMessage(
-                "success",
+            showSuccessMessage(
                 `Schedule exported successfully! ${csvData.length} courses exported.`
             );
         } catch (error) {
             console.error("Export error:", error);
-            showMessage(
-                "error",
+            showErrorMessage(
                 `Failed to export schedule: ${
                     error instanceof Error ? error.message : "Unknown error"
                 }`
@@ -3771,436 +4084,403 @@ export default function TimetableViewClassroom() {
     };
 
     return (
-        <div className="relative min-h-screen">
-            <div className="flex justify-between items-center mb-8">
-                <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                        Classroom View Timetable
-                    </h2>
-                    <p className="text-xs text-gray-600 mt-1">
-                        Manage and generate classroom schedules - drag courses
-                        to combine them
-                    </p>
-                </div>
-
-                <div className="flex gap-4">
-                    <Button
-                        onClick={generateSchedule}
-                        disabled={
-                            isGeneratingSchedule || classrooms.length === 0
-                        }
-                        variant="outline"
-                    >
-                        {isGeneratingSchedule
-                            ? "Generating..."
-                            : "Auto-Generate Schedule"}
-                    </Button>
-                    <Button
-                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors"
-                        onClick={saveAllAssignments}
-                    >
-                        Save All
-                    </Button>
-                    <Button
-                        onClick={exportOldSystemFormat}
-                        variant="outline"
-                        className="border-purple-600 text-purple-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md"
-                        disabled={Object.keys(schedule).length === 0}
-                    >
-                        <Download className="mr-1 h-3 w-3" /> Export CSV
-                    </Button>
-                </div>
-            </div>
-
-            <div className="mb-6 ">
-                <div className="relative max-w-md">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none ">
-                        <Search className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <Input
-                        type="text"
-                        placeholder="Search courses by code, name, instructor, or section..."
-                        value={searchQuery}
-                        onChange={handleSearchChange}
-                        className="pl-10 pr-10 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
-                    />
-                    {searchQuery && (
-                        <button
-                            onClick={clearSearch}
-                            className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                        >
-                            <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                        </button>
-                    )}
-                </div>
-                {isSearchActive && (
-                    <div className="mt-2 text-sm text-gray-600">
-                        {Object.keys(filteredSchedule).length > 0 ? (
-                            <>Showing courses matching "{searchQuery}"</>
-                        ) : (
-                            <>No courses found matching "{searchQuery}"</>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* Course Combining Instructions */}
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center text-blue-800">
-                    <Plus className="w-4 h-4 mr-2" />
-                    <strong>Course Combining:</strong>
-                </div>
-                <p className="text-sm text-blue-700 mt-1">
-                    Drag courses onto existing scheduled courses to combine them
-                    in the same time slot. Combined courses must have Same
-                    instructors and the same duration.
-                </p>
-            </div>
-
+        <>
+            {/* Messages - OUTSIDE the main content flow */}
             {messages.length > 0 && (
-                <div className="mb-4 space-y-2">
-                    {messages.map((message) => (
-                        <div
-                            key={message.id}
-                            className={`flex items-center justify-between p-3 rounded-lg border ${
-                                message.type === "success"
-                                    ? "bg-green-50 border-green-200 text-green-800"
-                                    : message.type === "error"
-                                    ? "bg-red-50 border-red-200 text-red-800"
-                                    : "bg-blue-50 border-blue-200 text-blue-800"
-                            }`}
-                        >
-                            <div className="flex items-center">
-                                {message.type === "success" ? (
-                                    <CheckCircle2 className="h-5 w-5 mr-2" />
-                                ) : (
-                                    <AlertCircle className="h-5 w-5 mr-2" />
-                                )}
-                                <span>{message.text}</span>
-                            </div>
-                            <button
-                                onClick={() => removeMessage(message.id)}
-                                className="ml-2 hover:opacity-70"
-                            >
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                    ))}
+                <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
+                    <div className="pointer-events-auto space-y-2">
+                        {messages.map((message) => (
+                            <MessageBanner key={message.id} message={message} />
+                        ))}
+                    </div>
                 </div>
             )}
 
-            <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] mb-40">
-                <div className="inline-block min-w-full">
-                    <div className="border rounded-lg overflow-hidden">
-                        <table className="min-w-full divide-y divide-blue-200">
-                            <thead>
-                                <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium  text-gray-700 uppercase tracking-wider w-24 border">
-                                        Classroom
-                                    </th>
-                                    {days.map((day) => (
-                                        <th
-                                            key={day}
-                                            colSpan={timeSlots.length}
-                                            className="px-2 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border "
-                                        >
-                                            {day}
-                                        </th>
-                                    ))}
-                                </tr>
+            <div className="relative min-h-screen pb-80">
+                <div className="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 className="text-lg font-semibold text-gray-900">
+                            Classroom View Timetable
+                        </h2>
+                        <p className="text-xs text-gray-600 mt-1">
+                            Manage and generate classroom schedules - drag
+                            courses to combine them
+                        </p>
+                    </div>
 
-                                <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium  text-gray-500 uppercase tracking-wider w-24 border">
-                                        Time
-                                    </th>
-                                    {days.map((day) =>
-                                        timeSlots.map((slot) => (
-                                            <th
-                                                key={`${day}-${getTimeSlotKey(
-                                                    slot
-                                                )}`}
-                                                className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border "
-                                            >
-                                                {slot.time_slot ||
-                                                    slot.startTime}
-                                            </th>
-                                        ))
-                                    )}
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {classrooms.map((classroom, index) => (
-                                    <tr
-                                        key={classroom.id}
-                                        className={
-                                            index % 2 === 0
-                                                ? "bg-white"
-                                                : "bg-white"
-                                        }
-                                    >
-                                        <td
-                                            className={`px-4 py-2 whitespace-nowrap text-sm font-medium border ${
-                                                classroom.id < 0
-                                                    ? "bg-blue-50 text-blue-700 italic"
-                                                    : "text-gray-700"
-                                            }`}
-                                        >
-                                            {classroom.code}
-                                        </td>
-
-                                        {days.map((day) =>
-                                            timeSlots.map((slot) => {
-                                                return renderEnhancedTableCellWithDebug(
-                                                    day,
-                                                    classroom,
-                                                    slot
-                                                );
-                                            })
-                                        )}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                    <div className="flex gap-4">
+                        <Button
+                            onClick={generateSchedule}
+                            disabled={
+                                isGeneratingSchedule || classrooms.length === 0
+                            }
+                            variant="outline"
+                        >
+                            {isGeneratingSchedule
+                                ? "Generating..."
+                                : "Auto-Generate Schedule"}
+                        </Button>
+                        <Button
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors"
+                            onClick={saveAllAssignments}
+                        >
+                            Save All
+                        </Button>
+                        <Button
+                            onClick={exportOldSystemFormat}
+                            variant="outline"
+                            className="border-purple-600 text-purple-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md"
+                            disabled={Object.keys(schedule).length === 0}
+                        >
+                            <Download className="mr-1 h-3 w-3" /> Export CSV
+                        </Button>
                     </div>
                 </div>
-            </div>
 
-            <div
-                className={`fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-lg shadow-lg z-50 border-t ${
-                    isDraggingToAvailable ? "bg-blue-100" : ""
-                }`}
-                onDragOver={handleAvailableDragOver}
-                onDragLeave={handleAvailableDragLeave}
-                onDrop={handleAvailableDrop}
-            >
-                <div className="max-w-9xl mx-auto">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center">
-                        <span className="">Available Courses</span>
-                        {isDraggingToAvailable && (
-                            <span className="ml-2 text-blue-500 animate-pulse">
-                                (Drop Here to Return Course)
-                            </span>
-                        )}
-                    </h3>
-                    {isLoading ? (
-                        <div className="text-center py-4">
-                            Loading courses...
+                <div className="mb-6 ">
+                    <div className="relative max-w-md">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none ">
+                            <Search className="h-5 w-5 text-gray-400" />
                         </div>
-                    ) : availableCourses.length === 0 ? (
-                        <div className="text-center py-4 text-gray-500">
-                            All courses have been assigned to the timetable
-                            {/* Add this logging button for debugging */}
+                        <Input
+                            type="text"
+                            placeholder="Search courses by code, name, instructor, or section..."
+                            value={searchQuery}
+                            onChange={handleSearchChange}
+                            className="pl-10 pr-10 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                        />
+                        {searchQuery && (
                             <button
-                                onClick={() => {
-                                    console.log(
-                                        "=== AVAILABLE COURSES DEBUG INFO ==="
-                                    );
-                                    console.log(
-                                        "Available courses count:",
-                                        availableCourses.length
-                                    );
-                                    console.log(
-                                        "Available courses:",
-                                        availableCourses
-                                    );
-                                    console.log(
-                                        "Schedule keys:",
-                                        Object.keys(schedule)
-                                    );
-                                    console.log(
-                                        "Assigned courses:",
-                                        assignedCourses
-                                    );
-                                }}
-                                className="ml-2 text-blue-500 underline text-sm"
+                                onClick={clearSearch}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center"
                             >
-                                (Debug Info)
+                                <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
                             </button>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto p-2">
-                            {availableCourses.map((course, index) => {
-                                // Add logging for each rendered course
-                                console.log("Rendering available course:", {
-                                    availableCourses,
-                                });
-                                console.log(
-                                    `Rendering available course ${index}: ${course.code} (ID: ${course.id})`
-                                );
-
-                                return (
-                                    <div
-                                        key={course.id}
-                                        className={`${course.color} p-3 rounded-lg shadow cursor-pointer hover:shadow-md transition-all border`}
-                                        draggable
-                                        onDragStart={() =>
-                                            handleDragStart(course)
-                                        }
-                                        onClick={() =>
-                                            handleCourseClick(course)
-                                        }
-                                    >
-                                        <h4 className="font-bold text-gray-800">
-                                            {course.code}
-                                        </h4>
-                                        <p className="text-sm font-medium">
-                                            {course.name}
-                                        </p>
-                                        <p className="text-xs mt-1 text-gray-700">
-                                            Duration: {course.duration} hour
-                                            {course.duration > 1 ? "s" : ""}
-                                        </p>
-                                        <p className="text-xs mt-1 truncate text-gray-700">
-                                            Instructor: {course.instructor}
-                                        </p>
-                                        <p className="text-xs mt-1 truncate text-gray-700">
-                                            Section: {course.section || "N/A"}
-                                        </p>
-                                    </div>
-                                );
-                            })}
+                        )}
+                    </div>
+                    {isSearchActive && (
+                        <div className="mt-2 text-sm text-gray-600">
+                            {Object.keys(filteredSchedule).length > 0 ? (
+                                <>Showing courses matching "{searchQuery}"</>
+                            ) : (
+                                <>No courses found matching "{searchQuery}"</>
+                            )}
                         </div>
                     )}
                 </div>
-            </div>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold">
-                            Course Details
-                        </DialogTitle>
-                    </DialogHeader>
+                {/* Course Combining Instructions */}
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center text-blue-800">
+                        <Plus className="w-4 h-4 mr-2" />
+                        <strong>Course Combining:</strong>
+                    </div>
+                    <p className="text-sm text-blue-700 mt-1">
+                        Drag courses onto existing scheduled courses to combine
+                        them in the same time slot. Combined courses must have
+                        Same instructors and the same duration.
+                    </p>
+                </div>
 
-                    {selectedCourse && (
-                        <div className="space-y-4">
-                            <div className="space-y-3">
-                                <div
-                                    className={`w-full h-1 ${selectedCourse.color
-                                        .replace("hover:", "")
-                                        .replace("border-", "")}`}
-                                ></div>
+                <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-350px)] mb-8">
+                    <div className="inline-block min-w-full">
+                        <div className="border rounded-lg overflow-hidden">
+                            <table className="min-w-full divide-y divide-blue-200">
+                                <thead>
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-medium  text-gray-700 uppercase tracking-wider w-24 border">
+                                            Classroom
+                                        </th>
+                                        {days.map((day) => (
+                                            <th
+                                                key={day}
+                                                colSpan={timeSlots.length}
+                                                className="px-2 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border "
+                                            >
+                                                {day}
+                                            </th>
+                                        ))}
+                                    </tr>
 
-                                {selectedCourse.isCombined &&
-                                selectedCourse.combinedCourses ? (
-                                    <div>
-                                        <h3 className="font-bold text-lg mb-2">
-                                            Combined Course Assignment
-                                        </h3>
-                                        <div className="space-y-3">
-                                            <div className="border rounded p-3">
-                                                <h4 className="font-semibold text-md">
-                                                    Main Course:
-                                                </h4>
-                                                <p className="text-sm">
-                                                    {selectedCourse.code}:{" "}
-                                                    {selectedCourse.name}
-                                                </p>
-                                                <p className="text-sm text-gray-600">
-                                                    Instructor:{" "}
-                                                    {selectedCourse.instructor}
-                                                </p>
-                                            </div>
-                                            {selectedCourse.combinedCourses.map(
-                                                (combined, index) => (
-                                                    <div
-                                                        key={index}
-                                                        className="border rounded p-3 bg-gray-50"
-                                                    >
-                                                        <h4 className="font-semibold text-md">
-                                                            Combined Course{" "}
-                                                            {index + 1}:
-                                                        </h4>
-                                                        <p className="text-sm">
-                                                            {combined.code}:{" "}
-                                                            {combined.name}
-                                                        </p>
-                                                        <p className="text-sm text-gray-600">
-                                                            Instructor:{" "}
-                                                            {
-                                                                combined.instructor
-                                                            }
-                                                        </p>
-                                                    </div>
-                                                )
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-medium  text-gray-500 uppercase tracking-wider w-24 border">
+                                            Time
+                                        </th>
+                                        {days.map((day) =>
+                                            timeSlots.map((slot) => (
+                                                <th
+                                                    key={`${day}-${getTimeSlotKey(
+                                                        slot
+                                                    )}`}
+                                                    className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border "
+                                                >
+                                                    {slot.time_slot ||
+                                                        slot.startTime}
+                                                </th>
+                                            ))
+                                        )}
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {classrooms.map((classroom, index) => (
+                                        <tr
+                                            key={classroom.id}
+                                            className={
+                                                index % 2 === 0
+                                                    ? "bg-white"
+                                                    : "bg-white"
+                                            }
+                                        >
+                                            <td
+                                                className={`px-4 py-2 whitespace-nowrap text-sm font-medium border ${
+                                                    classroom.id < 0
+                                                        ? "bg-blue-50 text-blue-700 italic"
+                                                        : "text-gray-700"
+                                                }`}
+                                            >
+                                                {classroom.code}
+                                            </td>
+
+                                            {days.map((day) =>
+                                                timeSlots.map((slot) => {
+                                                    return renderEnhancedTableCellWithDebug(
+                                                        day,
+                                                        classroom,
+                                                        slot
+                                                    );
+                                                })
                                             )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    className={`fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-lg shadow-lg z-50 border-t ${
+                        isDraggingToAvailable ? "bg-blue-100" : ""
+                    }`}
+                    onDragOver={handleAvailableDragOver}
+                    onDragLeave={handleAvailableDragLeave}
+                    onDrop={handleAvailableDrop}
+                >
+                    <div className="max-w-9xl mx-auto h-80">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <span className="">Available Courses</span>
+                            {isDraggingToAvailable && (
+                                <span className="ml-2 text-blue-500 animate-pulse">
+                                    (Drop Here to Return Course)
+                                </span>
+                            )}
+                        </h3>
+                        {isLoading ? (
+                            <div className="text-center py-4">
+                                Loading courses...
+                            </div>
+                        ) : availableCourses.length === 0 ? (
+                            <div className="text-center py-4 text-gray-500">
+                                All courses have been assigned to the timetable
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto p-2">
+                                {availableCourses.map((course, index) => {
+                                    // Add logging for each rendered course
+                                    console.log("Rendering available course:", {
+                                        availableCourses,
+                                    });
+                                    console.log(
+                                        `Rendering available course ${index}: ${course.code} (ID: ${course.id})`
+                                    );
+
+                                    return (
+                                        <div
+                                            key={course.id}
+                                            className={`${course.color} p-3 rounded-lg shadow cursor-pointer hover:shadow-md transition-all border`}
+                                            draggable
+                                            onDragStart={() =>
+                                                handleDragStart(course)
+                                            }
+                                            onClick={() =>
+                                                handleCourseClick(course)
+                                            }
+                                        >
+                                            <h4 className="font-bold text-gray-800">
+                                                {course.code}
+                                            </h4>
+                                            <p className="text-sm font-medium">
+                                                {course.name}
+                                            </p>
+                                            <p className="text-xs mt-1 text-gray-700">
+                                                Duration: {course.duration} hour
+                                                {course.duration > 1 ? "s" : ""}
+                                            </p>
+                                            <p className="text-xs mt-1 truncate text-gray-700">
+                                                Instructor: {course.instructor}
+                                            </p>
+                                            <p className="text-xs mt-1 truncate text-gray-700">
+                                                Section:{" "}
+                                                {course.section || "N/A"}
+                                            </p>
                                         </div>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <h3 className="font-bold text-lg">
-                                            {selectedCourse.code}:{" "}
-                                            {selectedCourse.name}
-                                        </h3>
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between">
-                                                <span className="text-sm text-muted-foreground">
-                                                    Instructor:
-                                                </span>
-                                                <span className="text-sm font-medium">
-                                                    {selectedCourse.instructor}
-                                                </span>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-bold">
+                                Course Details
+                            </DialogTitle>
+                        </DialogHeader>
+
+                        {selectedCourse && (
+                            <div className="space-y-4">
+                                <div className="space-y-3">
+                                    <div
+                                        className={`w-full h-1 ${selectedCourse.color
+                                            .replace("hover:", "")
+                                            .replace("border-", "")}`}
+                                    ></div>
+
+                                    {selectedCourse.isCombined &&
+                                    selectedCourse.combinedCourses ? (
+                                        <div>
+                                            <h3 className="font-bold text-lg mb-2">
+                                                Combined Course Assignment
+                                            </h3>
+                                            <div className="space-y-3">
+                                                <div className="border rounded p-3">
+                                                    <h4 className="font-semibold text-md">
+                                                        Main Course:
+                                                    </h4>
+                                                    <p className="text-sm">
+                                                        {selectedCourse.code}:{" "}
+                                                        {selectedCourse.name}
+                                                    </p>
+                                                    <p className="text-sm text-gray-600">
+                                                        Instructor:{" "}
+                                                        {
+                                                            selectedCourse.instructor
+                                                        }
+                                                    </p>
+                                                </div>
+                                                {selectedCourse.combinedCourses.map(
+                                                    (combined, index) => (
+                                                        <div
+                                                            key={index}
+                                                            className="border rounded p-3 bg-gray-50"
+                                                        >
+                                                            <h4 className="font-semibold text-md">
+                                                                Combined Course{" "}
+                                                                {index + 1}:
+                                                            </h4>
+                                                            <p className="text-sm">
+                                                                {combined.code}:{" "}
+                                                                {combined.name}
+                                                            </p>
+                                                            <p className="text-sm text-gray-600">
+                                                                Instructor:{" "}
+                                                                {
+                                                                    combined.instructor
+                                                                }
+                                                            </p>
+                                                        </div>
+                                                    )
+                                                )}
                                             </div>
                                         </div>
-                                    </div>
-                                )}
+                                    ) : (
+                                        <div>
+                                            <h3 className="font-bold text-lg">
+                                                {selectedCourse.code}:{" "}
+                                                {selectedCourse.name}
+                                            </h3>
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between">
+                                                    <span className="text-sm text-muted-foreground">
+                                                        Instructor:
+                                                    </span>
+                                                    <span className="text-sm font-medium">
+                                                        {
+                                                            selectedCourse.instructor
+                                                        }
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
-                                <div className="space-y-2">
-                                    <div className="flex justify-between">
-                                        <span className="text-sm text-muted-foreground">
-                                            Duration:
-                                        </span>
-                                        <span className="text-sm font-medium">
-                                            {selectedCourse.duration} hour(s)
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-sm text-muted-foreground">
-                                            Room:
-                                        </span>
-                                        <span className="text-sm font-medium">
-                                            {selectedCourse.room}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-sm text-muted-foreground">
-                                            Time:
-                                        </span>
-                                        <span className="text-sm font-medium">
-                                            {selectedCourse.day},{" "}
-                                            {selectedCourse.startTime} -{" "}
-                                            {selectedCourse.endTime}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-sm text-muted-foreground">
-                                            Section:
-                                        </span>
-                                        <span className="text-sm font-medium">
-                                            {selectedCourse.section}
-                                        </span>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                            <span className="text-sm text-muted-foreground">
+                                                Duration:
+                                            </span>
+                                            <span className="text-sm font-medium">
+                                                {selectedCourse.duration}{" "}
+                                                hour(s)
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-sm text-muted-foreground">
+                                                Room:
+                                            </span>
+                                            <span className="text-sm font-medium">
+                                                {selectedCourse.room}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-sm text-muted-foreground">
+                                                Time:
+                                            </span>
+                                            <span className="text-sm font-medium">
+                                                {selectedCourse.day},{" "}
+                                                {selectedCourse.startTime} -{" "}
+                                                {selectedCourse.endTime}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-sm text-muted-foreground">
+                                                Section:
+                                            </span>
+                                            <span className="text-sm font-medium">
+                                                {selectedCourse.section}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="flex justify-end gap-2">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setIsDialogOpen(false)}
-                                >
-                                    Close
-                                </Button>
-                                <Button
-                                    variant="destructive"
-                                    onClick={handleRemoveCourse}
-                                >
-                                    Remove
-                                </Button>
+                                <div className="flex justify-end gap-2">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setIsDialogOpen(false)}
+                                    >
+                                        Close
+                                    </Button>
+                                    <Button
+                                        variant="destructive"
+                                        onClick={handleRemoveCourse}
+                                    >
+                                        Remove
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
-        </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
+            </div>
+            {schedulingErrors.length > 0 && (
+                <ErrorSummaryDialog
+                    errors={schedulingErrors}
+                    isOpen={isErrorDialogOpen}
+                    onClose={() => setIsErrorDialogOpen(false)}
+                />
+            )}
+        </>
     );
 }

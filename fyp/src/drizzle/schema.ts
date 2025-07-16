@@ -101,7 +101,8 @@ export const courses = mysqlTable("courses", {
         }), // Foreign key to Schedule
     majorId: int("major_id")
         .notNull()
-        .references(() => majors.id), // Foreign key to Major
+        .references(() => majors.id),
+    // Foreign key to Major
 });
 
 export const courseRelations = relations(courses, ({ many, one }) => ({
@@ -118,7 +119,9 @@ export const sections = mysqlTable("sections", {
         .notNull()
         .references(() => courses.id, { onDelete: "cascade" }), // Foreign key to Course
 
-    instructorId: int("instructor_id").references(() => instructors.id), // Foreign key to Instructor
+    instructorId: int("instructor_id").references(() => instructors.id, {
+        onDelete: "cascade",
+    }), // Foreign key to Instructor
 });
 
 export const sectionRelations = relations(sections, ({ many, one }) => ({
@@ -155,10 +158,12 @@ export const classrooms = mysqlTable("classrooms", {
     name: varchar("name", { length: 255 }),
     code: varchar("code", { length: 255 }).notNull(),
     capacity: int("capacity").notNull(),
-    location: varchar("location", { length: 255 }).notNull(),
+    location: varchar("location", { length: 255 }),
     classroomTypeId: int("classroom_type_id")
         .notNull()
-        .references(() => classroomTypes.id),
+        .references(() => classroomTypes.id, {
+            onDelete: "cascade",
+        }),
 });
 
 export const classroomTypes = mysqlTable("classroom_types", {
@@ -209,7 +214,9 @@ export const instructorTimeConstraint = mysqlTable(
         id: int("id").primaryKey().autoincrement(),
         instructorId: int("instructor_id")
             .notNull()
-            .references(() => instructors.id),
+            .references(() => instructors.id, {
+                onDelete: "cascade",
+            }),
         scheduleId: int("schedule_id")
             .notNull()
             .references(() => schedules.id, {
@@ -243,7 +250,9 @@ export const instructorTimeConstraintDay = mysqlTable(
         }).notNull(),
         instructorTimeConstraintId: int("instructor_time_constraint_id")
             .notNull()
-            .references(() => instructorTimeConstraint.id),
+            .references(() => instructorTimeConstraint.id, {
+                onDelete: "cascade",
+            }),
     }
 );
 
@@ -267,7 +276,9 @@ export const instructorTimeConstraintTimeSlot = mysqlTable(
         }).notNull(),
         instructorTimeConstraintDayId: int("instructor_time_constraint_day_id")
             .notNull()
-            .references(() => instructorTimeConstraintDay.id),
+            .references(() => instructorTimeConstraintDay.id, {
+                onDelete: "cascade",
+            }),
     }
 );
 

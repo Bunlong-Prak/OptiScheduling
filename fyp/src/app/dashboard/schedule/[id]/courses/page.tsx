@@ -847,7 +847,9 @@ export default function CoursesView() {
 
         return isValid;
     };
-
+    function formatDecimal(value: number): number {
+        return Math.floor(value * 100) / 100; // Truncate to 2 decimals, don't round
+    }
     const handleAddCourse = async () => {
         // Make sure we have at least one section and a major
         if (sections.length === 0 || !selectedMajor) {
@@ -881,9 +883,9 @@ export default function CoursesView() {
                 status: item.status || "offline",
                 splitDurations: item.showSplitControls
                     ? item.splitDurations.map((duration) => ({
-                          separatedDuration: duration,
+                          separatedDuration: formatDecimal(duration),
                       }))
-                    : [{ separatedDuration: formData.duration }],
+                    : [{ separatedDuration: formatDecimal(formData.duration) }],
             }));
 
             // Create API payload with the base course data, the major, and schedule ID
@@ -892,7 +894,7 @@ export default function CoursesView() {
                 title: formData.title,
                 majorsList: [selectedMajor],
                 color: formData.color,
-                duration: Number(formData.duration),
+                duration: formatDecimal(Number(formData.duration)),
                 capacity: Number(formData.capacity),
                 sectionsList: sectionsList,
                 scheduleId: Number(scheduleId),
@@ -1742,9 +1744,7 @@ export default function CoursesView() {
                             errors: importErrors,
                         }));
 
-                        await new Promise((resolve) =>
-                            setTimeout(resolve, 100)
-                        );
+                        await new Promise((resolve) => setTimeout(resolve, 30));
                     }
 
                     setImportProgress((prev) => ({

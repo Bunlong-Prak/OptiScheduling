@@ -426,6 +426,51 @@ export default function Dashboard({ authUser }: DashboardProps) {
         setTimeSlotErrors({});
     }, [formData.numTimeSlots, persistentTimeSlots]);
 
+    const [hasAssignedCourses, setHasAssignedCourses] =
+        useState<boolean>(false);
+    const [isCheckingCourses, setIsCheckingCourses] = useState<boolean>(false);
+
+    const fetchAssignedCourses = async (scheduleId: string) => {
+        try {
+            const response = await fetch(
+                `/api/assign-time-slots/?scheduleId=${scheduleId}`
+            );
+            if (!response.ok) {
+                throw new Error("Failed to fetch assigned courses");
+            }
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error(
+                `Error fetching assigned courses for schedule ${scheduleId}:`,
+                error
+            );
+            return [];
+        }
+    };
+    const checkForAssignedCourses = async (
+        scheduleId: string
+    ): Promise<boolean> => {
+        try {
+            setIsCheckingCourses(true);
+            const assignedCourses = await fetchAssignedCourses(scheduleId);
+
+            // Check if any assigned course has day, timeslot, and classroomid that are not null
+            const hasActiveAssignments = assignedCourses.some(
+                (course: any) =>
+                    course.day !== null &&
+                    course.timeslot !== null &&
+                    course.classroomid !== null
+            );
+
+            return hasActiveAssignments;
+        } catch (error) {
+            console.error("Error checking assigned courses:", error);
+            return false;
+        } finally {
+            setIsCheckingCourses(false);
+        }
+    };
     const fetchCourseCount = async (scheduleId: string) => {
         try {
             const response = await fetch(
@@ -588,6 +633,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
         });
     };
 
+    // Modify the resetForm function to also reset the hasAssignedCourses state
     const resetForm = () => {
         setFormData({
             name: "",
@@ -598,13 +644,19 @@ export default function Dashboard({ authUser }: DashboardProps) {
         });
         setPersistentTimeSlots([]);
         setTimeSlotErrors({});
+        setHasAssignedCourses(false); // Add this line
     };
 
-    const openEditDialog = (scheduleId: string, e: React.MouseEvent) => {
+    const openEditDialog = async (scheduleId: string, e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent navigating to schedule detail
         const schedule = schedules.find((s) => s.id === scheduleId);
         if (schedule) {
             setSelectedScheduleId(scheduleId);
+
+            // Check for assigned courses before opening dialog
+            const hasAssignments = await checkForAssignedCourses(scheduleId);
+            setHasAssignedCourses(hasAssignments);
+
             const timeSlots = schedule.timeSlots || [];
             setFormData({
                 name: schedule.name,
@@ -1505,7 +1557,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 </div>
                             </div>
 
-                            {/* TimeSlot input */}
+                            {/* TimeSlot input with conditional disable and warning */}
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="edit-numTimeSlots"
@@ -1513,6 +1565,28 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 >
                                     Number of TimeSlots
                                 </Label>
+
+                                {/* Warning message when courses are assigned */}
+                                {hasAssignedCourses && (
+                                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-amber-600 text-sm">
+                                                ⚠️
+                                            </span>
+                                            <p className="text-sm text-amber-800 font-medium">
+                                                Cannot modify timeslots: There
+                                                are courses assigned to the
+                                                timetable
+                                            </p>
+                                        </div>
+                                        <p className="text-xs text-amber-700 mt-1 ml-6">
+                                            Please remove all course assignments
+                                            before changing the number of
+                                            timeslots.
+                                        </p>
+                                    </div>
+                                )}
+
                                 <Input
                                     id="edit-numTimeSlots"
                                     name="numTimeSlots"
@@ -1522,12 +1596,202 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                     placeholder="Enter number of time slots needed"
                                     value={formData.numTimeSlots}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                    disabled={
+                                        hasAssignedCourses || isCheckingCourses
+                                    }
+                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] ${
+                                        hasAssignedCourses
+                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
+                                            : ""
+                                    }`}
                                 />
+
+                                {isCheckingCourses && (
+                                    <p className="text-xs text-gray-500">
+                                        Checking for assigned courses...
+                                    </p>
+                                )}
                             </div>
 
-                            {/* Dynamic timeSlot inputs */}
-                            {renderTimeSlotInputs("edit")}
+                            {/* Dynamic timeSlot inputs - also disable individual inputs when courses are assigned */}
+                            {formData.timeSlots.length > 0 && (
+                                <div className="space-y-4">
+                                    <h3 className="font-semibold text-gray-900 border-b border-gray-200 pb-2">
+                                        TimeSlots Configuration
+                                    </h3>
+                                    {hasAssignedCourses && (
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-blue-600 text-sm">
+                                                    ℹ️
+                                                </span>
+                                                <p className="text-sm text-blue-800">
+                                                    Timeslot modifications are
+                                                    disabled because courses are
+                                                    assigned to this schedule.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <p className="text-sm text-gray-600">
+                                        Please enter times in HH:MM format
+                                        (e.g., 08:00, 14:30)
+                                    </p>
+                                    {formData.timeSlots.map(
+                                        (timeSlot, index) => {
+                                            // Check for end time less than start time
+                                            const hasEndTimeError =
+                                                timeSlot.startTime &&
+                                                timeSlot.endTime &&
+                                                isCompleteTimeFormat(
+                                                    timeSlot.startTime
+                                                ) &&
+                                                isCompleteTimeFormat(
+                                                    timeSlot.endTime
+                                                ) &&
+                                                timeToMinutes(
+                                                    timeSlot.endTime
+                                                ) <=
+                                                    timeToMinutes(
+                                                        timeSlot.startTime
+                                                    );
+
+                                            // Check for overlap with previous time slot
+                                            const hasPreviousOverlap =
+                                                index > 0 &&
+                                                timeSlot.startTime &&
+                                                isCompleteTimeFormat(
+                                                    timeSlot.startTime
+                                                ) &&
+                                                formData.timeSlots[index - 1]
+                                                    .endTime &&
+                                                isCompleteTimeFormat(
+                                                    formData.timeSlots[
+                                                        index - 1
+                                                    ].endTime
+                                                ) &&
+                                                timeToMinutes(
+                                                    timeSlot.startTime
+                                                ) <
+                                                    timeToMinutes(
+                                                        formData.timeSlots[
+                                                            index - 1
+                                                        ].endTime
+                                                    );
+
+                                            return (
+                                                <div
+                                                    key={index}
+                                                    className={`grid grid-cols-2 gap-4 p-4 border border-gray-200 rounded-lg ${
+                                                        hasAssignedCourses
+                                                            ? "bg-gray-50"
+                                                            : "bg-gray-50"
+                                                    }`}
+                                                >
+                                                    <div className="space-y-2">
+                                                        <Label
+                                                            htmlFor={`edit-startTime-${index}`}
+                                                            className="text-sm font-medium text-gray-700"
+                                                        >
+                                                            Start Time #
+                                                            {index + 1}
+                                                        </Label>
+                                                        <Input
+                                                            id={`edit-startTime-${index}`}
+                                                            placeholder="HH:MM"
+                                                            value={
+                                                                timeSlot.startTime
+                                                            }
+                                                            onChange={(e) =>
+                                                                handleTimeSlotChange(
+                                                                    index,
+                                                                    "startTime",
+                                                                    e.target
+                                                                        .value
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                hasAssignedCourses
+                                                            }
+                                                            className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white ${
+                                                                hasAssignedCourses
+                                                                    ? "bg-gray-100 cursor-not-allowed opacity-60"
+                                                                    : ""
+                                                            } ${
+                                                                (timeSlot.startTime &&
+                                                                    !isCompleteTimeFormat(
+                                                                        timeSlot.startTime
+                                                                    )) ||
+                                                                hasPreviousOverlap ||
+                                                                (timeSlotErrors[
+                                                                    index
+                                                                ] &&
+                                                                    timeSlotErrors[
+                                                                        index
+                                                                    ].includes(
+                                                                        "start time"
+                                                                    ))
+                                                                    ? "border-red-300 focus:border-red-500 animate-pulse"
+                                                                    : ""
+                                                            }`}
+                                                        />
+                                                        {/* Error messages remain the same */}
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label
+                                                            htmlFor={`edit-endTime-${index}`}
+                                                            className="text-sm font-medium text-gray-700"
+                                                        >
+                                                            End Time #
+                                                            {index + 1}
+                                                        </Label>
+                                                        <Input
+                                                            id={`edit-endTime-${index}`}
+                                                            placeholder="HH:MM"
+                                                            value={
+                                                                timeSlot.endTime
+                                                            }
+                                                            onChange={(e) =>
+                                                                handleTimeSlotChange(
+                                                                    index,
+                                                                    "endTime",
+                                                                    e.target
+                                                                        .value
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                hasAssignedCourses
+                                                            }
+                                                            className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] bg-white ${
+                                                                hasAssignedCourses
+                                                                    ? "bg-gray-100 cursor-not-allowed opacity-60"
+                                                                    : ""
+                                                            } ${
+                                                                (timeSlot.endTime &&
+                                                                    !isCompleteTimeFormat(
+                                                                        timeSlot.endTime
+                                                                    )) ||
+                                                                hasEndTimeError ||
+                                                                (timeSlotErrors[
+                                                                    index
+                                                                ] &&
+                                                                    timeSlotErrors[
+                                                                        index
+                                                                    ].includes(
+                                                                        "end time"
+                                                                    ))
+                                                                    ? "border-red-300 focus:border-red-500 animate-pulse"
+                                                                    : ""
+                                                            }`}
+                                                        />
+                                                        {/* Error messages remain the same */}
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <DialogFooter className="border-t border-gray-200 pt-4">
@@ -1549,7 +1813,6 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-
                 {/* Delete Schedule Dialog */}
                 <AlertDialog
                     open={isDeleteDialogOpen}

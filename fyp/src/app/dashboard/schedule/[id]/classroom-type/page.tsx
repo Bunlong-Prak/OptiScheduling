@@ -329,6 +329,15 @@ export default function ClassroomTypeView() {
     const handleEditClassroomType = async () => {
         if (!selectedClassroomType) return;
 
+        // Prevent editing if classroom type has assignments
+        if (hasAssignedClassrooms) {
+            showErrorMessage(
+                "Cannot Edit Classroom Type",
+                "This classroom type is assigned to classrooms and cannot be edited. Please remove all classroom assignments first."
+            );
+            return;
+        }
+
         // Final validation before submission
         const errors = validateForm(formData.name, formData.description);
         if (Object.keys(errors).length > 0) {
@@ -381,6 +390,15 @@ export default function ClassroomTypeView() {
     const handleDeleteClassroomType = async () => {
         if (!selectedClassroomType) return;
 
+        // Prevent deletion if classroom type has assignments
+        if (hasAssignedClassrooms) {
+            showErrorMessage(
+                "Cannot Delete Classroom Type",
+                "This classroom type is assigned to classrooms and cannot be deleted. Please remove all classroom assignments first."
+            );
+            return;
+        }
+
         const classroomTypeName = selectedClassroomType.name;
 
         try {
@@ -423,20 +441,37 @@ export default function ClassroomTypeView() {
         });
         setValidationErrors({});
         setSelectedClassroomType(null);
+        setHasAssignedClassrooms(false);
+        setAssignedClassroomsInfo("");
     };
 
-    const openEditDialog = (classroomType: ClassroomType) => {
+    const openEditDialog = async (classroomType: ClassroomType) => {
         resetForm();
         setSelectedClassroomType(classroomType);
+
+        // Check for classroom type assignments by name
+        const assignmentCheck = await checkClassroomTypeAssignments(
+            classroomType.name
+        );
+        setHasAssignedClassrooms(assignmentCheck.hasAssignments);
+        setAssignedClassroomsInfo(assignmentCheck.info);
+
         setFormData({
             name: classroomType.name,
             description: classroomType.description || "",
         });
         setIsEditDialogOpen(true);
     };
-
-    const openDeleteDialog = (classroomType: ClassroomType) => {
+    const openDeleteDialog = async (classroomType: ClassroomType) => {
         setSelectedClassroomType(classroomType);
+
+        // Check for classroom type assignments by name
+        const assignmentCheck = await checkClassroomTypeAssignments(
+            classroomType.name
+        );
+        setHasAssignedClassrooms(assignmentCheck.hasAssignments);
+        setAssignedClassroomsInfo(assignmentCheck.info);
+
         setIsDeleteDialogOpen(true);
     };
 
@@ -494,6 +529,59 @@ export default function ClassroomTypeView() {
             name: row.name.trim(),
             description: row.description ? row.description.trim() : undefined,
         };
+    };
+
+    const [hasAssignedClassrooms, setHasAssignedClassrooms] =
+        useState<boolean>(false);
+    const [isCheckingAssignments, setIsCheckingAssignments] =
+        useState<boolean>(false);
+    const [assignedClassroomsInfo, setAssignedClassroomsInfo] =
+        useState<string>("");
+
+    // Add this function to check if a classroom type is assigned to any classrooms
+    const checkClassroomTypeAssignments = async (
+        classroomTypeName: string
+    ): Promise<{ hasAssignments: boolean; info: string }> => {
+        try {
+            setIsCheckingAssignments(true);
+            const scheduleId = params.id;
+
+            // Fetch classrooms for this schedule to check for classroom type assignments
+            const response = await fetch(
+                `/api/classrooms/?scheduleId=${scheduleId}`
+            );
+            if (!response.ok) {
+                throw new Error("Failed to fetch classrooms");
+            }
+
+            const classrooms = await response.json();
+
+            // Check if any classroom is assigned to this classroom type by name
+            const assignedClassrooms = classrooms.filter((classroom: any) => {
+                return (
+                    classroom.type &&
+                    classroom.type.toLowerCase() ===
+                        classroomTypeName.toLowerCase()
+                );
+            });
+
+            if (assignedClassrooms.length > 0) {
+                const classroomNames = assignedClassrooms
+                    .map((classroom: any) => classroom.name)
+                    .join(", ");
+                return {
+                    hasAssignments: true,
+                    info: `This classroom type is assigned to ${assignedClassrooms.length} classroom(s): ${classroomNames}`,
+                };
+            }
+
+            return { hasAssignments: false, info: "" };
+        } catch (error) {
+            console.error("Error checking classroom type assignments:", error);
+            return { hasAssignments: false, info: "" };
+        } finally {
+            setIsCheckingAssignments(false);
+        }
     };
 
     // Main import function
@@ -1069,7 +1157,7 @@ export default function ClassroomTypeView() {
                                     name="name"
                                     value={formData.name}
                                     onChange={handleInputChange}
-                                    placeholder="Enter classroom type name"
+                                    placeholder="Computer Lab"
                                     className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
                                         validationErrors.name
                                             ? "border-red-300 focus:border-red-500 animate-pulse"
@@ -1158,6 +1246,39 @@ export default function ClassroomTypeView() {
                         </DialogHeader>
 
                         <div className="py-4 space-y-4">
+                            {/* Warning message when classroom type has assignments */}
+                            {hasAssignedClassrooms && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-red-600 text-sm">
+                                            🚫
+                                        </span>
+                                        <p className="text-sm text-red-800 font-medium">
+                                            This classroom type cannot be edited
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-red-700 mt-1 ml-6">
+                                        {assignedClassroomsInfo}. Please remove
+                                        all classroom assignments before editing
+                                        this classroom type.
+                                    </p>
+                                </div>
+                            )}
+
+                            {isCheckingAssignments && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-600 text-sm">
+                                            ℹ️
+                                        </span>
+                                        <p className="text-sm text-blue-800">
+                                            Checking for classroom
+                                            assignments...
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="edit-name"
@@ -1171,9 +1292,18 @@ export default function ClassroomTypeView() {
                                     value={formData.name}
                                     onChange={handleInputChange}
                                     placeholder="Enter classroom type name"
+                                    disabled={
+                                        hasAssignedClassrooms ||
+                                        isCheckingAssignments
+                                    }
                                     className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
                                         validationErrors.name
                                             ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    } ${
+                                        hasAssignedClassrooms ||
+                                        isCheckingAssignments
+                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
                                             : ""
                                     }`}
                                 />
@@ -1202,9 +1332,18 @@ export default function ClassroomTypeView() {
                                     value={formData.description}
                                     onChange={handleInputChange}
                                     placeholder="Enter classroom type description (optional)"
+                                    disabled={
+                                        hasAssignedClassrooms ||
+                                        isCheckingAssignments
+                                    }
                                     className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm min-h-[80px] ${
                                         validationErrors.description
                                             ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    } ${
+                                        hasAssignedClassrooms ||
+                                        isCheckingAssignments
+                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
                                             : ""
                                     }`}
                                 />
@@ -1234,15 +1373,18 @@ export default function ClassroomTypeView() {
                             </Button>
                             <Button
                                 onClick={handleEditClassroomType}
-                                disabled={!isFormValid()}
+                                disabled={
+                                    !isFormValid() ||
+                                    hasAssignedClassrooms ||
+                                    isCheckingAssignments
+                                }
                                 className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                Save
+                                {hasAssignedClassrooms ? "Cannot Edit" : "Save"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-
                 {/* Delete Classroom Type Dialog */}
                 <Dialog
                     open={isDeleteDialogOpen}
@@ -1259,16 +1401,68 @@ export default function ClassroomTypeView() {
                         </DialogHeader>
 
                         <div className="py-4">
-                            <p className="text-sm text-gray-600 mb-2">
-                                Are you sure you want to delete this classroom
-                                type?
-                            </p>
-                            <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
-                                {selectedClassroomType?.name}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-2">
-                                This action cannot be undone.
-                            </p>
+                            {/* Warning message when classroom type has assignments */}
+                            {hasAssignedClassrooms && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-red-600 text-sm">
+                                            🚫
+                                        </span>
+                                        <p className="text-sm text-red-800 font-medium">
+                                            This classroom type cannot be
+                                            deleted
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-red-700 mt-1 ml-6">
+                                        {assignedClassroomsInfo}. Please remove
+                                        all classroom assignments before
+                                        deleting this classroom type.
+                                    </p>
+                                </div>
+                            )}
+
+                            {isCheckingAssignments && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-600 text-sm">
+                                            ℹ️
+                                        </span>
+                                        <p className="text-sm text-blue-800">
+                                            Checking for classroom
+                                            assignments...
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Only show confirmation text if no assignments */}
+                            {!hasAssignedClassrooms &&
+                                !isCheckingAssignments && (
+                                    <>
+                                        <p className="text-sm text-gray-600 mb-2">
+                                            Are you sure you want to delete this
+                                            classroom type?
+                                        </p>
+                                        <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
+                                            {selectedClassroomType?.name}
+                                        </p>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            This action cannot be undone.
+                                        </p>
+                                    </>
+                                )}
+
+                            {/* Show classroom type info even when disabled */}
+                            {hasAssignedClassrooms && (
+                                <div className="mt-4">
+                                    <p className="text-sm text-gray-600 mb-2">
+                                        Classroom Type Details:
+                                    </p>
+                                    <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
+                                        {selectedClassroomType?.name}
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         <DialogFooter className="border-t border-gray-200 pt-3">
@@ -1284,9 +1478,15 @@ export default function ClassroomTypeView() {
                             </Button>
                             <Button
                                 onClick={handleDeleteClassroomType}
-                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                                disabled={
+                                    hasAssignedClassrooms ||
+                                    isCheckingAssignments
+                                }
+                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                Delete
+                                {hasAssignedClassrooms
+                                    ? "Cannot Delete"
+                                    : "Delete"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

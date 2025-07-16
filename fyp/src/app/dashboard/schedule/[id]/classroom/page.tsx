@@ -318,6 +318,74 @@ export default function ClassroomView() {
         }
     };
 
+    const [hasAssignedCourses, setHasAssignedCourses] =
+        useState<boolean>(false);
+    const [isCheckingAssignments, setIsCheckingAssignments] =
+        useState<boolean>(false);
+    const [assignedCoursesInfo, setAssignedCoursesInfo] = useState<string>("");
+
+    // Add this function to fetch assigned courses
+    const fetchAssignedCourses = async (scheduleId: string) => {
+        try {
+            const response = await fetch(
+                `/api/assign-time-slots/?scheduleId=${scheduleId}`
+            );
+            if (!response.ok) {
+                throw new Error("Failed to fetch assigned courses");
+            }
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error(
+                `Error fetching assigned courses for schedule ${scheduleId}:`,
+                error
+            );
+            return [];
+        }
+    };
+
+    const checkClassroomAssignments = async (
+        classroomId: number
+    ): Promise<{ hasAssignments: boolean; info: string }> => {
+        try {
+            setIsCheckingAssignments(true);
+            const scheduleId = params.id as string;
+
+            // Fetch assigned courses for this schedule
+            const assignedCourses = await fetchAssignedCourses(scheduleId);
+
+            // Check if any course is assigned to this classroom by ID
+            const coursesUsingClassroom = assignedCourses.filter(
+                (course: any) => {
+                    return course.classroomId === classroomId;
+                }
+            );
+
+            if (coursesUsingClassroom.length > 0) {
+                const courseNames = coursesUsingClassroom
+                    .map(
+                        (course: any) =>
+                            course.title ||
+                            course.courseName ||
+                            course.name ||
+                            `Course ID: ${course.id}`
+                    )
+                    .join(", ");
+                return {
+                    hasAssignments: true,
+                    info: `This classroom is assigned to ${coursesUsingClassroom.length} course(s): ${courseNames}`,
+                };
+            }
+
+            return { hasAssignments: false, info: "" };
+        } catch (error) {
+            console.error("Error checking classroom assignments:", error);
+            return { hasAssignments: false, info: "" };
+        } finally {
+            setIsCheckingAssignments(false);
+        }
+    };
+
     // Fetch classrooms from API
     const fetchClassrooms = async () => {
         setIsLoading(true);
@@ -465,6 +533,15 @@ export default function ClassroomView() {
             return;
         }
 
+        // Prevent editing if classroom has assignments
+        if (hasAssignedCourses) {
+            showErrorMessage(
+                "Cannot Edit Classroom",
+                "This classroom is assigned to courses and cannot be edited. Please remove all course assignments first."
+            );
+            return;
+        }
+
         setIsLoading(true);
         try {
             const scheduleId = params.id;
@@ -516,6 +593,15 @@ export default function ClassroomView() {
 
     const handleDeleteClassroom = async () => {
         if (!selectedClassroom) return;
+
+        // Prevent deletion if classroom has assignments
+        if (hasAssignedCourses) {
+            showErrorMessage(
+                "Cannot Delete Classroom",
+                "This classroom is assigned to courses and cannot be deleted. Please remove all course assignments first."
+            );
+            return;
+        }
 
         const classroomCode = selectedClassroom.code;
 
@@ -575,10 +661,17 @@ export default function ClassroomView() {
         });
         setFormErrors({});
         setSelectedClassroom(null);
+        setHasAssignedCourses(false);
+        setAssignedCoursesInfo("");
     };
-
-    const openEditDialog = (classroom: Classroom) => {
+    const openEditDialog = async (classroom: Classroom) => {
         setSelectedClassroom(classroom);
+
+        // Check for classroom assignments by ID
+        const assignmentCheck = await checkClassroomAssignments(classroom.id);
+        setHasAssignedCourses(assignmentCheck.hasAssignments);
+        setAssignedCoursesInfo(assignmentCheck.info);
+
         setFormData({
             location: classroom.location,
             name: classroom.name,
@@ -590,8 +683,14 @@ export default function ClassroomView() {
         setIsEditDialogOpen(true);
     };
 
-    const openDeleteDialog = (classroom: Classroom) => {
+    const openDeleteDialog = async (classroom: Classroom) => {
         setSelectedClassroom(classroom);
+
+        // Check for classroom assignments by ID
+        const assignmentCheck = await checkClassroomAssignments(classroom.id);
+        setHasAssignedCourses(assignmentCheck.hasAssignments);
+        setAssignedCoursesInfo(assignmentCheck.info);
+
         setIsDeleteDialogOpen(true);
     };
 
@@ -1503,6 +1602,38 @@ export default function ClassroomView() {
                         </DialogHeader>
 
                         <div className="py-4 space-y-4">
+                            {/* Warning message when classroom has assignments */}
+                            {hasAssignedCourses && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-red-600 text-sm">
+                                            🚫
+                                        </span>
+                                        <p className="text-sm text-red-800 font-medium">
+                                            This classroom cannot be edited
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-red-700 mt-1 ml-6">
+                                        {assignedCoursesInfo}. Please remove all
+                                        course assignments before editing this
+                                        classroom.
+                                    </p>
+                                </div>
+                            )}
+
+                            {isCheckingAssignments && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-600 text-sm">
+                                            ℹ️
+                                        </span>
+                                        <p className="text-sm text-blue-800">
+                                            Checking for course assignments...
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="edit-code"
@@ -1516,9 +1647,18 @@ export default function ClassroomView() {
                                     name="code"
                                     value={formData.code}
                                     onChange={handleInputChange}
+                                    disabled={
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                    }
                                     className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
                                         formErrors.code
                                             ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    } ${
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
                                             : ""
                                     }`}
                                     placeholder="Enter classroom code (e.g., 101, 2A1)"
@@ -1543,9 +1683,18 @@ export default function ClassroomView() {
                                     name="name"
                                     value={formData.name}
                                     onChange={handleInputChange}
+                                    disabled={
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                    }
                                     className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
                                         formErrors.name
                                             ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    } ${
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
                                             : ""
                                     }`}
                                     placeholder="Enter classroom name"
@@ -1570,9 +1719,18 @@ export default function ClassroomView() {
                                     name="location"
                                     value={formData.location}
                                     onChange={handleInputChange}
+                                    disabled={
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                    }
                                     className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
                                         formErrors.location
                                             ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    } ${
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
                                             : ""
                                     }`}
                                     placeholder="Enter location"
@@ -1596,11 +1754,20 @@ export default function ClassroomView() {
                                     onValueChange={(value) =>
                                         handleSelectChange("type", value)
                                     }
+                                    disabled={
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                    }
                                 >
                                     <SelectTrigger
                                         className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
                                             formErrors.type
                                                 ? "border-red-300 focus:border-red-500 animate-pulse"
+                                                : ""
+                                        } ${
+                                            hasAssignedCourses ||
+                                            isCheckingAssignments
+                                                ? "bg-gray-100 cursor-not-allowed opacity-60"
                                                 : ""
                                         }`}
                                     >
@@ -1651,9 +1818,18 @@ export default function ClassroomView() {
                                     type="number"
                                     value={formData.capacity}
                                     onChange={handleInputChange}
+                                    disabled={
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                    }
                                     className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
                                         formErrors.capacity
                                             ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    } ${
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
                                             : ""
                                     }`}
                                     placeholder="Enter capacity (1-100)"
@@ -1686,16 +1862,21 @@ export default function ClassroomView() {
                                     isLoading ||
                                     Object.values(formErrors).some(
                                         (error) => error !== undefined
-                                    )
+                                    ) ||
+                                    hasAssignedCourses ||
+                                    isCheckingAssignments
                                 }
                                 className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                {isLoading ? "Saving..." : "Save"}
+                                {hasAssignedCourses
+                                    ? "Cannot Edit"
+                                    : isLoading
+                                    ? "Saving..."
+                                    : "Save"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-
                 {/* Delete Classroom Dialog */}
                 <Dialog
                     open={isDeleteDialogOpen}
@@ -1712,32 +1893,111 @@ export default function ClassroomView() {
                         </DialogHeader>
 
                         <div className="py-4">
-                            <p className="text-sm text-gray-600 mb-2">
-                                Are you sure you want to delete this classroom?
-                            </p>
-                            <div className="bg-gray-50 p-3 rounded border space-y-1">
-                                <p className="font-medium text-sm text-gray-900">
-                                    <span className="text-gray-600">Code:</span>{" "}
-                                    {selectedClassroom?.code}
-                                </p>
-                                <p className="text-sm text-gray-700">
-                                    <span className="text-gray-600">Name:</span>{" "}
-                                    {selectedClassroom?.name}
-                                </p>
-                                <p className="text-sm text-gray-700">
-                                    <span className="text-gray-600">
-                                        Location:
-                                    </span>{" "}
-                                    {selectedClassroom?.location}
-                                </p>
-                                <p className="text-sm text-gray-700">
-                                    <span className="text-gray-600">Type:</span>{" "}
-                                    {selectedClassroom?.type}
-                                </p>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-2">
-                                This action cannot be undone.
-                            </p>
+                            {/* Warning message when classroom has assignments */}
+                            {hasAssignedCourses && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-red-600 text-sm">
+                                            🚫
+                                        </span>
+                                        <p className="text-sm text-red-800 font-medium">
+                                            This classroom cannot be deleted
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-red-700 mt-1 ml-6">
+                                        {assignedCoursesInfo}. Please remove all
+                                        course assignments before deleting this
+                                        classroom.
+                                    </p>
+                                </div>
+                            )}
+
+                            {isCheckingAssignments && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-600 text-sm">
+                                            ℹ️
+                                        </span>
+                                        <p className="text-sm text-blue-800">
+                                            Checking for course assignments...
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Only show confirmation text if no assignments */}
+                            {!hasAssignedCourses && !isCheckingAssignments && (
+                                <>
+                                    <p className="text-sm text-gray-600 mb-2">
+                                        Are you sure you want to delete this
+                                        classroom?
+                                    </p>
+                                    <div className="bg-gray-50 p-3 rounded border space-y-1">
+                                        <p className="font-medium text-sm text-gray-900">
+                                            <span className="text-gray-600">
+                                                Code:
+                                            </span>{" "}
+                                            {selectedClassroom?.code}
+                                        </p>
+                                        <p className="text-sm text-gray-700">
+                                            <span className="text-gray-600">
+                                                Name:
+                                            </span>{" "}
+                                            {selectedClassroom?.name}
+                                        </p>
+                                        <p className="text-sm text-gray-700">
+                                            <span className="text-gray-600">
+                                                Location:
+                                            </span>{" "}
+                                            {selectedClassroom?.location}
+                                        </p>
+                                        <p className="text-sm text-gray-700">
+                                            <span className="text-gray-600">
+                                                Type:
+                                            </span>{" "}
+                                            {selectedClassroom?.type}
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        This action cannot be undone.
+                                    </p>
+                                </>
+                            )}
+
+                            {/* Show classroom info even when disabled */}
+                            {hasAssignedCourses && (
+                                <div className="mt-4">
+                                    <p className="text-sm text-gray-600 mb-2">
+                                        Classroom Details:
+                                    </p>
+                                    <div className="bg-gray-50 p-3 rounded border space-y-1">
+                                        <p className="font-medium text-sm text-gray-900">
+                                            <span className="text-gray-600">
+                                                Code:
+                                            </span>{" "}
+                                            {selectedClassroom?.code}
+                                        </p>
+                                        <p className="text-sm text-gray-700">
+                                            <span className="text-gray-600">
+                                                Name:
+                                            </span>{" "}
+                                            {selectedClassroom?.name}
+                                        </p>
+                                        <p className="text-sm text-gray-700">
+                                            <span className="text-gray-600">
+                                                Location:
+                                            </span>{" "}
+                                            {selectedClassroom?.location}
+                                        </p>
+                                        <p className="text-sm text-gray-700">
+                                            <span className="text-gray-600">
+                                                Type:
+                                            </span>{" "}
+                                            {selectedClassroom?.type}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <DialogFooter className="border-t border-gray-200 pt-3">
@@ -1754,10 +2014,18 @@ export default function ClassroomView() {
                             </Button>
                             <Button
                                 onClick={handleDeleteClassroom}
-                                disabled={isLoading}
-                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                                disabled={
+                                    isLoading ||
+                                    hasAssignedCourses ||
+                                    isCheckingAssignments
+                                }
+                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                {isLoading ? "Deleting..." : "Delete"}
+                                {hasAssignedCourses
+                                    ? "Cannot Delete"
+                                    : isLoading
+                                    ? "Deleting..."
+                                    : "Delete"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

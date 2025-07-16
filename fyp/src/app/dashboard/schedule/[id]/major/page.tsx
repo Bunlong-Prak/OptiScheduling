@@ -281,6 +281,62 @@ export default function MajorView() {
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
+
+    const [hasAssignedCourses, setHasAssignedCourses] =
+        useState<boolean>(false);
+    const [isCheckingAssignments, setIsCheckingAssignments] =
+        useState<boolean>(false);
+    const [assignedCoursesInfo, setAssignedCoursesInfo] = useState<string>("");
+
+    // Add this function to check if a major is assigned to any courses
+    const checkMajorAssignments = async (
+        majorName: string
+    ): Promise<{ hasAssignments: boolean; info: string }> => {
+        try {
+            setIsCheckingAssignments(true);
+            const scheduleId = params.id;
+
+            // Fetch courses for this schedule to check for major assignments
+            const response = await fetch(
+                `/api/courses/?scheduleId=${scheduleId}`
+            );
+            if (!response.ok) {
+                throw new Error("Failed to fetch courses");
+            }
+
+            const courses = await response.json();
+
+            // Check if any course is assigned to this major by name
+            const coursesUsingMajor = courses.filter((course: any) => {
+                return (
+                    course.major &&
+                    course.major.toLowerCase() === majorName.toLowerCase()
+                );
+            });
+
+            if (coursesUsingMajor.length > 0) {
+                const courseNames = coursesUsingMajor
+                    .map(
+                        (course: any) =>
+                            course.title ||
+                            course.name ||
+                            `Course ID: ${course.id}`
+                    )
+                    .join(", ");
+                return {
+                    hasAssignments: true,
+                    info: `This major is assigned to ${coursesUsingMajor.length} course(s): ${courseNames}`,
+                };
+            }
+
+            return { hasAssignments: false, info: "" };
+        } catch (error) {
+            console.error("Error checking major assignments:", error);
+            return { hasAssignments: false, info: "" };
+        } finally {
+            setIsCheckingAssignments(false);
+        }
+    };
     // Fetch majors
     const fetchMajors = async () => {
         try {
@@ -426,6 +482,15 @@ export default function MajorView() {
             return;
         }
 
+        // Prevent editing if major has assignments
+        if (hasAssignedCourses) {
+            showErrorMessage(
+                "Cannot Edit Major",
+                "This major is assigned to courses and cannot be edited. Please remove all course assignments first."
+            );
+            return;
+        }
+
         // Double-check validation before submitting
         if (!isFormValid()) {
             showErrorMessage(
@@ -482,6 +547,15 @@ export default function MajorView() {
             return;
         }
 
+        // Prevent deletion if major has assignments
+        if (hasAssignedCourses) {
+            showErrorMessage(
+                "Cannot Delete Major",
+                "This major is assigned to courses and cannot be deleted. Please remove all course assignments first."
+            );
+            return;
+        }
+
         const majorName = selectedMajor.name;
 
         try {
@@ -524,11 +598,19 @@ export default function MajorView() {
         setSelectedMajor(null);
         setValidationErrors({});
         setTouchedFields({ name: false, shortTag: false });
+        setHasAssignedCourses(false);
+        setAssignedCoursesInfo("");
     };
 
-    const openEditDialog = (major: Major) => {
+    const openEditDialog = async (major: Major) => {
         resetForm();
         setSelectedMajor(major);
+
+        // Check for major assignments by name
+        const assignmentCheck = await checkMajorAssignments(major.name);
+        setHasAssignedCourses(assignmentCheck.hasAssignments);
+        setAssignedCoursesInfo(assignmentCheck.info);
+
         setFormData({
             name: major.name,
             shortTag: major.shortTag,
@@ -537,9 +619,14 @@ export default function MajorView() {
         setTouchedFields({ name: true, shortTag: true });
         setIsEditDialogOpen(true);
     };
-
-    const openDeleteDialog = (major: Major) => {
+    const openDeleteDialog = async (major: Major) => {
         setSelectedMajor(major);
+
+        // Check for major assignments by name
+        const assignmentCheck = await checkMajorAssignments(major.name);
+        setHasAssignedCourses(assignmentCheck.hasAssignments);
+        setAssignedCoursesInfo(assignmentCheck.info);
+
         setIsDeleteDialogOpen(true);
     };
 
@@ -1259,6 +1346,38 @@ export default function MajorView() {
                         </DialogHeader>
 
                         <div className="py-4 space-y-4">
+                            {/* Warning message when major has assignments */}
+                            {hasAssignedCourses && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-red-600 text-sm">
+                                            🚫
+                                        </span>
+                                        <p className="text-sm text-red-800 font-medium">
+                                            This major cannot be edited
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-red-700 mt-1 ml-6">
+                                        {assignedCoursesInfo}. Please remove all
+                                        course assignments before editing this
+                                        major.
+                                    </p>
+                                </div>
+                            )}
+
+                            {isCheckingAssignments && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-600 text-sm">
+                                            ℹ️
+                                        </span>
+                                        <p className="text-sm text-blue-800">
+                                            Checking for course assignments...
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="space-y-2">
                                 <Label
                                     htmlFor="edit-name"
@@ -1271,9 +1390,18 @@ export default function MajorView() {
                                     name="name"
                                     value={formData.name}
                                     onChange={handleInputChange}
+                                    disabled={
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                    }
                                     className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
                                         validationErrors.name
                                             ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    } ${
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
                                             : ""
                                     }`}
                                 />
@@ -1296,9 +1424,18 @@ export default function MajorView() {
                                     name="shortTag"
                                     value={formData.shortTag}
                                     onChange={handleInputChange}
+                                    disabled={
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                    }
                                     className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
                                         validationErrors.shortTag
                                             ? "border-red-300 focus:border-red-500 animate-pulse"
+                                            : ""
+                                    } ${
+                                        hasAssignedCourses ||
+                                        isCheckingAssignments
+                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
                                             : ""
                                     }`}
                                 />
@@ -1327,10 +1464,14 @@ export default function MajorView() {
                             </Button>
                             <Button
                                 onClick={handleEditMajor}
-                                disabled={!isFormValid()}
+                                disabled={
+                                    !isFormValid() ||
+                                    hasAssignedCourses ||
+                                    isCheckingAssignments
+                                }
                                 className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                Save
+                                {hasAssignedCourses ? "Cannot Edit" : "Save"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -1352,15 +1493,65 @@ export default function MajorView() {
                         </DialogHeader>
 
                         <div className="py-4">
-                            <p className="text-sm text-gray-600 mb-2">
-                                Are you sure you want to delete this major?
-                            </p>
-                            <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
-                                {selectedMajor?.name}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-2">
-                                This action cannot be undone.
-                            </p>
+                            {/* Warning message when major has assignments */}
+                            {hasAssignedCourses && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-red-600 text-sm">
+                                            🚫
+                                        </span>
+                                        <p className="text-sm text-red-800 font-medium">
+                                            This major cannot be deleted
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-red-700 mt-1 ml-6">
+                                        {assignedCoursesInfo}. Please remove all
+                                        course assignments before deleting this
+                                        major.
+                                    </p>
+                                </div>
+                            )}
+
+                            {isCheckingAssignments && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-600 text-sm">
+                                            ℹ️
+                                        </span>
+                                        <p className="text-sm text-blue-800">
+                                            Checking for course assignments...
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Only show confirmation text if no assignments */}
+                            {!hasAssignedCourses && !isCheckingAssignments && (
+                                <>
+                                    <p className="text-sm text-gray-600 mb-2">
+                                        Are you sure you want to delete this
+                                        major?
+                                    </p>
+                                    <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
+                                        {selectedMajor?.name}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        This action cannot be undone.
+                                    </p>
+                                </>
+                            )}
+
+                            {/* Show major info even when disabled */}
+                            {hasAssignedCourses && (
+                                <div className="mt-4">
+                                    <p className="text-sm text-gray-600 mb-2">
+                                        Major Details:
+                                    </p>
+                                    <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
+                                        {selectedMajor?.name}
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         <DialogFooter className="border-t border-gray-200 pt-3">
@@ -1376,9 +1567,14 @@ export default function MajorView() {
                             </Button>
                             <Button
                                 onClick={handleDeleteMajor}
-                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                                disabled={
+                                    hasAssignedCourses || isCheckingAssignments
+                                }
+                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                Delete
+                                {hasAssignedCourses
+                                    ? "Cannot Delete"
+                                    : "Delete"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
