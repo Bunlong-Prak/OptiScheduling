@@ -185,15 +185,15 @@ export default function TimeConstraintView() {
                     : "bg-red-50 border-red-500 text-red-800"
             }`}
         >
-            <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
+            <div className='flex items-start justify-between'>
+                <div className='flex items-start gap-3'>
                     {message.type === "success" ? (
-                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                        <CheckCircle className='h-5 w-5 text-green-600 flex-shrink-0 mt-0.5' />
                     ) : (
-                        <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <XCircle className='h-5 w-5 text-red-600 flex-shrink-0 mt-0.5' />
                     )}
                     <div>
-                        <p className="text-sm mt-1 opacity-90">
+                        <p className='text-sm mt-1 opacity-90'>
                             {message.description}
                         </p>
                     </div>
@@ -206,7 +206,7 @@ export default function TimeConstraintView() {
                             : "hover:bg-red-600"
                     }`}
                 >
-                    <X className="h-4 w-4" />
+                    <X className='h-4 w-4' />
                 </button>
             </div>
         </div>
@@ -426,6 +426,57 @@ export default function TimeConstraintView() {
             ...enhancedFormData,
             dayConstraints: updatedDayConstraints,
         });
+    };
+
+    const selectAllTimeSlots = (day: string) => {
+        const dayIndex = enhancedFormData.dayConstraints.findIndex(
+            (d) => d.day === day
+        );
+
+        if (dayIndex === -1) return;
+
+        const allTimeSlots = timeSlots;
+
+        // Set all time slots for the selected day
+        const updatedDayConstraints = [...enhancedFormData.dayConstraints];
+        updatedDayConstraints[dayIndex].timeSlots = allTimeSlots;
+
+        setEnhancedFormData({
+            ...enhancedFormData,
+            dayConstraints: updatedDayConstraints,
+        });
+    };
+
+    const unselectAllTimeSlots = (day: string) => {
+        const dayIndex = enhancedFormData.dayConstraints.findIndex(
+            (d) => d.day === day
+        );
+
+        if (dayIndex === -1) return;
+
+        // Set all time slots for the selected day
+        const updatedDayConstraints = [...enhancedFormData.dayConstraints];
+        updatedDayConstraints[dayIndex].timeSlots = [];
+
+        setEnhancedFormData({
+            ...enhancedFormData,
+            dayConstraints: updatedDayConstraints,
+        });
+    };
+
+    const checkIfAllTimeSlotsSelected = (day: string) => {
+        const dayIndex = enhancedFormData.dayConstraints.findIndex(
+            (d) => d.day === day
+        );
+
+        if (dayIndex === -1) return;
+
+        if (
+            enhancedFormData.dayConstraints[dayIndex].timeSlots.length ===
+            timeSlots.length
+        ) {
+            return true; // All time slots are selected
+        }
     };
 
     // Remove a time slot from a day
@@ -805,8 +856,8 @@ export default function TimeConstraintView() {
         <>
             {/* Messages - OUTSIDE the main content flow */}
             {messages.length > 0 && (
-                <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
-                    <div className="pointer-events-auto space-y-2">
+                <div className='fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none'>
+                    <div className='pointer-events-auto space-y-2'>
                         {messages.map((message) => (
                             <MessageBanner key={message.id} message={message} />
                         ))}
@@ -815,55 +866,55 @@ export default function TimeConstraintView() {
             )}
             {/* Messages - OUTSIDE the main content flow */}
             {messages.length > 0 && (
-                <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
-                    <div className="pointer-events-auto space-y-2">
+                <div className='fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none'>
+                    <div className='pointer-events-auto space-y-2'>
                         {messages.map((message) => (
                             <MessageBanner key={message.id} message={message} />
                         ))}
                     </div>
                 </div>
             )}
-            <div className="space-y-4">
+            <div className='space-y-4'>
                 {/* Page Header */}
-                <div className="flex justify-between items-center">
+                <div className='flex justify-between items-center'>
                     <div>
-                        <h2 className="text-lg font-semibold text-gray-900">
+                        <h2 className='text-lg font-semibold text-gray-900'>
                             Time Constraints
                         </h2>
-                        <p className="text-xs text-gray-600">
+                        <p className='text-xs text-gray-600'>
                             Manage instructor availability and time restrictions
                         </p>
                     </div>
                     <Button
                         onClick={() => setIsAddDialogOpen(true)}
-                        className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors"
+                        className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors'
                     >
-                        <Plus className="mr-1 h-3 w-3" /> Add Constraint
+                        <Plus className='mr-1 h-3 w-3' /> Add Constraint
                     </Button>
                 </div>
 
                 {!isLoading && groupedConstraints.length === 0 ? (
-                    <div className="bg-white rounded border border-gray-200 p-12 text-center shadow-sm">
-                        <div className="text-gray-500 mb-2">
+                    <div className='bg-white rounded border border-gray-200 p-12 text-center shadow-sm'>
+                        <div className='text-gray-500 mb-2'>
                             No time constraints added yet
                         </div>
-                        <div className="text-sm text-gray-400">
+                        <div className='text-sm text-gray-400'>
                             Add constraints to manage instructor availability.
                         </div>
                     </div>
                 ) : (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
                             {paginatedGroupedConstraints.map(
                                 (groupedConstraint) => (
                                     <Card
                                         key={groupedConstraint.instructor_id}
-                                        className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                                        className='bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow'
                                     >
-                                        <CardContent className="p-4">
+                                        <CardContent className='p-4'>
                                             {/* Instructor header */}
-                                            <div className="mb-3 pb-2 border-b border-gray-200">
-                                                <h3 className="font-semibold text-sm text-gray-900">
+                                            <div className='mb-3 pb-2 border-b border-gray-200'>
+                                                <h3 className='font-semibold text-sm text-gray-900'>
                                                     {
                                                         groupedConstraint.firstName
                                                     }{" "}
@@ -872,7 +923,7 @@ export default function TimeConstraintView() {
                                             </div>
 
                                             {/* Day constraints */}
-                                            <div className="space-y-3">
+                                            <div className='space-y-3'>
                                                 {groupedConstraint.dayConstraints
                                                     .slice()
                                                     .sort(
@@ -887,15 +938,15 @@ export default function TimeConstraintView() {
                                                     .map((dayConstraint) => (
                                                         <div
                                                             key={`${groupedConstraint.instructor_id}-${dayConstraint.day}`}
-                                                            className="flex justify-between items-start p-2 bg-gray-50 rounded border"
+                                                            className='flex justify-between items-start p-2 bg-gray-50 rounded border'
                                                         >
-                                                            <div className="flex-1">
-                                                                <p className="text-xs font-semibold text-gray-700 mb-2">
+                                                            <div className='flex-1'>
+                                                                <p className='text-xs font-semibold text-gray-700 mb-2'>
                                                                     {
                                                                         dayConstraint.day
                                                                     }
                                                                 </p>
-                                                                <div className="flex flex-wrap gap-1">
+                                                                <div className='flex flex-wrap gap-1'>
                                                                     {dayConstraint.timeSlots.map(
                                                                         (
                                                                             time,
@@ -905,10 +956,10 @@ export default function TimeConstraintView() {
                                                                                 key={
                                                                                     index
                                                                                 }
-                                                                                variant="outline"
-                                                                                className="text-xs bg-white border-gray-300"
+                                                                                variant='outline'
+                                                                                className='text-xs bg-white border-gray-300'
                                                                             >
-                                                                                <Clock className="h-2 w-2 mr-1" />
+                                                                                <Clock className='h-2 w-2 mr-1' />
                                                                                 {
                                                                                     time
                                                                                 }
@@ -917,11 +968,11 @@ export default function TimeConstraintView() {
                                                                     )}
                                                                 </div>
                                                             </div>
-                                                            <div className="flex gap-1 ml-2">
+                                                            <div className='flex gap-1 ml-2'>
                                                                 <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                                    variant='ghost'
+                                                                    size='icon'
+                                                                    className='h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100'
                                                                     onClick={() =>
                                                                         openEditDialog(
                                                                             groupedConstraint.instructor_id,
@@ -930,12 +981,12 @@ export default function TimeConstraintView() {
                                                                         )
                                                                     }
                                                                 >
-                                                                    <Pencil className="h-3 w-3" />
+                                                                    <Pencil className='h-3 w-3' />
                                                                 </Button>
                                                                 <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                                    variant='ghost'
+                                                                    size='icon'
+                                                                    className='h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50'
                                                                     onClick={() =>
                                                                         openDeleteDialog(
                                                                             groupedConstraint,
@@ -943,7 +994,7 @@ export default function TimeConstraintView() {
                                                                         )
                                                                     }
                                                                 >
-                                                                    <Trash className="h-3 w-3" />
+                                                                    <Trash className='h-3 w-3' />
                                                                 </Button>
                                                             </div>
                                                         </div>
@@ -957,7 +1008,7 @@ export default function TimeConstraintView() {
 
                         {/* Pagination */}
                         {groupedConstraints.length > 0 && (
-                            <div className="flex justify-center">
+                            <div className='flex justify-center'>
                                 <CustomPagination
                                     currentPage={currentPage}
                                     totalPages={totalPages}
@@ -974,28 +1025,28 @@ export default function TimeConstraintView() {
                     open={isAddDialogOpen}
                     onOpenChange={setIsAddDialogOpen}
                 >
-                    <DialogContent className="bg-white max-w-4xl max-h-[85vh] overflow-y-auto">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-4xl max-h-[85vh] overflow-y-auto'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Add Time Constraint
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="py-4 space-y-4">
-                            <div className="space-y-2">
+                        <div className='py-4 space-y-4'>
+                            <div className='space-y-2'>
                                 <Label
-                                    htmlFor="instructor_id"
-                                    className="text-sm font-medium text-gray-700"
+                                    htmlFor='instructor_id'
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Instructor
                                 </Label>
                                 <Popover open={open} onOpenChange={setOpen}>
                                     <PopoverTrigger asChild>
                                         <Button
-                                            variant="outline"
-                                            role="combobox"
+                                            variant='outline'
+                                            role='combobox'
                                             aria-expanded={open}
-                                            className="w-full justify-between border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                            className='w-full justify-between border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm'
                                         >
                                             {enhancedFormData.instructor_id
                                                 ? instructors.find(
@@ -1010,17 +1061,17 @@ export default function TimeConstraintView() {
                                                           enhancedFormData.instructor_id
                                                   )?.last_name
                                                 : "Select instructor..."}
-                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
                                         </Button>
                                     </PopoverTrigger>
                                     <PopoverContent
-                                        className="w-full p-0"
-                                        align="start"
+                                        className='w-full p-0'
+                                        align='start'
                                     >
                                         <Command>
                                             <CommandInput
-                                                placeholder="Search instructors..."
-                                                className="h-9"
+                                                placeholder='Search instructors...'
+                                                className='h-9'
                                             />
                                             <CommandList>
                                                 <CommandEmpty>
@@ -1070,11 +1121,11 @@ export default function TimeConstraintView() {
 
                             {/* Day selection with checkboxes */}
                             {/* Day selection with checkboxes */}
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-gray-700">
+                            <div className='space-y-2'>
+                                <Label className='text-sm font-medium text-gray-700'>
                                     Days
                                 </Label>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2'>
                                     {enhancedFormData.dayConstraints.map(
                                         (dayConstraint, index) => (
                                             <div
@@ -1107,12 +1158,12 @@ export default function TimeConstraintView() {
                                                 />
                                                 <label
                                                     htmlFor={`day-${dayConstraint.day}`}
-                                                    className="text-sm font-medium text-gray-700 cursor-pointer flex-1"
+                                                    className='text-sm font-medium text-gray-700 cursor-pointer flex-1'
                                                 >
                                                     {dayConstraint.day}
                                                 </label>
                                                 {dayConstraint.selected && (
-                                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                                    <div className='w-2 h-2 bg-blue-500 rounded-full'></div>
                                                 )}
                                             </div>
                                         )
@@ -1124,8 +1175,8 @@ export default function TimeConstraintView() {
                             {enhancedFormData.dayConstraints.some(
                                 (day) => day.selected
                             ) && (
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-700">
+                                <div className='space-y-2'>
+                                    <Label className='text-sm font-medium text-gray-700'>
                                         Time Slots by Day
                                     </Label>
                                     <Tabs
@@ -1135,21 +1186,21 @@ export default function TimeConstraintView() {
                                             )?.day
                                         }
                                     >
-                                        <TabsList className="w-full flex overflow-x-auto bg-gray-100">
+                                        <TabsList className='w-full flex overflow-x-auto bg-gray-100'>
                                             {enhancedFormData.dayConstraints
                                                 .filter((day) => day.selected)
                                                 .map((day) => (
                                                     <TabsTrigger
                                                         key={day.day}
                                                         value={day.day}
-                                                        className="flex-1 text-xs"
+                                                        className='flex-1 text-xs'
                                                     >
                                                         {day.day}
                                                         {day.timeSlots.length >
                                                             0 && (
                                                             <Badge
-                                                                variant="secondary"
-                                                                className="ml-1 text-xs"
+                                                                variant='secondary'
+                                                                className='ml-1 text-xs'
                                                             >
                                                                 {
                                                                     day
@@ -1161,7 +1212,6 @@ export default function TimeConstraintView() {
                                                     </TabsTrigger>
                                                 ))}
                                         </TabsList>
-
                                         {enhancedFormData.dayConstraints
                                             .filter((day) => day.selected)
                                             .map((day) => {
@@ -1174,10 +1224,10 @@ export default function TimeConstraintView() {
                                                     <TabsContent
                                                         key={day.day}
                                                         value={day.day}
-                                                        className="mt-2"
+                                                        className='mt-2'
                                                     >
-                                                        <div className="border border-gray-200 rounded p-3 bg-white">
-                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                        <div className='border border-gray-200 rounded p-3 bg-white'>
+                                                            <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
                                                                 {timeSlots.map(
                                                                     (slot) => {
                                                                         const isAvailable =
@@ -1243,24 +1293,23 @@ export default function TimeConstraintView() {
                                                                                     }
                                                                                 </label>
                                                                                 {isSelected && (
-                                                                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                                                                    <div className='w-2 h-2 bg-blue-500 rounded-full'></div>
                                                                                 )}
                                                                             </div>
                                                                         );
                                                                     }
                                                                 )}
                                                             </div>
-
                                                             {/* Show selected time slots */}
                                                             {day.timeSlots
                                                                 .length > 0 && (
-                                                                <div className="mt-4 pt-4 border-t border-gray-200">
-                                                                    <Label className="text-xs text-gray-600">
+                                                                <div className='mt-4 pt-4 border-t border-gray-200'>
+                                                                    <Label className='text-xs text-gray-600'>
                                                                         Selected
                                                                         Time
                                                                         Slots:
                                                                     </Label>
-                                                                    <div className="flex flex-wrap gap-1 mt-2">
+                                                                    <div className='flex flex-wrap gap-1 mt-2'>
                                                                         {day.timeSlots.map(
                                                                             (
                                                                                 slot,
@@ -1270,13 +1319,13 @@ export default function TimeConstraintView() {
                                                                                     key={
                                                                                         index
                                                                                     }
-                                                                                    className="flex items-center gap-1 pr-1 text-xs bg-[#2F2F85] hover:bg-[#3F3F8F]"
+                                                                                    className='flex items-center gap-1 pr-1 text-xs bg-[#2F2F85] hover:bg-[#3F3F8F]'
                                                                                 >
                                                                                     {
                                                                                         slot
                                                                                     }
                                                                                     <X
-                                                                                        className="h-2 w-2 cursor-pointer ml-1 hover:text-red-200"
+                                                                                        className='h-2 w-2 cursor-pointer ml-1 hover:text-red-200'
                                                                                         onClick={() =>
                                                                                             removeTimeSlot(
                                                                                                 actualDayIndex,
@@ -1290,6 +1339,26 @@ export default function TimeConstraintView() {
                                                                     </div>
                                                                 </div>
                                                             )}
+                                                            <Button
+                                                                className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 mt-2'
+                                                                onClick={() => {
+                                                                    checkIfAllTimeSlotsSelected(
+                                                                        day.day
+                                                                    )
+                                                                        ? unselectAllTimeSlots(
+                                                                              day.day
+                                                                          )
+                                                                        : selectAllTimeSlots(
+                                                                              day.day
+                                                                          );
+                                                                }}
+                                                            >
+                                                                {checkIfAllTimeSlotsSelected(
+                                                                    day.day
+                                                                )
+                                                                    ? "Unselect All Time Slots"
+                                                                    : "Select All Time Slots"}
+                                                            </Button>
                                                         </div>
                                                     </TabsContent>
                                                 );
@@ -1299,14 +1368,14 @@ export default function TimeConstraintView() {
                             )}
                         </div>
 
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => {
                                     setIsAddDialogOpen(false);
                                     resetForm();
                                 }}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
@@ -1317,7 +1386,7 @@ export default function TimeConstraintView() {
                                     !enhancedFormData.instructor_id ||
                                     getSelectedDaysCount() === 0
                                 }
-                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                                className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5'
                             >
                                 {isLoading
                                     ? "Adding..."
@@ -1335,18 +1404,18 @@ export default function TimeConstraintView() {
                     open={isEditDialogOpen}
                     onOpenChange={setIsEditDialogOpen}
                 >
-                    <DialogContent className="bg-white max-w-4xl max-h-[85vh] overflow-y-auto">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-4xl max-h-[85vh] overflow-y-auto'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Edit Time Constraint
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="py-4 space-y-4">
-                            <div className="space-y-2">
+                        <div className='py-4 space-y-4'>
+                            <div className='space-y-2'>
                                 <Label
-                                    htmlFor="edit-instructor_id"
-                                    className="text-sm font-medium text-gray-700"
+                                    htmlFor='edit-instructor_id'
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Instructor
                                 </Label>
@@ -1355,8 +1424,8 @@ export default function TimeConstraintView() {
                                     onValueChange={handleInstructorChange}
                                     disabled={true}
                                 >
-                                    <SelectTrigger className="border-gray-300 text-sm bg-gray-50">
-                                        <SelectValue placeholder="Select instructor" />
+                                    <SelectTrigger className='border-gray-300 text-sm bg-gray-50'>
+                                        <SelectValue placeholder='Select instructor' />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {instructors.map((instructor) => (
@@ -1373,49 +1442,13 @@ export default function TimeConstraintView() {
                             </div>
 
                             {/* Day selection with checkboxes */}
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-gray-700">
-                                    Days
-                                </Label>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 border border-gray-200 rounded p-3 bg-gray-50">
-                                    {enhancedFormData.dayConstraints.map(
-                                        (dayConstraint, index) => (
-                                            <div
-                                                key={dayConstraint.day}
-                                                className="flex items-center space-x-2"
-                                            >
-                                                <Checkbox
-                                                    id={`edit-day-${dayConstraint.day}`}
-                                                    checked={
-                                                        dayConstraint.selected
-                                                    }
-                                                    onCheckedChange={(
-                                                        checked
-                                                    ) =>
-                                                        handleDaySelection(
-                                                            index,
-                                                            checked as boolean
-                                                        )
-                                                    }
-                                                />
-                                                <label
-                                                    htmlFor={`edit-day-${dayConstraint.day}`}
-                                                    className="text-xs font-medium text-gray-700"
-                                                >
-                                                    {dayConstraint.day}
-                                                </label>
-                                            </div>
-                                        )
-                                    )}
-                                </div>
-                            </div>
 
                             {/* Tabs for each selected day */}
                             {enhancedFormData.dayConstraints.some(
                                 (day) => day.selected
                             ) && (
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-700">
+                                <div className='space-y-2'>
+                                    <Label className='text-sm font-medium text-gray-700'>
                                         Time Slots by Day
                                     </Label>
                                     <Tabs
@@ -1425,21 +1458,21 @@ export default function TimeConstraintView() {
                                             )?.day
                                         }
                                     >
-                                        <TabsList className="w-full flex overflow-x-auto bg-gray-100">
+                                        <TabsList className='w-full flex overflow-x-auto bg-gray-100'>
                                             {enhancedFormData.dayConstraints
                                                 .filter((day) => day.selected)
                                                 .map((day) => (
                                                     <TabsTrigger
                                                         key={day.day}
                                                         value={day.day}
-                                                        className="flex-1 text-xs"
+                                                        className='flex-1 text-xs'
                                                     >
                                                         {day.day}
                                                         {day.timeSlots.length >
                                                             0 && (
                                                             <Badge
-                                                                variant="secondary"
-                                                                className="ml-1 text-xs"
+                                                                variant='secondary'
+                                                                className='ml-1 text-xs'
                                                             >
                                                                 {
                                                                     day
@@ -1464,10 +1497,10 @@ export default function TimeConstraintView() {
                                                     <TabsContent
                                                         key={day.day}
                                                         value={day.day}
-                                                        className="mt-2"
+                                                        className='mt-2'
                                                     >
-                                                        <div className="border border-gray-200 rounded p-3 bg-white">
-                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                        <div className='border border-gray-200 rounded p-3 bg-white'>
+                                                            <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
                                                                 {timeSlots.map(
                                                                     (slot) => {
                                                                         const isAvailable =
@@ -1533,7 +1566,7 @@ export default function TimeConstraintView() {
                                                                                     }
                                                                                 </label>
                                                                                 {isSelected && (
-                                                                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                                                                    <div className='w-2 h-2 bg-blue-500 rounded-full'></div>
                                                                                 )}
                                                                             </div>
                                                                         );
@@ -1544,13 +1577,13 @@ export default function TimeConstraintView() {
                                                             {/* Show selected time slots */}
                                                             {day.timeSlots
                                                                 .length > 0 && (
-                                                                <div className="mt-4 pt-4 border-t border-gray-200">
-                                                                    <Label className="text-xs text-gray-600">
+                                                                <div className='mt-4 pt-4 border-t border-gray-200'>
+                                                                    <Label className='text-xs text-gray-600'>
                                                                         Selected
                                                                         Time
                                                                         Slots:
                                                                     </Label>
-                                                                    <div className="flex flex-wrap gap-1 mt-2">
+                                                                    <div className='flex flex-wrap gap-1 mt-2'>
                                                                         {day.timeSlots.map(
                                                                             (
                                                                                 slot,
@@ -1560,13 +1593,13 @@ export default function TimeConstraintView() {
                                                                                     key={
                                                                                         index
                                                                                     }
-                                                                                    className="flex items-center gap-1 pr-1 text-xs bg-[#2F2F85] hover:bg-[#3F3F8F]"
+                                                                                    className='flex items-center gap-1 pr-1 text-xs bg-[#2F2F85] hover:bg-[#3F3F8F]'
                                                                                 >
                                                                                     {
                                                                                         slot
                                                                                     }
                                                                                     <X
-                                                                                        className="h-2 w-2 cursor-pointer ml-1 hover:text-red-200"
+                                                                                        className='h-2 w-2 cursor-pointer ml-1 hover:text-red-200'
                                                                                         onClick={() =>
                                                                                             removeTimeSlot(
                                                                                                 actualDayIndex,
@@ -1580,6 +1613,26 @@ export default function TimeConstraintView() {
                                                                     </div>
                                                                 </div>
                                                             )}
+                                                            <Button
+                                                                className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 mt-2'
+                                                                onClick={() => {
+                                                                    checkIfAllTimeSlotsSelected(
+                                                                        day.day
+                                                                    )
+                                                                        ? unselectAllTimeSlots(
+                                                                              day.day
+                                                                          )
+                                                                        : selectAllTimeSlots(
+                                                                              day.day
+                                                                          );
+                                                                }}
+                                                            >
+                                                                {checkIfAllTimeSlotsSelected(
+                                                                    day.day
+                                                                )
+                                                                    ? "Unselect All Time Slots"
+                                                                    : "Select All Time Slots"}
+                                                            </Button>
                                                         </div>
                                                     </TabsContent>
                                                 );
@@ -1589,15 +1642,15 @@ export default function TimeConstraintView() {
                             )}
                         </div>
 
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => {
                                     setIsEditDialogOpen(false);
                                     resetForm();
                                 }}
                                 disabled={isLoading}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
@@ -1608,7 +1661,7 @@ export default function TimeConstraintView() {
                                     !enhancedFormData.instructor_id ||
                                     getSelectedDaysCount() === 0
                                 }
-                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                                className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5'
                             >
                                 {isLoading ? "Saving..." : "Save Changes"}
                             </Button>
@@ -1621,26 +1674,26 @@ export default function TimeConstraintView() {
                     open={isDeleteDialogOpen}
                     onOpenChange={setIsDeleteDialogOpen}
                 >
-                    <DialogContent className="bg-white max-w-md">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-md'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Delete Time Constraint
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="py-4">
-                            <p className="text-sm text-gray-600 mb-2">
+                        <div className='py-4'>
+                            <p className='text-sm text-gray-600 mb-2'>
                                 Are you sure you want to delete this time
                                 constraint?
                             </p>
                             {selectedGroupedConstraint && selectedDay && (
-                                <div className="bg-gray-50 p-3 rounded border">
-                                    <p className="font-medium text-sm text-gray-900 mb-2">
+                                <div className='bg-gray-50 p-3 rounded border'>
+                                    <p className='font-medium text-sm text-gray-900 mb-2'>
                                         {selectedGroupedConstraint.firstName}{" "}
                                         {selectedGroupedConstraint.lastName} -{" "}
                                         {selectedDay}
                                     </p>
-                                    <div className="flex flex-wrap gap-1">
+                                    <div className='flex flex-wrap gap-1'>
                                         {selectedGroupedConstraint.dayConstraints
                                             .find(
                                                 (dc) => dc.day === selectedDay
@@ -1648,8 +1701,8 @@ export default function TimeConstraintView() {
                                             ?.timeSlots.map((time, index) => (
                                                 <Badge
                                                     key={index}
-                                                    variant="outline"
-                                                    className="text-xs"
+                                                    variant='outline'
+                                                    className='text-xs'
                                                 >
                                                     {time}
                                                 </Badge>
@@ -1657,28 +1710,28 @@ export default function TimeConstraintView() {
                                     </div>
                                 </div>
                             )}
-                            <p className="text-xs text-gray-500 mt-2">
+                            <p className='text-xs text-gray-500 mt-2'>
                                 This action cannot be undone.
                             </p>
                         </div>
 
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => {
                                     setIsDeleteDialogOpen(false);
                                     setSelectedGroupedConstraint(null);
                                     setSelectedDay(null);
                                 }}
                                 disabled={isLoading}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
                             <Button
                                 onClick={handleDeleteConstraint}
                                 disabled={isLoading}
-                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                                className='bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5'
                             >
                                 {isLoading ? "Deleting..." : "Delete"}
                             </Button>
