@@ -1,6 +1,6 @@
 "use client";
 
-import { Classroom, Course, Instructor, Major } from "@/app/types";
+import { ClassroomType, Course, Instructor, Major } from "@/app/types";
 import {
     colors,
     getColorName,
@@ -70,6 +70,7 @@ export default function CoursesView() {
     // State variables
     const [courses, setCourses] = useState<Course[]>([]);
     const [majors, setMajors] = useState<Major[]>([]);
+    const [classroomTypes, setClassroomTypes] = useState<ClassroomType[]>([]);
     const [instructors, setInstructors] = useState<Instructor[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -96,6 +97,7 @@ export default function CoursesView() {
             status: string;
             splitDurations: number[];
             showSplitControls: boolean;
+            preferClassRoomType: ClassroomType | null;
         }[]
     >([]);
 
@@ -337,6 +339,12 @@ export default function CoursesView() {
 
     const params = useParams();
 
+    const findClassRoomTypeById = (
+        id: number | undefined
+    ): ClassroomType | undefined => {
+        return id ? classroomTypes.find((type) => type.id === id) : undefined;
+    };
+
     const fetchData = async () => {
         try {
             // Fetch courses
@@ -387,6 +395,7 @@ export default function CoursesView() {
                         classroom: courseHour.classroom,
                         separatedDurations: [courseHour.separatedDuration],
                         courseHours: [],
+                        preferClassRoomTypeId: courseHour.preferClassRoomTypeId,
                     });
                 } else {
                     // Always add separated duration to existing section
@@ -415,11 +424,11 @@ export default function CoursesView() {
                                 total + duration,
                             0
                         );
-
                     return {
                         ...course,
                         combinedSeparatedDuration,
                         separatedDuration: course.separatedDurations[0],
+                        preferClassRoomTypeId: course.preferClassRoomTypeId,
                     };
                 }
             );
@@ -440,9 +449,11 @@ export default function CoursesView() {
 
             // Fetch majors data
             if (scheduleId !== undefined) {
-                await fetchMajors(scheduleId);
-                // Fetch instructors data
-                await fetchInstructors(scheduleId);
+                await Promise.allSettled([
+                    fetchMajors(scheduleId),
+                    fetchInstructors(scheduleId),
+                    fetchClassroomTypes(scheduleId),
+                ]);
             }
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -474,6 +485,26 @@ export default function CoursesView() {
             showErrorMessage(
                 "Failed to Load Majors",
                 "Failed to load majors. Please try again."
+            );
+        }
+    };
+
+    const fetchClassroomTypes = async (scheduleId: string | string[]) => {
+        try {
+            const response = await fetch(
+                `/api/classroom-types?scheduleId=${scheduleId}`
+            );
+            if (!response.ok) {
+                throw new Error("Failed to fetch classroom types");
+            }
+            const data = await response.json();
+            console.log("Classroom types data:", data);
+            setClassroomTypes(data);
+        } catch (error) {
+            console.error("Error fetching classroom types:", error);
+            showErrorMessage(
+                "Failed to Load Classroom Types",
+                "Could not load classroom types. Please try again."
             );
         }
     };
@@ -720,6 +751,7 @@ export default function CoursesView() {
             status: "offline",
             showSplitControls: false,
             splitDurations: [Number(formData.duration) || 1],
+            preferClassRoomType: null, // Default to null, can be updated later
         };
 
         setSections((prevSections) => [...prevSections, newSection]);
@@ -757,6 +789,23 @@ export default function CoursesView() {
             )
         );
         setFormData({ ...formData });
+    };
+
+    const updateSectionPreferClassroomType = (
+        sectionId: number,
+        classRoomType: ClassroomType
+    ) => {
+        console.log("Updating classroom type:", sectionId, classRoomType);
+        setSections(
+            sections.map((section) =>
+                section.id === sectionId
+                    ? {
+                          ...section,
+                          preferClassRoomType: classRoomType,
+                      }
+                    : section
+            )
+        );
     };
 
     // Add this function after updateSectionInstructor
@@ -857,6 +906,7 @@ export default function CoursesView() {
                           separatedDuration: formatDecimal(duration),
                       }))
                     : [{ separatedDuration: formatDecimal(formData.duration) }],
+                preferClassRoomType: item.preferClassRoomType || null,
             }));
 
             // Create API payload with the base course data, the major, and schedule ID
@@ -977,6 +1027,7 @@ export default function CoursesView() {
                               separatedDuration: duration,
                           }))
                         : [{ separatedDuration: formData.duration }],
+                    preferClassRoomType: item.preferClassRoomType || null,
                 })),
             };
 
@@ -1123,7 +1174,14 @@ export default function CoursesView() {
         if (isAddDialogOpen || isEditDialogOpen) {
             validateForm();
         }
-    }, [isAddDialogOpen, isEditDialogOpen, courses, majors, instructors]);
+    }, [
+        isAddDialogOpen,
+        isEditDialogOpen,
+        courses,
+        majors,
+        instructors,
+        classroomTypes,
+    ]);
 
     // Instructor validation helper
     const getInstructorValidationMessage = () => {
@@ -1165,6 +1223,8 @@ export default function CoursesView() {
             hasSeparatedDurations &&
             (course as any).separatedDurations.length > 1;
 
+        console.log("Course in open edit dialog:", course);
+
         // Initialize with existing section data, including separated durations
         const editSection = {
             id: 1,
@@ -1178,6 +1238,9 @@ export default function CoursesView() {
                 ? (course as any).separatedDurations
                 : [courseDuration],
             showSplitControls: shouldShowSplitControls,
+            preferClassRoomType: findClassRoomTypeById(
+                course.preferClassRoomTypeId
+            ),
         };
 
         console.log("Opening edit dialog with section:", editSection);
@@ -3030,6 +3093,72 @@ export default function CoursesView() {
                                                         </PopoverContent>
                                                     </Popover>
                                                 </div>
+                                                <div className="mt-2">
+                                                    <Label className="text-xs text-gray-700">
+                                                        Preferred Classroom Type
+                                                    </Label>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                variant="outline"
+                                                                role="combobox"
+                                                                className="w-full justify-between mt-1 text-sm border-gray-300"
+                                                            >
+                                                                {section
+                                                                    .preferClassRoomType
+                                                                    ?.name ||
+                                                                    "Select classroom type..."}
+                                                                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-full p-0">
+                                                            <Command>
+                                                                <CommandInput placeholder="Search classroom type..." />
+                                                                <CommandEmpty>
+                                                                    No classroom
+                                                                    type found.
+                                                                </CommandEmpty>
+                                                                <CommandGroup>
+                                                                    {classroomTypes.map(
+                                                                        (
+                                                                            classroomType
+                                                                        ) => (
+                                                                            <CommandItem
+                                                                                key={
+                                                                                    classroomType.id
+                                                                                }
+                                                                                value={
+                                                                                    classroomType.name
+                                                                                }
+                                                                                onSelect={() => {
+                                                                                    updateSectionPreferClassroomType(
+                                                                                        section.id,
+                                                                                        classroomType
+                                                                                    );
+                                                                                }}
+                                                                            >
+                                                                                <Check
+                                                                                    className={`mr-2 h-3 w-3 ${
+                                                                                        section.preferClassRoomType &&
+                                                                                        section
+                                                                                            .preferClassRoomType
+                                                                                            .id ===
+                                                                                            classroomType.id
+                                                                                            ? "opacity-100"
+                                                                                            : "opacity-0"
+                                                                                    }`}
+                                                                                />
+                                                                                {
+                                                                                    classroomType.name
+                                                                                }
+                                                                            </CommandItem>
+                                                                        )
+                                                                    )}
+                                                                </CommandGroup>
+                                                            </Command>
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                </div>
 
                                                 {/* Split Duration Controls */}
                                                 <div className='mt-4 mb-4 space-y-3'>
@@ -3996,6 +4125,72 @@ export default function CoursesView() {
                                                                                 }{" "}
                                                                                 {
                                                                                     instructor.last_name
+                                                                                }
+                                                                            </CommandItem>
+                                                                        )
+                                                                    )}
+                                                                </CommandGroup>
+                                                            </Command>
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                </div>
+                                                <div className="mt-2">
+                                                    <Label className="text-xs text-gray-700">
+                                                        Preferred Classroom Type
+                                                    </Label>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                variant="outline"
+                                                                role="combobox"
+                                                                className="w-full justify-between mt-1 text-sm border-gray-300"
+                                                            >
+                                                                {section
+                                                                    .preferClassRoomType
+                                                                    ?.name ||
+                                                                    "Select classroom type..."}
+                                                                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-full p-0">
+                                                            <Command>
+                                                                <CommandInput placeholder="Search classroom type..." />
+                                                                <CommandEmpty>
+                                                                    No classroom
+                                                                    type found.
+                                                                </CommandEmpty>
+                                                                <CommandGroup>
+                                                                    {classroomTypes.map(
+                                                                        (
+                                                                            classroomType
+                                                                        ) => (
+                                                                            <CommandItem
+                                                                                key={
+                                                                                    classroomType.id
+                                                                                }
+                                                                                value={
+                                                                                    classroomType.name
+                                                                                }
+                                                                                onSelect={() => {
+                                                                                    updateSectionPreferClassroomType(
+                                                                                        section.id,
+                                                                                        classroomType
+                                                                                    );
+                                                                                }}
+                                                                            >
+                                                                                <Check
+                                                                                    className={`mr-2 h-3 w-3 ${
+                                                                                        section.preferClassRoomType &&
+                                                                                        section
+                                                                                            .preferClassRoomType
+                                                                                            .id ===
+                                                                                            classroomType.id
+                                                                                            ? "opacity-100"
+                                                                                            : "opacity-0"
+                                                                                    }`}
+                                                                                />
+                                                                                {
+                                                                                    classroomType.name
                                                                                 }
                                                                             </CommandItem>
                                                                         )

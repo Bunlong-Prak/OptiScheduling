@@ -1,0 +1,1 @@
+ALTER TABLE `sections` ADD `prefer_classroom_id` int;

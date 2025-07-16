@@ -40,6 +40,7 @@ export type Instructor = {
 export type Section = {
     id: number;
     number: number;
+    preferClassRoomId: number | null; // Allow null for no preference
 };
 
 export type TimeConstraint = {
@@ -68,6 +69,7 @@ export type Course = {
     section: string;
     classroom: string;
     status: string; // "active" or "inactive"
+    preferClassRoomTypeId?: number; // Optional field for preferred classroom type
 };
 
 // export type Schedule = {

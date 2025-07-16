@@ -21,6 +21,11 @@ const sectionSchema = z.object({
         .optional() // Make it optional
         .or(z.literal(null)), // Allow null values
     status: z.enum(["online", "offline"]).default("offline"),
+    preferClassRoomType: z.object({
+        id: z.number().optional(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+    }).optional(),
     splitDurations: z
         .array(
             z.object({
@@ -145,6 +150,7 @@ export async function GET(request: Request) {
                 separatedDuration: courseHours.separatedDuration, // This is now unique per courseHours.id
                 day: courseHours.day, // Include day information
                 timeSlot: courseHours.timeSlot, // Include time slot information
+                preferClassRoomTypeId: sections.preferClassRoomId,
             })
             .from(courseHours) // Start from courseHours to ensure unique records
             .innerJoin(sections, eq(courseHours.sectionId, sections.id))
@@ -280,6 +286,7 @@ export async function POST(request: Request) {
                 number: section,
                 courseId: newCourse.id,
                 status: status || "offline", // Default to offline if not provided
+                preferClassRoomId: sectionData.preferClassRoomType?.id || null, // Allow null for no preference
             };
 
             // Add instructor if provided
@@ -299,6 +306,7 @@ export async function POST(request: Request) {
                     id: sections.id,
                     number: sections.number,
                     status: sections.status,
+                    preferClassRoomId: sections.preferClassRoomId,
                 })
                 .from(sections)
                 .where(
@@ -467,7 +475,7 @@ export async function PATCH(request: Request) {
         // STEP 2: Update existing sections and create new sections
         if (sectionsList && sectionsList.length > 0) {
             for (const sectionData of sectionsList) {
-                const { section, instructorId, status, splitDurations } =
+                const { section, instructorId, status, splitDurations, preferClassRoomType } =
                     sectionData;
 
                 // Check if section with this number already exists for this course
@@ -491,6 +499,7 @@ export async function PATCH(request: Request) {
                     const sectionUpdateData: any = {
                         number: section,
                         status: status || "offline",
+                        preferClassRoomId: preferClassRoomType?.id || null, // Allow null for no preference
                     };
 
                     // Handle instructor assignment/removal

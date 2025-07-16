@@ -99,6 +99,7 @@ export const sections = mysqlTable("sections", {
     status: varchar("status", { length: 50 }),
     courseId: int("course_id").notNull(),
     instructorId: int("instructor_id"),
+    preferClassRoomId: int("prefer_classroom_id"),
 });
 
 export const sectionRelations = relations(sections, ({ many }) => ({
@@ -140,6 +141,7 @@ export const classroomTypes = mysqlTable("classroom_types", {
 
 export const classroomTypeRelations = relations(classroomTypes, ({ many }) => ({
     classrooms: many(classrooms),
+    sections: many(sections),
 }));
 
 export const classroomRelations = relations(classrooms, ({ one }) => ({
