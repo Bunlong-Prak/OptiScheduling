@@ -21,11 +21,14 @@ const sectionSchema = z.object({
         .optional() // Make it optional
         .or(z.literal(null)), // Allow null values
     status: z.enum(["online", "offline"]).default("offline"),
-    preferClassRoomType: z.object({
-        id: z.number().optional(),
-        name: z.string().optional(),
-        description: z.string().optional(),
-    }).optional().nullable(),
+    preferClassRoomType: z
+        .object({
+            id: z.number().optional(),
+            name: z.string().optional(),
+            description: z.string().optional(),
+        })
+        .optional()
+        .nullable(),
     splitDurations: z
         .array(
             z.object({
@@ -63,9 +66,15 @@ const courseSchema = z.object({
         .regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, {
             message: "Color must be a valid hex color (e.g., #FF0000)",
         }),
-    duration: z.number().min(0, { message: "Duration is required" }),
+    duration: z
+        .number({ invalid_type_error: "Duration is required" })
+        .min(0.01, "Duration must be at least 0.01 hours")
+        .max(6, "Cannot exceed 6 hours"),
     // Capacity: Required
-    capacity: z.number().min(1, { message: "Capacity is required" }),
+    capacity: z
+        .number({ invalid_type_error: "Capacity is required" })
+        .min(0, "Capacity must be at least 0")
+        .max(100, "Capacity cannot exceed 100 students"),
     // Sections array: Required, at least one section (now includes status and splitDurations)
     sectionsList: z
         .array(sectionSchema)
@@ -106,9 +115,15 @@ const editCourseSchema = z.object({
         .regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, {
             message: "Color must be a valid hex color (e.g., #FF0000)",
         }),
-    duration: z.number().min(1, { message: "Duration is required" }),
+    duration: z
+        .number({ invalid_type_error: "Duration is required" })
+        .min(0.01, "Duration must be at least 0.01 hours")
+        .max(6, "Cannot exceed 6 hours"),
     // Capacity: Required
-    capacity: z.number().min(1, { message: "Capacity is required" }),
+    capacity: z
+        .number({ invalid_type_error: "Capacity is required" })
+        .min(0, "Capacity must be at least 0")
+        .max(100, "Capacity cannot exceed 100 students"),
     // Sections array: Required, at least one section (now includes status and splitDurations)
     sectionsList: z
         .array(sectionSchema)
@@ -475,8 +490,13 @@ export async function PATCH(request: Request) {
         // STEP 2: Update existing sections and create new sections
         if (sectionsList && sectionsList.length > 0) {
             for (const sectionData of sectionsList) {
-                const { section, instructorId, status, splitDurations, preferClassRoomType } =
-                    sectionData;
+                const {
+                    section,
+                    instructorId,
+                    status,
+                    splitDurations,
+                    preferClassRoomType,
+                } = sectionData;
 
                 // Check if section with this number already exists for this course
                 const existingSection = await db
