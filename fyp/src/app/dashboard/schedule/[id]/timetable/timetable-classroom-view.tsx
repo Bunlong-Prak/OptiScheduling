@@ -4276,7 +4276,7 @@ export default function TimetableViewClassroom() {
                     onDragLeave={handleAvailableDragLeave}
                     onDrop={handleAvailableDrop}
                 >
-                    <div className='max-w-9xl mx-auto h-80'>
+                    <div className='max-w-9xl mx-auto h-60'>
                         <h3 className='text-lg font-semibold mb-4 flex items-center'>
                             <span className=''>Available Courses</span>
                             {isDraggingToAvailable && (
