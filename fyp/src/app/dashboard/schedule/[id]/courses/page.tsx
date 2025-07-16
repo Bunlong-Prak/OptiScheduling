@@ -1265,7 +1265,7 @@ export default function CoursesView() {
         rowIndex: number
     ): CSVCourseRow | string => {
         const errors: string[] = [];
-
+    
         // Check required fields
         if (
             !row.code ||
@@ -1274,7 +1274,7 @@ export default function CoursesView() {
         ) {
             errors.push(`Row ${rowIndex + 1}: Course code is required`);
         }
-
+    
         if (
             !row.title ||
             typeof row.title !== "string" ||
@@ -1282,7 +1282,7 @@ export default function CoursesView() {
         ) {
             errors.push(`Row ${rowIndex + 1}: Course title is required`);
         }
-
+    
         if (
             !row.major ||
             typeof row.major !== "string" ||
@@ -1305,7 +1305,7 @@ export default function CoursesView() {
                 );
             }
         }
-
+    
         if (
             !row.color ||
             typeof row.color !== "string" ||
@@ -1321,7 +1321,7 @@ export default function CoursesView() {
                     getColorName(color).toLowerCase() ===
                     colorValue.toLowerCase()
             );
-
+    
             if (!isValidHex && !colorExists) {
                 errors.push(
                     `Row ${
@@ -1332,7 +1332,7 @@ export default function CoursesView() {
                 );
             }
         }
-
+    
         if (
             !row.status ||
             typeof row.status !== "string" ||
@@ -1347,7 +1347,7 @@ export default function CoursesView() {
                 );
             }
         }
-
+    
         // Validate duration
         const duration = Number(row.duration);
         if (!row.duration || isNaN(duration) || duration <= 0) {
@@ -1355,19 +1355,61 @@ export default function CoursesView() {
                 `Row ${rowIndex + 1}: Duration must be a valid positive number`
             );
         }
-
-        // Validate separated_duration
-        const separatedDuration = Number(
-            row.separated_duration || row.duration
-        );
-        if (isNaN(separatedDuration) || separatedDuration <= 0) {
-            errors.push(
-                `Row ${
-                    rowIndex + 1
-                }: Separated duration must be a valid positive number`
-            );
+    
+        // Validate separated_duration - handle both single values and JSON arrays
+        let separatedDurationValue: string = duration.toString(); // Default to duration
+        if (row.separated_duration) {
+            const separatedDuration = row.separated_duration;
+            
+            if (typeof separatedDuration === 'string') {
+                // Check if it's a JSON array string like "[1.66667, 0.833333]"
+                if (separatedDuration.trim().startsWith('[') && separatedDuration.trim().endsWith(']')) {
+                    try {
+                        const parsedArray = JSON.parse(separatedDuration);
+                        if (Array.isArray(parsedArray)) {
+                            // Validate each value in the array
+                            const hasValidNumbers = parsedArray.every(val => !isNaN(Number(val)) && Number(val) > 0);
+                            if (!hasValidNumbers) {
+                                errors.push(
+                                    `Row ${rowIndex + 1}: Separated duration array contains invalid values`
+                                );
+                            } else {
+                                separatedDurationValue = separatedDuration; // Keep as JSON string
+                            }
+                        } else {
+                            errors.push(
+                                `Row ${rowIndex + 1}: Separated duration must be a valid JSON array`
+                            );
+                        }
+                    } catch (e) {
+                        errors.push(
+                            `Row ${rowIndex + 1}: Separated duration has invalid JSON format`
+                        );
+                    }
+                } else {
+                    // Single value
+                    const singleValue = Number(separatedDuration);
+                    if (isNaN(singleValue) || singleValue <= 0) {
+                        errors.push(
+                            `Row ${rowIndex + 1}: Separated duration must be a valid positive number`
+                        );
+                    } else {
+                        separatedDurationValue = singleValue.toString();
+                    }
+                }
+            } else {
+                // Numeric value
+                const numericValue = Number(separatedDuration);
+                if (isNaN(numericValue) || numericValue <= 0) {
+                    errors.push(
+                        `Row ${rowIndex + 1}: Separated duration must be a valid positive number`
+                    );
+                } else {
+                    separatedDurationValue = numericValue.toString();
+                }
+            }
         }
-
+    
         // Validate capacity
         const capacity = Number(row.capacity);
         if (!row.capacity || isNaN(capacity) || capacity <= 0) {
@@ -1375,12 +1417,12 @@ export default function CoursesView() {
                 `Row ${rowIndex + 1}: Capacity must be a valid positive number`
             );
         }
-
+    
         // Validate section
         if (!row.section || row.section.toString().trim() === "") {
             errors.push(`Row ${rowIndex + 1}: Section is required`);
         }
-
+    
         // Validate instructor if provided
         if (
             row.instructor_name &&
@@ -1402,11 +1444,11 @@ export default function CoursesView() {
                 );
             }
         }
-
+    
         if (errors.length > 0) {
             return errors.join("; ");
         }
-
+    
         // Return cleaned data
         return {
             code: row.code.trim(),
@@ -1415,7 +1457,7 @@ export default function CoursesView() {
             color: row.color.trim(),
             status: row.status.trim().toLowerCase(),
             duration: duration.toString(),
-            separated_duration: separatedDuration.toString(),
+            separated_duration: separatedDurationValue, // This can now be either a single value or JSON array string
             capacity: capacity.toString(),
             section: row.section.toString().trim(),
             classroom: row.classroom ? row.classroom.trim() : undefined,
@@ -1563,20 +1605,20 @@ export default function CoursesView() {
             );
             return;
         }
-
+    
         const scheduleId = params.id;
         if (!scheduleId) {
             showErrorMessage("Missing Schedule ID", "Schedule ID is missing");
             return;
         }
-
+    
         setImportProgress({
             total: 0,
             completed: 0,
             errors: [],
             isImporting: true,
         });
-
+    
         try {
             Papa.parse(importFile, {
                 header: true,
@@ -1586,10 +1628,10 @@ export default function CoursesView() {
                 complete: async (results) => {
                     const csvData = results.data as any[];
                     console.log("Parsed CSV data:", csvData);
-
+    
                     const validCourses: CSVCourseRow[] = [];
                     const errors: string[] = [];
-
+    
                     // Validate each row
                     csvData.forEach((row, index) => {
                         const validationResult = validateCourseData(row, index);
@@ -1599,15 +1641,15 @@ export default function CoursesView() {
                             validCourses.push(validationResult);
                         }
                     });
-
+    
                     console.log(
                         "Valid courses after validation:",
                         validCourses
                     );
-
+    
                     // Group courses by code to handle multiple sections
                     const groupedCourses = groupCoursesByCode(validCourses);
-
+    
                     // Check for duplicate codes in existing courses
                     const duplicateCodes: string[] = [];
                     for (const [courseCode] of groupedCourses) {
@@ -1623,18 +1665,18 @@ export default function CoursesView() {
                             );
                         }
                     }
-
+    
                     // Remove duplicates from grouped courses
                     duplicateCodes.forEach((code) => {
                         groupedCourses.delete(code.toLowerCase());
                     });
-
+    
                     setImportProgress((prev) => ({
                         ...prev,
                         total: groupedCourses.size,
                         errors: errors,
                     }));
-
+    
                     if (groupedCourses.size === 0) {
                         showErrorMessage(
                             "No Valid Courses",
@@ -1648,15 +1690,15 @@ export default function CoursesView() {
                         }));
                         return;
                     }
-
+    
                     // Import valid courses
                     let completed = 0;
                     const importErrors: string[] = [...errors];
-
+    
                     for (const [courseCode, courseSections] of groupedCourses) {
                         try {
                             const baseCourse = courseSections[0];
-
+    
                             // Create sections list with instructors and split durations
                             const sectionsList = courseSections.map(
                                 (courseSection) => {
@@ -1671,22 +1713,44 @@ export default function CoursesView() {
                                             ? instructor.id.toString()
                                             : null;
                                     }
-
+    
+                                    // Parse separated_duration - handle both single values and arrays
+                                    let splitDurations;
+                                    const separatedDuration = courseSection.separated_duration;
+                                    
+                                    if (typeof separatedDuration === 'string') {
+                                        // Check if it's a JSON array string like "[1.66667, 0.833333]"
+                                        if (separatedDuration.trim().startsWith('[') && separatedDuration.trim().endsWith(']')) {
+                                            try {
+                                                const parsedArray = JSON.parse(separatedDuration);
+                                                if (Array.isArray(parsedArray)) {
+                                                    splitDurations = parsedArray.map(duration => ({
+                                                        separatedDuration: Number(duration)
+                                                    }));
+                                                } else {
+                                                    splitDurations = [{ separatedDuration: Number(separatedDuration) }];
+                                                }
+                                            } catch (e) {
+                                                splitDurations = [{ separatedDuration: Number(separatedDuration) }];
+                                            }
+                                        } else {
+                                            // Single value
+                                            splitDurations = [{ separatedDuration: Number(separatedDuration) }];
+                                        }
+                                    } else {
+                                        // Single numeric value
+                                        splitDurations = [{ separatedDuration: Number(separatedDuration) }];
+                                    }
+    
                                     return {
                                         section: courseSection.section,
                                         instructorId: instructorId,
                                         status: courseSection.status,
-                                        splitDurations: [
-                                            {
-                                                separatedDuration: Number(
-                                                    courseSection.separated_duration
-                                                ),
-                                            },
-                                        ],
+                                        splitDurations: splitDurations,
                                     };
                                 }
                             );
-
+    
                             const apiData = {
                                 code: baseCourse.code,
                                 title: baseCourse.title,
@@ -1699,9 +1763,9 @@ export default function CoursesView() {
                                 sectionsList: sectionsList,
                                 scheduleId: Number(scheduleId),
                             };
-
+    
                             console.log("Sending to API:", apiData);
-
+    
                             const response = await fetch("/api/courses", {
                                 method: "POST",
                                 headers: {
@@ -1709,7 +1773,7 @@ export default function CoursesView() {
                                 },
                                 body: JSON.stringify(apiData),
                             });
-
+    
                             if (!response.ok) {
                                 const errorData = await response.json();
                                 console.error("API Error:", errorData);
@@ -1737,23 +1801,23 @@ export default function CoursesView() {
                                 }`
                             );
                         }
-
+    
                         setImportProgress((prev) => ({
                             ...prev,
                             completed: completed,
                             errors: importErrors,
                         }));
-
+    
                         await new Promise((resolve) => setTimeout(resolve, 30));
                     }
-
+    
                     setImportProgress((prev) => ({
                         ...prev,
                         isImporting: false,
                     }));
-
+    
                     await fetchData();
-
+    
                     if (completed > 0) {
                         if (completed === groupedCourses.size) {
                             showSuccessMessage(
@@ -1794,7 +1858,6 @@ export default function CoursesView() {
             setImportProgress((prev) => ({ ...prev, isImporting: false }));
         }
     };
-
     // File selection handler
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
