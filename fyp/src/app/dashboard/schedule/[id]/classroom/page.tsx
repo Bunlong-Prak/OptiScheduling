@@ -259,13 +259,6 @@ export default function ClassroomView() {
             errors.name = "Classroom name cannot exceed 255 characters";
         }
 
-        // Validate location
-        if (!formData.location.trim()) {
-            errors.location = "Location is required";
-        } else if (formData.location.length > 255) {
-            errors.location = "Location cannot exceed 255 characters";
-        }
-
         // Validate code
         const codeError = validateClassroomCode(
             formData.code,
@@ -442,14 +435,6 @@ export default function ClassroomView() {
                     code: codeError,
                 });
             }
-        }
-
-        // Real-time validation for other fields
-        if (name === "location" && !value.trim()) {
-            setFormErrors({
-                ...formErrors,
-                location: "Location is required",
-            });
         }
 
         if (name === "name" && !value.trim()) {
@@ -745,14 +730,6 @@ export default function ClassroomView() {
         }
 
         if (
-            !row.location ||
-            typeof row.location !== "string" ||
-            row.location.trim() === ""
-        ) {
-            errors.push(`Row ${rowIndex + 1}: Location is required`);
-        }
-
-        if (
             !row.type ||
             typeof row.type !== "string" ||
             row.type.trim() === ""
@@ -922,9 +899,7 @@ export default function ClassroomView() {
                             errors: importErrors,
                         }));
 
-                        await new Promise((resolve) =>
-                            setTimeout(resolve, 10)
-                        );
+                        await new Promise((resolve) => setTimeout(resolve, 10));
                     }
 
                     setImportProgress((prev) => ({

@@ -1,12 +1,12 @@
 import {
     classrooms,
+    classroomTypes,
     courseHours,
     courses,
     instructors,
     majors,
     schedules,
     sections,
-    classroomTypes,
 } from "@/drizzle/schema";
 import { db } from "@/lib/db";
 import { and, desc, eq, ne } from "drizzle-orm";
@@ -26,7 +26,7 @@ const sectionSchema = z.object({
         .object({
             id: z.number().optional(),
             name: z.string().optional(),
-            description: z.string().optional(),
+            description: z.string().optional().nullable(),
         })
         .optional()
         .nullable(),
@@ -144,7 +144,6 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const scheduleId = searchParams.get("scheduleId");
-
         // Updated query to use courseHours.id as the primary identifier
         let query = db
             .select({
@@ -179,18 +178,19 @@ export async function GET(request: Request) {
             .innerJoin(majors, eq(courses.majorId, majors.id)) // Direct join with majors
             .leftJoin(instructors, eq(sections.instructorId, instructors.id)) // leftJoin to handle sections without instructors
             .leftJoin(classrooms, eq(courseHours.classroomId, classrooms.id))
-            .innerJoin(schedules, eq(courses.scheduleId, schedules.id)) as any;
-
+            .innerJoin(schedules, eq(courses.scheduleId, schedules.id))
+            .leftJoin(
+                // Changed from innerJoin to leftJoin
+                classroomTypes,
+                eq(classroomTypes.id, sections.preferClassRoomId)
+            ) as any;
         // Add filter for scheduleId if provided
         if (scheduleId) {
             query = query.where(eq(courses.scheduleId, parseInt(scheduleId)));
         }
-
         const allCourseHours = await query;
-
         // Convert back to array - now each record represents a unique course hour
         const result = Object.values(allCourseHours);
-
         return NextResponse.json(result);
     } catch (error: unknown) {
         console.error("Error fetching courses:", error);
@@ -200,7 +200,6 @@ export async function GET(request: Request) {
         );
     }
 }
-
 // POST - Create a new course (updated to handle courseHours)
 export async function POST(request: Request) {
     try {

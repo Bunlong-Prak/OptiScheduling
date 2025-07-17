@@ -299,7 +299,7 @@ export default function CoursesView() {
         const section = sections.find((s) => s.id === sectionId);
         const total = section
             ? section.splitDurations.reduce(
-                  (sum, duration) => sum + Number(duration),
+                  (sum, duration) => sum + formatDecimal(duration),
                   0
               )
             : 0;
@@ -313,7 +313,7 @@ export default function CoursesView() {
 
     const isSectionSplitValid = (sectionId: number) => {
         const total = getSectionTotalSplitDuration(sectionId);
-        const courseDuration = Number(formData.duration);
+        const courseDuration = formatDecimal(formData.duration);
         const isValid = total === courseDuration;
         console.log(
             `Section ${sectionId}: ${total} === ${courseDuration} = ${isValid}`
@@ -403,6 +403,8 @@ export default function CoursesView() {
                         preferClassRoomTypeId: courseHour.preferClassRoomTypeId,
                         preferClassRoomTypeName:
                             courseHour.preferClassRoomTypeName,
+                        preferClassRoomTypeName:
+                            courseHour.preferClassRoomTypeName,
                     });
                 } else {
                     // Always add separated duration to existing section
@@ -436,6 +438,7 @@ export default function CoursesView() {
                         combinedSeparatedDuration,
                         separatedDuration: course.separatedDurations[0],
                         preferClassRoomTypeId: course.preferClassRoomTypeId,
+                        preferClassRoomTypeName: course.preferClassRoomTypeName,
                     };
                 }
             );
@@ -2777,6 +2780,9 @@ export default function CoursesView() {
                                                     handleColorChange(
                                                         e.target.value
                                                     );
+                                                    handleColorChange(
+                                                        e.target.value
+                                                    );
                                                 }}
                                                 className='w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]'
                                                 style={{
@@ -2801,6 +2807,9 @@ export default function CoursesView() {
                                                 type='text'
                                                 value={formData?.color || ""}
                                                 onChange={(e) => {
+                                                    handleColorChange(
+                                                        e.target.value
+                                                    );
                                                     handleColorChange(
                                                         e.target.value
                                                     );
@@ -3819,6 +3828,10 @@ export default function CoursesView() {
                                                     handleColorChange(
                                                         e.target.value
                                                     )
+                                                onChange={(e) =>
+                                                    handleColorChange(
+                                                        e.target.value
+                                                    )
                                                 }
                                                 className='w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]'
                                                 style={{
@@ -3847,6 +3860,10 @@ export default function CoursesView() {
                                                     handleColorChange(
                                                         e.target.value
                                                     )
+                                                onChange={(e) =>
+                                                    handleColorChange(
+                                                        e.target.value
+                                                    )
                                                 }
                                                 placeholder='#3B82F6'
                                                 className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm font-mono'
@@ -3869,6 +3886,9 @@ export default function CoursesView() {
                                                     key={presetColor}
                                                     type='button'
                                                     onClick={() => {
+                                                        handleColorChange(
+                                                            presetColor
+                                                        );
                                                         handleColorChange(
                                                             presetColor
                                                         );
