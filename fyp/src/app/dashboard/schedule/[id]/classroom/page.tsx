@@ -923,7 +923,7 @@ export default function ClassroomView() {
                         }));
 
                         await new Promise((resolve) =>
-                            setTimeout(resolve, 100)
+                            setTimeout(resolve, 10)
                         );
                     }
 
@@ -1179,7 +1179,7 @@ export default function ClassroomView() {
                             className="border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md"
                             disabled={isLoading}
                         >
-                            <Upload className="mr-1 h-3 w-3" /> Import CSV
+                            <Download className="mr-1 h-3 w-3" /> Import CSV
                         </Button>
                         <Button
                             onClick={downloadClassroomsCSV}
@@ -1189,7 +1189,7 @@ export default function ClassroomView() {
                                 filteredClassrooms.length === 0 || isLoading
                             }
                         >
-                            <Download className="mr-1 h-3 w-3" /> Export CSV
+                            <Upload className="mr-1 h-3 w-3" /> Export CSV
                         </Button>
                         <Button
                             onClick={() => setIsAddDialogOpen(true)}

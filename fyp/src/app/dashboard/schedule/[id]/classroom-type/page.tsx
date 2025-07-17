@@ -730,7 +730,7 @@ export default function ClassroomTypeView() {
 
                         // Small delay to prevent overwhelming the server
                         await new Promise((resolve) =>
-                            setTimeout(resolve, 100)
+                            setTimeout(resolve, 10)
                         );
                     }
 
@@ -961,7 +961,7 @@ export default function ClassroomTypeView() {
                             variant="outline"
                             className="border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md"
                         >
-                            <Upload className="mr-1 h-3 w-3" /> Import CSV
+                            <Download className="mr-1 h-3 w-3" /> Import CSV
                         </Button>
                         <Button
                             onClick={downloadClassroomTypesCSV}
@@ -969,7 +969,7 @@ export default function ClassroomTypeView() {
                             className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
                             disabled={classroomTypes.length === 0}
                         >
-                            <Download className="mr-1 h-3 w-3" /> Export CSV
+                            <Upload className="mr-1 h-3 w-3" /> Export CSV
                         </Button>
 
                         <Button

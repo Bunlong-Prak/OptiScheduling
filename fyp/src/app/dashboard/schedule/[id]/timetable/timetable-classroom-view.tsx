@@ -27,6 +27,7 @@ import {
     Download,
     Plus,
     Search,
+    Upload,
     X,
     XCircle,
 } from "lucide-react";
@@ -4139,10 +4140,11 @@ export default function TimetableViewClassroom() {
                         <Button
                             onClick={exportOldSystemFormat}
                             variant='outline'
-                            className='border-purple-600 text-purple-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md'
+                            
+                            className='border-green-600 text-green-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md'
                             disabled={Object.keys(schedule).length === 0}
                         >
-                            <Download className='mr-1 h-3 w-3' /> Export CSV
+                            <Upload className='mr-1 h-3 w-3' /> Export CSV
                         </Button>
                     </div>
                 </div>
