@@ -87,6 +87,56 @@ export default function ClassroomView() {
 
     const params = useParams();
 
+    const [clearAllSummary, setClearAllSummary] = useState<{
+        undeletableClassrooms: {
+            classroom: Classroom;
+            reason: string;
+        }[];
+        deletableClassrooms: Classroom[];
+        isChecking: boolean;
+        isDeleting: boolean;
+    }>({
+        undeletableClassrooms: [],
+        deletableClassrooms: [],
+        isChecking: false,
+        isDeleting: false,
+    });
+
+    const openClearAllDialog = async () => {
+        setIsClearAllDialogOpen(true);
+        setClearAllSummary({
+            deletableClassrooms: [],
+            undeletableClassrooms: [],
+            isChecking: true,
+            isDeleting: false,
+        });
+
+        const undeletable: { classroom: Classroom; reason: string }[] =
+            [];
+        const deletableClassrooms: Classroom[] = [];
+
+        for (const classroom of classrooms) {
+            const assignmentCheck = await checkClassroomAssignments(
+                classroom.id
+            );
+            if (assignmentCheck.hasAssignments) {
+                undeletable.push({
+                    classroom,
+                    reason: assignmentCheck.info,
+                });
+            } else {
+                deletableClassrooms.push(classroom);
+            }
+        }
+
+        setClearAllSummary({
+            deletableClassrooms,
+            undeletableClassrooms: undeletable,
+            isDeleting: false,
+            isChecking: false,
+        });
+    };
+
     // Cleanup function for message timers
     useEffect(() => {
         return () => {
@@ -1060,64 +1110,52 @@ export default function ClassroomView() {
     // Add this state variable with your other useState declarations
     const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
 
-    // Add this function with your other handler functions
     const handleClearAllClassrooms = async () => {
-        const classroomCount = classrooms.length;
+        const { deletableClassrooms, undeletableClassrooms } = clearAllSummary;
+
+        if (deletableClassrooms.length === 0) {
+            showErrorMessage(
+                "Cannot Clear All Classrooms",
+                "All classrooms have assignments or other issues preventing deletion. Please resolve them first."
+            );
+            setIsClearAllDialogOpen(false);
+            return;
+        }
+
+        setClearAllSummary((prev) => ({ ...prev, isDeleting: true }));
 
         try {
             const scheduleId = params.id;
-            let deletedCount = 0;
-            let errorCount = 0;
+            const deletePromises = deletableClassrooms.map((classroom) =>
+                fetch(`/api/classrooms`, {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ id: classroom.id, scheduleId }),
+                })
+            );
 
-            // Delete all classrooms one by one
-            for (const classroom of classrooms) {
-                try {
-                    const response = await fetch("/api/classrooms", {
-                        method: "DELETE",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            id: classroom.id,
-                            scheduleId: scheduleId,
-                        }),
-                    });
-
-                    if (response.ok) {
-                        deletedCount++;
-                    } else {
-                        errorCount++;
-                    }
-                } catch (error) {
-                    errorCount++;
-                }
-            }
-
+            await Promise.all(deletePromises);
             await fetchClassrooms();
-            setIsClearAllDialogOpen(false);
 
-            if (deletedCount === classroomCount) {
-                showSuccessMessage(
-                    "All Classrooms Deleted",
-                    `Successfully deleted ${deletedCount} classrooms`
-                );
-            } else if (deletedCount > 0) {
-                showErrorMessage(
-                    "Partial Deletion",
-                    `Deleted ${deletedCount} classrooms. ${errorCount} classrooms couldn't be deleted (they're being used in course schedules)`
-                );
-            } else {
-                showErrorMessage(
-                    "Deletion Failed",
-                    "No classrooms could be deleted. They're all being used in course schedules."
-                );
-            }
+            showSuccessMessage(
+                "Classrooms Cleared",
+                `Successfully deleted ${deletableClassrooms.length} classroom(s).${
+                    undeletableClassrooms.length > 0
+                        ? ` ${undeletableClassrooms.length} classroom(s) could not be deleted.`
+                        : ""
+                }`
+            );
         } catch (error) {
             console.error("Error clearing all classrooms:", error);
             showErrorMessage(
-                "Failed to Delete All Classrooms",
-                "Failed to delete classrooms. Please try again."
+                "Failed to Delete Classrooms",
+                "Failed to delete some classrooms. Please try again."
             );
+        } finally {
+            setClearAllSummary((prev) => ({ ...prev, isDeleting: false }));
+            setIsClearAllDialogOpen(false);
         }
     };
 
@@ -1174,7 +1212,7 @@ export default function ClassroomView() {
                             <Plus className="mr-1 h-3 w-3" /> New Classroom
                         </Button>
                         <Button
-                            onClick={() => setIsClearAllDialogOpen(true)}
+                            onClick={openClearAllDialog}
                             variant="outline"
                             className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
                             disabled={classrooms.length === 0 || isLoading}
@@ -2152,30 +2190,76 @@ export default function ClassroomView() {
                         </DialogHeader>
 
                         <div className="py-4">
-                            <p className="text-sm text-gray-600 mb-2">
-                                Are you sure you want to delete all{" "}
-                                {classrooms.length} classrooms?
-                            </p>
-                            <p className="text-xs text-red-600 font-medium">
-                                This action cannot be undone.
-                            </p>
+                            {clearAllSummary.isChecking ? (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-600 text-sm">
+                                            ℹ️
+                                        </span>
+                                        <p className="text-sm text-blue-800">
+                                            Checking for classroom assignments and conflicts...
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-sm text-gray-600 mb-2">
+                                        Are you sure you want to proceed with clearing classrooms?
+                                    </p>
+                                    <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border mb-2">
+                                        {`Total classrooms to be deleted: ${clearAllSummary.deletableClassrooms.length}`}
+                                    </p>
+
+                                    {clearAllSummary.undeletableClassrooms.length > 0 && (
+                                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 max-h-48 overflow-y-auto">
+                                            <p className="text-sm text-red-800 font-medium mb-2">
+                                                The following {clearAllSummary.undeletableClassrooms.length} classroom(s) cannot be deleted:
+                                            </p>
+                                            <ul className="list-disc list-inside text-xs text-red-700 space-y-1">
+                                                {clearAllSummary.undeletableClassrooms.map((item, index) => (
+                                                    <li key={index}>
+                                                        <span className="font-semibold">
+                                                            {item.classroom.code} ({item.classroom.name}):
+                                                        </span>{" "}
+                                                        {item.reason}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    <p className="text-xs text-red-600 font-medium">
+                                        This action cannot be undone for deleted classrooms.
+                                    </p>
+                                </>
+                            )}
                         </div>
 
                         <DialogFooter className="border-t border-gray-200 pt-3">
                             <Button
                                 variant="outline"
                                 onClick={() => setIsClearAllDialogOpen(false)}
-                                disabled={isLoading}
+                                disabled={clearAllSummary.isChecking || clearAllSummary.isDeleting}
                                 className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                             >
                                 Cancel
                             </Button>
                             <Button
                                 onClick={handleClearAllClassrooms}
-                                disabled={isLoading}
-                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                                disabled={
+                                    clearAllSummary.isChecking ||
+                                    clearAllSummary.deletableClassrooms.length === 0 ||
+                                    clearAllSummary.isDeleting
+                                }
+                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                Delete All
+                                {clearAllSummary.isChecking
+                                    ? "Checking..."
+                                    : clearAllSummary.isDeleting
+                                    ? `Deleting ${clearAllSummary.deletableClassrooms.length} classroom(s)...`
+                                    : clearAllSummary.deletableClassrooms.length > 0
+                                    ? `Delete ${clearAllSummary.deletableClassrooms.length} Classroom(s)`
+                                    : "No Classrooms to Delete"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

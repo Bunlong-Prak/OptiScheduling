@@ -796,7 +796,7 @@ export default function CoursesView() {
 
     const validateTitle = (title: string) => {
         if (!title) {
-            return "Course title is required";
+            return "Course name is required";
         }
         return undefined;
     };
