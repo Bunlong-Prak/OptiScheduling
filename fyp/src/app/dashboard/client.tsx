@@ -826,7 +826,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
             if (!response.ok) {
                 throw new Error(
-                    responseData.error || "Failed to create schedule"
+                    responseData.error[0].message || "Failed to create schedule"
                 );
             }
 
@@ -904,7 +904,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
             if (!response.ok) {
                 throw new Error(
-                    responseData.error || "Failed to update schedule"
+                    responseData.error[0].message || "Failed to update schedule"
                 );
             }
 
@@ -995,11 +995,11 @@ export default function Dashboard({ authUser }: DashboardProps) {
         if (formData.timeSlots.length === 0) return null;
 
         return (
-            <div className="space-y-4">
-                <h3 className="font-semibold text-gray-900 border-b border-gray-200 pb-2">
+            <div className='space-y-4'>
+                <h3 className='font-semibold text-gray-900 border-b border-gray-200 pb-2'>
                     TimeSlots Configuration
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className='text-sm text-gray-600'>
                     Please enter times in HH:MM format (e.g., 08:00, 14:30)
                 </p>
                 {formData.timeSlots.map((timeSlot, index) => {
@@ -1029,18 +1029,18 @@ export default function Dashboard({ authUser }: DashboardProps) {
                     return (
                         <div
                             key={index}
-                            className="grid grid-cols-2 gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50"
+                            className='grid grid-cols-2 gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50'
                         >
-                            <div className="space-y-2">
+                            <div className='space-y-2'>
                                 <Label
                                     htmlFor={`${dialogType}-startTime-${index}`}
-                                    className="text-sm font-medium text-gray-700"
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Start Time #{index + 1}
                                 </Label>
                                 <Input
                                     id={`${dialogType}-startTime-${index}`}
-                                    placeholder="HH:MM"
+                                    placeholder='HH:MM'
                                     value={timeSlot.startTime}
                                     onChange={(e) =>
                                         handleTimeSlotChange(
@@ -1068,22 +1068,22 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                     !isCompleteTimeFormat(
                                         timeSlot.startTime
                                     ) && (
-                                        <div className="flex items-center gap-1">
-                                            <span className="text-red-500 text-xs">
+                                        <div className='flex items-center gap-1'>
+                                            <span className='text-red-500 text-xs'>
                                                 ⚠️
                                             </span>
-                                            <p className="text-xs text-red-600 font-medium">
+                                            <p className='text-xs text-red-600 font-medium'>
                                                 Enter time in HH:MM format
                                             </p>
                                         </div>
                                     )}
                                 {/* Immediate error for start time overlap with previous slot */}
                                 {hasPreviousOverlap && (
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-red-500 text-xs">
+                                    <div className='flex items-center gap-1'>
+                                        <span className='text-red-500 text-xs'>
                                             ❌
                                         </span>
-                                        <p className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded">
+                                        <p className='text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded'>
                                             Start time must be after time slot{" "}
                                             {index} end time (
                                             {
@@ -1100,26 +1100,26 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                         "start time"
                                     ) &&
                                     !hasPreviousOverlap && (
-                                        <div className="flex items-center gap-1">
-                                            <span className="text-red-500 text-xs">
+                                        <div className='flex items-center gap-1'>
+                                            <span className='text-red-500 text-xs'>
                                                 ❌
                                             </span>
-                                            <p className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded">
+                                            <p className='text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded'>
                                                 {timeSlotErrors[index]}
                                             </p>
                                         </div>
                                     )}
                             </div>
-                            <div className="space-y-2">
+                            <div className='space-y-2'>
                                 <Label
                                     htmlFor={`${dialogType}-endTime-${index}`}
-                                    className="text-sm font-medium text-gray-700"
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     End Time #{index + 1}
                                 </Label>
                                 <Input
                                     id={`${dialogType}-endTime-${index}`}
-                                    placeholder="HH:MM"
+                                    placeholder='HH:MM'
                                     value={timeSlot.endTime}
                                     onChange={(e) =>
                                         handleTimeSlotChange(
@@ -1145,22 +1145,22 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 {/* Immediate error display for end time format */}
                                 {timeSlot.endTime &&
                                     !isCompleteTimeFormat(timeSlot.endTime) && (
-                                        <div className="flex items-center gap-1">
-                                            <span className="text-red-500 text-xs">
+                                        <div className='flex items-center gap-1'>
+                                            <span className='text-red-500 text-xs'>
                                                 ⚠️
                                             </span>
-                                            <p className="text-xs text-red-600 font-medium">
+                                            <p className='text-xs text-red-600 font-medium'>
                                                 Enter time in HH:MM format
                                             </p>
                                         </div>
                                     )}
                                 {/* Immediate error for end time less than or equal to start time */}
                                 {hasEndTimeError && (
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-red-500 text-xs">
+                                    <div className='flex items-center gap-1'>
+                                        <span className='text-red-500 text-xs'>
                                             ❌
                                         </span>
-                                        <p className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded">
+                                        <p className='text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded'>
                                             End time must be after start time (
                                             {timeSlot.startTime})
                                         </p>
@@ -1172,11 +1172,11 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                         "end time"
                                     ) &&
                                     !hasEndTimeError && (
-                                        <div className="flex items-center gap-1">
-                                            <span className="text-red-500 text-xs">
+                                        <div className='flex items-center gap-1'>
+                                            <span className='text-red-500 text-xs'>
                                                 ❌
                                             </span>
-                                            <p className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded">
+                                            <p className='text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded'>
                                                 {timeSlotErrors[index]}
                                             </p>
                                         </div>
@@ -1191,12 +1191,12 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                     "End time must be after start time"
                                 ) &&
                                 !hasPreviousOverlap && (
-                                    <div className="col-span-2">
-                                        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
-                                            <span className="text-red-500 text-sm">
+                                    <div className='col-span-2'>
+                                        <div className='flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3'>
+                                            <span className='text-red-500 text-sm'>
                                                 🚫
                                             </span>
-                                            <p className="text-sm text-red-700 font-medium">
+                                            <p className='text-sm text-red-700 font-medium'>
                                                 {timeSlotErrors[index]}
                                             </p>
                                         </div>
@@ -1218,18 +1218,18 @@ export default function Dashboard({ authUser }: DashboardProps) {
                     : "bg-red-50 border-red-500 text-red-800"
             }`}
         >
-            <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
+            <div className='flex items-start justify-between'>
+                <div className='flex items-start gap-3'>
                     {message.type === "success" ? (
-                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                        <CheckCircle className='h-5 w-5 text-green-600 flex-shrink-0 mt-0.5' />
                     ) : (
-                        <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <XCircle className='h-5 w-5 text-red-600 flex-shrink-0 mt-0.5' />
                     )}
                     <div>
-                        <h4 className="font-semibold text-sm">
+                        <h4 className='font-semibold text-sm'>
                             {message.title}
                         </h4>
-                        <p className="text-sm mt-1 opacity-90">
+                        <p className='text-sm mt-1 opacity-90'>
                             {message.description}
                         </p>
                     </div>
@@ -1242,7 +1242,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                             : "hover:bg-red-600"
                     }`}
                 >
-                    <X className="h-4 w-4" />
+                    <X className='h-4 w-4' />
                 </button>
             </div>
         </div>
@@ -1251,111 +1251,111 @@ export default function Dashboard({ authUser }: DashboardProps) {
     return (
         <>
             {messages.length > 0 && (
-                <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
-                    <div className="pointer-events-auto space-y-2">
+                <div className='fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none'>
+                    <div className='pointer-events-auto space-y-2'>
                         {messages.map((message) => (
                             <MessageBanner key={message.id} message={message} />
                         ))}
                     </div>
                 </div>
             )}
-            <div className="space-y-8">
-                <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-                    <div className="flex items-center justify-between">
+            <div className='space-y-8'>
+                <div className='bg-white rounded-lg border border-gray-200 p-6 shadow-sm'>
+                    <div className='flex items-center justify-between'>
                         <div>
-                            <h1 className="text-2xl font-semibold text-gray-900">
+                            <h1 className='text-2xl font-semibold text-gray-900'>
                                 Schedules
                             </h1>
-                            <p className="text-sm text-gray-600 mt-1">
+                            <p className='text-sm text-gray-600 mt-1'>
                                 Manage your academic schedules and time slots
                             </p>
                         </div>
                         <Button
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors"
+                            className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors'
                             onClick={() => {
                                 resetForm();
                                 setIsCreateDialogOpen(true);
                             }}
                         >
-                            <Plus className="mr-2 h-4 w-4" /> New Schedule
+                            <Plus className='mr-2 h-4 w-4' /> New Schedule
                         </Button>
                     </div>
                 </div>
 
                 {isLoading ? (
-                    <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
-                        <div className="text-gray-600">
+                    <div className='bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm'>
+                        <div className='text-gray-600'>
                             Loading schedules...
                         </div>
                     </div>
                 ) : (
-                    <div className="space-y-4">
+                    <div className='space-y-4'>
                         {schedules.map((schedule) => (
                             <div
                                 key={schedule.id}
-                                className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:bg-gray-50 transition-colors shadow-sm"
+                                className='bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:bg-gray-50 transition-colors shadow-sm'
                                 onClick={() => navigateToSchedule(schedule.id)}
                             >
-                                <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                        <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                                <div className='flex items-start justify-between'>
+                                    <div className='flex-1'>
+                                        <h2 className='text-lg font-semibold text-gray-900 mb-2'>
                                             {schedule.name}
                                         </h2>
-                                        <p className="text-sm text-gray-600 mb-4">
+                                        <p className='text-sm text-gray-600 mb-4'>
                                             {schedule.startDate}{" "}
                                             {schedule.endDate
                                                 ? `- ${schedule.endDate}`
                                                 : ""}
                                         </p>
                                     </div>
-                                    <div className="flex gap-2 ml-4">
+                                    <div className='flex gap-2 ml-4'>
                                         <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-9 w-9 text-gray-500 hover:text-[#2F2F85] hover:bg-blue-50"
+                                            variant='ghost'
+                                            size='icon'
+                                            className='h-9 w-9 text-gray-500 hover:text-[#2F2F85] hover:bg-blue-50'
                                             onClick={(e) =>
                                                 openEditDialog(schedule.id, e)
                                             }
                                         >
-                                            <Pencil className="h-4 w-4" />
+                                            <Pencil className='h-4 w-4' />
                                         </Button>
                                         <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-9 w-9 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                            variant='ghost'
+                                            size='icon'
+                                            className='h-9 w-9 text-gray-500 hover:text-red-600 hover:bg-red-50'
                                             onClick={(e) =>
                                                 openDeleteDialog(schedule.id, e)
                                             }
                                         >
-                                            <Trash className="h-4 w-4" />
+                                            <Trash className='h-4 w-4' />
                                         </Button>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-8 pt-4 border-t border-gray-100">
-                                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                                        <BookOpen className="h-4 w-4 text-teal-600" />
-                                        <span className="font-medium">
+                                <div className='flex items-center gap-8 pt-4 border-t border-gray-100'>
+                                    <div className='flex items-center gap-2 text-sm text-gray-600'>
+                                        <BookOpen className='h-4 w-4 text-teal-600' />
+                                        <span className='font-medium'>
                                             {schedule.courses}
                                         </span>
                                         <span>Courses</span>
                                     </div>
-                                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                                        <Users className="h-4 w-4 text-purple-600" />
-                                        <span className="font-medium">
+                                    <div className='flex items-center gap-2 text-sm text-gray-600'>
+                                        <Users className='h-4 w-4 text-purple-600' />
+                                        <span className='font-medium'>
                                             {schedule.instructors}
                                         </span>
                                         <span>Instructors</span>
                                     </div>
                                     {schedule.timeSlots &&
                                         schedule.timeSlots.length > 0 && (
-                                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                                <span className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
-                                                    <span className="text-white text-xs">
+                                            <div className='flex items-center gap-2 text-sm text-gray-600'>
+                                                <span className='w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center'>
+                                                    <span className='text-white text-xs'>
                                                         ⏰
                                                     </span>
                                                 </span>
-                                                <span className="font-medium">
+                                                <span className='font-medium'>
                                                     {schedule.timeSlots.length}
                                                 </span>
                                                 <span>TimeSlots</span>
@@ -1366,11 +1366,11 @@ export default function Dashboard({ authUser }: DashboardProps) {
                         ))}
 
                         {schedules.length === 0 && (
-                            <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
-                                <div className="text-gray-500 mb-2">
+                            <div className='bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm'>
+                                <div className='text-gray-500 mb-2'>
                                     No schedules found
                                 </div>
-                                <div className="text-sm text-gray-400">
+                                <div className='text-sm text-gray-400'>
                                     Create a new schedule to get started.
                                 </div>
                             </div>
@@ -1383,86 +1383,86 @@ export default function Dashboard({ authUser }: DashboardProps) {
                     open={isCreateDialogOpen}
                     onOpenChange={setIsCreateDialogOpen}
                 >
-                    <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-white">
-                        <DialogHeader className="border-b border-gray-200 pb-4">
-                            <DialogTitle className="text-xl font-semibold text-gray-900">
+                    <DialogContent className='max-w-3xl max-h-[85vh] overflow-y-auto bg-white'>
+                        <DialogHeader className='border-b border-gray-200 pb-4'>
+                            <DialogTitle className='text-xl font-semibold text-gray-900'>
                                 Create New Schedule
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="grid gap-6 py-6">
-                            <div className="space-y-2">
+                        <div className='grid gap-6 py-6'>
+                            <div className='space-y-2'>
                                 <Label
-                                    htmlFor="name"
-                                    className="text-sm font-medium text-gray-700"
+                                    htmlFor='name'
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Schedule Name
                                 </Label>
                                 <Input
-                                    id="name"
-                                    name="name"
-                                    placeholder="Schedule 1"
+                                    id='name'
+                                    name='name'
+                                    placeholder='Schedule 1'
                                     value={formData.name}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:border-[#2F2F85]"
+                                    className='border-gray-300 focus:border-[#2F2F85] focus:border-[#2F2F85]'
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
+                            <div className='grid grid-cols-2 gap-4'>
+                                <div className='space-y-2'>
                                     <Label
-                                        htmlFor="startDate"
-                                        className="text-sm font-medium text-gray-700"
+                                        htmlFor='startDate'
+                                        className='text-sm font-medium text-gray-700'
                                     >
                                         Start Date
                                     </Label>
                                     <Input
-                                        id="startDate"
-                                        name="startDate"
-                                        type="date"
+                                        id='startDate'
+                                        name='startDate'
+                                        type='date'
                                         value={formData.startDate}
                                         onChange={handleInputChange}
-                                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                        className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]'
                                     />
                                 </div>
 
-                                <div className="space-y-2">
+                                <div className='space-y-2'>
                                     <Label
-                                        htmlFor="endDate"
-                                        className="text-sm font-medium text-gray-700"
+                                        htmlFor='endDate'
+                                        className='text-sm font-medium text-gray-700'
                                     >
                                         End Date
                                     </Label>
                                     <Input
-                                        id="endDate"
-                                        name="endDate"
-                                        type="date"
+                                        id='endDate'
+                                        name='endDate'
+                                        type='date'
                                         min={formData.startDate || undefined}
                                         value={formData.endDate}
                                         onChange={handleInputChange}
-                                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                        className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]'
                                     />
                                 </div>
                             </div>
 
                             {/* TimeSlot input */}
-                            <div className="space-y-2">
+                            <div className='space-y-2'>
                                 <Label
-                                    htmlFor="numTimeSlots"
-                                    className="text-sm font-medium text-gray-700"
+                                    htmlFor='numTimeSlots'
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Number of TimeSlots
                                 </Label>
                                 <Input
-                                    id="numTimeSlots"
-                                    name="numTimeSlots"
-                                    type="number"
-                                    min="0"
-                                    max="24"
-                                    placeholder="Enter number of time slots needed"
+                                    id='numTimeSlots'
+                                    name='numTimeSlots'
+                                    type='number'
+                                    min='0'
+                                    max='24'
+                                    placeholder='Enter number of time slots needed'
                                     value={formData.numTimeSlots}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                    className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]'
                                 />
                             </div>
 
@@ -1470,18 +1470,18 @@ export default function Dashboard({ authUser }: DashboardProps) {
                             {renderTimeSlotInputs("create")}
                         </div>
 
-                        <DialogFooter className="border-t border-gray-200 pt-4">
+                        <DialogFooter className='border-t border-gray-200 pt-4'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => setIsCreateDialogOpen(false)}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50'
                                 disabled={isCreating}
                             >
                                 Cancel
                             </Button>
                             <Button
                                 onClick={handleCreateSchedule}
-                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
+                                className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white'
                                 disabled={hasAnyErrors() || isCreating}
                             >
                                 {isCreating ? "Creating..." : "Create Schedule"}
@@ -1495,91 +1495,91 @@ export default function Dashboard({ authUser }: DashboardProps) {
                     open={isEditDialogOpen}
                     onOpenChange={setIsEditDialogOpen}
                 >
-                    <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-white">
-                        <DialogHeader className="border-b border-gray-200 pb-4">
-                            <DialogTitle className="text-xl font-semibold text-gray-900">
+                    <DialogContent className='max-w-3xl max-h-[85vh] overflow-y-auto bg-white'>
+                        <DialogHeader className='border-b border-gray-200 pb-4'>
+                            <DialogTitle className='text-xl font-semibold text-gray-900'>
                                 Edit Schedule
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="grid gap-6 py-6">
-                            <div className="space-y-2">
+                        <div className='grid gap-6 py-6'>
+                            <div className='space-y-2'>
                                 <Label
-                                    htmlFor="edit-name"
-                                    className="text-sm font-medium text-gray-700"
+                                    htmlFor='edit-name'
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Schedule Name
                                 </Label>
                                 <Input
-                                    id="edit-name"
-                                    name="name"
-                                    placeholder="Schedule 1"
+                                    id='edit-name'
+                                    name='name'
+                                    placeholder='Schedule 1'
                                     value={formData.name}
                                     onChange={handleInputChange}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                    className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]'
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
+                            <div className='grid grid-cols-2 gap-4'>
+                                <div className='space-y-2'>
                                     <Label
-                                        htmlFor="edit-startDate"
-                                        className="text-sm font-medium text-gray-700"
+                                        htmlFor='edit-startDate'
+                                        className='text-sm font-medium text-gray-700'
                                     >
                                         Start Date
                                     </Label>
                                     <Input
-                                        id="edit-startDate"
-                                        name="startDate"
-                                        type="date"
+                                        id='edit-startDate'
+                                        name='startDate'
+                                        type='date'
                                         value={formData.startDate}
                                         onChange={handleInputChange}
-                                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                        className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]'
                                     />
                                 </div>
 
-                                <div className="space-y-2">
+                                <div className='space-y-2'>
                                     <Label
-                                        htmlFor="edit-endDate"
-                                        className="text-sm font-medium text-gray-700"
+                                        htmlFor='edit-endDate'
+                                        className='text-sm font-medium text-gray-700'
                                     >
                                         End Date
                                     </Label>
                                     <Input
-                                        id="edit-endDate"
-                                        name="endDate"
-                                        type="date"
+                                        id='edit-endDate'
+                                        name='endDate'
+                                        type='date'
                                         min={formData.startDate || undefined}
                                         value={formData.endDate}
                                         onChange={handleInputChange}
-                                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]"
+                                        className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]'
                                     />
                                 </div>
                             </div>
 
                             {/* TimeSlot input with conditional disable and warning */}
-                            <div className="space-y-2">
+                            <div className='space-y-2'>
                                 <Label
-                                    htmlFor="edit-numTimeSlots"
-                                    className="text-sm font-medium text-gray-700"
+                                    htmlFor='edit-numTimeSlots'
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Number of TimeSlots
                                 </Label>
 
                                 {/* Warning message when courses are assigned */}
                                 {hasAssignedCourses && (
-                                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-amber-600 text-sm">
+                                    <div className='bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2'>
+                                        <div className='flex items-center gap-2'>
+                                            <span className='text-amber-600 text-sm'>
                                                 ⚠️
                                             </span>
-                                            <p className="text-sm text-amber-800 font-medium">
+                                            <p className='text-sm text-amber-800 font-medium'>
                                                 Cannot modify timeslots: There
                                                 are courses assigned to the
                                                 timetable
                                             </p>
                                         </div>
-                                        <p className="text-xs text-amber-700 mt-1 ml-6">
+                                        <p className='text-xs text-amber-700 mt-1 ml-6'>
                                             Please remove all course assignments
                                             before changing the number of
                                             timeslots.
@@ -1588,12 +1588,12 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 )}
 
                                 <Input
-                                    id="edit-numTimeSlots"
-                                    name="numTimeSlots"
-                                    type="number"
-                                    min="0"
-                                    max="24"
-                                    placeholder="Enter number of time slots needed"
+                                    id='edit-numTimeSlots'
+                                    name='numTimeSlots'
+                                    type='number'
+                                    min='0'
+                                    max='24'
+                                    placeholder='Enter number of time slots needed'
                                     value={formData.numTimeSlots}
                                     onChange={handleInputChange}
                                     disabled={
@@ -1607,7 +1607,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 />
 
                                 {isCheckingCourses && (
-                                    <p className="text-xs text-gray-500">
+                                    <p className='text-xs text-gray-500'>
                                         Checking for assigned courses...
                                     </p>
                                 )}
@@ -1615,17 +1615,17 @@ export default function Dashboard({ authUser }: DashboardProps) {
 
                             {/* Dynamic timeSlot inputs - also disable individual inputs when courses are assigned */}
                             {formData.timeSlots.length > 0 && (
-                                <div className="space-y-4">
-                                    <h3 className="font-semibold text-gray-900 border-b border-gray-200 pb-2">
+                                <div className='space-y-4'>
+                                    <h3 className='font-semibold text-gray-900 border-b border-gray-200 pb-2'>
                                         TimeSlots Configuration
                                     </h3>
                                     {hasAssignedCourses && (
-                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-blue-600 text-sm">
+                                        <div className='bg-blue-50 border border-blue-200 rounded-lg p-3'>
+                                            <div className='flex items-center gap-2'>
+                                                <span className='text-blue-600 text-sm'>
                                                     ℹ️
                                                 </span>
-                                                <p className="text-sm text-blue-800">
+                                                <p className='text-sm text-blue-800'>
                                                     Timeslot modifications are
                                                     disabled because courses are
                                                     assigned to this schedule.
@@ -1633,7 +1633,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                             </div>
                                         </div>
                                     )}
-                                    <p className="text-sm text-gray-600">
+                                    <p className='text-sm text-gray-600'>
                                         Please enter times in HH:MM format
                                         (e.g., 08:00, 14:30)
                                     </p>
@@ -1688,17 +1688,17 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                             : "bg-gray-50"
                                                     }`}
                                                 >
-                                                    <div className="space-y-2">
+                                                    <div className='space-y-2'>
                                                         <Label
                                                             htmlFor={`edit-startTime-${index}`}
-                                                            className="text-sm font-medium text-gray-700"
+                                                            className='text-sm font-medium text-gray-700'
                                                         >
                                                             Start Time #
                                                             {index + 1}
                                                         </Label>
                                                         <Input
                                                             id={`edit-startTime-${index}`}
-                                                            placeholder="HH:MM"
+                                                            placeholder='HH:MM'
                                                             value={
                                                                 timeSlot.startTime
                                                             }
@@ -1737,17 +1737,17 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                         />
                                                         {/* Error messages remain the same */}
                                                     </div>
-                                                    <div className="space-y-2">
+                                                    <div className='space-y-2'>
                                                         <Label
                                                             htmlFor={`edit-endTime-${index}`}
-                                                            className="text-sm font-medium text-gray-700"
+                                                            className='text-sm font-medium text-gray-700'
                                                         >
                                                             End Time #
                                                             {index + 1}
                                                         </Label>
                                                         <Input
                                                             id={`edit-endTime-${index}`}
-                                                            placeholder="HH:MM"
+                                                            placeholder='HH:MM'
                                                             value={
                                                                 timeSlot.endTime
                                                             }
@@ -1794,18 +1794,18 @@ export default function Dashboard({ authUser }: DashboardProps) {
                             )}
                         </div>
 
-                        <DialogFooter className="border-t border-gray-200 pt-4">
+                        <DialogFooter className='border-t border-gray-200 pt-4'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => setIsEditDialogOpen(false)}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50'
                                 disabled={isUpdating}
                             >
                                 Cancel
                             </Button>
                             <Button
                                 onClick={handleEditSchedule}
-                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
+                                className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white'
                                 disabled={hasAnyErrors() || isUpdating}
                             >
                                 {isUpdating ? "Saving..." : "Save Changes"}
@@ -1818,26 +1818,26 @@ export default function Dashboard({ authUser }: DashboardProps) {
                     open={isDeleteDialogOpen}
                     onOpenChange={setIsDeleteDialogOpen}
                 >
-                    <AlertDialogContent className="bg-white">
+                    <AlertDialogContent className='bg-white'>
                         <AlertDialogHeader>
-                            <AlertDialogTitle className="text-xl font-semibold text-gray-900">
+                            <AlertDialogTitle className='text-xl font-semibold text-gray-900'>
                                 Delete Schedule
                             </AlertDialogTitle>
-                            <AlertDialogDescription className="text-gray-600">
+                            <AlertDialogDescription className='text-gray-600'>
                                 Are you sure you want to delete this schedule?
                                 This action cannot be undone.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                             <AlertDialogCancel
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50'
                                 disabled={isDeleting}
                             >
                                 Cancel
                             </AlertDialogCancel>
                             <AlertDialogAction
                                 onClick={handleDeleteSchedule}
-                                className="bg-red-600 hover:bg-red-700 text-white"
+                                className='bg-red-600 hover:bg-red-700 text-white'
                                 disabled={isDeleting}
                             >
                                 {isDeleting ? "Deleting..." : "Delete"}
