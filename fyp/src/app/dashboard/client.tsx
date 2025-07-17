@@ -520,6 +520,8 @@ export default function Dashboard({ authUser }: DashboardProps) {
             }
             const data = await response.json();
 
+            console.log("Fetched schedules:", data);
+
             // Create a new array to hold the processed schedules with counts
             const processedSchedules = await Promise.all(
                 data.map(async (schedule: Schedule) => {

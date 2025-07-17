@@ -1,4 +1,5 @@
 import {
+    classrooms,
     classroomTypes,
     courseHours,
     courses,
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
                     })
                     .from(schedules)
                     .where(eq(schedules.userId, userId))
-                    .innerJoin(
+                    .leftJoin(
                         scheduleTimeSlots,
                         eq(scheduleTimeSlots.scheduleId, schedules.id)
                     );
@@ -60,18 +61,24 @@ export async function GET(request: Request) {
                             timeSlots: [],
                         });
                     }
-                    // Add this time slot to the schedule
+
                     const schedule = scheduleMap.get(item.id);
-                    schedule.timeSlots.push({
-                        id: item.timeSlotId,
-                        startTime: item.startTime,
-                        endTime: item.endTime,
-                    });
+
+                    // Only add the time slot if it exists
+                    if (item.timeSlotId !== null) {
+                        schedule.timeSlots.push({
+                            id: item.timeSlotId,
+                            startTime: item.startTime,
+                            endTime: item.endTime,
+                        });
+                    }
                 });
 
                 const formattedSchedules = Array.from(scheduleMap.values());
                 console.log("Formatted schedules:", formattedSchedules);
                 return NextResponse.json(formattedSchedules);
+            } else {
+                return NextResponse.json({ error: "User not found" }, { status: 404 });
             }
         } else {
             let query = db
@@ -328,6 +335,21 @@ export async function DELETE(request: Request) {
 
             // Delete instructors for this schedule
             await tx.delete(instructors).where(eq(instructors.scheduleId, id));
+
+            // Get all classroom types for this schedule first
+            const scheduleClassroomTypes = await tx
+                .select({ id: classroomTypes.id })
+                .from(classroomTypes)
+                .where(eq(classroomTypes.scheduleId, id));
+
+            const classroomTypeIds = scheduleClassroomTypes.map((type) => type.id);
+
+            if (classroomTypeIds.length > 0) {
+                // Delete classrooms that reference these classroom types
+                await tx
+                    .delete(classrooms)
+                    .where(inArray(classrooms.classroomTypeId, classroomTypeIds));
+            }
 
             // Delete classroom types for this schedule
             await tx

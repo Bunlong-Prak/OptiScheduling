@@ -9,7 +9,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const authUser = await getAuthUser();
-  console.log(authUser);
+  // console.log(authUser);
 
   if (!authUser) {
     return redirect("/?message=You must be logged in to access this page");
