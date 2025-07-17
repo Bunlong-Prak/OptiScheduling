@@ -144,7 +144,6 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const scheduleId = searchParams.get("scheduleId");
-
         // Updated query to use courseHours.id as the primary identifier
         let query = db
             .select({
@@ -167,7 +166,7 @@ export async function GET(request: Request) {
                 day: courseHours.day, // Include day information
                 timeSlot: courseHours.timeSlot, // Include time slot information
                 preferClassRoomTypeId: sections.preferClassRoomId,
-                preferClassRoomTypeName: classroomTypes.name,
+                preferClassRoomTypeName: classroomTypes.name, // This can now be null
             })
             .from(courseHours) // Start from courseHours to ensure unique records
             .innerJoin(sections, eq(courseHours.sectionId, sections.id))
@@ -176,21 +175,18 @@ export async function GET(request: Request) {
             .leftJoin(instructors, eq(sections.instructorId, instructors.id)) // leftJoin to handle sections without instructors
             .leftJoin(classrooms, eq(courseHours.classroomId, classrooms.id))
             .innerJoin(schedules, eq(courses.scheduleId, schedules.id))
-            .innerJoin(
+            .leftJoin(
+                // Changed from innerJoin to leftJoin
                 classroomTypes,
                 eq(classroomTypes.id, sections.preferClassRoomId)
             ) as any;
-
         // Add filter for scheduleId if provided
         if (scheduleId) {
             query = query.where(eq(courses.scheduleId, parseInt(scheduleId)));
         }
-
         const allCourseHours = await query;
-
         // Convert back to array - now each record represents a unique course hour
         const result = Object.values(allCourseHours);
-
         return NextResponse.json(result);
     } catch (error: unknown) {
         console.error("Error fetching courses:", error);
@@ -200,7 +196,6 @@ export async function GET(request: Request) {
         );
     }
 }
-
 // POST - Create a new course (updated to handle courseHours)
 export async function POST(request: Request) {
     try {
