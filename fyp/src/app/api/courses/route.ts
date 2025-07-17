@@ -178,12 +178,7 @@ export async function GET(request: Request) {
             .innerJoin(majors, eq(courses.majorId, majors.id)) // Direct join with majors
             .leftJoin(instructors, eq(sections.instructorId, instructors.id)) // leftJoin to handle sections without instructors
             .leftJoin(classrooms, eq(courseHours.classroomId, classrooms.id))
-            .innerJoin(schedules, eq(courses.scheduleId, schedules.id))
-            .leftJoin(
-                // Changed from innerJoin to leftJoin
-                classroomTypes,
-                eq(classroomTypes.id, sections.preferClassRoomId)
-            ) as any;
+            .innerJoin(schedules, eq(courses.scheduleId, schedules.id)) as any;
         // Add filter for scheduleId if provided
         if (scheduleId) {
             query = query.where(eq(courses.scheduleId, parseInt(scheduleId)));
