@@ -24,7 +24,6 @@ import { Input } from "@/components/ui/input";
 import {
     AlertCircle,
     CheckCircle,
-    Download,
     Plus,
     Search,
     X,
@@ -4157,7 +4156,7 @@ export default function TimetableViewClassroom() {
                         <Button
                             onClick={exportOldSystemFormat}
                             variant="outline"
-                            className="border-purple-600 text-purple-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md"
+                            className="border-green-600 text-green-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md"
                             disabled={Object.keys(schedule).length === 0}
                         >
                             <Download className="mr-1 h-3 w-3" /> Export CSV
@@ -4376,9 +4375,11 @@ export default function TimetableViewClassroom() {
                             <div className="space-y-4">
                                 <div className="space-y-3">
                                     <div
-                                        className={`w-full h-1 ${selectedCourse.color
-                                            .replace("hover:", "")
-                                            .replace("border-", "")}`}
+                                        className={`w-full h-1`}
+                                        style={{
+                                            backgroundColor:
+                                                selectedCourse.originalColor,
+                                        }}
                                     ></div>
 
                                     {selectedCourse.isCombined &&
