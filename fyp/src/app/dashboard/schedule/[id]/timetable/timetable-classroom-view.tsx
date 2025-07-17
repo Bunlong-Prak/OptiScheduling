@@ -27,7 +27,6 @@ import {
     Download,
     Plus,
     Search,
-    Upload,
     X,
     XCircle,
 } from "lucide-react";
@@ -267,15 +266,15 @@ export default function TimetableViewClassroom() {
                     : "bg-red-50 border-red-500 text-red-800"
             }`}
         >
-            <div className='flex items-start justify-between'>
-                <div className='flex items-start gap-3'>
+            <div className="flex items-start justify-between">
+                <div className="flex items-start gap-3">
                     {message.type === "success" ? (
-                        <CheckCircle className='h-5 w-5 text-green-600 flex-shrink-0 mt-0.5' />
+                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
                     ) : (
-                        <XCircle className='h-5 w-5 text-red-600 flex-shrink-0 mt-0.5' />
+                        <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
                     )}
                     <div>
-                        <p className='text-sm mt-1 opacity-90'>
+                        <p className="text-sm mt-1 opacity-90">
                             {message.description}
                         </p>
                     </div>
@@ -288,7 +287,7 @@ export default function TimetableViewClassroom() {
                             : "hover:bg-red-600"
                     }`}
                 >
-                    <X className='h-4 w-4' />
+                    <X className="h-4 w-4" />
                 </button>
             </div>
         </div>
@@ -1368,7 +1367,7 @@ export default function TimetableViewClassroom() {
 
         if (courseCapacity === 0) {
             return (
-                <div className='text-yellow-400 mb-1'>
+                <div className="text-yellow-400 mb-1">
                     ⚠️ Course capacity not specified
                 </div>
             );
@@ -1376,14 +1375,14 @@ export default function TimetableViewClassroom() {
 
         if (!capacityCheck.isValid) {
             return (
-                <div className='text-red-400 mb-1 whitespace-normal'>
+                <div className="text-red-400 mb-1 whitespace-normal">
                     ⚠️ {capacityCheck.conflictMessage}
                 </div>
             );
         }
 
         return (
-            <div className='text-green-400 mb-1'>
+            <div className="text-green-400 mb-1">
                 ✓ Capacity: {courseCapacity}/{classroom.capacity}
             </div>
         );
@@ -1489,20 +1488,37 @@ export default function TimetableViewClassroom() {
         console.log(
             "=== AUTO-COMBINING COURSES WITH SAME INSTRUCTOR AND DURATION ==="
         );
+        console.log("Input assignments:", assignmentsData.length);
 
-        // Group assignments by their schedule key (day + classroom + time)
-        const scheduleGroups = new Map<string, any[]>();
-
-        assignmentsData.forEach((assignment) => {
+        // First, normalize all time representations
+        const normalizedAssignments = assignmentsData.map((assignment) => {
+            const normalizedStartTime = normalizeTimeSlot(
+                assignment.startTime || assignment.timeSlot
+            );
             const isOnline =
                 assignment.isOnline || assignment.classroomId === null;
             const classroomKey = isOnline
                 ? "-1"
-                : assignment.classroom || "unknown";
+                : assignment.classroom ||
+                  assignment.classroomId?.toString() ||
+                  "unknown";
             const day = assignment.day?.trim() || "unknown";
-            const startTime = assignment.startTime?.trim() || "unknown";
 
-            const scheduleKey = `${day}-${classroomKey}-${startTime}`;
+            return {
+                ...assignment,
+                normalizedStartTime,
+                isOnline,
+                classroomKey,
+                day,
+                scheduleKey: `${day}-${classroomKey}-${normalizedStartTime}`,
+            };
+        });
+
+        // Group by exact schedule key (day + classroom + normalized time)
+        const scheduleGroups = new Map<string, any[]>();
+
+        normalizedAssignments.forEach((assignment) => {
+            const scheduleKey = assignment.scheduleKey;
 
             if (!scheduleGroups.has(scheduleKey)) {
                 scheduleGroups.set(scheduleKey, []);
@@ -1523,7 +1539,7 @@ export default function TimetableViewClassroom() {
                 return;
             }
 
-            // Group by instructor and duration for potential combining
+            // For multiple assignments at same time/place, group by instructor and duration
             const instructorDurationGroups = new Map<string, any[]>();
 
             assignments.forEach((assignment) => {
@@ -1546,9 +1562,9 @@ export default function TimetableViewClassroom() {
                     // Single course in this instructor-duration group
                     combinedAssignments.push(groupAssignments[0]);
                 } else {
-                    // Multiple courses with same instructor and duration - combine them
+                    // Multiple courses with same instructor, duration, and schedule - combine them
                     console.log(
-                        `🔄 Auto-combining ${groupAssignments.length} courses for ${groupKey}:`
+                        `🔄 Auto-combining ${groupAssignments.length} courses for ${groupKey} at ${scheduleKey}:`
                     );
                     groupAssignments.forEach((assignment) => {
                         console.log(
@@ -1560,16 +1576,19 @@ export default function TimetableViewClassroom() {
                     const baseAssignment = groupAssignments[0];
                     const additionalCourses = groupAssignments.slice(1);
 
-                    // Create combined assignment with special markers
+                    // Create combined assignment
                     const combinedAssignment = {
                         ...baseAssignment,
+                        // Ensure we use the normalized time
+                        startTime: baseAssignment.normalizedStartTime,
+                        timeSlot: baseAssignment.normalizedStartTime,
                         // Mark as combined
                         isCombined: true,
                         combinedCourses: additionalCourses,
                         // Update display information
                         combinedCodes: groupAssignments
                             .map((a) => a.code)
-                            .join("+"),
+                            .join(" + "),
                         combinedTitles: groupAssignments
                             .map((a) => a.title || a.code)
                             .join(" + "),
@@ -1577,9 +1596,8 @@ export default function TimetableViewClassroom() {
                     };
 
                     combinedAssignments.push(combinedAssignment);
-
                     console.log(
-                        `✅ Combined into: ${combinedAssignment.combinedCodes}`
+                        `✅ Combined into: ${combinedAssignment.combinedCodes} at ${scheduleKey}`
                     );
                 }
             });
@@ -1590,7 +1608,6 @@ export default function TimetableViewClassroom() {
         );
         return combinedAssignments;
     };
-
     const saveAllAssignments = async () => {
         try {
             const validAssignedCourses =
@@ -2877,46 +2894,46 @@ export default function TimetableViewClassroom() {
 
         return (
             <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent className='max-w-2xl max-h-[80vh] overflow-y-auto'>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle className='flex items-center text-red-600'>
-                            <AlertCircle className='w-5 h-5 mr-2' />
+                        <DialogTitle className="flex items-center text-red-600">
+                            <AlertCircle className="w-5 h-5 mr-2" />
                             Scheduling Errors ({errors.length} courses failed)
                         </DialogTitle>
                     </DialogHeader>
 
-                    <div className='space-y-6'>
+                    <div className="space-y-6">
                         {Object.entries(errorGroups).map(
                             ([errorType, typeErrors]) => (
-                                <div key={errorType} className='space-y-3'>
-                                    <h3 className='font-semibold text-gray-800 border-b pb-1'>
+                                <div key={errorType} className="space-y-3">
+                                    <h3 className="font-semibold text-gray-800 border-b pb-1">
                                         {getErrorTypeDisplayName(
                                             errorType as SchedulingError["error_type"]
                                         )}
-                                        <span className='text-sm text-gray-500 ml-2'>
+                                        <span className="text-sm text-gray-500 ml-2">
                                             ({typeErrors.length} course
                                             {typeErrors.length > 1 ? "s" : ""})
                                         </span>
                                     </h3>
 
-                                    <div className='space-y-2'>
+                                    <div className="space-y-2">
                                         {typeErrors.map((error) => (
                                             <div
                                                 key={error.section_id}
-                                                className='p-3 bg-red-50 border border-red-200 rounded'
+                                                className="p-3 bg-red-50 border border-red-200 rounded"
                                             >
-                                                <div className='font-medium text-red-800'>
+                                                <div className="font-medium text-red-800">
                                                     {error.course_code} -{" "}
                                                     {error.section_number}
                                                 </div>
-                                                <div className='text-sm text-red-700 mt-1'>
+                                                <div className="text-sm text-red-700 mt-1">
                                                     {error.course_title}
                                                 </div>
-                                                <div className='text-sm text-red-600 mt-1'>
+                                                <div className="text-sm text-red-600 mt-1">
                                                     Instructor:{" "}
                                                     {error.instructor_name}
                                                 </div>
-                                                <div className='text-sm text-red-800 mt-2'>
+                                                <div className="text-sm text-red-800 mt-2">
                                                     {formatErrorMessage(error)}
                                                 </div>
                                             </div>
@@ -2927,8 +2944,8 @@ export default function TimetableViewClassroom() {
                         )}
                     </div>
 
-                    <div className='flex justify-end pt-4 border-t'>
-                        <Button onClick={onClose} variant='outline'>
+                    <div className="flex justify-end pt-4 border-t">
+                        <Button onClick={onClose} variant="outline">
                             Close
                         </Button>
                     </div>
@@ -3784,9 +3801,9 @@ export default function TimetableViewClassroom() {
     const renderCombinedCourseCell = (course: CombinedTimetableCourse) => {
         if (course.isCombined && course.combinedCourses) {
             return (
-                <div className='space-y-1'>
+                <div className="space-y-1">
                     {/* Main course */}
-                    <div className='text-xs font-semibold truncate'>
+                    <div className="text-xs font-semibold truncate">
                         {course.code}
                     </div>
                 </div>
@@ -3794,8 +3811,8 @@ export default function TimetableViewClassroom() {
         }
 
         return (
-            <div className='space-y-1'>
-                <div className='text-xs font-semibold'>{course.code}</div>
+            <div className="space-y-1">
+                <div className="text-xs font-semibold">{course.code}</div>
             </div>
         );
     };
@@ -3870,7 +3887,7 @@ export default function TimetableViewClassroom() {
                 `}
                     >
                         {dragState.isValidDrop ? (
-                            <div className='flex items-center'>
+                            <div className="flex items-center">
                                 <span>Drop {draggedCourse?.code}</span>
                             </div>
                         ) : (
@@ -3879,9 +3896,9 @@ export default function TimetableViewClassroom() {
                     </div>
                 )}
                 {dragState.isDragOver && course && dragState.isValidDrop && (
-                    <div className='absolute inset-0 border-2 border-dashed border-blue-400 rounded-sm m-1 flex items-center justify-center text-xs font-medium bg-blue-100 text-blue-700'>
-                        <div className='flex items-center'>
-                            <Plus className='w-3 h-3 mr-1' />
+                    <div className="absolute inset-0 border-2 border-dashed border-blue-400 rounded-sm m-1 flex items-center justify-center text-xs font-medium bg-blue-100 text-blue-700">
+                        <div className="flex items-center">
+                            <Plus className="w-3 h-3 mr-1" />
                             <span>Combine with {course.code}</span>
                         </div>
                     </div>
@@ -3890,7 +3907,7 @@ export default function TimetableViewClassroom() {
                     dragState.isValidDrop &&
                     draggedCourse &&
                     !course && (
-                        <div className='absolute inset-0 pointer-events-none z-10'>
+                        <div className="absolute inset-0 pointer-events-none z-10">
                             <div
                                 // className={`${draggedCourse.color} opacity-60 rounded m-1 p-1 border-2 border-dashed border-blue-400`}
 
@@ -3900,7 +3917,7 @@ export default function TimetableViewClassroom() {
                                         draggedCourse.originalColor,
                                 }}
                             >
-                                <div className='font-semibold text-xs'>
+                                <div className="font-semibold text-xs">
                                     {draggedCourse.code}
                                 </div>
                             </div>
@@ -3912,15 +3929,15 @@ export default function TimetableViewClassroom() {
                     hoveredCell?.classroom === classroom.id.toString() &&
                     draggedCourse &&
                     !dragState.isDragOver && (
-                        <div className='absolute z-50 -top-2 left-full ml-1 bg-gray-900 text-white shadow-lg p-2 rounded text-xs whitespace-nowrap max-w-xs'>
-                            <div className='font-semibold mb-1'>
+                        <div className="absolute z-50 -top-2 left-full ml-1 bg-gray-900 text-white shadow-lg p-2 rounded text-xs whitespace-nowrap max-w-xs">
+                            <div className="font-semibold mb-1">
                                 {draggedCourse.code} - {draggedCourse.duration}
                                 hr
                                 {draggedCourse.duration > 1 ? "s" : ""}
                             </div>
 
                             {course && (
-                                <div className='text-blue-400 mb-1'>
+                                <div className="text-blue-400 mb-1">
                                     💡 Can combine with {course.code}
                                 </div>
                             )}
@@ -3934,7 +3951,7 @@ export default function TimetableViewClassroom() {
 
                                 if (isCourseOnline && !isOnlineClassroom) {
                                     return (
-                                        <div className='text-red-400 mb-1'>
+                                        <div className="text-red-400 mb-1">
                                             ⚠️ Online courses cannot be assigned
                                             to physical classrooms
                                         </div>
@@ -3942,7 +3959,7 @@ export default function TimetableViewClassroom() {
                                 }
                                 if (!isCourseOnline && isOnlineClassroom) {
                                     return (
-                                        <div className='text-red-400 mb-1'>
+                                        <div className="text-red-400 mb-1">
                                             ⚠️ Physical courses cannot be
                                             assigned to online rows
                                         </div>
@@ -3963,7 +3980,7 @@ export default function TimetableViewClassroom() {
 
                                     if (!capacityCheck.isValid) {
                                         return (
-                                            <div className='text-red-400 mb-1 whitespace-normal'>
+                                            <div className="text-red-400 mb-1 whitespace-normal">
                                                 ⚠️{" "}
                                                 {capacityCheck.conflictMessage}
                                             </div>
@@ -3975,7 +3992,7 @@ export default function TimetableViewClassroom() {
                                             utilizationPercentage,
                                         } = capacityCheck.capacityDetails;
                                         return (
-                                            <div className='text-green-400 mb-1'>
+                                            <div className="text-green-400 mb-1">
                                                 ✓ Capacity: {courseCapacity}/
                                                 {classroomCapacity} (
                                                 {utilizationPercentage}%)
@@ -3983,7 +4000,7 @@ export default function TimetableViewClassroom() {
                                         );
                                     } else if (capacityCheck.warningMessage) {
                                         return (
-                                            <div className='text-yellow-400 mb-1 whitespace-normal'>
+                                            <div className="text-yellow-400 mb-1 whitespace-normal">
                                                 ⚠️{" "}
                                                 {capacityCheck.warningMessage}
                                             </div>
@@ -4003,13 +4020,13 @@ export default function TimetableViewClassroom() {
                                 );
                                 if (!check.isValid) {
                                     return (
-                                        <div className='text-red-400 mb-1 whitespace-normal'>
+                                        <div className="text-red-400 mb-1 whitespace-normal">
                                             ⚠️ {check.conflictMessage}
                                         </div>
                                     );
                                 } else {
                                     return (
-                                        <div className='text-green-400 mb-1'>
+                                        <div className="text-green-400 mb-1">
                                             ✓ Instructor available
                                         </div>
                                     );
@@ -4017,8 +4034,8 @@ export default function TimetableViewClassroom() {
                             })()}
 
                             {/* Time slots information */}
-                            <div className='space-y-0.5'>
-                                <div className='text-xs text-gray-300 mb-1'>
+                            <div className="space-y-0.5">
+                                <div className="text-xs text-gray-300 mb-1">
                                     Time slots:
                                 </div>
                                 {Array.from(
@@ -4053,7 +4070,7 @@ export default function TimetableViewClassroom() {
                                         return (
                                             <div
                                                 key={i}
-                                                className='text-red-400'
+                                                className="text-red-400"
                                             >
                                                 Out of bounds
                                             </div>
@@ -4088,7 +4105,7 @@ export default function TimetableViewClassroom() {
                         {renderCombinedCourseCell(course)}
                     </div>
                 ) : (
-                    <div className='h-6 w-full' />
+                    <div className="h-6 w-full" />
                 )}
             </td>
         );
@@ -4098,8 +4115,8 @@ export default function TimetableViewClassroom() {
         <>
             {/* Messages - OUTSIDE the main content flow */}
             {messages.length > 0 && (
-                <div className='fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none'>
-                    <div className='pointer-events-auto space-y-2'>
+                <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
+                    <div className="pointer-events-auto space-y-2">
                         {messages.map((message) => (
                             <MessageBanner key={message.id} message={message} />
                         ))}
@@ -4107,71 +4124,70 @@ export default function TimetableViewClassroom() {
                 </div>
             )}
 
-            <div className='relative min-h-screen pb-80'>
-                <div className='flex justify-between items-center mb-8'>
+            <div className="relative min-h-screen pb-80">
+                <div className="flex justify-between items-center mb-8">
                     <div>
-                        <h2 className='text-lg font-semibold text-gray-900'>
+                        <h2 className="text-lg font-semibold text-gray-900">
                             Classroom View Timetable
                         </h2>
-                        <p className='text-xs text-gray-600 mt-1'>
+                        <p className="text-xs text-gray-600 mt-1">
                             Manage and generate classroom schedules - drag
                             courses to combine them
                         </p>
                     </div>
 
-                    <div className='flex gap-4'>
+                    <div className="flex gap-4">
                         <Button
                             onClick={generateSchedule}
                             disabled={
                                 isGeneratingSchedule || classrooms.length === 0
                             }
-                            variant='outline'
+                            variant="outline"
                         >
                             {isGeneratingSchedule
                                 ? "Generating..."
                                 : "Auto-Generate Schedule"}
                         </Button>
                         <Button
-                            className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors'
+                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white px-6 py-2.5 rounded font-medium transition-colors"
                             onClick={saveAllAssignments}
                         >
                             Save All
                         </Button>
                         <Button
                             onClick={exportOldSystemFormat}
-                            variant='outline'
-                            
-                            className='border-green-600 text-green-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md'
+                            variant="outline"
+                            className="border-purple-600 text-purple-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md"
                             disabled={Object.keys(schedule).length === 0}
                         >
-                            <Upload className='mr-1 h-3 w-3' /> Export CSV
+                            <Download className="mr-1 h-3 w-3" /> Export CSV
                         </Button>
                     </div>
                 </div>
 
-                <div className='mb-6 '>
-                    <div className='relative max-w-md'>
-                        <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none '>
-                            <Search className='h-5 w-5 text-gray-400' />
+                <div className="mb-6 ">
+                    <div className="relative max-w-md">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none ">
+                            <Search className="h-5 w-5 text-gray-400" />
                         </div>
                         <Input
-                            type='text'
-                            placeholder='Search courses by code, name, instructor, or section...'
+                            type="text"
+                            placeholder="Search courses by code, name, instructor, or section..."
                             value={searchQuery}
                             onChange={handleSearchChange}
-                            className='pl-10 pr-10 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm'
+                            className="pl-10 pr-10 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
                         />
                         {searchQuery && (
                             <button
                                 onClick={clearSearch}
-                                className='absolute inset-y-0 right-0 pr-3 flex items-center'
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center"
                             >
-                                <X className='h-5 w-5 text-gray-400 hover:text-gray-600' />
+                                <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
                             </button>
                         )}
                     </div>
                     {isSearchActive && (
-                        <div className='mt-2 text-sm text-gray-600'>
+                        <div className="mt-2 text-sm text-gray-600">
                             {Object.keys(filteredSchedule).length > 0 ? (
                                 <>Showing courses matching "{searchQuery}"</>
                             ) : (
@@ -4182,32 +4198,32 @@ export default function TimetableViewClassroom() {
                 </div>
 
                 {/* Course Combining Instructions */}
-                <div className='mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg'>
-                    <div className='flex items-center text-blue-800'>
-                        <Plus className='w-4 h-4 mr-2' />
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center text-blue-800">
+                        <Plus className="w-4 h-4 mr-2" />
                         <strong>Course Combining:</strong>
                     </div>
-                    <p className='text-sm text-blue-700 mt-1'>
+                    <p className="text-sm text-blue-700 mt-1">
                         Drag courses onto existing scheduled courses to combine
                         them in the same time slot. Combined courses must have
                         Same instructors and the same duration.
                     </p>
                 </div>
 
-                <div className='overflow-x-auto overflow-y-auto max-h-[calc(100vh-350px)] mb-8'>
-                    <div className='inline-block min-w-full'>
-                        <div className='border rounded-lg overflow-hidden'>
-                            <table className='min-w-full divide-y divide-blue-200'>
+                <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-350px)] mb-8">
+                    <div className="inline-block min-w-full">
+                        <div className="border rounded-lg overflow-hidden">
+                            <table className="min-w-full divide-y divide-blue-200">
                                 <thead>
                                     <tr>
-                                        <th className='px-4 py-3 text-left text-xs font-medium  text-gray-700 uppercase tracking-wider w-24 border'>
+                                        <th className="px-4 py-3 text-left text-xs font-medium  text-gray-700 uppercase tracking-wider w-24 border">
                                             Classroom
                                         </th>
                                         {days.map((day) => (
                                             <th
                                                 key={day}
                                                 colSpan={timeSlots.length}
-                                                className='px-2 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border '
+                                                className="px-2 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border "
                                             >
                                                 {day}
                                             </th>
@@ -4215,7 +4231,7 @@ export default function TimetableViewClassroom() {
                                     </tr>
 
                                     <tr>
-                                        <th className='px-4 py-3 text-left text-xs font-medium  text-gray-500 uppercase tracking-wider w-24 border'>
+                                        <th className="px-4 py-3 text-left text-xs font-medium  text-gray-500 uppercase tracking-wider w-24 border">
                                             Time
                                         </th>
                                         {days.map((day) =>
@@ -4224,7 +4240,7 @@ export default function TimetableViewClassroom() {
                                                     key={`${day}-${getTimeSlotKey(
                                                         slot
                                                     )}`}
-                                                    className='px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border '
+                                                    className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border "
                                                 >
                                                     {slot.time_slot ||
                                                         slot.startTime}
@@ -4233,7 +4249,7 @@ export default function TimetableViewClassroom() {
                                         )}
                                     </tr>
                                 </thead>
-                                <tbody className='bg-white divide-y divide-gray-200'>
+                                <tbody className="bg-white divide-y divide-gray-200">
                                     {classrooms.map((classroom, index) => (
                                         <tr
                                             key={classroom.id}
@@ -4278,25 +4294,25 @@ export default function TimetableViewClassroom() {
                     onDragLeave={handleAvailableDragLeave}
                     onDrop={handleAvailableDrop}
                 >
-                    <div className='max-w-9xl mx-auto h-60'>
-                        <h3 className='text-lg font-semibold mb-4 flex items-center'>
-                            <span className=''>Available Courses</span>
+                    <div className="max-w-9xl mx-auto h-80">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <span className="">Available Courses</span>
                             {isDraggingToAvailable && (
-                                <span className='ml-2 text-blue-500 animate-pulse'>
+                                <span className="ml-2 text-blue-500 animate-pulse">
                                     (Drop Here to Return Course)
                                 </span>
                             )}
                         </h3>
                         {isLoading ? (
-                            <div className='text-center py-4'>
+                            <div className="text-center py-4">
                                 Loading courses...
                             </div>
                         ) : availableCourses.length === 0 ? (
-                            <div className='text-center py-4 text-gray-500'>
+                            <div className="text-center py-4 text-gray-500">
                                 All courses have been assigned to the timetable
                             </div>
                         ) : (
-                            <div className='grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto p-2'>
+                            <div className="grid grid-cols-6 gap-4 max-h-[20vh] overflow-y-auto p-2">
                                 {availableCourses.map((course, index) => {
                                     // Add logging for each rendered course
                                     console.log("Rendering available course:", {
@@ -4323,20 +4339,20 @@ export default function TimetableViewClassroom() {
                                                 handleCourseClick(course)
                                             }
                                         >
-                                            <h4 className='font-bold text-gray-800'>
+                                            <h4 className="font-bold text-gray-800">
                                                 {course.code}
                                             </h4>
-                                            <p className='text-sm font-medium'>
+                                            <p className="text-sm font-medium">
                                                 {course.name}
                                             </p>
-                                            <p className='text-xs mt-1 text-gray-700'>
+                                            <p className="text-xs mt-1 text-gray-700">
                                                 Duration: {course.duration} hour
                                                 {course.duration > 1 ? "s" : ""}
                                             </p>
-                                            <p className='text-xs mt-1 truncate text-gray-700'>
+                                            <p className="text-xs mt-1 truncate text-gray-700">
                                                 Instructor: {course.instructor}
                                             </p>
-                                            <p className='text-xs mt-1 truncate text-gray-700'>
+                                            <p className="text-xs mt-1 truncate text-gray-700">
                                                 Section:{" "}
                                                 {course.section || "N/A"}
                                             </p>
@@ -4349,16 +4365,16 @@ export default function TimetableViewClassroom() {
                 </div>
 
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogContent className='sm:max-w-md'>
+                    <DialogContent className="sm:max-w-md">
                         <DialogHeader>
-                            <DialogTitle className='text-xl font-bold'>
+                            <DialogTitle className="text-xl font-bold">
                                 Course Details
                             </DialogTitle>
                         </DialogHeader>
 
                         {selectedCourse && (
-                            <div className='space-y-4'>
-                                <div className='space-y-3'>
+                            <div className="space-y-4">
+                                <div className="space-y-3">
                                     <div
                                         className={`w-full h-1 ${selectedCourse.color
                                             .replace("hover:", "")
@@ -4368,19 +4384,19 @@ export default function TimetableViewClassroom() {
                                     {selectedCourse.isCombined &&
                                     selectedCourse.combinedCourses ? (
                                         <div>
-                                            <h3 className='font-bold text-lg mb-2'>
+                                            <h3 className="font-bold text-lg mb-2">
                                                 Combined Course Assignment
                                             </h3>
-                                            <div className='space-y-3'>
-                                                <div className='border rounded p-3'>
-                                                    <h4 className='font-semibold text-md'>
+                                            <div className="space-y-3">
+                                                <div className="border rounded p-3">
+                                                    <h4 className="font-semibold text-md">
                                                         Main Course:
                                                     </h4>
-                                                    <p className='text-sm'>
+                                                    <p className="text-sm">
                                                         {selectedCourse.code}:{" "}
                                                         {selectedCourse.name}
                                                     </p>
-                                                    <p className='text-sm text-gray-600'>
+                                                    <p className="text-sm text-gray-600">
                                                         Instructor:{" "}
                                                         {
                                                             selectedCourse.instructor
@@ -4391,17 +4407,17 @@ export default function TimetableViewClassroom() {
                                                     (combined, index) => (
                                                         <div
                                                             key={index}
-                                                            className='border rounded p-3 bg-gray-50'
+                                                            className="border rounded p-3 bg-gray-50"
                                                         >
-                                                            <h4 className='font-semibold text-md'>
+                                                            <h4 className="font-semibold text-md">
                                                                 Combined Course{" "}
                                                                 {index + 1}:
                                                             </h4>
-                                                            <p className='text-sm'>
+                                                            <p className="text-sm">
                                                                 {combined.code}:{" "}
                                                                 {combined.name}
                                                             </p>
-                                                            <p className='text-sm text-gray-600'>
+                                                            <p className="text-sm text-gray-600">
                                                                 Instructor:{" "}
                                                                 {
                                                                     combined.instructor
@@ -4414,16 +4430,16 @@ export default function TimetableViewClassroom() {
                                         </div>
                                     ) : (
                                         <div>
-                                            <h3 className='font-bold text-lg'>
+                                            <h3 className="font-bold text-lg">
                                                 {selectedCourse.code}:{" "}
                                                 {selectedCourse.name}
                                             </h3>
-                                            <div className='space-y-2'>
-                                                <div className='flex justify-between'>
-                                                    <span className='text-sm text-muted-foreground'>
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between">
+                                                    <span className="text-sm text-muted-foreground">
                                                         Instructor:
                                                     </span>
-                                                    <span className='text-sm font-medium'>
+                                                    <span className="text-sm font-medium">
                                                         {
                                                             selectedCourse.instructor
                                                         }
@@ -4433,54 +4449,54 @@ export default function TimetableViewClassroom() {
                                         </div>
                                     )}
 
-                                    <div className='space-y-2'>
-                                        <div className='flex justify-between'>
-                                            <span className='text-sm text-muted-foreground'>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                            <span className="text-sm text-muted-foreground">
                                                 Duration:
                                             </span>
-                                            <span className='text-sm font-medium'>
+                                            <span className="text-sm font-medium">
                                                 {selectedCourse.duration}{" "}
                                                 hour(s)
                                             </span>
                                         </div>
-                                        <div className='flex justify-between'>
-                                            <span className='text-sm text-muted-foreground'>
+                                        <div className="flex justify-between">
+                                            <span className="text-sm text-muted-foreground">
                                                 Room:
                                             </span>
-                                            <span className='text-sm font-medium'>
+                                            <span className="text-sm font-medium">
                                                 {selectedCourse.room}
                                             </span>
                                         </div>
-                                        <div className='flex justify-between'>
-                                            <span className='text-sm text-muted-foreground'>
+                                        <div className="flex justify-between">
+                                            <span className="text-sm text-muted-foreground">
                                                 Time:
                                             </span>
-                                            <span className='text-sm font-medium'>
+                                            <span className="text-sm font-medium">
                                                 {selectedCourse.day},{" "}
                                                 {selectedCourse.startTime} -{" "}
                                                 {selectedCourse.endTime}
                                             </span>
                                         </div>
-                                        <div className='flex justify-between'>
-                                            <span className='text-sm text-muted-foreground'>
+                                        <div className="flex justify-between">
+                                            <span className="text-sm text-muted-foreground">
                                                 Section:
                                             </span>
-                                            <span className='text-sm font-medium'>
+                                            <span className="text-sm font-medium">
                                                 {selectedCourse.section}
                                             </span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className='flex justify-end gap-2'>
+                                <div className="flex justify-end gap-2">
                                     <Button
-                                        variant='outline'
+                                        variant="outline"
                                         onClick={() => setIsDialogOpen(false)}
                                     >
                                         Close
                                     </Button>
                                     <Button
-                                        variant='destructive'
+                                        variant="destructive"
                                         onClick={handleRemoveCourse}
                                     >
                                         Remove

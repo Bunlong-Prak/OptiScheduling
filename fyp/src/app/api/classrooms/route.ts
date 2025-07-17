@@ -8,7 +8,7 @@ import { z } from "zod";
 const createClassroomSchema = z.object({
     code: z.string().min(1, "Classroom code is required"),
     name: z.string().min(1, "Classroom name is required"),
-    location: z.string().min(1, "Classroom location is required"),
+    location: z.string().optional().nullable(),
     type: z.string().min(1, "Classroom type is required"),
     capacity: z.number().min(1, "Capacity must be greater than 0"),
     scheduleId: z.string().min(1, "Schedule ID is required"),
@@ -18,7 +18,7 @@ const editClassroomSchema = z.object({
     id: z.number(),
     code: z.string().min(1, "Classroom code is required"),
     name: z.string().min(1, "Classroom name is required"),
-    location: z.string().min(1, "Classroom location is required"),
+    location: z.string().optional().nullable(),
     type: z.string().min(1, "Classroom type is required"),
     capacity: z.number().min(1, "Capacity must be greater than 0"),
     scheduleId: z.string().min(1, "Schedule ID is required"),

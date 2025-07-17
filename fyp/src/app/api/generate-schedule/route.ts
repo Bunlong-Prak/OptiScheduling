@@ -503,6 +503,7 @@ async function fetchCourses(schedule_id: number): Promise<Course[]> {
                     number: sections.number,
                     instructor_id: sections.instructorId,
                     status: sections.status,
+                    prefer_classroom_id: sections.preferClassRoomId,
                 })
                 .from(sections)
                 .where(eq(sections.courseId, course.id));
@@ -703,6 +704,7 @@ async function fetchClassrooms(schedule_id: number) {
                 id: classrooms.id,
                 code: classrooms.code,
                 capacity: classrooms.capacity,
+                classroom_type_id: classroomTypes.id,
             })
             .from(classrooms)
             .innerJoin(
@@ -822,6 +824,57 @@ function validateSchedulingUnitCapacity(
     };
 }
 
+function getClassroomPreferenceStats(
+    section: any,
+    classroomsData: any[]
+): {
+    hasPreference: boolean;
+    preferredClassroom?: any;
+    sameTypeCount: number;
+    totalSuitableCount: number;
+} {
+    const courseCapacity = getCourseCapacity(section.course);
+
+    const suitableClassrooms = classroomsData.filter((classroom) => {
+        const hasEnoughSeats =
+            classroom.capacity >= (section.course.capacity || 0);
+        const meetsCapacityRequirement =
+            courseCapacity === 0 || classroom.capacity >= courseCapacity;
+        return hasEnoughSeats && meetsCapacityRequirement;
+    });
+
+    if (!section.prefer_classroom_id) {
+        return {
+            hasPreference: false,
+            sameTypeCount: 0,
+            totalSuitableCount: suitableClassrooms.length,
+        };
+    }
+
+    const preferredClassroom = classroomsData.find(
+        (classroom) => classroom.id === section.prefer_classroom_id
+    );
+
+    if (!preferredClassroom) {
+        return {
+            hasPreference: true,
+            sameTypeCount: 0,
+            totalSuitableCount: suitableClassrooms.length,
+        };
+    }
+
+    const sameTypeCount = suitableClassrooms.filter(
+        (classroom) =>
+            classroom.classroom_type_id === preferredClassroom.classroom_type_id
+    ).length;
+
+    return {
+        hasPreference: true,
+        preferredClassroom,
+        sameTypeCount,
+        totalSuitableCount: suitableClassrooms.length,
+    };
+}
 function validateSeparatedDurations(
     separatedDurations: number[],
     totalDuration: number,
@@ -1053,12 +1106,12 @@ function scheduleSchedulingUnitWithErrorTracking(
             warnings,
         };
     }
-
-    // Check 2: Classroom Assignment
     if (!unit.classroom_id) {
-        unit.classroom_id = assignClassroomToSection(unit, classroomsData);
+        unit.classroom_id = assignClassroomToSectionWithPreference(
+            unit,
+            classroomsData
+        );
     }
-
     if (!unit.classroom_id) {
         // Determine specific reason for classroom assignment failure
         const courseCapacity = getCourseCapacity(unit.course);
@@ -1635,6 +1688,204 @@ function assignClassroomToSection(
     console.log(
         `✅ Assigned classroom: ${assignedClassroom.code} (capacity: ${assignedClassroom.capacity})`
     );
+    return assignedClassroom.id;
+}
+
+function assignClassroomToSectionWithPreference(
+    section: any,
+    classroomsData: any[]
+): number | null {
+    console.log(
+        `=== ASSIGNING CLASSROOM WITH PREFERENCE TO SECTION ${section.number} ===`
+    );
+
+    // Check if the section is online
+    if (section.status === "online") {
+        const onlineClassroomIds = [-1, -2, -3];
+        const randomIndex = Math.floor(
+            Math.random() * onlineClassroomIds.length
+        );
+        console.log(
+            `✅ Assigned online section to Online Classroom ${Math.abs(
+                onlineClassroomIds[randomIndex]
+            )}`
+        );
+        return onlineClassroomIds[randomIndex];
+    }
+
+    // Get preference statistics for better logging
+    const stats = getClassroomPreferenceStats(section, classroomsData);
+    const courseCapacity = getCourseCapacity(section.course);
+
+    console.log(`📊 Assignment context:`);
+    console.log(`   - Course capacity needed: ${courseCapacity}`);
+    console.log(`   - Has preference: ${stats.hasPreference}`);
+    console.log(`   - Total suitable classrooms: ${stats.totalSuitableCount}`);
+    if (stats.hasPreference && stats.preferredClassroom) {
+        console.log(
+            `   - Preferred classroom: ${stats.preferredClassroom.code} (Type: ${stats.preferredClassroom.classroom_type_id})`
+        );
+        console.log(`   - Same type alternatives: ${stats.sameTypeCount}`);
+    }
+
+    // Filter classrooms by capacity requirements
+    const capacitySuitableClassrooms = classroomsData.filter((classroom) => {
+        const hasEnoughSeats =
+            classroom.capacity >= (section.course.capacity || 0);
+        const meetsCapacityRequirement =
+            courseCapacity === 0 || classroom.capacity >= courseCapacity;
+        return hasEnoughSeats && meetsCapacityRequirement;
+    });
+
+    if (capacitySuitableClassrooms.length === 0) {
+        console.log("❌ No classrooms found with adequate capacity");
+
+        // Enhanced error reporting
+        const maxCapacity = Math.max(
+            ...classroomsData.map((c) => c.capacity || 0)
+        );
+        const minNeeded = Math.max(
+            courseCapacity,
+            section.course.capacity || 0
+        );
+
+        console.log(`   - Maximum available capacity: ${maxCapacity}`);
+        console.log(`   - Minimum required capacity: ${minNeeded}`);
+        console.log(`   - Shortage: ${minNeeded - maxCapacity} seats`);
+
+        return null;
+    }
+
+    // PREFERENCE-BASED ASSIGNMENT LOGIC
+    if (
+        section.prefer_classroom_id != null &&
+        section.prefer_classroom_id !== undefined
+    ) {
+        console.log(
+            `🎯 Processing classroom preference: ID ${section.prefer_classroom_id}`
+        );
+
+        const preferredClassroom = stats.preferredClassroom;
+
+        if (preferredClassroom) {
+            // Strategy 1: Try to assign the preferred classroom directly
+            const isPreferredSuitable = capacitySuitableClassrooms.some(
+                (classroom) => classroom.id === section.prefer_classroom_id
+            );
+
+            if (isPreferredSuitable) {
+                console.log(
+                    `✅ PREFERENCE MATCH: Assigned preferred classroom ${preferredClassroom.code} directly`
+                );
+                return section.prefer_classroom_id;
+            }
+
+            console.log(
+                `⚠️ Preferred classroom ${preferredClassroom.code} doesn't meet capacity requirements`
+            );
+
+            // Strategy 2: Find classrooms with the same classroom_type_id
+            const sameTypeClassrooms = capacitySuitableClassrooms.filter(
+                (classroom) =>
+                    classroom.classroom_type_id ===
+                    preferredClassroom.classroom_type_id
+            );
+
+            if (sameTypeClassrooms.length > 0) {
+                console.log(
+                    `🔄 PREFERENCE FALLBACK: Found ${sameTypeClassrooms.length} suitable classrooms with same type (Type ID: ${preferredClassroom.classroom_type_id})`
+                );
+
+                // Log all available classrooms of the same type
+                console.log(`   Available same-type classrooms:`);
+                sameTypeClassrooms.forEach((classroom, index) => {
+                    const utilizationRate =
+                        courseCapacity > 0
+                            ? Math.round(
+                                  (courseCapacity / classroom.capacity) * 100
+                              )
+                            : 0;
+                    console.log(
+                        `     ${index + 1}. ${classroom.code} (${
+                            classroom.capacity
+                        } seats, ${utilizationRate}% utilization)`
+                    );
+                });
+
+                // Randomly select from classrooms with the same type
+                const randomIndex = Math.floor(
+                    Math.random() * sameTypeClassrooms.length
+                );
+                const selectedClassroom = sameTypeClassrooms[randomIndex];
+                const utilizationRate =
+                    courseCapacity > 0
+                        ? Math.round(
+                              (courseCapacity / selectedClassroom.capacity) *
+                                  100
+                          )
+                        : 0;
+
+                console.log(
+                    `✅ PREFERENCE TYPE MATCH: Randomly selected ${
+                        selectedClassroom.code
+                    } (${
+                        selectedClassroom.capacity
+                    } seats, ${utilizationRate}% utilization) - Random choice ${
+                        randomIndex + 1
+                    } of ${sameTypeClassrooms.length}`
+                );
+                return selectedClassroom.id;
+            }
+
+            console.log(
+                `❌ PREFERENCE FAILED: No suitable classrooms found with same type (Type ID: ${preferredClassroom.classroom_type_id})`
+            );
+        } else {
+            console.log(
+                `❌ PREFERENCE ERROR: Preferred classroom ID ${section.prefer_classroom_id} not found in database`
+            );
+        }
+    } else {
+        console.log(
+            "ℹ️ NO PREFERENCE: Using standard capacity-based assignment"
+        );
+    }
+
+    // FALLBACK: Standard assignment with random selection from suitable classrooms
+    console.log("🔄 Executing fallback assignment strategy");
+
+    // Log all suitable classrooms
+    console.log(`   Available classrooms for random selection:`);
+    capacitySuitableClassrooms.forEach((classroom, index) => {
+        const utilizationRate =
+            courseCapacity > 0
+                ? Math.round((courseCapacity / classroom.capacity) * 100)
+                : 0;
+        console.log(
+            `     ${index + 1}. ${classroom.code} (${
+                classroom.capacity
+            } seats, ${utilizationRate}% utilization)`
+        );
+    });
+
+    // Randomly select from all capacity-suitable classrooms
+    const randomIndex = Math.floor(
+        Math.random() * capacitySuitableClassrooms.length
+    );
+    const assignedClassroom = capacitySuitableClassrooms[randomIndex];
+    const finalUtilizationRate =
+        courseCapacity > 0
+            ? Math.round((courseCapacity / assignedClassroom.capacity) * 100)
+            : 0;
+
+    console.log(
+        `✅ STANDARD ASSIGNMENT: Randomly selected ${assignedClassroom.code} (${
+            assignedClassroom.capacity
+        } seats, ${finalUtilizationRate}% utilization) - Random choice ${
+            randomIndex + 1
+        } of ${capacitySuitableClassrooms.length}`
+    );
+
     return assignedClassroom.id;
 }
 

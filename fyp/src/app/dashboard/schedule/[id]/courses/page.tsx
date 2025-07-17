@@ -299,7 +299,7 @@ export default function CoursesView() {
         const section = sections.find((s) => s.id === sectionId);
         const total = section
             ? section.splitDurations.reduce(
-                  (sum, duration) => sum + Number(duration),
+                  (sum, duration) => sum + formatDecimal(duration),
                   0
               )
             : 0;
@@ -313,7 +313,7 @@ export default function CoursesView() {
 
     const isSectionSplitValid = (sectionId: number) => {
         const total = getSectionTotalSplitDuration(sectionId);
-        const courseDuration = Number(formData.duration);
+        const courseDuration = formatDecimal(formData.duration);
         const isValid = total === courseDuration;
         console.log(
             `Section ${sectionId}: ${total} === ${courseDuration} = ${isValid}`
@@ -401,6 +401,8 @@ export default function CoursesView() {
                         separatedDurations: [courseHour.separatedDuration],
                         courseHours: [],
                         preferClassRoomTypeId: courseHour.preferClassRoomTypeId,
+                        preferClassRoomTypeName:
+                            courseHour.preferClassRoomTypeName,
                     });
                 } else {
                     // Always add separated duration to existing section
@@ -434,6 +436,7 @@ export default function CoursesView() {
                         combinedSeparatedDuration,
                         separatedDuration: course.separatedDurations[0],
                         preferClassRoomTypeId: course.preferClassRoomTypeId,
+                        preferClassRoomTypeName: course.preferClassRoomTypeName,
                     };
                 }
             );
@@ -2400,6 +2403,9 @@ export default function CoursesView() {
                                     <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider ">
                                         Split Duration (per week)
                                     </th>
+                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider ">
+                                        Prefer Classroom Type
+                                    </th>
                                     <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
                                         Capacity
                                     </th>
@@ -2528,6 +2534,9 @@ export default function CoursesView() {
                                                             .separatedDurations
                                                             .length > 1}
                                                 </div>
+                                            </td>
+                                            <td className="px-2 py-2 text-xs text-gray-900">
+                                                {course.preferClassRoomTypeName}
                                             </td>
                                             <td className="px-2 py-2 text-xs text-gray-900">
                                                 {course.capacity}
@@ -2757,7 +2766,9 @@ export default function CoursesView() {
                                                     formData?.color || "#3B82F6"
                                                 }
                                                 onChange={(e) => {
-                                                    handleColorChange(e.target.value);
+                                                    handleColorChange(
+                                                        e.target.value
+                                                    );
                                                 }}
                                                 className="w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]"
                                                 style={{
@@ -2782,7 +2793,9 @@ export default function CoursesView() {
                                                 type="text"
                                                 value={formData?.color || ""}
                                                 onChange={(e) => {
-                                                    handleColorChange(e.target.value);
+                                                    handleColorChange(
+                                                        e.target.value
+                                                    );
                                                 }}
                                                 placeholder="#3B82F6"
                                                 className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm font-mono"
@@ -2804,8 +2817,10 @@ export default function CoursesView() {
                                                 <button
                                                     key={presetColor}
                                                     type="button"
-                                                    onClick={
-                                                        () => handleColorChange(presetColor)
+                                                    onClick={() =>
+                                                        handleColorChange(
+                                                            presetColor
+                                                        )
                                                     }
                                                     className="w-6 h-6 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2F2F85] focus:ring-offset-1"
                                                     style={{
@@ -3792,8 +3807,10 @@ export default function CoursesView() {
                                                 value={
                                                     formData?.color || "#3B82F6"
                                                 } // Default to blue hex
-                                                onChange={
-                                                    (e) => handleColorChange(e.target.value)
+                                                onChange={(e) =>
+                                                    handleColorChange(
+                                                        e.target.value
+                                                    )
                                                 }
                                                 className="w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]"
                                                 style={{
@@ -3818,8 +3835,10 @@ export default function CoursesView() {
                                             <Input
                                                 type="text"
                                                 value={formData?.color || ""}
-                                                onChange={
-                                                    (e) => handleColorChange(e.target.value)
+                                                onChange={(e) =>
+                                                    handleColorChange(
+                                                        e.target.value
+                                                    )
                                                 }
                                                 placeholder="#3B82F6"
                                                 className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm font-mono"
@@ -3842,7 +3861,9 @@ export default function CoursesView() {
                                                     key={presetColor}
                                                     type="button"
                                                     onClick={() => {
-                                                        handleColorChange(presetColor);
+                                                        handleColorChange(
+                                                            presetColor
+                                                        );
                                                     }}
                                                     className="w-6 h-6 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2F2F85] focus:ring-offset-1"
                                                     style={{
