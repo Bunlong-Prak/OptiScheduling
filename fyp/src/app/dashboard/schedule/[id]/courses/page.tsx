@@ -994,7 +994,7 @@ export default function CoursesView() {
         return isValid;
     };
     function formatDecimal(value: number): number {
-        return Math.floor(value * 100) / 100; // Truncate to 2 decimals, don't round
+        return Math.round(value * 100) / 100; // Truncate to 2 decimals, don't round
     }
     const handleAddCourse = async () => {
         if (!validateForm()) {
