@@ -936,7 +936,11 @@ export default function CoursesView() {
                 section.id === sectionId
                     ? {
                           ...section,
-                          preferClassRoomType: classRoomType,
+                          preferClassRoomType:
+                              section.preferClassRoomType &&
+                              section.preferClassRoomType.id === classRoomType.id
+                                  ? null // unselect if already selected
+                                  : classRoomType,
                       }
                     : section
             )
