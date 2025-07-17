@@ -70,6 +70,7 @@ export type Course = {
     classroom: string;
     status: string; // "active" or "inactive"
     preferClassRoomTypeId?: number; // Optional field for preferred classroom type
+    preferClassRoomTypeName?: string;
 };
 
 // export type Schedule = {

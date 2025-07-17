@@ -214,18 +214,18 @@ export default function CoursesView() {
                     : "bg-red-50 border-red-500 text-red-800"
             }`}
         >
-            <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
+            <div className='flex items-start justify-between'>
+                <div className='flex items-start gap-3'>
                     {message.type === "success" ? (
-                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                        <CheckCircle className='h-5 w-5 text-green-600 flex-shrink-0 mt-0.5' />
                     ) : (
-                        <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <XCircle className='h-5 w-5 text-red-600 flex-shrink-0 mt-0.5' />
                     )}
                     <div>
-                        <h4 className="font-semibold text-sm">
+                        <h4 className='font-semibold text-sm'>
                             {message.title}
                         </h4>
-                        <p className="text-sm mt-1 opacity-90">
+                        <p className='text-sm mt-1 opacity-90'>
                             {message.description}
                         </p>
                     </div>
@@ -238,7 +238,7 @@ export default function CoursesView() {
                             : "hover:bg-red-600"
                     }`}
                 >
-                    <X className="h-4 w-4" />
+                    <X className='h-4 w-4' />
                 </button>
             </div>
         </div>
@@ -401,6 +401,8 @@ export default function CoursesView() {
                         separatedDurations: [courseHour.separatedDuration],
                         courseHours: [],
                         preferClassRoomTypeId: courseHour.preferClassRoomTypeId,
+                        preferClassRoomTypeName:
+                            courseHour.preferClassRoomTypeName,
                     });
                 } else {
                     // Always add separated duration to existing section
@@ -1431,6 +1433,7 @@ export default function CoursesView() {
         section: string;
         classroom?: string;
         instructor_name?: string;
+        prefer_classroom_type: string;
     }
 
     const validateCourseData = (
@@ -1600,9 +1603,11 @@ export default function CoursesView() {
 
         // Validate capacity
         const capacity = Number(row.capacity);
-        if (!row.capacity || isNaN(capacity) || capacity <= 0) {
+        if (!row.capacity || isNaN(capacity) || capacity < 0) {
             errors.push(
-                `Row ${rowIndex + 1}: Capacity must be a valid positive number`
+                `Row ${
+                    rowIndex + 1
+                }: Capacity must be a valid non-negative number`
             );
         }
 
@@ -1648,10 +1653,11 @@ export default function CoursesView() {
             separated_duration: separatedDurationValue, // This can now be either a single value or JSON array string
             capacity: capacity.toString(),
             section: row.section.toString().trim(),
-            classroom: row.classroom ? row.classroom.trim() : undefined,
+            // classroom: row.classroom ? row.classroom.trim() : undefined,
             instructor_name: row.instructor_name
                 ? row.instructor_name.trim()
                 : undefined,
+            prefer_classroom_type: row.prefer_classroom_type,
         };
     };
 
@@ -1664,8 +1670,8 @@ export default function CoursesView() {
         error?: string,
         additionalMessage?: string
     ) => (
-        <div className="space-y-2">
-            <Label htmlFor={id} className="text-sm font-medium text-gray-700">
+        <div className='space-y-2'>
+            <Label htmlFor={id} className='text-sm font-medium text-gray-700'>
                 {label}
             </Label>
             <Input
@@ -1679,32 +1685,32 @@ export default function CoursesView() {
                 placeholder={placeholder}
             />
             {error && (
-                <p className="text-xs text-red-600 flex items-center">
+                <p className='text-xs text-red-600 flex items-center'>
                     <svg
-                        className="w-3 h-3 mr-1"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
+                        className='w-3 h-3 mr-1'
+                        fill='currentColor'
+                        viewBox='0 0 20 20'
                     >
                         <path
-                            fillRule="evenodd"
-                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                            clipRule="evenodd"
+                            fillRule='evenodd'
+                            d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z'
+                            clipRule='evenodd'
                         />
                     </svg>
                     {error}
                 </p>
             )}
             {additionalMessage && !error && (
-                <p className="text-xs text-amber-600 flex items-center">
+                <p className='text-xs text-amber-600 flex items-center'>
                     <svg
-                        className="w-3 h-3 mr-1"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
+                        className='w-3 h-3 mr-1'
+                        fill='currentColor'
+                        viewBox='0 0 20 20'
                     >
                         <path
-                            fillRule="evenodd"
-                            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                            clipRule="evenodd"
+                            fillRule='evenodd'
+                            d='M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z'
+                            clipRule='evenodd'
                         />
                     </svg>
                     {additionalMessage}
@@ -1714,10 +1720,10 @@ export default function CoursesView() {
     );
 
     const renderMajorSelect = () => (
-        <div className="space-y-2">
+        <div className='space-y-2'>
             <Label
-                htmlFor="major"
-                className="text-sm font-medium text-gray-700"
+                htmlFor='major'
+                className='text-sm font-medium text-gray-700'
             >
                 Major
             </Label>
@@ -1727,7 +1733,7 @@ export default function CoursesView() {
                         validationErrors.major ? "border-red-300 bg-red-50" : ""
                     }`}
                 >
-                    <SelectValue placeholder="Select a major" />
+                    <SelectValue placeholder='Select a major' />
                 </SelectTrigger>
                 <SelectContent>
                     {majors.map((major) => (
@@ -1738,16 +1744,16 @@ export default function CoursesView() {
                 </SelectContent>
             </Select>
             {validationErrors.major && (
-                <p className="text-xs text-red-600 flex items-center">
+                <p className='text-xs text-red-600 flex items-center'>
                     <svg
-                        className="w-3 h-3 mr-1"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
+                        className='w-3 h-3 mr-1'
+                        fill='currentColor'
+                        viewBox='0 0 20 20'
                     >
                         <path
-                            fillRule="evenodd"
-                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                            clipRule="evenodd"
+                            fillRule='evenodd'
+                            d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z'
+                            clipRule='evenodd'
                         />
                     </svg>
                     {validationErrors.major}
@@ -1980,6 +1986,12 @@ export default function CoursesView() {
                                         instructorId: instructorId,
                                         status: courseSection.status,
                                         splitDurations: splitDurations,
+                                        preferClassRoomType:
+                                            classroomTypes.find(
+                                                (ct) =>
+                                                    ct.name.trim() ==
+                                                    courseSection.prefer_classroom_type?.trim()
+                                            ) || null,
                                     };
                                 }
                             );
@@ -2130,6 +2142,7 @@ export default function CoursesView() {
                 "capacity",
                 "section",
                 "instructor_name",
+                "prefer_classroom_type",
             ];
 
             // Convert courses data to CSV rows (one row per section)
@@ -2142,6 +2155,7 @@ export default function CoursesView() {
                         ? `${course.firstName.trim()} ${course.lastName.trim()}`
                         : "";
 
+                console.log(course.preferClassRoomTypeName);
                 csvRows.push([
                     course.code || "",
                     course.title || "",
@@ -2163,6 +2177,9 @@ export default function CoursesView() {
                     course.capacity?.toString() || "1",
                     course.section || "",
                     instructorName,
+                    course.preferClassRoomTypeName
+                        ? course.preferClassRoomTypeName
+                        : "",
                 ]);
             });
 
@@ -2293,8 +2310,8 @@ export default function CoursesView() {
         <>
             {/* Messages - OUTSIDE the main content flow */}
             {messages.length > 0 && (
-                <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
-                    <div className="pointer-events-auto space-y-2">
+                <div className='fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none'>
+                    <div className='pointer-events-auto space-y-2'>
                         {messages.map((message) => (
                             <MessageBanner key={message.id} message={message} />
                         ))}
@@ -2302,125 +2319,125 @@ export default function CoursesView() {
                 </div>
             )}
 
-            <div className="space-y-4">
+            <div className='space-y-4'>
                 {/* Page Header */}
-                <div className="flex justify-between items-center">
+                <div className='flex justify-between items-center'>
                     <div>
-                        <h2 className="text-lg font-semibold text-gray-900">
+                        <h2 className='text-lg font-semibold text-gray-900'>
                             Courses
                         </h2>
-                        <p className="text-xs text-gray-600">
+                        <p className='text-xs text-gray-600'>
                             Manage courses, sections, and instructors
                         </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className='flex gap-2'>
                         <Button
                             onClick={() => setIsImportDialogOpen(true)}
-                            variant="outline"
-                            className="border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md"
+                            variant='outline'
+                            className='border-blue-600 text-blue-600 hover:bg-blue-50 text-xs px-3 py-1.5 rounded-md'
                         >
-                            <Download className="mr-1 h-3 w-3" /> Import CSV
+                            <Download className='mr-1 h-3 w-3' /> Import CSV
                         </Button>
                         <Button
                             onClick={downloadCoursesCSV}
-                            variant="outline"
-                            className="border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md"
+                            variant='outline'
+                            className='border-green-600 text-green-600 hover:bg-green-50 text-xs px-3 py-1.5 rounded-md'
                             disabled={courses.length === 0}
                         >
-                            <Upload className="mr-1 h-3 w-3" /> Export CSV
+                            <Upload className='mr-1 h-3 w-3' /> Export CSV
                         </Button>
                         <Button
                             onClick={() => setIsAddDialogOpen(true)}
-                            className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors"
+                            className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors'
                         >
-                            <Plus className="mr-1 h-3 w-3" /> New Course
+                            <Plus className='mr-1 h-3 w-3' /> New Course
                         </Button>
                         <Button
                             onClick={() => setIsClearAllDialogOpen(true)}
-                            variant="outline"
-                            className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
+                            variant='outline'
+                            className='border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md'
                             disabled={courses.length === 0}
                         >
-                            <Trash className="mr-1 h-3 w-3" /> Clear All
+                            <Trash className='mr-1 h-3 w-3' /> Clear All
                         </Button>
                     </div>
                 </div>
 
                 {/* Search Bar */}
-                <div className="relative max-w-md">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <div className='relative max-w-md'>
+                    <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400' />
                     <Input
-                        placeholder="Search courses by code, title, section, major, or instructor..."
+                        placeholder='Search courses by code, title, section, major, or instructor...'
                         value={searchQuery}
                         onChange={(e) => {
                             setSearchQuery(e.target.value);
                             setCurrentPage(1);
                         }}
-                        className="pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md"
+                        className='pl-10 pr-10 py-2 border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm rounded-md'
                     />
                     {searchQuery && (
                         <Button
-                            variant="ghost"
-                            size="sm"
+                            variant='ghost'
+                            size='sm'
                             onClick={() => {
                                 setSearchQuery("");
                                 setCurrentPage(1);
                             }}
-                            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+                            className='absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100'
                         >
-                            <X className="h-3 w-3" />
+                            <X className='h-3 w-3' />
                         </Button>
                     )}
                 </div>
 
                 {/* Compact Table Container */}
-                <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
+                <div className='bg-white rounded border border-gray-200 shadow-sm overflow-hidden'>
+                    <div className='overflow-x-auto'>
+                        <table className='w-full text-xs'>
                             <thead>
-                                <tr className="bg-[#2F2F85] text-white">
-                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                <tr className='bg-[#2F2F85] text-white'>
+                                    <th className='px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider'>
                                         Code
                                     </th>
-                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    <th className='px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider'>
                                         Title
                                     </th>
-                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                    <th className='px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16'>
                                         Section
                                     </th>
-                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    <th className='px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider'>
                                         Instructor
                                     </th>
-                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-25">
+                                    <th className='px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-25'>
                                         Major
                                     </th>
-                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                    <th className='px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider'>
                                         Total Duration (per week)
                                     </th>
-                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider ">
+                                    <th className='px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider '>
                                         Split Duration (per week)
                                     </th>
-                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                    <th className='px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16'>
                                         Capacity
                                     </th>
-                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                    <th className='px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16'>
                                         Status
                                     </th>
-                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                    <th className='px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16'>
                                         Actions
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-200">
+                            <tbody className='divide-y divide-gray-200'>
                                 {courses.length === 0 ? (
                                     <tr>
                                         <td
                                             colSpan={10}
-                                            className="px-3 py-8 text-center text-gray-500 text-sm"
+                                            className='px-3 py-8 text-center text-gray-500 text-sm'
                                         >
-                                            <div className="space-y-1">
+                                            <div className='space-y-1'>
                                                 <div>No courses found</div>
-                                                <div className="text-xs">
+                                                <div className='text-xs'>
                                                     Add a new course to get
                                                     started.
                                                 </div>
@@ -2431,7 +2448,7 @@ export default function CoursesView() {
                                     <tr>
                                         <td
                                             colSpan={10}
-                                            className="px-3 py-8 text-center text-gray-500 text-sm"
+                                            className='px-3 py-8 text-center text-gray-500 text-sm'
                                         >
                                             No courses found on this page.
                                         </td>
@@ -2446,11 +2463,11 @@ export default function CoursesView() {
                                                     : "bg-gray-50"
                                             }`}
                                         >
-                                            <td className="px-2 py-2 text-xs font-medium text-gray-900">
-                                                <div className="flex items-center">
+                                            <td className='px-2 py-2 text-xs font-medium text-gray-900'>
+                                                <div className='flex items-center'>
                                                     {/* Color indicator */}
                                                     <div
-                                                        className="w-3 h-3 rounded-full mr-2 border border-gray-300"
+                                                        className='w-3 h-3 rounded-full mr-2 border border-gray-300'
                                                         style={{
                                                             backgroundColor:
                                                                 course.color ||
@@ -2464,28 +2481,28 @@ export default function CoursesView() {
                                                     {course.code}
                                                 </div>
                                             </td>
-                                            <td className="px-2 py-2 text-xs text-gray-900">
+                                            <td className='px-2 py-2 text-xs text-gray-900'>
                                                 {course.title}
                                             </td>
-                                            <td className="px-2 py-2 text-xs text-gray-900">
+                                            <td className='px-2 py-2 text-xs text-gray-900'>
                                                 {course.section}
                                             </td>
-                                            <td className="px-2 py-2 text-xs text-gray-900">
+                                            <td className='px-2 py-2 text-xs text-gray-900'>
                                                 {`${course.firstName || ""} ${
                                                     course.lastName || ""
                                                 }`.trim() || "—"}
                                             </td>
-                                            <td className="px-2 py-2 text-xs text-gray-900">
+                                            <td className='px-2 py-2 text-xs text-gray-900'>
                                                 {course.major || "—"}
                                             </td>
-                                            <td className="px-2 py-2 text-xs text-gray-900">
+                                            <td className='px-2 py-2 text-xs text-gray-900'>
                                                 {course.duration}h
                                             </td>
-                                            <td className="px-2 py-2 text-xs text-gray-900">
+                                            <td className='px-2 py-2 text-xs text-gray-900'>
                                                 {/* Display separated durations - check if separatedDurations array exists */}
-                                                <div className="space-y-1">
+                                                <div className='space-y-1'>
                                                     {/* Individual separated durations */}
-                                                    <div className="flex flex-wrap gap-1">
+                                                    <div className='flex flex-wrap gap-1'>
                                                         {(course as any)
                                                             .separatedDurations &&
                                                         (course as any)
@@ -2502,7 +2519,7 @@ export default function CoursesView() {
                                                                         key={
                                                                             idx
                                                                         }
-                                                                        className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-800"
+                                                                        className='inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-800'
                                                                     >
                                                                         {
                                                                             duration
@@ -2512,7 +2529,7 @@ export default function CoursesView() {
                                                                 )
                                                             )
                                                         ) : (
-                                                            <span className="text-gray-500">
+                                                            <span className='text-gray-500'>
                                                                 {
                                                                     course.separatedDuration
                                                                 }
@@ -2529,10 +2546,10 @@ export default function CoursesView() {
                                                             .length > 1}
                                                 </div>
                                             </td>
-                                            <td className="px-2 py-2 text-xs text-gray-900">
+                                            <td className='px-2 py-2 text-xs text-gray-900'>
                                                 {course.capacity}
                                             </td>
-                                            <td className="px-2 py-2">
+                                            <td className='px-2 py-2'>
                                                 <span
                                                     className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
                                                         course.status ===
@@ -2544,31 +2561,31 @@ export default function CoursesView() {
                                                     {course.status}
                                                 </span>
                                             </td>
-                                            <td className="px-2 py-2">
-                                                <div className="flex gap-1">
+                                            <td className='px-2 py-2'>
+                                                <div className='flex gap-1'>
                                                     <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100"
+                                                        variant='ghost'
+                                                        size='icon'
+                                                        className='h-6 w-6 text-gray-500 hover:text-[#2F2F85] hover:bg-gray-100'
                                                         onClick={() =>
                                                             openEditDialog(
                                                                 course
                                                             )
                                                         }
                                                     >
-                                                        <Pencil className="h-3 w-3" />
+                                                        <Pencil className='h-3 w-3' />
                                                     </Button>
                                                     <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                                                        variant='ghost'
+                                                        size='icon'
+                                                        className='h-6 w-6 text-gray-500 hover:text-red-600 hover:bg-red-50'
                                                         onClick={() =>
                                                             openDeleteDialog(
                                                                 course
                                                             )
                                                         }
                                                     >
-                                                        <Trash className="h-3 w-3" />
+                                                        <Trash className='h-3 w-3' />
                                                     </Button>
                                                 </div>
                                             </td>
@@ -2582,7 +2599,7 @@ export default function CoursesView() {
 
                 {/* Pagination */}
                 {filteredCourses.length > 0 && (
-                    <div className="flex justify-center">
+                    <div className='flex justify-center'>
                         <CustomPagination
                             currentPage={currentPage}
                             totalPages={totalPages}
@@ -2599,26 +2616,26 @@ export default function CoursesView() {
                         setIsAddDialogOpen(open);
                     }}
                 >
-                    <DialogContent className="bg-white max-w-2xl max-h-[85vh] overflow-y-auto">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-2xl max-h-[85vh] overflow-y-auto'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Add New Course
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="py-4 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                        <div className='py-4 space-y-4'>
+                            <div className='grid grid-cols-2 gap-4'>
                                 {/* Course Code Field with Validation */}
-                                <div className="space-y-2">
+                                <div className='space-y-2'>
                                     <Label
-                                        htmlFor="code"
-                                        className="text-sm font-medium text-gray-700"
+                                        htmlFor='code'
+                                        className='text-sm font-medium text-gray-700'
                                     >
                                         Course Code
                                     </Label>
                                     <Input
-                                        id="code"
-                                        name="code"
+                                        id='code'
+                                        name='code'
                                         value={formData.code}
                                         onChange={handleInputChange}
                                         className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
@@ -2626,7 +2643,7 @@ export default function CoursesView() {
                                                 ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
                                                 : ""
                                         }`}
-                                        placeholder="CS101"
+                                        placeholder='CS101'
                                     />
                                     {validationErrors.code && (
                                         <ErrorLabel>
@@ -2636,16 +2653,16 @@ export default function CoursesView() {
                                 </div>
 
                                 {/* Course Title Field with Validation */}
-                                <div className="space-y-2">
+                                <div className='space-y-2'>
                                     <Label
-                                        htmlFor="title"
-                                        className="text-sm font-medium text-gray-700"
+                                        htmlFor='title'
+                                        className='text-sm font-medium text-gray-700'
                                     >
                                         Course Name
                                     </Label>
                                     <Input
-                                        id="title"
-                                        name="title"
+                                        id='title'
+                                        name='title'
                                         value={formData.title}
                                         onChange={handleInputChange}
                                         className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
@@ -2653,7 +2670,7 @@ export default function CoursesView() {
                                                 ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
                                                 : ""
                                         }`}
-                                        placeholder="Introduction to Programming"
+                                        placeholder='Introduction to Programming'
                                     />
                                     {validationErrors.title && (
                                         <ErrorLabel>
@@ -2664,10 +2681,10 @@ export default function CoursesView() {
                             </div>
 
                             {/* Major Field with Validation */}
-                            <div className="space-y-2">
+                            <div className='space-y-2'>
                                 <Label
-                                    htmlFor="major"
-                                    className="text-sm font-medium text-gray-700"
+                                    htmlFor='major'
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Major
                                 </Label>
@@ -2682,11 +2699,11 @@ export default function CoursesView() {
                                                 : ""
                                         }`}
                                     >
-                                        <SelectValue placeholder="Select a major" />
+                                        <SelectValue placeholder='Select a major' />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {majors.length === 0 ? (
-                                            <div className="p-2 text-xs text-gray-500 text-center">
+                                            <div className='p-2 text-xs text-gray-500 text-center'>
                                                 No majors available
                                             </div>
                                         ) : (
@@ -2712,23 +2729,23 @@ export default function CoursesView() {
                                         }`}
                                     >
                                         <svg
-                                            className="w-3 h-3 mr-1 flex-shrink-0"
-                                            fill="currentColor"
-                                            viewBox="0 0 20 20"
+                                            className='w-3 h-3 mr-1 flex-shrink-0'
+                                            fill='currentColor'
+                                            viewBox='0 0 20 20'
                                         >
                                             {validationErrors.major.includes(
                                                 "create"
                                             ) ? (
                                                 <path
-                                                    fillRule="evenodd"
-                                                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                                                    clipRule="evenodd"
+                                                    fillRule='evenodd'
+                                                    d='M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z'
+                                                    clipRule='evenodd'
                                                 />
                                             ) : (
                                                 <path
-                                                    fillRule="evenodd"
-                                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                                                    clipRule="evenodd"
+                                                    fillRule='evenodd'
+                                                    d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z'
+                                                    clipRule='evenodd'
                                                 />
                                             )}
                                         </svg>
@@ -2738,28 +2755,30 @@ export default function CoursesView() {
                             </div>
 
                             {/* Color Field */}
-                            <div className="grid gap-4">
-                                <div className="space-y-2">
+                            <div className='grid gap-4'>
+                                <div className='space-y-2'>
                                     <Label
-                                        htmlFor="color"
-                                        className="text-sm font-medium text-gray-700"
+                                        htmlFor='color'
+                                        className='text-sm font-medium text-gray-700'
                                     >
                                         Color
                                     </Label>
-                                    <div className="flex items-center gap-3">
+                                    <div className='flex items-center gap-3'>
                                         {/* Color picker input */}
-                                        <div className="relative">
+                                        <div className='relative'>
                                             <input
-                                                type="color"
-                                                id="color"
-                                                name="color"
+                                                type='color'
+                                                id='color'
+                                                name='color'
                                                 value={
                                                     formData?.color || "#3B82F6"
                                                 }
                                                 onChange={(e) => {
-                                                    handleColorChange(e.target.value);
+                                                    handleColorChange(
+                                                        e.target.value
+                                                    );
                                                 }}
-                                                className="w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]"
+                                                className='w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]'
                                                 style={{
                                                     padding: "2px",
                                                     backgroundColor:
@@ -2767,7 +2786,7 @@ export default function CoursesView() {
                                                 }}
                                             />
                                             <div
-                                                className="absolute inset-1 rounded pointer-events-none"
+                                                className='absolute inset-1 rounded pointer-events-none'
                                                 style={{
                                                     backgroundColor:
                                                         formData?.color ||
@@ -2777,20 +2796,22 @@ export default function CoursesView() {
                                         </div>
 
                                         {/* Color value display */}
-                                        <div className="flex-1">
+                                        <div className='flex-1'>
                                             <Input
-                                                type="text"
+                                                type='text'
                                                 value={formData?.color || ""}
                                                 onChange={(e) => {
-                                                    handleColorChange(e.target.value);
+                                                    handleColorChange(
+                                                        e.target.value
+                                                    );
                                                 }}
-                                                placeholder="#3B82F6"
-                                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm font-mono"
+                                                placeholder='#3B82F6'
+                                                className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm font-mono'
                                             />
                                         </div>
 
                                         {/* Quick color presets */}
-                                        <div className="flex gap-1">
+                                        <div className='flex gap-1'>
                                             {[
                                                 "#3B82F6", // Blue
                                                 "#EF4444", // Red
@@ -2803,11 +2824,13 @@ export default function CoursesView() {
                                             ].map((presetColor) => (
                                                 <button
                                                     key={presetColor}
-                                                    type="button"
-                                                    onClick={
-                                                        () => handleColorChange(presetColor)
+                                                    type='button'
+                                                    onClick={() =>
+                                                        handleColorChange(
+                                                            presetColor
+                                                        )
                                                     }
-                                                    className="w-6 h-6 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2F2F85] focus:ring-offset-1"
+                                                    className='w-6 h-6 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2F2F85] focus:ring-offset-1'
                                                     style={{
                                                         backgroundColor:
                                                             presetColor,
@@ -2817,7 +2840,7 @@ export default function CoursesView() {
                                             ))}
                                         </div>
                                     </div>
-                                    <p className="text-xs text-gray-500">
+                                    <p className='text-xs text-gray-500'>
                                         Choose a color for this course or enter
                                         a custom hex value
                                     </p>
@@ -2830,25 +2853,25 @@ export default function CoursesView() {
                             </div>
 
                             {/* Duration and Capacity Fields */}
-                            <div className="grid gap-4">
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-700">
+                            <div className='grid gap-4'>
+                                <div className='space-y-2'>
+                                    <Label className='text-sm font-medium text-gray-700'>
                                         Duration
                                     </Label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div className="space-y-1">
+                                    <div className='grid grid-cols-2 gap-2'>
+                                        <div className='space-y-1'>
                                             <Label
-                                                htmlFor="duration-hours"
-                                                className="text-xs text-gray-600"
+                                                htmlFor='duration-hours'
+                                                className='text-xs text-gray-600'
                                             >
                                                 Hours
                                             </Label>
                                             <Input
-                                                id="duration-hours"
-                                                name="durationHours"
-                                                type="number"
-                                                min="0"
-                                                max="23"
+                                                id='duration-hours'
+                                                name='durationHours'
+                                                type='number'
+                                                min='0'
+                                                max='23'
                                                 value={durationHours}
                                                 onChange={handleInputChange}
                                                 className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
@@ -2856,23 +2879,23 @@ export default function CoursesView() {
                                                         ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
                                                         : ""
                                                 }`}
-                                                placeholder="0"
-                                                inputMode="numeric"
+                                                placeholder='0'
+                                                inputMode='numeric'
                                             />
                                         </div>
-                                        <div className="space-y-1">
+                                        <div className='space-y-1'>
                                             <Label
-                                                htmlFor="duration-minutes"
-                                                className="text-xs text-gray-600"
+                                                htmlFor='duration-minutes'
+                                                className='text-xs text-gray-600'
                                             >
                                                 Minutes
                                             </Label>
                                             <Input
-                                                id="duration-minutes"
-                                                name="durationMinutes"
-                                                type="number"
-                                                min="0"
-                                                max="59"
+                                                id='duration-minutes'
+                                                name='durationMinutes'
+                                                type='number'
+                                                min='0'
+                                                max='59'
                                                 value={durationMinutes}
                                                 onChange={handleInputChange}
                                                 className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
@@ -2880,12 +2903,12 @@ export default function CoursesView() {
                                                         ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
                                                         : ""
                                                 }`}
-                                                placeholder="0"
-                                                inputMode="numeric"
+                                                placeholder='0'
+                                                inputMode='numeric'
                                             />
                                         </div>
                                     </div>
-                                    <div className="text-xs text-gray-500">
+                                    <div className='text-xs text-gray-500'>
                                         Total: {durationHours}h{" "}
                                         {durationMinutes}m (
                                         {formData.duration.toFixed(2)} hours)
@@ -2898,19 +2921,19 @@ export default function CoursesView() {
                                 </div>
                             </div>
 
-                            <div className="grid gap-4">
-                                <div className="space-y-2">
+                            <div className='grid gap-4'>
+                                <div className='space-y-2'>
                                     <Label
-                                        htmlFor="capacity"
-                                        className="text-sm font-medium text-gray-700"
+                                        htmlFor='capacity'
+                                        className='text-sm font-medium text-gray-700'
                                     >
                                         Capacity
                                     </Label>
                                     <Input
-                                        id="capacity"
-                                        name="capacity"
-                                        type="number"
-                                        min="1"
+                                        id='capacity'
+                                        name='capacity'
+                                        type='number'
+                                        min='1'
                                         value={formData.capacity}
                                         onChange={handleInputChange}
                                         className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
@@ -2928,30 +2951,30 @@ export default function CoursesView() {
                             </div>
 
                             {/* Sections with Validation */}
-                            <div className="space-y-4">
+                            <div className='space-y-4'>
                                 <div>
-                                    <Label className="text-sm font-medium text-gray-700">
+                                    <Label className='text-sm font-medium text-gray-700'>
                                         Sections
                                     </Label>
-                                    <p className="text-xs text-gray-600 mt-1">
+                                    <p className='text-xs text-gray-600 mt-1'>
                                         Add course sections with instructors and
                                         split durations
                                     </p>
                                 </div>
 
                                 {/* Add Section Form */}
-                                <div className="grid gap-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
+                                <div className='grid gap-4'>
+                                    <div className='grid grid-cols-2 gap-4'>
+                                        <div className='space-y-2'>
                                             <Label
-                                                htmlFor="section"
-                                                className="text-sm font-medium text-gray-700"
+                                                htmlFor='section'
+                                                className='text-sm font-medium text-gray-700'
                                             >
                                                 Section Number
                                             </Label>
                                             <Input
-                                                id="section"
-                                                placeholder="Enter section number"
+                                                id='section'
+                                                placeholder='Enter section number'
                                                 value={currentSection}
                                                 onChange={(e) =>
                                                     handleSectionInputChange(
@@ -2965,29 +2988,29 @@ export default function CoursesView() {
                                                 }`}
                                             />
                                             {sectionValidationError && (
-                                                <p className="text-xs text-red-600 flex items-center">
+                                                <p className='text-xs text-red-600 flex items-center'>
                                                     <svg
-                                                        className="w-3 h-3 mr-1 flex-shrink-0"
-                                                        fill="currentColor"
-                                                        viewBox="0 0 20 20"
+                                                        className='w-3 h-3 mr-1 flex-shrink-0'
+                                                        fill='currentColor'
+                                                        viewBox='0 0 20 20'
                                                     >
                                                         <path
-                                                            fillRule="evenodd"
-                                                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                                                            clipRule="evenodd"
+                                                            fillRule='evenodd'
+                                                            d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z'
+                                                            clipRule='evenodd'
                                                         />
                                                     </svg>
                                                     {sectionValidationError}
                                                 </p>
                                             )}
                                         </div>
-                                        <div className="space-y-2">
+                                        <div className='space-y-2'>
                                             <Label
-                                                htmlFor="section-instructor"
-                                                className="text-sm font-medium text-gray-700"
+                                                htmlFor='section-instructor'
+                                                className='text-sm font-medium text-gray-700'
                                             >
                                                 Instructor{" "}
-                                                <span className="text-red-500">
+                                                <span className='text-red-500'>
                                                     *
                                                 </span>
                                             </Label>
@@ -2999,8 +3022,8 @@ export default function CoursesView() {
                                             >
                                                 <PopoverTrigger asChild>
                                                     <Button
-                                                        variant="outline"
-                                                        role="combobox"
+                                                        variant='outline'
+                                                        role='combobox'
                                                         className={`w-full justify-between text-sm ${
                                                             instructorValidationError
                                                                 ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
@@ -3013,12 +3036,12 @@ export default function CoursesView() {
                                                     >
                                                         {currentInstructor?.name ||
                                                             "Select instructor..."}
-                                                        <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                        <ChevronsUpDown className='ml-2 h-3 w-3 shrink-0 opacity-50' />
                                                     </Button>
                                                 </PopoverTrigger>
-                                                <PopoverContent className="w-full p-0">
+                                                <PopoverContent className='w-full p-0'>
                                                     <Command>
-                                                        <CommandInput placeholder="Search instructor..." />
+                                                        <CommandInput placeholder='Search instructor...' />
                                                         <CommandEmpty>
                                                             No instructor found.
                                                         </CommandEmpty>
@@ -3065,16 +3088,16 @@ export default function CoursesView() {
 
                                             {/* Show instructor validation error */}
                                             {instructorValidationError && (
-                                                <p className="text-xs text-red-600 flex items-center">
+                                                <p className='text-xs text-red-600 flex items-center'>
                                                     <svg
-                                                        className="w-3 h-3 mr-1 flex-shrink-0"
-                                                        fill="currentColor"
-                                                        viewBox="0 0 20 20"
+                                                        className='w-3 h-3 mr-1 flex-shrink-0'
+                                                        fill='currentColor'
+                                                        viewBox='0 0 20 20'
                                                     >
                                                         <path
-                                                            fillRule="evenodd"
-                                                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                                                            clipRule="evenodd"
+                                                            fillRule='evenodd'
+                                                            d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z'
+                                                            clipRule='evenodd'
                                                         />
                                                     </svg>
                                                     {instructorValidationError}
@@ -3083,16 +3106,16 @@ export default function CoursesView() {
 
                                             {/* Show warning if no instructors available */}
                                             {instructors.length === 0 && (
-                                                <p className="text-xs text-amber-600 flex items-center">
+                                                <p className='text-xs text-amber-600 flex items-center'>
                                                     <svg
-                                                        className="w-3 h-3 mr-1 flex-shrink-0"
-                                                        fill="currentColor"
-                                                        viewBox="0 0 20 20"
+                                                        className='w-3 h-3 mr-1 flex-shrink-0'
+                                                        fill='currentColor'
+                                                        viewBox='0 0 20 20'
                                                     >
                                                         <path
-                                                            fillRule="evenodd"
-                                                            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                                                            clipRule="evenodd"
+                                                            fillRule='evenodd'
+                                                            d='M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z'
+                                                            clipRule='evenodd'
                                                         />
                                                     </svg>
                                                     Please create an instructor
@@ -3114,56 +3137,56 @@ export default function CoursesView() {
                                                 : "bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
                                         }`}
                                     >
-                                        <Plus className="h-3 w-3 mr-2" /> Add
+                                        <Plus className='h-3 w-3 mr-2' /> Add
                                         Section
                                     </Button>
                                 </div>
 
                                 {/* Existing sections list code - WITH SPLIT DURATION CONTROLS */}
                                 {sections.length > 0 && (
-                                    <div className="space-y-2">
+                                    <div className='space-y-2'>
                                         {sections.map((section) => (
                                             <div
                                                 key={section.id}
-                                                className="p-3 border border-gray-200 rounded bg-gray-50"
+                                                className='p-3 border border-gray-200 rounded bg-gray-50'
                                             >
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                <div className='flex justify-between items-center mb-2'>
+                                                    <span className='inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800'>
                                                         Section{" "}
                                                         {section.section_id}
                                                     </span>
                                                     <Button
-                                                        variant="ghost"
-                                                        size="icon"
+                                                        variant='ghost'
+                                                        size='icon'
                                                         onClick={() =>
                                                             removeSection(
                                                                 section.id
                                                             )
                                                         }
-                                                        className="h-6 w-6 text-gray-500 hover:text-red-600"
+                                                        className='h-6 w-6 text-gray-500 hover:text-red-600'
                                                     >
-                                                        <Trash className="h-3 w-3" />
+                                                        <Trash className='h-3 w-3' />
                                                     </Button>
                                                 </div>
-                                                <div className="mt-2">
-                                                    <Label className="text-xs text-gray-700">
+                                                <div className='mt-2'>
+                                                    <Label className='text-xs text-gray-700'>
                                                         Instructor
                                                     </Label>
                                                     <Popover>
                                                         <PopoverTrigger asChild>
                                                             <Button
-                                                                variant="outline"
-                                                                role="combobox"
-                                                                className="w-full justify-between mt-1 text-sm border-gray-300"
+                                                                variant='outline'
+                                                                role='combobox'
+                                                                className='w-full justify-between mt-1 text-sm border-gray-300'
                                                             >
                                                                 {section.instructor_name ||
                                                                     "Select instructor..."}
-                                                                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                                <ChevronsUpDown className='ml-2 h-3 w-3 shrink-0 opacity-50' />
                                                             </Button>
                                                         </PopoverTrigger>
-                                                        <PopoverContent className="w-full p-0">
+                                                        <PopoverContent className='w-full p-0'>
                                                             <Command>
-                                                                <CommandInput placeholder="Search instructor..." />
+                                                                <CommandInput placeholder='Search instructor...' />
                                                                 <CommandEmpty>
                                                                     No
                                                                     instructor
@@ -3209,27 +3232,27 @@ export default function CoursesView() {
                                                         </PopoverContent>
                                                     </Popover>
                                                 </div>
-                                                <div className="mt-2">
-                                                    <Label className="text-xs text-gray-700">
+                                                <div className='mt-2'>
+                                                    <Label className='text-xs text-gray-700'>
                                                         Preferred Classroom Type
                                                     </Label>
                                                     <Popover>
                                                         <PopoverTrigger asChild>
                                                             <Button
-                                                                variant="outline"
-                                                                role="combobox"
-                                                                className="w-full justify-between mt-1 text-sm border-gray-300"
+                                                                variant='outline'
+                                                                role='combobox'
+                                                                className='w-full justify-between mt-1 text-sm border-gray-300'
                                                             >
                                                                 {section
                                                                     .preferClassRoomType
                                                                     ?.name ||
                                                                     "Select classroom type..."}
-                                                                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                                <ChevronsUpDown className='ml-2 h-3 w-3 shrink-0 opacity-50' />
                                                             </Button>
                                                         </PopoverTrigger>
-                                                        <PopoverContent className="w-full p-0">
+                                                        <PopoverContent className='w-full p-0'>
                                                             <Command>
-                                                                <CommandInput placeholder="Search classroom type..." />
+                                                                <CommandInput placeholder='Search classroom type...' />
                                                                 <CommandEmpty>
                                                                     No classroom
                                                                     type found.
@@ -3277,20 +3300,20 @@ export default function CoursesView() {
                                                 </div>
 
                                                 {/* Split Duration Controls */}
-                                                <div className="mt-4 mb-4 space-y-3">
-                                                    <div className="flex justify-between items-center mb-3">
-                                                        <Label className="text-xs text-gray-700 mr-2">
+                                                <div className='mt-4 mb-4 space-y-3'>
+                                                    <div className='flex justify-between items-center mb-3'>
+                                                        <Label className='text-xs text-gray-700 mr-2'>
                                                             Split Duration
                                                         </Label>
                                                         <Button
-                                                            variant="outline"
-                                                            size="sm"
+                                                            variant='outline'
+                                                            size='sm'
                                                             onClick={() =>
                                                                 toggleSectionSplitControls(
                                                                     section.id
                                                                 )
                                                             }
-                                                            className="text-xs ml-2"
+                                                            className='text-xs ml-2'
                                                         >
                                                             {section.showSplitControls
                                                                 ? "Hide Split"
@@ -3299,8 +3322,8 @@ export default function CoursesView() {
                                                     </div>
 
                                                     {section.showSplitControls && (
-                                                        <div className="mt-4 mb-4">
-                                                            <div className="text-xs text-gray-600 mb-3">
+                                                        <div className='mt-4 mb-4'>
+                                                            <div className='text-xs text-gray-600 mb-3'>
                                                                 Original
                                                                 Duration:{" "}
                                                                 {durationHours}h{" "}
@@ -3331,9 +3354,9 @@ export default function CoursesView() {
                                                                             key={
                                                                                 index
                                                                             }
-                                                                            className="flex items-center gap-2 mb-3"
+                                                                            className='flex items-center gap-2 mb-3'
                                                                         >
-                                                                            <Label className="text-xs w-12 mr-2">
+                                                                            <Label className='text-xs w-12 mr-2'>
                                                                                 Part{" "}
                                                                                 {index +
                                                                                     1}
@@ -3342,11 +3365,11 @@ export default function CoursesView() {
                                                                             </Label>
 
                                                                             {/* Hours Input */}
-                                                                            <div className="flex flex-col items-center">
+                                                                            <div className='flex flex-col items-center'>
                                                                                 <Input
-                                                                                    type="number"
-                                                                                    min="0"
-                                                                                    max="23"
+                                                                                    type='number'
+                                                                                    min='0'
+                                                                                    max='23'
                                                                                     value={
                                                                                         hours
                                                                                     }
@@ -3371,20 +3394,20 @@ export default function CoursesView() {
                                                                                             ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
                                                                                             : "border-red-300 bg-red-50"
                                                                                     }`}
-                                                                                    placeholder="0"
+                                                                                    placeholder='0'
                                                                                 />
-                                                                                <span className="text-xs text-gray-500 mt-1">
+                                                                                <span className='text-xs text-gray-500 mt-1'>
                                                                                     h
                                                                                 </span>
                                                                             </div>
 
                                                                             {/* Minutes Input */}
-                                                                            <div className="flex flex-col items-center">
+                                                                            <div className='flex flex-col items-center'>
                                                                                 <Input
-                                                                                    type="number"
-                                                                                    min="0"
-                                                                                    max="59"
-                                                                                    step="5"
+                                                                                    type='number'
+                                                                                    min='0'
+                                                                                    max='59'
+                                                                                    step='5'
                                                                                     value={
                                                                                         minutes
                                                                                     }
@@ -3409,15 +3432,15 @@ export default function CoursesView() {
                                                                                             ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
                                                                                             : "border-red-300 bg-red-50"
                                                                                     }`}
-                                                                                    placeholder="0"
+                                                                                    placeholder='0'
                                                                                 />
-                                                                                <span className="text-xs text-gray-500 mt-1">
+                                                                                <span className='text-xs text-gray-500 mt-1'>
                                                                                     m
                                                                                 </span>
                                                                             </div>
 
                                                                             {/* Total for this part */}
-                                                                            <span className="text-xs text-gray-500 mx-2">
+                                                                            <span className='text-xs text-gray-500 mx-2'>
                                                                                 (
                                                                                 {duration.toFixed(
                                                                                     2
@@ -3433,17 +3456,17 @@ export default function CoursesView() {
                                                                                 .length >
                                                                                 1 && (
                                                                                 <Button
-                                                                                    variant="outline"
-                                                                                    size="sm"
+                                                                                    variant='outline'
+                                                                                    size='sm'
                                                                                     onClick={() =>
                                                                                         removeSectionSplit(
                                                                                             section.id,
                                                                                             index
                                                                                         )
                                                                                     }
-                                                                                    className="h-6 w-6 p-0 ml-2"
+                                                                                    className='h-6 w-6 p-0 ml-2'
                                                                                 >
-                                                                                    <Minus className="h-3 w-3" />
+                                                                                    <Minus className='h-3 w-3' />
                                                                                 </Button>
                                                                             )}
                                                                         </div>
@@ -3452,16 +3475,16 @@ export default function CoursesView() {
                                                             )}
 
                                                             <Button
-                                                                variant="outline"
-                                                                size="sm"
+                                                                variant='outline'
+                                                                size='sm'
                                                                 onClick={() =>
                                                                     addSectionSplit(
                                                                         section.id
                                                                     )
                                                                 }
-                                                                className="w-full text-xs mt-3 mb-4"
+                                                                className='w-full text-xs mt-3 mb-4'
                                                             >
-                                                                <Plus className="h-3 w-3 mr-1" />
+                                                                <Plus className='h-3 w-3 mr-1' />
                                                                 Add Another Part
                                                             </Button>
 
@@ -3474,8 +3497,8 @@ export default function CoursesView() {
                                                                         : "bg-red-50 border border-red-200"
                                                                 }`}
                                                             >
-                                                                <div className="flex justify-between items-center mb-2">
-                                                                    <span className="mr-2">
+                                                                <div className='flex justify-between items-center mb-2'>
+                                                                    <span className='mr-2'>
                                                                         Total
                                                                         Duration:
                                                                     </span>
@@ -3512,14 +3535,14 @@ export default function CoursesView() {
                                                                 {isSectionSplitValid(
                                                                     section.id
                                                                 ) ? (
-                                                                    <div className="text-green-700 text-xs mt-2 flex items-center">
-                                                                        <Check className="h-3 w-3 mr-2" />
+                                                                    <div className='text-green-700 text-xs mt-2 flex items-center'>
+                                                                        <Check className='h-3 w-3 mr-2' />
                                                                         Duration
                                                                         split is
                                                                         valid
                                                                     </div>
                                                                 ) : (
-                                                                    <div className="text-red-700 text-xs mt-2">
+                                                                    <div className='text-red-700 text-xs mt-2'>
                                                                         Total
                                                                         must
                                                                         equal
@@ -3541,8 +3564,8 @@ export default function CoursesView() {
                                                     )}
                                                 </div>
 
-                                                <div className="mt-2">
-                                                    <Label className="text-xs text-gray-700">
+                                                <div className='mt-2'>
+                                                    <Label className='text-xs text-gray-700'>
                                                         Status
                                                     </Label>
                                                     <Select
@@ -3559,14 +3582,14 @@ export default function CoursesView() {
                                                             )
                                                         }
                                                     >
-                                                        <SelectTrigger className="mt-1 text-sm border-gray-300">
+                                                        <SelectTrigger className='mt-1 text-sm border-gray-300'>
                                                             <SelectValue />
                                                         </SelectTrigger>
                                                         <SelectContent>
-                                                            <SelectItem value="online">
+                                                            <SelectItem value='online'>
                                                                 Online
                                                             </SelectItem>
-                                                            <SelectItem value="offline">
+                                                            <SelectItem value='offline'>
                                                                 Offline
                                                             </SelectItem>
                                                         </SelectContent>
@@ -3579,14 +3602,14 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => {
                                     resetForm();
                                     setIsAddDialogOpen(false);
                                 }}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
@@ -3613,26 +3636,26 @@ export default function CoursesView() {
                         setIsEditDialogOpen(open);
                     }}
                 >
-                    <DialogContent className="bg-white max-w-2xl max-h-[85vh] overflow-y-auto">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-2xl max-h-[85vh] overflow-y-auto'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Edit Course
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="py-4 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                        <div className='py-4 space-y-4'>
+                            <div className='grid grid-cols-2 gap-4'>
                                 {/* Course Code Field with Validation */}
-                                <div className="space-y-2">
+                                <div className='space-y-2'>
                                     <Label
-                                        htmlFor="edit-code"
-                                        className="text-sm font-medium text-gray-700"
+                                        htmlFor='edit-code'
+                                        className='text-sm font-medium text-gray-700'
                                     >
                                         Course Code
                                     </Label>
                                     <Input
-                                        id="edit-code"
-                                        name="code"
+                                        id='edit-code'
+                                        name='code'
                                         value={formData.code}
                                         onChange={handleInputChange}
                                         className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
@@ -3640,19 +3663,19 @@ export default function CoursesView() {
                                                 ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
                                                 : ""
                                         }`}
-                                        placeholder="CS101"
+                                        placeholder='CS101'
                                     />
                                     {validationErrors.code && (
-                                        <p className="text-xs text-red-600 flex items-center">
+                                        <p className='text-xs text-red-600 flex items-center'>
                                             <svg
-                                                className="w-3 h-3 mr-1 flex-shrink-0"
-                                                fill="currentColor"
-                                                viewBox="0 0 20 20"
+                                                className='w-3 h-3 mr-1 flex-shrink-0'
+                                                fill='currentColor'
+                                                viewBox='0 0 20 20'
                                             >
                                                 <path
-                                                    fillRule="evenodd"
-                                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                                                    clipRule="evenodd"
+                                                    fillRule='evenodd'
+                                                    d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z'
+                                                    clipRule='evenodd'
                                                 />
                                             </svg>
                                             {validationErrors.code}
@@ -3661,16 +3684,16 @@ export default function CoursesView() {
                                 </div>
 
                                 {/* Course Title Field with Validation */}
-                                <div className="space-y-2">
+                                <div className='space-y-2'>
                                     <Label
-                                        htmlFor="edit-title"
-                                        className="text-sm font-medium text-gray-700"
+                                        htmlFor='edit-title'
+                                        className='text-sm font-medium text-gray-700'
                                     >
                                         Course Name
                                     </Label>
                                     <Input
-                                        id="edit-title"
-                                        name="title"
+                                        id='edit-title'
+                                        name='title'
                                         value={formData.title}
                                         onChange={handleInputChange}
                                         className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
@@ -3678,19 +3701,19 @@ export default function CoursesView() {
                                                 ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
                                                 : ""
                                         }`}
-                                        placeholder="Introduction to Programming"
+                                        placeholder='Introduction to Programming'
                                     />
                                     {validationErrors.title && (
-                                        <p className="text-xs text-red-600 flex items-center">
+                                        <p className='text-xs text-red-600 flex items-center'>
                                             <svg
-                                                className="w-3 h-3 mr-1 flex-shrink-0"
-                                                fill="currentColor"
-                                                viewBox="0 0 20 20"
+                                                className='w-3 h-3 mr-1 flex-shrink-0'
+                                                fill='currentColor'
+                                                viewBox='0 0 20 20'
                                             >
                                                 <path
-                                                    fillRule="evenodd"
-                                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                                                    clipRule="evenodd"
+                                                    fillRule='evenodd'
+                                                    d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z'
+                                                    clipRule='evenodd'
                                                 />
                                             </svg>
                                             {validationErrors.title}
@@ -3700,10 +3723,10 @@ export default function CoursesView() {
                             </div>
 
                             {/* Major Field with Validation */}
-                            <div className="space-y-2">
+                            <div className='space-y-2'>
                                 <Label
-                                    htmlFor="edit-major"
-                                    className="text-sm font-medium text-gray-700"
+                                    htmlFor='edit-major'
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Major
                                 </Label>
@@ -3718,11 +3741,11 @@ export default function CoursesView() {
                                                 : ""
                                         }`}
                                     >
-                                        <SelectValue placeholder="Select a major" />
+                                        <SelectValue placeholder='Select a major' />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {majors.length === 0 ? (
-                                            <div className="p-2 text-xs text-gray-500 text-center">
+                                            <div className='p-2 text-xs text-gray-500 text-center'>
                                                 No majors available
                                             </div>
                                         ) : (
@@ -3748,23 +3771,23 @@ export default function CoursesView() {
                                         }`}
                                     >
                                         <svg
-                                            className="w-3 h-3 mr-1 flex-shrink-0"
-                                            fill="currentColor"
-                                            viewBox="0 0 20 20"
+                                            className='w-3 h-3 mr-1 flex-shrink-0'
+                                            fill='currentColor'
+                                            viewBox='0 0 20 20'
                                         >
                                             {validationErrors.major.includes(
                                                 "create"
                                             ) ? (
                                                 <path
-                                                    fillRule="evenodd"
-                                                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                                                    clipRule="evenodd"
+                                                    fillRule='evenodd'
+                                                    d='M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z'
+                                                    clipRule='evenodd'
                                                 />
                                             ) : (
                                                 <path
-                                                    fillRule="evenodd"
-                                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                                                    clipRule="evenodd"
+                                                    fillRule='evenodd'
+                                                    d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z'
+                                                    clipRule='evenodd'
                                                 />
                                             )}
                                         </svg>
@@ -3774,28 +3797,30 @@ export default function CoursesView() {
                             </div>
 
                             {/* Color Field with Color Picker */}
-                            <div className="grid gap-4">
-                                <div className="space-y-2">
+                            <div className='grid gap-4'>
+                                <div className='space-y-2'>
                                     <Label
-                                        htmlFor="edit-color"
-                                        className="text-sm font-medium text-gray-700"
+                                        htmlFor='edit-color'
+                                        className='text-sm font-medium text-gray-700'
                                     >
                                         Color
                                     </Label>
-                                    <div className="flex items-center gap-3">
+                                    <div className='flex items-center gap-3'>
                                         {/* Color picker input */}
-                                        <div className="relative">
+                                        <div className='relative'>
                                             <input
-                                                type="color"
-                                                id="edit-color"
-                                                name="color"
+                                                type='color'
+                                                id='edit-color'
+                                                name='color'
                                                 value={
                                                     formData?.color || "#3B82F6"
                                                 } // Default to blue hex
-                                                onChange={
-                                                    (e) => handleColorChange(e.target.value)
+                                                onChange={(e) =>
+                                                    handleColorChange(
+                                                        e.target.value
+                                                    )
                                                 }
-                                                className="w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]"
+                                                className='w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]'
                                                 style={{
                                                     padding: "2px",
                                                     backgroundColor:
@@ -3804,7 +3829,7 @@ export default function CoursesView() {
                                             />
                                             {/* Visual preview of selected color */}
                                             <div
-                                                className="absolute inset-1 rounded pointer-events-none"
+                                                className='absolute inset-1 rounded pointer-events-none'
                                                 style={{
                                                     backgroundColor:
                                                         formData?.color ||
@@ -3814,20 +3839,22 @@ export default function CoursesView() {
                                         </div>
 
                                         {/* Color value display */}
-                                        <div className="flex-1">
+                                        <div className='flex-1'>
                                             <Input
-                                                type="text"
+                                                type='text'
                                                 value={formData?.color || ""}
-                                                onChange={
-                                                    (e) => handleColorChange(e.target.value)
+                                                onChange={(e) =>
+                                                    handleColorChange(
+                                                        e.target.value
+                                                    )
                                                 }
-                                                placeholder="#3B82F6"
-                                                className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm font-mono"
+                                                placeholder='#3B82F6'
+                                                className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm font-mono'
                                             />
                                         </div>
 
                                         {/* Quick color presets */}
-                                        <div className="flex gap-1">
+                                        <div className='flex gap-1'>
                                             {[
                                                 "#3B82F6", // Blue
                                                 "#EF4444", // Red
@@ -3840,11 +3867,13 @@ export default function CoursesView() {
                                             ].map((presetColor) => (
                                                 <button
                                                     key={presetColor}
-                                                    type="button"
+                                                    type='button'
                                                     onClick={() => {
-                                                        handleColorChange(presetColor);
+                                                        handleColorChange(
+                                                            presetColor
+                                                        );
                                                     }}
-                                                    className="w-6 h-6 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2F2F85] focus:ring-offset-1"
+                                                    className='w-6 h-6 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2F2F85] focus:ring-offset-1'
                                                     style={{
                                                         backgroundColor:
                                                             presetColor,
@@ -3854,7 +3883,7 @@ export default function CoursesView() {
                                             ))}
                                         </div>
                                     </div>
-                                    <p className="text-xs text-gray-500">
+                                    <p className='text-xs text-gray-500'>
                                         Choose a color for this course or enter
                                         a custom hex value
                                     </p>
@@ -3867,25 +3896,25 @@ export default function CoursesView() {
                             </div>
 
                             {/* Duration and Capacity Fields */}
-                            <div className="grid gap-4">
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-700">
+                            <div className='grid gap-4'>
+                                <div className='space-y-2'>
+                                    <Label className='text-sm font-medium text-gray-700'>
                                         Duration
                                     </Label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div className="space-y-1">
+                                    <div className='grid grid-cols-2 gap-2'>
+                                        <div className='space-y-1'>
                                             <Label
-                                                htmlFor="edit-duration-hours"
-                                                className="text-xs text-gray-600"
+                                                htmlFor='edit-duration-hours'
+                                                className='text-xs text-gray-600'
                                             >
                                                 Hours
                                             </Label>
                                             <Input
-                                                id="edit-duration-hours"
-                                                name="durationHours"
-                                                type="number"
-                                                min="0"
-                                                max="23"
+                                                id='edit-duration-hours'
+                                                name='durationHours'
+                                                type='number'
+                                                min='0'
+                                                max='23'
                                                 value={durationHours}
                                                 onChange={handleInputChange}
                                                 className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
@@ -3893,23 +3922,23 @@ export default function CoursesView() {
                                                         ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
                                                         : ""
                                                 }`}
-                                                placeholder="0"
+                                                placeholder='0'
                                             />
                                         </div>
-                                        <div className="space-y-1">
+                                        <div className='space-y-1'>
                                             <Label
-                                                htmlFor="edit-duration-minutes"
-                                                className="text-xs text-gray-600"
+                                                htmlFor='edit-duration-minutes'
+                                                className='text-xs text-gray-600'
                                             >
                                                 Minutes
                                             </Label>
                                             <Input
-                                                id="edit-duration-minutes"
-                                                name="durationMinutes"
-                                                type="number"
-                                                min="0"
-                                                max="59"
-                                                step="5"
+                                                id='edit-duration-minutes'
+                                                name='durationMinutes'
+                                                type='number'
+                                                min='0'
+                                                max='59'
+                                                step='5'
                                                 value={durationMinutes}
                                                 onChange={handleInputChange}
                                                 className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
@@ -3917,11 +3946,11 @@ export default function CoursesView() {
                                                         ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
                                                         : ""
                                                 }`}
-                                                placeholder="0"
+                                                placeholder='0'
                                             />
                                         </div>
                                     </div>
-                                    <div className="text-xs text-gray-500">
+                                    <div className='text-xs text-gray-500'>
                                         Total: {durationHours}h{" "}
                                         {durationMinutes}m (
                                         {formData.duration.toFixed(2)} hours)
@@ -3934,51 +3963,51 @@ export default function CoursesView() {
                                 </div>
                             </div>
 
-                            <div className="grid gap-4">
-                                <div className="space-y-2">
+                            <div className='grid gap-4'>
+                                <div className='space-y-2'>
                                     <Label
-                                        htmlFor="edit-capacity"
-                                        className="text-sm font-medium text-gray-700"
+                                        htmlFor='edit-capacity'
+                                        className='text-sm font-medium text-gray-700'
                                     >
                                         Capacity
                                     </Label>
                                     <Input
-                                        id="edit-capacity"
-                                        name="capacity"
-                                        type="number"
-                                        min="1"
+                                        id='edit-capacity'
+                                        name='capacity'
+                                        type='number'
+                                        min='1'
                                         value={formData.capacity}
                                         onChange={handleInputChange}
-                                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                        className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm'
                                     />
                                 </div>
                             </div>
 
                             {/* Sections with Validation - Same as Add Dialog */}
-                            <div className="space-y-4">
+                            <div className='space-y-4'>
                                 <div>
-                                    <Label className="text-sm font-medium text-gray-700">
+                                    <Label className='text-sm font-medium text-gray-700'>
                                         Sections
                                     </Label>
-                                    <p className="text-xs text-gray-600 mt-1">
+                                    <p className='text-xs text-gray-600 mt-1'>
                                         Edit course sections with instructors
                                         and split durations
                                     </p>
                                 </div>
 
                                 {/* Add Section Form */}
-                                <div className="grid gap-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
+                                <div className='grid gap-4'>
+                                    <div className='grid grid-cols-2 gap-4'>
+                                        <div className='space-y-2'>
                                             <Label
-                                                htmlFor="edit-section"
-                                                className="text-sm font-medium text-gray-700"
+                                                htmlFor='edit-section'
+                                                className='text-sm font-medium text-gray-700'
                                             >
                                                 Section Number
                                             </Label>
                                             <Input
-                                                id="edit-section"
-                                                placeholder="Enter section number"
+                                                id='edit-section'
+                                                placeholder='Enter section number'
                                                 value={currentSection}
                                                 onChange={(e) =>
                                                     handleSectionInputChange(
@@ -3992,29 +4021,29 @@ export default function CoursesView() {
                                                 }`}
                                             />
                                             {sectionValidationError && (
-                                                <p className="text-xs text-red-600 flex items-center">
+                                                <p className='text-xs text-red-600 flex items-center'>
                                                     <svg
-                                                        className="w-3 h-3 mr-1 flex-shrink-0"
-                                                        fill="currentColor"
-                                                        viewBox="0 0 20 20"
+                                                        className='w-3 h-3 mr-1 flex-shrink-0'
+                                                        fill='currentColor'
+                                                        viewBox='0 0 20 20'
                                                     >
                                                         <path
-                                                            fillRule="evenodd"
-                                                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                                                            clipRule="evenodd"
+                                                            fillRule='evenodd'
+                                                            d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z'
+                                                            clipRule='evenodd'
                                                         />
                                                     </svg>
                                                     {sectionValidationError}
                                                 </p>
                                             )}
                                         </div>
-                                        <div className="space-y-2">
+                                        <div className='space-y-2'>
                                             <Label
-                                                htmlFor="edit-section-instructor"
-                                                className="text-sm font-medium text-gray-700"
+                                                htmlFor='edit-section-instructor'
+                                                className='text-sm font-medium text-gray-700'
                                             >
                                                 Instructor{" "}
-                                                <span className="text-red-500">
+                                                <span className='text-red-500'>
                                                     *
                                                 </span>
                                             </Label>
@@ -4026,8 +4055,8 @@ export default function CoursesView() {
                                             >
                                                 <PopoverTrigger asChild>
                                                     <Button
-                                                        variant="outline"
-                                                        role="combobox"
+                                                        variant='outline'
+                                                        role='combobox'
                                                         className={`w-full justify-between text-sm ${
                                                             instructorValidationError
                                                                 ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
@@ -4040,12 +4069,12 @@ export default function CoursesView() {
                                                     >
                                                         {currentInstructor?.name ||
                                                             "Select instructor..."}
-                                                        <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                        <ChevronsUpDown className='ml-2 h-3 w-3 shrink-0 opacity-50' />
                                                     </Button>
                                                 </PopoverTrigger>
-                                                <PopoverContent className="w-full p-0">
+                                                <PopoverContent className='w-full p-0'>
                                                     <Command>
-                                                        <CommandInput placeholder="Search instructor..." />
+                                                        <CommandInput placeholder='Search instructor...' />
                                                         <CommandEmpty>
                                                             No instructor found.
                                                         </CommandEmpty>
@@ -4092,16 +4121,16 @@ export default function CoursesView() {
 
                                             {/* Show instructor validation error */}
                                             {instructorValidationError && (
-                                                <p className="text-xs text-red-600 flex items-center">
+                                                <p className='text-xs text-red-600 flex items-center'>
                                                     <svg
-                                                        className="w-3 h-3 mr-1 flex-shrink-0"
-                                                        fill="currentColor"
-                                                        viewBox="0 0 20 20"
+                                                        className='w-3 h-3 mr-1 flex-shrink-0'
+                                                        fill='currentColor'
+                                                        viewBox='0 0 20 20'
                                                     >
                                                         <path
-                                                            fillRule="evenodd"
-                                                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                                                            clipRule="evenodd"
+                                                            fillRule='evenodd'
+                                                            d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z'
+                                                            clipRule='evenodd'
                                                         />
                                                     </svg>
                                                     {instructorValidationError}
@@ -4110,16 +4139,16 @@ export default function CoursesView() {
 
                                             {/* Show warning if no instructors available */}
                                             {instructors.length === 0 && (
-                                                <p className="text-xs text-amber-600 flex items-center">
+                                                <p className='text-xs text-amber-600 flex items-center'>
                                                     <svg
-                                                        className="w-3 h-3 mr-1 flex-shrink-0"
-                                                        fill="currentColor"
-                                                        viewBox="0 0 20 20"
+                                                        className='w-3 h-3 mr-1 flex-shrink-0'
+                                                        fill='currentColor'
+                                                        viewBox='0 0 20 20'
                                                     >
                                                         <path
-                                                            fillRule="evenodd"
-                                                            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                                                            clipRule="evenodd"
+                                                            fillRule='evenodd'
+                                                            d='M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z'
+                                                            clipRule='evenodd'
                                                         />
                                                     </svg>
                                                     Please create an instructor
@@ -4141,57 +4170,57 @@ export default function CoursesView() {
                                                 : "bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
                                         }`}
                                     >
-                                        <Plus className="h-3 w-3 mr-2" /> Add
+                                        <Plus className='h-3 w-3 mr-2' /> Add
                                         Section
                                     </Button>
                                 </div>
 
                                 {/* Existing sections list - Same as Add Dialog */}
                                 {sections.length > 0 && (
-                                    <div className="space-y-2">
+                                    <div className='space-y-2'>
                                         {sections.map((section) => (
                                             <div
                                                 key={section.id}
-                                                className="p-3 border border-gray-200 rounded bg-gray-50"
+                                                className='p-3 border border-gray-200 rounded bg-gray-50'
                                             >
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                <div className='flex justify-between items-center mb-2'>
+                                                    <span className='inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800'>
                                                         Section{" "}
                                                         {section.section_id}
                                                     </span>
                                                     <Button
-                                                        variant="ghost"
-                                                        size="icon"
+                                                        variant='ghost'
+                                                        size='icon'
                                                         onClick={() =>
                                                             removeSection(
                                                                 section.id
                                                             )
                                                         }
-                                                        className="h-6 w-6 text-gray-500 hover:text-red-600"
+                                                        className='h-6 w-6 text-gray-500 hover:text-red-600'
                                                     >
-                                                        <Trash className="h-3 w-3" />
+                                                        <Trash className='h-3 w-3' />
                                                     </Button>
                                                 </div>
 
-                                                <div className="mt-2">
-                                                    <Label className="text-xs text-gray-700">
+                                                <div className='mt-2'>
+                                                    <Label className='text-xs text-gray-700'>
                                                         Instructor
                                                     </Label>
                                                     <Popover>
                                                         <PopoverTrigger asChild>
                                                             <Button
-                                                                variant="outline"
-                                                                role="combobox"
-                                                                className="w-full justify-between mt-1 text-sm border-gray-300"
+                                                                variant='outline'
+                                                                role='combobox'
+                                                                className='w-full justify-between mt-1 text-sm border-gray-300'
                                                             >
                                                                 {section.instructor_name ||
                                                                     "Select instructor..."}
-                                                                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                                <ChevronsUpDown className='ml-2 h-3 w-3 shrink-0 opacity-50' />
                                                             </Button>
                                                         </PopoverTrigger>
-                                                        <PopoverContent className="w-full p-0">
+                                                        <PopoverContent className='w-full p-0'>
                                                             <Command>
-                                                                <CommandInput placeholder="Search instructor..." />
+                                                                <CommandInput placeholder='Search instructor...' />
                                                                 <CommandEmpty>
                                                                     No
                                                                     instructor
@@ -4237,27 +4266,27 @@ export default function CoursesView() {
                                                         </PopoverContent>
                                                     </Popover>
                                                 </div>
-                                                <div className="mt-2">
-                                                    <Label className="text-xs text-gray-700">
+                                                <div className='mt-2'>
+                                                    <Label className='text-xs text-gray-700'>
                                                         Preferred Classroom Type
                                                     </Label>
                                                     <Popover>
                                                         <PopoverTrigger asChild>
                                                             <Button
-                                                                variant="outline"
-                                                                role="combobox"
-                                                                className="w-full justify-between mt-1 text-sm border-gray-300"
+                                                                variant='outline'
+                                                                role='combobox'
+                                                                className='w-full justify-between mt-1 text-sm border-gray-300'
                                                             >
                                                                 {section
                                                                     .preferClassRoomType
                                                                     ?.name ||
                                                                     "Select classroom type..."}
-                                                                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                                <ChevronsUpDown className='ml-2 h-3 w-3 shrink-0 opacity-50' />
                                                             </Button>
                                                         </PopoverTrigger>
-                                                        <PopoverContent className="w-full p-0">
+                                                        <PopoverContent className='w-full p-0'>
                                                             <Command>
-                                                                <CommandInput placeholder="Search classroom type..." />
+                                                                <CommandInput placeholder='Search classroom type...' />
                                                                 <CommandEmpty>
                                                                     No classroom
                                                                     type found.
@@ -4305,20 +4334,20 @@ export default function CoursesView() {
                                                 </div>
 
                                                 {/* Split Duration Controls - Same as Add Dialog */}
-                                                <div className="mt-4 mb-4 space-y-3">
-                                                    <div className="flex justify-between items-center mb-3">
-                                                        <Label className="text-xs text-gray-700 mr-2">
+                                                <div className='mt-4 mb-4 space-y-3'>
+                                                    <div className='flex justify-between items-center mb-3'>
+                                                        <Label className='text-xs text-gray-700 mr-2'>
                                                             Split Duration
                                                         </Label>
                                                         <Button
-                                                            variant="outline"
-                                                            size="sm"
+                                                            variant='outline'
+                                                            size='sm'
                                                             onClick={() =>
                                                                 toggleSectionSplitControls(
                                                                     section.id
                                                                 )
                                                             }
-                                                            className="text-xs ml-2"
+                                                            className='text-xs ml-2'
                                                         >
                                                             {section.showSplitControls
                                                                 ? "Hide Split"
@@ -4327,8 +4356,8 @@ export default function CoursesView() {
                                                     </div>
 
                                                     {section.showSplitControls && (
-                                                        <div className="mt-4 mb-4">
-                                                            <div className="text-xs text-gray-600 mb-3">
+                                                        <div className='mt-4 mb-4'>
+                                                            <div className='text-xs text-gray-600 mb-3'>
                                                                 Original
                                                                 Duration:{" "}
                                                                 {durationHours}h{" "}
@@ -4359,9 +4388,9 @@ export default function CoursesView() {
                                                                             key={
                                                                                 index
                                                                             }
-                                                                            className="flex items-center gap-2 mb-3"
+                                                                            className='flex items-center gap-2 mb-3'
                                                                         >
-                                                                            <Label className="text-xs w-12 mr-2">
+                                                                            <Label className='text-xs w-12 mr-2'>
                                                                                 Part{" "}
                                                                                 {index +
                                                                                     1}
@@ -4370,11 +4399,11 @@ export default function CoursesView() {
                                                                             </Label>
 
                                                                             {/* Hours Input */}
-                                                                            <div className="flex flex-col items-center">
+                                                                            <div className='flex flex-col items-center'>
                                                                                 <Input
-                                                                                    type="number"
-                                                                                    min="0"
-                                                                                    max="23"
+                                                                                    type='number'
+                                                                                    min='0'
+                                                                                    max='23'
                                                                                     value={
                                                                                         hours
                                                                                     }
@@ -4399,20 +4428,20 @@ export default function CoursesView() {
                                                                                             ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
                                                                                             : "border-red-300 bg-red-50"
                                                                                     }`}
-                                                                                    placeholder="0"
+                                                                                    placeholder='0'
                                                                                 />
-                                                                                <span className="text-xs text-gray-500 mt-1">
+                                                                                <span className='text-xs text-gray-500 mt-1'>
                                                                                     h
                                                                                 </span>
                                                                             </div>
 
                                                                             {/* Minutes Input */}
-                                                                            <div className="flex flex-col items-center">
+                                                                            <div className='flex flex-col items-center'>
                                                                                 <Input
-                                                                                    type="number"
-                                                                                    min="0"
-                                                                                    max="59"
-                                                                                    step="5"
+                                                                                    type='number'
+                                                                                    min='0'
+                                                                                    max='59'
+                                                                                    step='5'
                                                                                     value={
                                                                                         minutes
                                                                                     }
@@ -4437,15 +4466,15 @@ export default function CoursesView() {
                                                                                             ? "border-green-500 bg-green-50 text-green-700 focus:border-green-600"
                                                                                             : "border-red-300 bg-red-50"
                                                                                     }`}
-                                                                                    placeholder="0"
+                                                                                    placeholder='0'
                                                                                 />
-                                                                                <span className="text-xs text-gray-500 mt-1">
+                                                                                <span className='text-xs text-gray-500 mt-1'>
                                                                                     m
                                                                                 </span>
                                                                             </div>
 
                                                                             {/* Total for this part */}
-                                                                            <span className="text-xs text-gray-500 mx-2">
+                                                                            <span className='text-xs text-gray-500 mx-2'>
                                                                                 (
                                                                                 {duration.toFixed(
                                                                                     2
@@ -4461,17 +4490,17 @@ export default function CoursesView() {
                                                                                 .length >
                                                                                 1 && (
                                                                                 <Button
-                                                                                    variant="outline"
-                                                                                    size="sm"
+                                                                                    variant='outline'
+                                                                                    size='sm'
                                                                                     onClick={() =>
                                                                                         removeSectionSplit(
                                                                                             section.id,
                                                                                             index
                                                                                         )
                                                                                     }
-                                                                                    className="h-6 w-6 p-0 ml-2"
+                                                                                    className='h-6 w-6 p-0 ml-2'
                                                                                 >
-                                                                                    <Minus className="h-3 w-3" />
+                                                                                    <Minus className='h-3 w-3' />
                                                                                 </Button>
                                                                             )}
                                                                         </div>
@@ -4480,16 +4509,16 @@ export default function CoursesView() {
                                                             )}
 
                                                             <Button
-                                                                variant="outline"
-                                                                size="sm"
+                                                                variant='outline'
+                                                                size='sm'
                                                                 onClick={() =>
                                                                     addSectionSplit(
                                                                         section.id
                                                                     )
                                                                 }
-                                                                className="w-full text-xs mt-3 mb-4"
+                                                                className='w-full text-xs mt-3 mb-4'
                                                             >
-                                                                <Plus className="h-3 w-3 mr-1" />
+                                                                <Plus className='h-3 w-3 mr-1' />
                                                                 Add Another Part
                                                             </Button>
 
@@ -4502,8 +4531,8 @@ export default function CoursesView() {
                                                                         : "bg-red-50 border border-red-200"
                                                                 }`}
                                                             >
-                                                                <div className="flex justify-between items-center mb-2">
-                                                                    <span className="mr-2">
+                                                                <div className='flex justify-between items-center mb-2'>
+                                                                    <span className='mr-2'>
                                                                         Total
                                                                         Duration:
                                                                     </span>
@@ -4540,14 +4569,14 @@ export default function CoursesView() {
                                                                 {isSectionSplitValid(
                                                                     section.id
                                                                 ) ? (
-                                                                    <div className="text-green-700 text-xs mt-2 flex items-center">
-                                                                        <Check className="h-3 w-3 mr-2" />
+                                                                    <div className='text-green-700 text-xs mt-2 flex items-center'>
+                                                                        <Check className='h-3 w-3 mr-2' />
                                                                         Duration
                                                                         split is
                                                                         valid
                                                                     </div>
                                                                 ) : (
-                                                                    <div className="text-red-700 text-xs mt-2">
+                                                                    <div className='text-red-700 text-xs mt-2'>
                                                                         Total
                                                                         must
                                                                         equal
@@ -4569,8 +4598,8 @@ export default function CoursesView() {
                                                     )}
                                                 </div>
 
-                                                <div className="mt-2">
-                                                    <Label className="text-xs text-gray-700">
+                                                <div className='mt-2'>
+                                                    <Label className='text-xs text-gray-700'>
                                                         Status
                                                     </Label>
                                                     <Select
@@ -4587,14 +4616,14 @@ export default function CoursesView() {
                                                             )
                                                         }
                                                     >
-                                                        <SelectTrigger className="mt-1 text-sm border-gray-300">
+                                                        <SelectTrigger className='mt-1 text-sm border-gray-300'>
                                                             <SelectValue />
                                                         </SelectTrigger>
                                                         <SelectContent>
-                                                            <SelectItem value="online">
+                                                            <SelectItem value='online'>
                                                                 Online
                                                             </SelectItem>
-                                                            <SelectItem value="offline">
+                                                            <SelectItem value='offline'>
                                                                 Offline
                                                             </SelectItem>
                                                         </SelectContent>
@@ -4607,14 +4636,14 @@ export default function CoursesView() {
                             </div>
                         </div>
 
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => {
                                     resetForm();
                                     setIsEditDialogOpen(false);
                                 }}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
@@ -4641,37 +4670,37 @@ export default function CoursesView() {
                         setIsDeleteDialogOpen(open);
                     }}
                 >
-                    <DialogContent className="bg-white max-w-md">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-md'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Delete Course
                             </DialogTitle>
                         </DialogHeader>
-                        <div className="py-4">
-                            <p className="text-sm text-gray-600 mb-2">
+                        <div className='py-4'>
+                            <p className='text-sm text-gray-600 mb-2'>
                                 Are you sure you want to delete this course?
                             </p>
-                            <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border">
+                            <p className='font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border'>
                                 {selectedCourse?.code}: {selectedCourse?.title}
                             </p>
-                            <p className="text-xs text-gray-500 mt-2">
+                            <p className='text-xs text-gray-500 mt-2'>
                                 This action cannot be undone.
                             </p>
                         </div>
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => {
                                     setSelectedCourse(null);
                                     setIsDeleteDialogOpen(false);
                                 }}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
                             <Button
                                 onClick={handleDeleteCourse}
-                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                                className='bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5'
                             >
                                 Delete
                             </Button>
@@ -4687,33 +4716,33 @@ export default function CoursesView() {
                         setIsImportDialogOpen(open);
                     }}
                 >
-                    <DialogContent className="bg-white max-w-lg">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-lg'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Import Courses from CSV
                             </DialogTitle>
                         </DialogHeader>
-                        <div className="py-4 space-y-4">
+                        <div className='py-4 space-y-4'>
                             <div>
                                 <Label
-                                    htmlFor="csv-file"
-                                    className="text-sm font-medium text-gray-700"
+                                    htmlFor='csv-file'
+                                    className='text-sm font-medium text-gray-700'
                                 >
                                     Select CSV File
                                 </Label>
                                 <Input
-                                    id="csv-file"
-                                    type="file"
-                                    accept=".csv"
+                                    id='csv-file'
+                                    type='file'
+                                    accept='.csv'
                                     onChange={handleFileSelect}
                                     disabled={importProgress.isImporting}
-                                    className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1"
+                                    className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm mt-1'
                                 />
-                                <div className="text-xs text-gray-600 mt-2 space-y-2">
+                                <div className='text-xs text-gray-600 mt-2 space-y-2'>
                                     <p>
                                         <strong>Required CSV columns:</strong>
                                     </p>
-                                    <ul className="list-disc list-inside space-y-1 ml-2">
+                                    <ul className='list-disc list-inside space-y-1 ml-2'>
                                         <li>
                                             <strong>code:</strong> Course code
                                             (e.g., CS101)
@@ -4751,28 +4780,31 @@ export default function CoursesView() {
                                             identifier (e.g., 1, 2, A, B)
                                         </li>
                                         <li>
-                                            <strong>classroom:</strong>{" "}
-                                            Classroom name (optional)
-                                        </li>
-                                        <li>
                                             <strong>instructor_name:</strong>{" "}
                                             Full name (optional, must match
                                             existing instructor)
                                         </li>
+                                        <li>
+                                            <strong>
+                                                prefer_classroom_type:
+                                            </strong>{" "}
+                                            Classroom type name (optional, must
+                                            match existing classroom type)
+                                        </li>
                                     </ul>
-                                    <div className="bg-blue-50 p-2 rounded border border-blue-200 mt-2">
-                                        <p className="text-blue-700 font-medium mb-1">
+                                    <div className='bg-blue-50 p-2 rounded border border-blue-200 mt-2'>
+                                        <p className='text-blue-700 font-medium mb-1'>
                                             Notes:
                                         </p>
-                                        <p className="text-blue-600 text-xs">
+                                        <p className='text-blue-600 text-xs'>
                                             • Multiple rows with same code =
                                             different sections
                                         </p>
-                                        <p className="text-blue-600 text-xs">
+                                        <p className='text-blue-600 text-xs'>
                                             • separated_duration is for
                                             individual section scheduling
                                         </p>
-                                        <p className="text-blue-600 text-xs">
+                                        <p className='text-blue-600 text-xs'>
                                             • Status must be exactly "online" or
                                             "offline"
                                         </p>
@@ -4781,7 +4813,7 @@ export default function CoursesView() {
                             </div>
 
                             {importFile && (
-                                <div className="text-xs bg-gray-50 p-2 rounded border">
+                                <div className='text-xs bg-gray-50 p-2 rounded border'>
                                     <p>
                                         <strong>Selected file:</strong>{" "}
                                         {importFile.name}
@@ -4794,17 +4826,17 @@ export default function CoursesView() {
                             )}
 
                             {importProgress.isImporting && (
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-xs">
+                                <div className='space-y-2'>
+                                    <div className='flex justify-between text-xs'>
                                         <span>Progress:</span>
                                         <span>
                                             {importProgress.completed} /{" "}
                                             {importProgress.total}
                                         </span>
                                     </div>
-                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div className='w-full bg-gray-200 rounded-full h-2'>
                                         <div
-                                            className="bg-[#2F2F85] h-2 rounded-full transition-all duration-300"
+                                            className='bg-[#2F2F85] h-2 rounded-full transition-all duration-300'
                                             style={{
                                                 width:
                                                     importProgress.total > 0
@@ -4821,23 +4853,23 @@ export default function CoursesView() {
                             )}
 
                             {importProgress.errors.length > 0 && (
-                                <div className="max-h-40 overflow-y-auto bg-red-50 p-2 rounded border border-red-200">
-                                    <p className="text-xs font-medium text-red-600 mb-1">
+                                <div className='max-h-40 overflow-y-auto bg-red-50 p-2 rounded border border-red-200'>
+                                    <p className='text-xs font-medium text-red-600 mb-1'>
                                         Errors ({importProgress.errors.length}):
                                     </p>
-                                    <div className="text-xs space-y-1">
+                                    <div className='text-xs space-y-1'>
                                         {importProgress.errors
                                             .slice(0, 10)
                                             .map((error, index) => (
                                                 <p
                                                     key={index}
-                                                    className="text-red-600"
+                                                    className='text-red-600'
                                                 >
                                                     {error}
                                                 </p>
                                             ))}
                                         {importProgress.errors.length > 10 && (
-                                            <p className="text-red-600 font-medium">
+                                            <p className='text-red-600 font-medium'>
                                                 ... and{" "}
                                                 {importProgress.errors.length -
                                                     10}{" "}
@@ -4848,15 +4880,15 @@ export default function CoursesView() {
                                 </div>
                             )}
                         </div>
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => {
                                     resetImportState();
                                     setIsImportDialogOpen(false);
                                 }}
                                 disabled={importProgress.isImporting}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
@@ -4865,7 +4897,7 @@ export default function CoursesView() {
                                 disabled={
                                     !importFile || importProgress.isImporting
                                 }
-                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5"
+                                className='bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5'
                             >
                                 {importProgress.isImporting
                                     ? "Importing..."
@@ -4878,33 +4910,33 @@ export default function CoursesView() {
                     open={isClearAllDialogOpen}
                     onOpenChange={setIsClearAllDialogOpen}
                 >
-                    <DialogContent className="bg-white max-w-md">
-                        <DialogHeader className="border-b border-gray-200 pb-3">
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                    <DialogContent className='bg-white max-w-md'>
+                        <DialogHeader className='border-b border-gray-200 pb-3'>
+                            <DialogTitle className='text-lg font-semibold text-gray-900'>
                                 Clear All Courses
                             </DialogTitle>
                         </DialogHeader>
-                        <div className="py-4">
-                            <p className="text-sm text-gray-600 mb-2">
+                        <div className='py-4'>
+                            <p className='text-sm text-gray-600 mb-2'>
                                 Are you sure you want to delete all courses?
                             </p>
-                            <p className="text-xs text-red-600 font-medium">
+                            <p className='text-xs text-red-600 font-medium'>
                                 This will permanently delete {courses.length}{" "}
                                 course(s) and all their sections. This action
                                 cannot be undone.
                             </p>
                         </div>
-                        <DialogFooter className="border-t border-gray-200 pt-3">
+                        <DialogFooter className='border-t border-gray-200 pt-3'>
                             <Button
-                                variant="outline"
+                                variant='outline'
                                 onClick={() => setIsClearAllDialogOpen(false)}
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
+                                className='border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5'
                             >
                                 Cancel
                             </Button>
                             <Button
                                 onClick={handleClearAllCourses}
-                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                                className='bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5'
                             >
                                 Clear All
                             </Button>

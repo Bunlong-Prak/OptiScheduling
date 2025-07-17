@@ -6,6 +6,7 @@ import {
     majors,
     schedules,
     sections,
+    classroomTypes,
 } from "@/drizzle/schema";
 import { db } from "@/lib/db";
 import { and, desc, eq, ne } from "drizzle-orm";
@@ -166,9 +167,14 @@ export async function GET(request: Request) {
                 day: courseHours.day, // Include day information
                 timeSlot: courseHours.timeSlot, // Include time slot information
                 preferClassRoomTypeId: sections.preferClassRoomId,
+                preferClassRoomTypeName: classroomTypes.name,
             })
             .from(courseHours) // Start from courseHours to ensure unique records
             .innerJoin(sections, eq(courseHours.sectionId, sections.id))
+            .leftJoin(
+                classroomTypes,
+                eq(sections.preferClassRoomId, classroomTypes.id)
+            )
             .innerJoin(courses, eq(sections.courseId, courses.id))
             .innerJoin(majors, eq(courses.majorId, majors.id)) // Direct join with majors
             .leftJoin(instructors, eq(sections.instructorId, instructors.id)) // leftJoin to handle sections without instructors

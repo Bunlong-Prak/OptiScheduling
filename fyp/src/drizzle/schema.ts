@@ -102,9 +102,13 @@ export const sections = mysqlTable("sections", {
     preferClassRoomId: int("prefer_classroom_id"),
 });
 
-export const sectionRelations = relations(sections, ({ many }) => ({
+export const sectionRelations = relations(sections, ({ many, one }) => ({
     courseHours: many(courseHours),
     classrooms: many(classrooms),
+    classroomTypes: one(classroomTypes, {
+        fields: [sections.preferClassRoomId],
+        references: [classroomTypes.id],
+    }),
 }));
 
 export const courseHours = mysqlTable("course_hours", {
@@ -199,7 +203,9 @@ export const instructorTimeConstraintDay = mysqlTable(
         day: varchar("day", {
             length: 50,
         }).notNull(),
-        instructorTimeConstraintId: int("instructor_time_constraint_id").notNull(),
+        instructorTimeConstraintId: int(
+            "instructor_time_constraint_id"
+        ).notNull(),
     }
 );
 
@@ -221,7 +227,9 @@ export const instructorTimeConstraintTimeSlot = mysqlTable(
         timeSlot: varchar("time_slot", {
             length: 50,
         }).notNull(),
-        instructorTimeConstraintDayId: int("instructor_time_constraint_day_id").notNull(),
+        instructorTimeConstraintDayId: int(
+            "instructor_time_constraint_day_id"
+        ).notNull(),
     }
 );
 
