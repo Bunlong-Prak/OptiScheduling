@@ -3828,10 +3828,6 @@ export default function CoursesView() {
                                                     handleColorChange(
                                                         e.target.value
                                                     )
-                                                onChange={(e) =>
-                                                    handleColorChange(
-                                                        e.target.value
-                                                    )
                                                 }
                                                 className='w-12 h-10 rounded border border-gray-300 cursor-pointer hover:border-gray-400 focus:border-[#2F2F85] focus:ring-1 focus:ring-[#2F2F85]'
                                                 style={{
@@ -3856,10 +3852,6 @@ export default function CoursesView() {
                                             <Input
                                                 type='text'
                                                 value={formData?.color || ""}
-                                                onChange={(e) =>
-                                                    handleColorChange(
-                                                        e.target.value
-                                                    )
                                                 onChange={(e) =>
                                                     handleColorChange(
                                                         e.target.value
