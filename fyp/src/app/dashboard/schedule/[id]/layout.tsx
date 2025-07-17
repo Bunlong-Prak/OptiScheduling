@@ -1,6 +1,7 @@
 import { getAuthUser } from "@/auth/server/action";
 import UnauthorizedAccess from "@/components/custom/unauthorized-access";
 import { PropsWithChildren } from "react";
+import ScheduleLayoutClient from "./client_layout";
 
 interface ScheduleLayoutProps {
     params: { id: string };
@@ -29,5 +30,5 @@ export default async function ScheduleLayout({
         );
     }
 
-    return <>{children}</>;
+    return <ScheduleLayoutClient>{children}</ScheduleLayoutClient>;
 }

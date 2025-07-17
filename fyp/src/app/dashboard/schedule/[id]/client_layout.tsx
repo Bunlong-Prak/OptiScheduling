@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Schedule } from "@/app/types";
 
-export default function ScheduleLayout({
+export default function ScheduleLayoutClient({
     children,
 }: {
     children: React.ReactNode;
