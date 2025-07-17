@@ -1437,7 +1437,17 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                         id='endDate'
                                         name='endDate'
                                         type='date'
-                                        min={formData.startDate || undefined}
+                                        min={
+                                            formData.startDate
+                                                ? new Date(
+                                                      new Date(
+                                                          formData.startDate
+                                                      ).getTime() + 86400000 // Add 1 day in milliseconds
+                                                  )
+                                                      .toISOString()
+                                                      .split("T")[0]
+                                                : undefined
+                                        }
                                         value={formData.endDate}
                                         onChange={handleInputChange}
                                         className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]'
@@ -1549,7 +1559,17 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                         id='edit-endDate'
                                         name='endDate'
                                         type='date'
-                                        min={formData.startDate || undefined}
+                                        min={
+                                            formData.startDate
+                                                ? new Date(
+                                                      new Date(
+                                                          formData.startDate
+                                                      ).getTime() + 86400000 // Add 1 day in milliseconds
+                                                  )
+                                                      .toISOString()
+                                                      .split("T")[0]
+                                                : undefined
+                                        }
                                         value={formData.endDate}
                                         onChange={handleInputChange}
                                         className='border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85]'
