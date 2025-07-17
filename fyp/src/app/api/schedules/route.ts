@@ -1,4 +1,17 @@
-import { schedules, scheduleTimeSlots } from "@/drizzle/schema";
+import {
+    classrooms,
+    classroomTypes,
+    courseHours,
+    courses,
+    instructors,
+    instructorTimeConstraint,
+    instructorTimeConstraintDay,
+    instructorTimeConstraintTimeSlot,
+    majors,
+    schedules,
+    scheduleTimeSlots,
+    sections,
+} from "@/drizzle/schema";
 import { db } from "@/lib/db";
 import { generateAcademicYear } from "@/lib/utils";
 import {
@@ -6,7 +19,7 @@ import {
     deleteScheduleSchema,
     editScheduleSchema,
 } from "@/lib/validations/schedules";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -33,7 +46,7 @@ export async function GET(request: Request) {
                     })
                     .from(schedules)
                     .where(eq(schedules.userId, userId))
-                    .innerJoin(
+                    .leftJoin(
                         scheduleTimeSlots,
                         eq(scheduleTimeSlots.scheduleId, schedules.id)
                     );
@@ -48,18 +61,24 @@ export async function GET(request: Request) {
                             timeSlots: [],
                         });
                     }
-                    // Add this time slot to the schedule
+
                     const schedule = scheduleMap.get(item.id);
-                    schedule.timeSlots.push({
-                        id: item.timeSlotId,
-                        startTime: item.startTime,
-                        endTime: item.endTime,
-                    });
+
+                    // Only add the time slot if it exists
+                    if (item.timeSlotId !== null) {
+                        schedule.timeSlots.push({
+                            id: item.timeSlotId,
+                            startTime: item.startTime,
+                            endTime: item.endTime,
+                        });
+                    }
                 });
 
                 const formattedSchedules = Array.from(scheduleMap.values());
                 console.log("Formatted schedules:", formattedSchedules);
                 return NextResponse.json(formattedSchedules);
+            } else {
+                return NextResponse.json({ error: "User not found" }, { status: 404 });
             }
         } else {
             let query = db
@@ -228,7 +247,126 @@ export async function DELETE(request: Request) {
         const validatedData = deleteScheduleSchema.parse(body);
         const { id } = validatedData;
 
-        await db.delete(schedules).where(eq(schedules.id, id));
+        await db.transaction(async (tx) => {
+            // First, get all courses for this schedule to cascade further
+            const scheduleCourses = await tx
+                .select({ id: courses.id })
+                .from(courses)
+                .where(eq(courses.scheduleId, id));
+
+            const courseIds = scheduleCourses.map((course) => course.id);
+
+            if (courseIds.length > 0) {
+                // Get all sections for these courses
+                const courseSections = await tx
+                    .select({ id: sections.id })
+                    .from(sections)
+                    .where(inArray(sections.courseId, courseIds));
+
+                const sectionIds = courseSections.map((section) => section.id);
+
+                if (sectionIds.length > 0) {
+                    // Delete course_hours for all sections
+                    await tx
+                        .delete(courseHours)
+                        .where(inArray(courseHours.sectionId, sectionIds));
+                }
+
+                // Delete all sections for these courses
+                await tx
+                    .delete(sections)
+                    .where(inArray(sections.courseId, courseIds));
+
+                // Delete all courses for this schedule
+                await tx.delete(courses).where(eq(courses.scheduleId, id));
+            }
+
+            // Delete instructor time constraints and related data
+            const instructorConstraints = await tx
+                .select({ id: instructorTimeConstraint.id })
+                .from(instructorTimeConstraint)
+                .where(eq(instructorTimeConstraint.scheduleId, id));
+
+            const constraintIds = instructorConstraints.map(
+                (constraint) => constraint.id
+            );
+
+            if (constraintIds.length > 0) {
+                // Get all constraint days
+                const constraintDays = await tx
+                    .select({ id: instructorTimeConstraintDay.id })
+                    .from(instructorTimeConstraintDay)
+                    .where(
+                        inArray(
+                            instructorTimeConstraintDay.instructorTimeConstraintId,
+                            constraintIds
+                        )
+                    );
+
+                const dayIds = constraintDays.map((day) => day.id);
+
+                if (dayIds.length > 0) {
+                    // Delete time slots for constraint days
+                    await tx
+                        .delete(instructorTimeConstraintTimeSlot)
+                        .where(
+                            inArray(
+                                instructorTimeConstraintTimeSlot.instructorTimeConstraintDayId,
+                                dayIds
+                            )
+                        );
+                }
+
+                // Delete constraint days
+                await tx
+                    .delete(instructorTimeConstraintDay)
+                    .where(
+                        inArray(
+                            instructorTimeConstraintDay.instructorTimeConstraintId,
+                            constraintIds
+                        )
+                    );
+
+                // Delete instructor time constraints
+                await tx
+                    .delete(instructorTimeConstraint)
+                    .where(eq(instructorTimeConstraint.scheduleId, id));
+            }
+
+            // Delete instructors for this schedule
+            await tx.delete(instructors).where(eq(instructors.scheduleId, id));
+
+            // Get all classroom types for this schedule first
+            const scheduleClassroomTypes = await tx
+                .select({ id: classroomTypes.id })
+                .from(classroomTypes)
+                .where(eq(classroomTypes.scheduleId, id));
+
+            const classroomTypeIds = scheduleClassroomTypes.map((type) => type.id);
+
+            if (classroomTypeIds.length > 0) {
+                // Delete classrooms that reference these classroom types
+                await tx
+                    .delete(classrooms)
+                    .where(inArray(classrooms.classroomTypeId, classroomTypeIds));
+            }
+
+            // Delete classroom types for this schedule
+            await tx
+                .delete(classroomTypes)
+                .where(eq(classroomTypes.scheduleId, id));
+
+            // Delete majors for this schedule
+            await tx.delete(majors).where(eq(majors.scheduleId, id));
+
+            // Delete schedule time slots
+            await tx
+                .delete(scheduleTimeSlots)
+                .where(eq(scheduleTimeSlots.scheduleId, id));
+
+            // Finally, delete the schedule itself
+            await tx.delete(schedules).where(eq(schedules.id, id));
+        });
 
         return NextResponse.json({
             message: "Schedule deleted successfully",

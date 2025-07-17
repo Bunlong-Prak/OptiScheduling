@@ -521,6 +521,8 @@ export default function Dashboard({ authUser }: DashboardProps) {
             }
             const data = await response.json();
 
+            console.log("Fetched schedules:", data);
+
             // Create a new array to hold the processed schedules with counts
             const processedSchedules = await Promise.all(
                 data.map(async (schedule: Schedule) => {
@@ -1849,8 +1851,64 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                 Delete Schedule
                             </AlertDialogTitle>
                             <AlertDialogDescription className='text-gray-600'>
-                                Are you sure you want to delete this schedule?
-                                This action cannot be undone.
+                                <div className="mb-3">
+                                    <span className="font-semibold text-gray-700 text-base">
+                                        Are you sure you want to delete this schedule?
+                                    </span>
+                                    <span className="block text-sm text-gray-700 mt-1">
+                                        This action <span className="font-bold text-red-600">cannot be undone</span>.
+                                    </span>
+                                </div>
+                                {selectedScheduleId && (() => {
+                                    const schedule = schedules.find(s => s.id === selectedScheduleId);
+                                    if (!schedule) return null;
+                                    return (
+                                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-2">
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    <BookOpen className="h-4 w-4 text-teal-600" />
+                                                    <span className="font-medium">{schedule.courses}</span>
+                                                    <span className="text-gray-700">Courses</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Users className="h-4 w-4 text-purple-600" />
+                                                    <span className="font-medium">{schedule.instructors}</span>
+                                                    <span className="text-gray-700">Instructors</span>
+                                                </div>
+                                                {schedule.timeSlots && schedule.timeSlots.length > 0 && (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
+                                                            <span className="text-white text-xs">⏰</span>
+                                                        </span>
+                                                        <span className="font-medium">{schedule.timeSlots.length}</span>
+                                                        <span className="text-gray-700">TimeSlots</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    <BookOpen className="h-4 w-4 text-[#2F2F85]" />
+                                                    <span className="font-semibold text-gray-800">Schedule title:</span>
+                                                    <span className="text-gray-900">{schedule.name}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="inline-flex items-center">
+                                                        <svg className="h-4 w-4 text-[#2F2F85] mr-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                            <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" />
+                                                            <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" />
+                                                        </svg>
+                                                    </span>
+                                                    <span className="font-semibold text-gray-800">Dates:</span>
+                                                    <span className="text-gray-900">
+                                                        {formatDateForDisplay(schedule.startDate)}
+                                                        {schedule.endDate ? ` - ${formatDateForDisplay(schedule.endDate)}` : ""}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                                <span className="block text-sm text-red-700 mt-2">
+                                    All associated courses, instructors, and timeslots will be lost.
+                                </span>
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
