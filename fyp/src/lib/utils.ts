@@ -31,3 +31,5 @@ export function formatDate(date: Date): string {
 export function generateAcademicYear(startDate: Date, endDate: Date): string {
     return `${formatDate(startDate)} - ${formatDate(endDate)}`;
 }
+
+export const MAX_TIMESLOTS = 24;

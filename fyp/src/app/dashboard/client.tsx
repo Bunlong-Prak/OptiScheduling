@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MAX_TIMESLOTS } from "@/lib/utils";
 import {
     BookOpen,
     CheckCircle,
@@ -577,7 +578,11 @@ export default function Dashboard({ authUser }: DashboardProps) {
                 // Parse the number and ensure it's a valid positive integer
                 const numValue = parseInt(value);
                 // Add maximum limit of 24 time slots
-                if (!isNaN(numValue) && numValue >= 0 && numValue <= 24) {
+                if (
+                    !isNaN(numValue) &&
+                    numValue >= 0 &&
+                    numValue <= MAX_TIMESLOTS
+                ) {
                     setFormData({
                         ...formData,
                         [name]: numValue,
@@ -1468,7 +1473,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                     name='numTimeSlots'
                                     type='number'
                                     min='0'
-                                    max='24'
+                                    max={MAX_TIMESLOTS}
                                     placeholder='Enter number of time slots needed'
                                     value={formData.numTimeSlots}
                                     onChange={handleInputChange}
@@ -1612,7 +1617,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                     name='numTimeSlots'
                                     type='number'
                                     min='0'
-                                    max='24'
+                                    max={MAX_TIMESLOTS}
                                     placeholder='Enter number of time slots needed'
                                     value={formData.numTimeSlots}
                                     onChange={handleInputChange}
