@@ -481,7 +481,71 @@ export default function Dashboard({ authUser }: DashboardProps) {
                 throw new Error("Failed to fetch courses");
             }
             const data = await response.json();
-            return data.length;
+            const sectionMap = new Map();
+
+            data.forEach((courseHour: any) => {
+                const sectionKey = courseHour.sectionId.toString();
+
+                if (!sectionMap.has(sectionKey)) {
+                    // Create a new section entry with the original Course type structure
+                    sectionMap.set(sectionKey, {
+                        id: courseHour.id,
+                        sectionId: courseHour.sectionId,
+                        title: courseHour.title,
+                        code: courseHour.code,
+                        year: courseHour.year,
+                        major: courseHour.major,
+                        color: courseHour.color,
+                        firstName: courseHour.firstName,
+                        lastName: courseHour.lastName,
+                        instructorId: courseHour.instructorId,
+                        duration: courseHour.duration,
+                        separatedDuration: courseHour.separatedDuration,
+                        capacity: courseHour.capacity,
+                        status: courseHour.status,
+                        section: courseHour.section,
+                        classroom: courseHour.classroom,
+                        separatedDurations: [courseHour.separatedDuration],
+                        courseHours: [],
+                        preferClassRoomTypeId: courseHour.preferClassRoomTypeId,
+                        preferClassRoomTypeName:
+                            courseHour.preferClassRoomTypeName,
+                    });
+                } else {
+                    // Always add separated duration to existing section
+                    const sectionData = sectionMap.get(sectionKey);
+                    sectionData.separatedDurations.push(
+                        courseHour.separatedDuration
+                    );
+                }
+
+                // Add this course hour to the section's course hours
+                sectionMap.get(sectionKey).courseHours.push({
+                    id: courseHour.id,
+                    separatedDuration: courseHour.separatedDuration,
+                    day: courseHour.day,
+                    timeSlot: courseHour.timeSlot,
+                });
+            });
+            const processedCourses = Array.from(sectionMap.values()).map(
+                (course) => {
+                    // Calculate the total combined separated duration
+                    const combinedSeparatedDuration =
+                        course.separatedDurations.reduce(
+                            (total: number, duration: number) =>
+                                total + duration,
+                            0
+                        );
+                    return {
+                        ...course,
+                        combinedSeparatedDuration,
+                        separatedDuration: course.separatedDurations[0],
+                        preferClassRoomTypeId: course.preferClassRoomTypeId,
+                        preferClassRoomTypeName: course.preferClassRoomTypeName,
+                    };
+                }
+            );
+            return processedCourses.length;
         } catch (error) {
             console.error(
                 `Error fetching courses for schedule ${scheduleId}:`,
