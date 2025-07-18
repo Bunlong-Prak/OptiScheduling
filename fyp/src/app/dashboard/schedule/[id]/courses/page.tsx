@@ -789,7 +789,7 @@ export default function CoursesView() {
     const validateCapacity = (capacity: number) => {
         const capacitySchema = z
             .number({ invalid_type_error: "Capacity must be a number" })
-            .min(1, "Capacity must be at least 1")
+            .min(0, "Capacity must be at least 0")
             .max(100, "Capacity cannot exceed 100 students");
 
         const capacityResult = capacitySchema.safeParse(Number(capacity));
@@ -2532,8 +2532,11 @@ export default function CoursesView() {
                                     <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider ">
                                         Split Duration (per week)
                                     </th>
-                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
+                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider">
                                         Capacity
+                                    </th>
+                                    <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider">
+                                        Prefer Classroom Type
                                     </th>
                                     <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider w-16">
                                         Status
@@ -2664,6 +2667,10 @@ export default function CoursesView() {
                                             <td className="px-2 py-2 text-xs text-gray-900">
                                                 {course.capacity}
                                             </td>
+                                            <td className="px-2 py-2 text-xs text-gray-900">
+                                                {course.preferClassRoomTypeName}
+                                            </td>
+
                                             <td className="px-2 py-2">
                                                 <span
                                                     className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
