@@ -1847,7 +1847,7 @@ function assignClassroomToSectionWithTypePreference(
     }
 
     // Get all capacity-suitable classrooms for fallback
-    const allSuitableClassrooms = [];
+    const allSuitableClassrooms: any[] = [];
     typeStats.typeBreakdown.forEach((classrooms) => {
         allSuitableClassrooms.push(...classrooms);
     });

@@ -10,7 +10,7 @@ const createClassroomSchema = z.object({
     name: z.string().min(1, "Classroom name is required"),
     location: z.string().optional().nullable(),
     type: z.string().min(1, "Classroom type is required"),
-    capacity: z.number().min(1, "Capacity must be greater than 0"),
+    capacity: z.number().min(0, "Capacity must be greater than or equal to 0"),
     scheduleId: z.string().min(1, "Schedule ID is required"),
 });
 
@@ -20,7 +20,7 @@ const editClassroomSchema = z.object({
     name: z.string().min(1, "Classroom name is required"),
     location: z.string().optional().nullable(),
     type: z.string().min(1, "Classroom type is required"),
-    capacity: z.number().min(1, "Capacity must be greater than 0"),
+    capacity: z.number().min(0, "Capacity must be greater than or equal to 0"),
     scheduleId: z.string().min(1, "Schedule ID is required"),
 });
 

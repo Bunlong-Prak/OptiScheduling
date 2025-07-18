@@ -384,13 +384,13 @@ export default function InstructorsView() {
         }
 
         // Check for uniqueness
-        const existingInstructor = instructors.find(
+        const existingInstructorEmail = instructors.find(
             (instructor) =>
                 instructor.email === email.trim() &&
                 (!selectedInstructor || instructor.id !== selectedInstructor.id)
         );
 
-        if (existingInstructor) {
+        if (existingInstructorEmail) {
             return "Email already exists";
         }
 
@@ -412,6 +412,17 @@ export default function InstructorsView() {
         const digitsOnly = phoneNumber.replace(/[^\d]/g, "");
         if (digitsOnly.length < 7) {
             return "Phone number must contain at least 7 digits";
+        }
+
+        // Check for uniqueness
+        const existingInstructorPhoneNumber = instructors.find(
+            (instructor) =>
+                instructor.phone_number === phoneNumber.trim() &&
+                (!selectedInstructor || instructor.id !== selectedInstructor.id)
+        );
+
+        if (existingInstructorPhoneNumber) {
+            return "Phone number already exists";
         }
 
         return undefined;
@@ -458,6 +469,7 @@ export default function InstructorsView() {
 
         // Check for required fields
         if (
+            !formData.instructor_id.trim() ||
             !formData.first_name.trim() ||
             !formData.last_name.trim() ||
             !formData.gender ||
@@ -664,24 +676,6 @@ export default function InstructorsView() {
     const handleEditInstructor = async () => {
         if (!selectedInstructor) return;
 
-        // Prevent editing if instructor has assignments
-        if (hasAssignedCourses) {
-            showErrorMessage(
-                "Cannot Edit Instructor",
-                "This instructor is assigned to courses and cannot be edited. Please remove all course assignments first."
-            );
-            return;
-        }
-
-        // Prevent editing if instructor has duplicate name
-        if (hasDuplicateName) {
-            showErrorMessage(
-                "Cannot Edit Instructor",
-                "This instructor has a duplicate name in the system and cannot be edited."
-            );
-            return;
-        }
-
         try {
             // Final validation before submit
             if (hasValidationErrors()) {
@@ -712,9 +706,7 @@ export default function InstructorsView() {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(
-                    errorData.error || "Failed to delete instructor"
-                );
+                throw new Error(errorData.error || "Failed to Edit instructor");
             }
 
             await fetchInstructors();
@@ -730,7 +722,7 @@ export default function InstructorsView() {
         } catch (error) {
             console.error(error);
             showErrorMessage(
-                "Failed to delete instructor",
+                "Failed to Edit Instructor",
                 "Something went wrong. Please try again later."
             );
         }
@@ -1573,7 +1565,7 @@ export default function InstructorsView() {
                                 "instructor_id",
                                 "Instructor ID",
                                 formData.instructor_id,
-                                "Enter instructor ID (optional)"
+                                "Enter instructor ID"
                             )}
 
                             <div className="grid grid-cols-2 gap-4">
@@ -1696,8 +1688,7 @@ export default function InstructorsView() {
                         </DialogHeader>
 
                         <div className="py-4 space-y-4">
-                            {/* Warning message when instructor has assignments */}
-                            {hasAssignedCourses && (
+                            {/* {hasAssignedCourses && (
                                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
                                     <div className="flex items-center gap-2">
                                         <span className="text-red-600 text-sm">
@@ -1713,10 +1704,9 @@ export default function InstructorsView() {
                                         instructor.
                                     </p>
                                 </div>
-                            )}
+                            )} */}
 
-                            {/* Warning message when instructor has duplicate name */}
-                            {hasDuplicateName && !hasAssignedCourses && (
+                            {/* {hasDuplicateName && !hasAssignedCourses && (
                                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
                                     <div className="flex items-center gap-2">
                                         <span className="text-red-600 text-sm">
@@ -1730,9 +1720,9 @@ export default function InstructorsView() {
                                         {duplicateNameInfo}.
                                     </p>
                                 </div>
-                            )}
+                            )} */}
 
-                            {isCheckingAssignments && (
+                            {/* {isCheckingAssignments && (
                                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                                     <div className="flex items-center gap-2">
                                         <span className="text-blue-600 text-sm">
@@ -1744,7 +1734,7 @@ export default function InstructorsView() {
                                         </p>
                                     </div>
                                 </div>
-                            )}
+                            )} */}
 
                             {/* Form fields - all disabled when instructor has assignments or duplicates */}
                             {renderFormField(
@@ -1752,12 +1742,12 @@ export default function InstructorsView() {
                                 "instructor_id",
                                 "Instructor ID",
                                 formData.instructor_id,
-                                "Enter instructor ID (optional)",
+                                "Enter instructor ID",
                                 false,
-                                "text",
-                                hasAssignedCourses ||
-                                    hasDuplicateName ||
-                                    isCheckingAssignments
+                                "text"
+                                // hasAssignedCourses ||
+                                //     hasDuplicateName ||
+                                //     isCheckingAssignments
                             )}
 
                             <div className="grid grid-cols-2 gap-4">
@@ -1768,10 +1758,10 @@ export default function InstructorsView() {
                                     formData.first_name,
                                     "Enter first name",
                                     true,
-                                    "text",
-                                    hasAssignedCourses ||
-                                        hasDuplicateName ||
-                                        isCheckingAssignments
+                                    "text"
+                                    // hasAssignedCourses ||
+                                    //     hasDuplicateName ||
+                                    //     isCheckingAssignments
                                 )}
                                 {renderFormField(
                                     "edit-last_name",
@@ -1780,10 +1770,10 @@ export default function InstructorsView() {
                                     formData.last_name,
                                     "Enter last name",
                                     true,
-                                    "text",
-                                    hasAssignedCourses ||
-                                        hasDuplicateName ||
-                                        isCheckingAssignments
+                                    "text"
+                                    // hasAssignedCourses ||
+                                    //     hasDuplicateName ||
+                                    //     isCheckingAssignments
                                 )}
                             </div>
 
@@ -1800,24 +1790,24 @@ export default function InstructorsView() {
                                     onValueChange={(value) =>
                                         handleSelectChange("gender", value)
                                     }
-                                    disabled={
-                                        hasAssignedCourses ||
-                                        hasDuplicateName ||
-                                        isCheckingAssignments
-                                    }
+                                    // disabled={
+                                    //     hasAssignedCourses ||
+                                    //     hasDuplicateName ||
+                                    //     isCheckingAssignments
+                                    // }
                                 >
                                     <SelectTrigger
-                                        className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                            validationErrors.gender
-                                                ? "border-red-300 focus:border-red-500 animate-pulse"
-                                                : ""
-                                        } ${
-                                            hasAssignedCourses ||
-                                            hasDuplicateName ||
-                                            isCheckingAssignments
-                                                ? "bg-gray-100 cursor-not-allowed opacity-60"
-                                                : ""
-                                        }`}
+                                    // className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    //     validationErrors.gender
+                                    //         ? "border-red-300 focus:border-red-500 animate-pulse"
+                                    //         : ""
+                                    // } ${
+                                    //     hasAssignedCourses ||
+                                    //     hasDuplicateName ||
+                                    //     isCheckingAssignments
+                                    //         ? "bg-gray-100 cursor-not-allowed opacity-60"
+                                    //         : ""
+                                    // }`}
                                     >
                                         <SelectValue placeholder="Select gender" />
                                     </SelectTrigger>
@@ -1849,10 +1839,10 @@ export default function InstructorsView() {
                                 formData.email,
                                 "Enter email address",
                                 true,
-                                "email",
-                                hasAssignedCourses ||
-                                    hasDuplicateName ||
-                                    isCheckingAssignments
+                                "email"
+                                // hasAssignedCourses ||
+                                //     hasDuplicateName ||
+                                //     isCheckingAssignments
                             )}
 
                             {renderFormField(
@@ -1862,10 +1852,10 @@ export default function InstructorsView() {
                                 formData.phone_number,
                                 "Enter phone number",
                                 false,
-                                "text",
-                                hasAssignedCourses ||
-                                    hasDuplicateName ||
-                                    isCheckingAssignments
+                                "text"
+                                // hasAssignedCourses ||
+                                //     hasDuplicateName ||
+                                //     isCheckingAssignments
                             )}
                         </div>
 
@@ -1882,17 +1872,15 @@ export default function InstructorsView() {
                             </Button>
                             <Button
                                 onClick={handleEditInstructor}
-                                disabled={
-                                    hasValidationErrors() ||
-                                    hasAssignedCourses ||
-                                    hasDuplicateName ||
-                                    isCheckingAssignments
-                                }
-                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                // disabled={
+                                //     hasValidationErrors() ||
+                                //     hasAssignedCourses ||
+                                //     hasDuplicateName ||
+                                //     isCheckingAssignments
+                                // }
+                                // className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                {hasAssignedCourses || hasDuplicateName
-                                    ? "Cannot Edit"
-                                    : "Save"}
+                                {"Save"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

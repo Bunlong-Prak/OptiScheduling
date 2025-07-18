@@ -529,15 +529,6 @@ export default function MajorView() {
             return;
         }
 
-        // Prevent editing if major has assignments
-        if (hasAssignedCourses) {
-            showErrorMessage(
-                "Cannot Edit Major",
-                "This major is assigned to courses and cannot be edited. Please remove all course assignments first."
-            );
-            return;
-        }
-
         // Double-check validation before submitting
         if (!isFormValid()) {
             showErrorMessage(
@@ -1407,8 +1398,7 @@ export default function MajorView() {
                         </DialogHeader>
 
                         <div className="py-4 space-y-4">
-                            {/* Warning message when major has assignments */}
-                            {hasAssignedCourses && (
+                            {/* {hasAssignedCourses && (
                                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
                                     <div className="flex items-center gap-2">
                                         <span className="text-red-600 text-sm">
@@ -1437,7 +1427,7 @@ export default function MajorView() {
                                         </p>
                                     </div>
                                 </div>
-                            )}
+                            )}  */}
 
                             <div className="space-y-2">
                                 <Label
@@ -1451,20 +1441,20 @@ export default function MajorView() {
                                     name="name"
                                     value={formData.name}
                                     onChange={handleInputChange}
-                                    disabled={
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                    }
-                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                        validationErrors.name
-                                            ? "border-red-300 focus:border-red-500 animate-pulse"
-                                            : ""
-                                    } ${
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
-                                            : ""
-                                    }`}
+                                    // disabled={
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    // }
+                                    // className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    //     validationErrors.name
+                                    //         ? "border-red-300 focus:border-red-500 animate-pulse"
+                                    //         : ""
+                                    // } ${
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    //         ? "bg-gray-100 cursor-not-allowed opacity-60"
+                                    //         : ""
+                                    // }`}
                                 />
                                 {validationErrors.name && (
                                     <p className="text-xs text-red-600 font-medium">
@@ -1485,20 +1475,20 @@ export default function MajorView() {
                                     name="shortTag"
                                     value={formData.shortTag}
                                     onChange={handleInputChange}
-                                    disabled={
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                    }
-                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                        validationErrors.shortTag
-                                            ? "border-red-300 focus:border-red-500 animate-pulse"
-                                            : ""
-                                    } ${
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
-                                            : ""
-                                    }`}
+                                    // disabled={
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    // }
+                                    // className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    //     validationErrors.shortTag
+                                    //         ? "border-red-300 focus:border-red-500 animate-pulse"
+                                    //         : ""
+                                    // } ${
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    //         ? "bg-gray-100 cursor-not-allowed opacity-60"
+                                    //         : ""
+                                    // }`}
                                 />
                                 {validationErrors.shortTag && (
                                     <p className="text-xs text-red-600 font-medium">
@@ -1525,14 +1515,14 @@ export default function MajorView() {
                             </Button>
                             <Button
                                 onClick={handleEditMajor}
-                                disabled={
-                                    !isFormValid() ||
-                                    hasAssignedCourses ||
-                                    isCheckingAssignments
-                                }
-                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                // disabled={
+                                //     !isFormValid() ||
+                                //     hasAssignedCourses ||
+                                //     isCheckingAssignments
+                                // }
+                                // className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                {hasAssignedCourses ? "Cannot Edit" : "Save"}
+                                {"Save"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -1793,39 +1783,55 @@ export default function MajorView() {
                                             ℹ️
                                         </span>
                                         <p className="text-sm text-blue-800">
-                                            Checking for major assignments and conflicts...
+                                            Checking for major assignments and
+                                            conflicts...
                                         </p>
                                     </div>
                                 </div>
                             ) : (
                                 <>
                                     <p className="text-sm text-gray-600 mb-2">
-                                        Are you sure you want to proceed with clearing majors?
+                                        Are you sure you want to proceed with
+                                        clearing majors?
                                     </p>
                                     <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border mb-2">
                                         {`Total majors to be deleted: ${clearAllSummary.deletableMajors.length}`}
                                     </p>
 
-                                    {clearAllSummary.undeletableMajors.length > 0 && (
+                                    {clearAllSummary.undeletableMajors.length >
+                                        0 && (
                                         <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 max-h-48 overflow-y-auto">
                                             <p className="text-sm text-red-800 font-medium mb-2">
-                                                The following {clearAllSummary.undeletableMajors.length} major(s) cannot be deleted:
+                                                The following{" "}
+                                                {
+                                                    clearAllSummary
+                                                        .undeletableMajors
+                                                        .length
+                                                }{" "}
+                                                major(s) cannot be deleted:
                                             </p>
                                             <ul className="list-disc list-inside text-xs text-red-700 space-y-1">
-                                                {clearAllSummary.undeletableMajors.map((item, index) => (
-                                                    <li key={index}>
-                                                        <span className="font-semibold">
-                                                            {item.major.name}:
-                                                        </span>{" "}
-                                                        {item.reason}
-                                                    </li>
-                                                ))}
+                                                {clearAllSummary.undeletableMajors.map(
+                                                    (item, index) => (
+                                                        <li key={index}>
+                                                            <span className="font-semibold">
+                                                                {
+                                                                    item.major
+                                                                        .name
+                                                                }
+                                                                :
+                                                            </span>{" "}
+                                                            {item.reason}
+                                                        </li>
+                                                    )
+                                                )}
                                             </ul>
                                         </div>
                                     )}
 
                                     <p className="text-xs text-red-600 font-medium">
-                                        This action cannot be undone for deleted majors.
+                                        This action cannot be undone for deleted
+                                        majors.
                                     </p>
                                 </>
                             )}
@@ -1835,7 +1841,10 @@ export default function MajorView() {
                             <Button
                                 variant="outline"
                                 onClick={() => setIsClearAllDialogOpen(false)}
-                                disabled={clearAllSummary.isChecking || clearAllSummary.isDeleting}
+                                disabled={
+                                    clearAllSummary.isChecking ||
+                                    clearAllSummary.isDeleting
+                                }
                                 className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                             >
                                 Cancel
@@ -1844,7 +1853,8 @@ export default function MajorView() {
                                 onClick={handleClearAllMajors}
                                 disabled={
                                     clearAllSummary.isChecking ||
-                                    clearAllSummary.deletableMajors.length === 0 ||
+                                    clearAllSummary.deletableMajors.length ===
+                                        0 ||
                                     clearAllSummary.isDeleting
                                 }
                                 className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
