@@ -645,9 +645,21 @@ export default function CoursesView() {
     ) => {
         const { name, value } = e.target;
 
-        if (name === "durationHours") {
-            setDurationHours(value); // store raw string
+        if (name === "capacity") {
+            // Only allow numbers for capacity
+            const numericValue = value.replace(/[^0-9]/g, "");
 
+            const newFormData = {
+                ...formData,
+                capacity: parseInt(numericValue) || 0,
+            };
+            setFormData(newFormData);
+            validateField("capacity", parseInt(numericValue) || 0);
+            return;
+        }
+
+        if (name === "durationHours") {
+            setDurationHours(value);
             const hours = parseInt(value === "" ? "0" : value, 10);
             const minutes = parseInt(
                 durationMinutes === "" ? "0" : durationMinutes,
@@ -670,8 +682,7 @@ export default function CoursesView() {
                 validateField("duration", newDuration);
             }
         } else if (name === "durationMinutes") {
-            setDurationMinutes(value); // store raw string
-
+            setDurationMinutes(value);
             const hours = parseInt(
                 durationHours === "" ? "0" : durationHours,
                 10
@@ -695,14 +706,52 @@ export default function CoursesView() {
             }
         } else {
             console.log(`Updating formData for ${name} with value:`, value);
-            // Update formData first
             const newFormData = {
                 ...formData,
                 [name]: value,
             };
             setFormData(newFormData);
 
-            // if name is keyof formdata, live validate
+            // Real-time validation for code and title
+            if (name === "code") {
+                const codeError = validateCode(
+                    value,
+                    isEditDialogOpen ? selectedCourse?.sectionId : undefined
+                );
+                if (codeError) {
+                    setValidationErrors((prev) => ({
+                        ...prev,
+                        code: codeError,
+                    }));
+                } else {
+                    setValidationErrors((prev) => {
+                        const updated = { ...prev };
+                        delete updated.code;
+                        return updated;
+                    });
+                }
+            }
+
+            if (name === "title") {
+                const titleError = validateTitle(
+                    value,
+                    isEditDialogOpen ? selectedCourse?.sectionId : undefined
+                );
+                if (titleError) {
+                    setValidationErrors((prev) => ({
+                        ...prev,
+                        title: titleError,
+                    }));
+                } else {
+                    setValidationErrors((prev) => {
+                        const updated = { ...prev };
+                        delete updated.title;
+                        return updated;
+                    });
+                }
+            }
+
+            // Live validate other fields
             if (formData.hasOwnProperty(name)) {
                 validateField(name as keyof typeof formData, value);
             }
@@ -739,16 +788,16 @@ export default function CoursesView() {
 
     const validateCapacity = (capacity: number) => {
         const capacitySchema = z
-            .number({ invalid_type_error: "Capacity is required" })
-            .min(0, "Capacity must be at least 0")
+            .number({ invalid_type_error: "Capacity must be a number" })
+            .min(1, "Capacity must be at least 1")
             .max(100, "Capacity cannot exceed 100 students");
+
         const capacityResult = capacitySchema.safeParse(Number(capacity));
         if (!capacityResult.success) {
             return capacityResult.error.errors[0].message;
         }
         return undefined;
     };
-
     // Main form validation using individual field validators
     const validateFormWithNewData = (newFormData: typeof formData) => {
         const errors: typeof validationErrors = {};
@@ -762,10 +811,16 @@ export default function CoursesView() {
         const capacityError = validateCapacity(newFormData.capacity);
         if (capacityError) errors.capacity = capacityError;
 
-        const codeError = validateCode(newFormData.code);
+        const codeError = validateCode(
+            newFormData.code,
+            isEditDialogOpen ? selectedCourse?.sectionId : undefined
+        );
         if (codeError) errors.code = codeError;
 
-        const titleError = validateTitle(newFormData.title);
+        const titleError = validateTitle(
+            newFormData.title,
+            isEditDialogOpen ? selectedCourse?.sectionId : undefined
+        );
         if (titleError) errors.title = titleError;
 
         const colorError = validateColor(newFormData.color);
@@ -774,7 +829,6 @@ export default function CoursesView() {
         setValidationErrors(errors);
         return Object.keys(errors).length === 0;
     };
-
     const validateColor = (color: string) => {
         if (!color) {
             return "Color is required";
@@ -787,27 +841,70 @@ export default function CoursesView() {
         return undefined;
     };
 
-    const validateCode = (code: string) => {
+    const validateCode = (code: string, excludeSectionId?: number) => {
         if (!code) {
             return "Course code is required";
         }
+
+        if (code.length > 255) {
+            return "Course code cannot exceed 255 characters";
+        }
+
+        // Check for duplicates in current courses list
+        const isDuplicate = courses.some(
+            (course) =>
+                course.code.toLowerCase().trim() ===
+                    code.toLowerCase().trim() &&
+                course.sectionId !== excludeSectionId
+        );
+
+        if (isDuplicate) {
+            return "This course code already exists";
+        }
+
         return undefined;
     };
 
-    const validateTitle = (title: string) => {
+    const validateTitle = (title: string, excludeSectionId?: number) => {
         if (!title) {
             return "Course name is required";
         }
+
+        if (title.length > 255) {
+            return "Course name cannot exceed 255 characters";
+        }
+
+        // Check for duplicates in current courses list
+        const isDuplicate = courses.some(
+            (course) =>
+                course.title.toLowerCase().trim() ===
+                    title.toLowerCase().trim() &&
+                course.sectionId !== excludeSectionId
+        );
+
+        if (isDuplicate) {
+            return "This course name already exists";
+        }
+
         return undefined;
     };
 
     const validateField = (field: keyof typeof formData, value: any) => {
         let error: string | undefined;
+
         if (field === "major") error = validateMajor(value);
         if (field === "duration") error = validateDuration(value);
         if (field === "capacity") error = validateCapacity(value);
-        if (field === "code") error = validateCode(value);
-        if (field === "title") error = validateTitle(value);
+        if (field === "code")
+            error = validateCode(
+                value,
+                isEditDialogOpen ? selectedCourse?.sectionId : undefined
+            );
+        if (field === "title")
+            error = validateTitle(
+                value,
+                isEditDialogOpen ? selectedCourse?.sectionId : undefined
+            );
         if (field === "color") error = validateColor(value);
 
         setValidationErrors((prev) => {
@@ -821,7 +918,6 @@ export default function CoursesView() {
         });
         return !error;
     };
-
     const validateForm = () => {
         // Validate all fields using the new validation function
         return validateFormWithNewData(formData);
@@ -2957,21 +3053,76 @@ export default function CoursesView() {
                                     <Input
                                         id="capacity"
                                         name="capacity"
-                                        type="number"
-                                        min="1"
+                                        type="text" // Changed from "number" to "text" for better control
                                         value={formData.capacity}
                                         onChange={handleInputChange}
+                                        onKeyDown={(e) => {
+                                            // Only allow numbers, backspace, delete, tab, escape, enter, and arrow keys
+                                            if (
+                                                (![
+                                                    8, 9, 27, 13, 46, 110, 190,
+                                                ].includes(e.keyCode) &&
+                                                    // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                                                    ((e.keyCode === 65 &&
+                                                        e.ctrlKey) || // Ctrl+A
+                                                        (e.keyCode === 67 &&
+                                                            e.ctrlKey) || // Ctrl+C
+                                                        (e.keyCode === 86 &&
+                                                            e.ctrlKey) || // Ctrl+V
+                                                        (e.keyCode === 88 &&
+                                                            e.ctrlKey) ||
+                                                        (e.keyCode === 8 &&
+                                                            e.ctrlKey))) ||
+                                                // Allow home, end, left, right, down, up
+                                                ((e.keyCode < 35 ||
+                                                    e.keyCode > 40) &&
+                                                    // Allow numeric keypad
+                                                    (e.keyCode < 96 ||
+                                                        e.keyCode > 105) &&
+                                                    // Allow main keyboard numbers
+                                                    (e.keyCode < 48 ||
+                                                        e.keyCode > 57))
+                                            ) {
+                                                e.preventDefault();
+                                            }
+                                        }}
+                                        onPaste={(e) => {
+                                            // Prevent pasting non-numeric content
+                                            const paste =
+                                                e.clipboardData.getData("text");
+                                            if (!/^\d+$/.test(paste)) {
+                                                e.preventDefault();
+                                            }
+                                        }}
                                         className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
                                             validationErrors.capacity
                                                 ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
                                                 : ""
                                         }`}
+                                        placeholder="Enter capacity (1-100)"
+                                        min="1"
+                                        max="100"
                                     />
                                     {validationErrors.capacity && (
-                                        <ErrorLabel>
+                                        <p className="text-xs text-red-600 flex items-center">
+                                            <svg
+                                                className="w-3 h-3 mr-1"
+                                                fill="currentColor"
+                                                viewBox="0 0 20 20"
+                                            >
+                                                <path
+                                                    fillRule="evenodd"
+                                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                    clipRule="evenodd"
+                                                />
+                                            </svg>
                                             {validationErrors.capacity}
-                                        </ErrorLabel>
+                                        </p>
                                     )}
+                                    <p className="text-xs text-gray-500">
+                                        Maximum number of students for this
+                                        course (1-100)
+                                    </p>
                                 </div>
                             </div>
 
@@ -4020,20 +4171,86 @@ export default function CoursesView() {
                             <div className="grid gap-4">
                                 <div className="space-y-2">
                                     <Label
-                                        htmlFor="edit-capacity"
+                                        htmlFor="capacity"
                                         className="text-sm font-medium text-gray-700"
                                     >
                                         Capacity
                                     </Label>
                                     <Input
-                                        id="edit-capacity"
+                                        id="capacity"
                                         name="capacity"
-                                        type="number"
-                                        min="1"
+                                        type="text" // Changed from "number" to "text" for better control
                                         value={formData.capacity}
                                         onChange={handleInputChange}
-                                        className="border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm"
+                                        onKeyDown={(e) => {
+                                            // Only allow numbers, backspace, delete, tab, escape, enter, and arrow keys
+                                            if (
+                                                ![
+                                                    8, 9, 27, 13, 46, 110, 190,
+                                                ].includes(e.keyCode) &&
+                                                // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                                                !(
+                                                    (
+                                                        (e.keyCode === 65 &&
+                                                            e.ctrlKey) || // Ctrl+A
+                                                        (e.keyCode === 67 &&
+                                                            e.ctrlKey) || // Ctrl+C
+                                                        (e.keyCode === 86 &&
+                                                            e.ctrlKey) || // Ctrl+V
+                                                        (e.keyCode === 88 &&
+                                                            e.ctrlKey)
+                                                    ) // Ctrl+X
+                                                ) &&
+                                                // Allow home, end, left, right, down, up
+                                                (e.keyCode < 35 ||
+                                                    e.keyCode > 40) &&
+                                                // Allow numeric keypad
+                                                (e.keyCode < 96 ||
+                                                    e.keyCode > 105) &&
+                                                // Allow main keyboard numbers
+                                                (e.keyCode < 48 ||
+                                                    e.keyCode > 57)
+                                            ) {
+                                                e.preventDefault();
+                                            }
+                                        }}
+                                        onPaste={(e) => {
+                                            // Prevent pasting non-numeric content
+                                            const paste =
+                                                e.clipboardData.getData("text");
+                                            if (!/^\d+$/.test(paste)) {
+                                                e.preventDefault();
+                                            }
+                                        }}
+                                        className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                            validationErrors.capacity
+                                                ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-500"
+                                                : ""
+                                        }`}
+                                        placeholder="Enter capacity (1-100)"
+                                        min="1"
+                                        max="100"
                                     />
+                                    {validationErrors.capacity && (
+                                        <p className="text-xs text-red-600 flex items-center">
+                                            <svg
+                                                className="w-3 h-3 mr-1"
+                                                fill="currentColor"
+                                                viewBox="0 0 20 20"
+                                            >
+                                                <path
+                                                    fillRule="evenodd"
+                                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                    clipRule="evenodd"
+                                                />
+                                            </svg>
+                                            {validationErrors.capacity}
+                                        </p>
+                                    )}
+                                    <p className="text-xs text-gray-500">
+                                        Maximum number of students for this
+                                        course (1-100)
+                                    </p>
                                 </div>
                             </div>
 
