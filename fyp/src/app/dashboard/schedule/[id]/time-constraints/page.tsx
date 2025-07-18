@@ -397,6 +397,7 @@ export default function TimeConstraintView() {
 
     // Handle day selection
     const handleDaySelection = (dayIndex: number, selected: boolean) => {
+        console.log("HERE");
         const updatedDayConstraints = [...enhancedFormData.dayConstraints];
         updatedDayConstraints[dayIndex].selected = selected;
 
@@ -1147,17 +1148,20 @@ export default function TimeConstraintView() {
                                                     checked={
                                                         dayConstraint.selected
                                                     }
-                                                    onCheckedChange={(
-                                                        checked
-                                                    ) =>
-                                                        handleDaySelection(
-                                                            index,
-                                                            checked as boolean
-                                                        )
-                                                    }
+                                                    // onCheckedChange={(
+                                                    //     checked
+                                                    // ) =>
+                                                    //     handleDaySelection(
+                                                    //         index,
+                                                    //         checked as boolean
+                                                    //     )
+                                                    // }
+                                                    // onClick={(e) =>
+                                                    //     e.stopPropagation()
+                                                    // }
                                                 />
                                                 <label
-                                                    htmlFor={`day-${dayConstraint.day}`}
+                                                    // htmlFor={`day-${dayConstraint.day}`}
                                                     className='text-sm font-medium text-gray-700 cursor-pointer flex-1'
                                                 >
                                                     {dayConstraint.day}
@@ -1273,15 +1277,15 @@ export default function TimeConstraintView() {
                                                                                     disabled={
                                                                                         !!isDisabled
                                                                                     }
-                                                                                    onCheckedChange={() =>
-                                                                                        toggleDayTimeSlot(
-                                                                                            actualDayIndex,
-                                                                                            slot
-                                                                                        )
-                                                                                    }
+                                                                                    // onCheckedChange={() =>
+                                                                                    //     toggleDayTimeSlot(
+                                                                                    //         actualDayIndex,
+                                                                                    //         slot
+                                                                                    //     )
+                                                                                    // }
                                                                                 />
                                                                                 <label
-                                                                                    htmlFor={`time-${day.day}-${slot}`}
+                                                                                    // htmlFor={`time-${day.day}-${slot}`}
                                                                                     className={`text-sm font-medium cursor-pointer flex-1 ${
                                                                                         isDisabled
                                                                                             ? "text-gray-400"
@@ -1546,15 +1550,15 @@ export default function TimeConstraintView() {
                                                                                     disabled={
                                                                                         !!isDisabled
                                                                                     }
-                                                                                    onCheckedChange={() =>
-                                                                                        toggleDayTimeSlot(
-                                                                                            actualDayIndex,
-                                                                                            slot
-                                                                                        )
-                                                                                    }
+                                                                                    // onCheckedChange={() =>
+                                                                                    //     toggleDayTimeSlot(
+                                                                                    //         actualDayIndex,
+                                                                                    //         slot
+                                                                                    //     )
+                                                                                    // }
                                                                                 />
                                                                                 <label
-                                                                                    htmlFor={`time-${day.day}-${slot}`}
+                                                                                    // htmlFor={`time-${day.day}-${slot}`}
                                                                                     className={`text-sm font-medium cursor-pointer flex-1 ${
                                                                                         isDisabled
                                                                                             ? "text-gray-400"
