@@ -1128,49 +1128,67 @@ export default function TimeConstraintView() {
                                 </Label>
                                 <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2'>
                                     {enhancedFormData.dayConstraints.map(
-                                        (dayConstraint, index) => (
-                                            <div
-                                                key={dayConstraint.day}
-                                                className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-colors ${
-                                                    dayConstraint.selected
-                                                        ? "bg-blue-50 border-blue-200 shadow-sm"
-                                                        : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300"
-                                                }`}
-                                                onClick={() =>
-                                                    handleDaySelection(
-                                                        index,
-                                                        !dayConstraint.selected
-                                                    )
-                                                }
-                                            >
-                                                <Checkbox
-                                                    id={`day-${dayConstraint.day}`}
-                                                    checked={
-                                                        dayConstraint.selected
+                                        (dayConstraint, index) => {
+                                            const dayExists =
+                                                timeConstraints.some(
+                                                    (c) =>
+                                                        c.instructor_id ===
+                                                            enhancedFormData.instructor_id &&
+                                                        c.day_of_the_week ===
+                                                            dayConstraint.day
+                                                );
+
+                                            return (
+                                                <div
+                                                    key={dayConstraint.day}
+                                                    className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                                                        dayExists
+                                                            ? "bg-gray-100 opacity-50 cursor-not-allowed"
+                                                            : dayConstraint.selected
+                                                            ? "bg-blue-50 border-blue-200 shadow-sm"
+                                                            : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+                                                    }`}
+                                                    onClick={() =>
+                                                        !dayExists &&
+                                                        handleDaySelection(
+                                                            index,
+                                                            !dayConstraint.selected
+                                                        )
                                                     }
-                                                    // onCheckedChange={(
-                                                    //     checked
-                                                    // ) =>
-                                                    //     handleDaySelection(
-                                                    //         index,
-                                                    //         checked as boolean
-                                                    //     )
-                                                    // }
-                                                    // onClick={(e) =>
-                                                    //     e.stopPropagation()
-                                                    // }
-                                                />
-                                                <label
-                                                    // htmlFor={`day-${dayConstraint.day}`}
-                                                    className='text-sm font-medium text-gray-700 cursor-pointer flex-1'
                                                 >
-                                                    {dayConstraint.day}
-                                                </label>
-                                                {dayConstraint.selected && (
-                                                    <div className='w-2 h-2 bg-blue-500 rounded-full'></div>
-                                                )}
-                                            </div>
-                                        )
+                                                    <Checkbox
+                                                        id={`day-${dayConstraint.day}`}
+                                                        checked={
+                                                            dayConstraint.selected
+                                                        }
+                                                        disabled={dayExists}
+                                                        onCheckedChange={(
+                                                            checked
+                                                        ) =>
+                                                            !dayExists &&
+                                                            handleDaySelection(
+                                                                index,
+                                                                checked as boolean
+                                                            )
+                                                        }
+                                                    />
+                                                    <label
+                                                        htmlFor={`day-${dayConstraint.day}`}
+                                                        className={`text-sm font-medium cursor-pointer flex-1 ${
+                                                            dayExists
+                                                                ? "text-gray-400"
+                                                                : "text-gray-700"
+                                                        }`}
+                                                    >
+                                                        {dayConstraint.day}
+                                                    </label>
+                                                    {dayConstraint.selected &&
+                                                        !dayExists && (
+                                                            <div className='w-2 h-2 bg-blue-500 rounded-full'></div>
+                                                        )}
+                                                </div>
+                                            );
+                                        }
                                     )}
                                 </div>
                             </div>
@@ -1234,20 +1252,22 @@ export default function TimeConstraintView() {
                                                             <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
                                                                 {timeSlots.map(
                                                                     (slot) => {
-                                                                        const isAvailable =
-                                                                            isTimeSlotAvailable(
-                                                                                slot,
-                                                                                day.day
-                                                                            );
+                                                                        // const isAvailable =
+                                                                        //     isTimeSlotAvailable(
+                                                                        //         slot,
+                                                                        //         day.day
+                                                                        //     );
                                                                         const isSelected =
                                                                             day.timeSlots.includes(
                                                                                 slot
                                                                             );
+                                                                        // const isDisabled =
+                                                                        //     enhancedFormData.instructor_id >
+                                                                        //         0 &&
+                                                                        //     !isAvailable &&
+                                                                        //     !isSelected;
                                                                         const isDisabled =
-                                                                            enhancedFormData.instructor_id >
-                                                                                0 &&
-                                                                            !isAvailable &&
-                                                                            !isSelected;
+                                                                            false;
 
                                                                         return (
                                                                             <div
@@ -1275,7 +1295,7 @@ export default function TimeConstraintView() {
                                                                                         isSelected
                                                                                     }
                                                                                     disabled={
-                                                                                        !!isDisabled
+                                                                                        isDisabled
                                                                                     }
                                                                                     // onCheckedChange={() =>
                                                                                     //     toggleDayTimeSlot(

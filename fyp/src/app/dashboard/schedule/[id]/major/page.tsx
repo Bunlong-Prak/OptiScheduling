@@ -87,6 +87,53 @@ export default function MajorView() {
     }>({ name: false, shortTag: false });
     const params = useParams();
 
+    const [clearAllSummary, setClearAllSummary] = useState<{
+        undeletableMajors: {
+            major: Major;
+            reason: string;
+        }[];
+        deletableMajors: Major[];
+        isChecking: boolean;
+        isDeleting: boolean;
+    }>({
+        undeletableMajors: [],
+        deletableMajors: [],
+        isChecking: false,
+        isDeleting: false,
+    });
+
+    const openClearAllDialog = async () => {
+        setIsClearAllDialogOpen(true);
+        setClearAllSummary({
+            deletableMajors: [],
+            undeletableMajors: [],
+            isChecking: true,
+            isDeleting: false,
+        });
+
+        const undeletable: { major: Major; reason: string }[] = [];
+        const deletableMajors: Major[] = [];
+
+        for (const major of majors) {
+            const assignmentCheck = await checkMajorAssignments(major.name);
+            if (assignmentCheck.hasAssignments) {
+                undeletable.push({
+                    major,
+                    reason: assignmentCheck.info,
+                });
+            } else {
+                deletableMajors.push(major);
+            }
+        }
+
+        setClearAllSummary({
+            deletableMajors,
+            undeletableMajors: undeletable,
+            isDeleting: false,
+            isChecking: false,
+        });
+    };
+
     // Cleanup function for message timers
     useEffect(() => {
         return () => {
@@ -853,9 +900,7 @@ export default function MajorView() {
                         }));
 
                         // Small delay to prevent overwhelming the server
-                        await new Promise((resolve) =>
-                            setTimeout(resolve, 10)
-                        );
+                        await new Promise((resolve) => setTimeout(resolve, 10));
                     }
 
                     // Final update
@@ -1006,13 +1051,22 @@ export default function MajorView() {
     // Add this state variable with your other useState declarations
     const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false);
 
-    // Add this function with your other handler functions
     const handleClearAllMajors = async () => {
-        const majorCount = majors.length;
+        const { deletableMajors, undeletableMajors } = clearAllSummary;
+
+        if (deletableMajors.length === 0) {
+            showErrorMessage(
+                "Cannot Clear All Majors",
+                "All majors have course assignments or other issues preventing deletion. Please resolve them first."
+            );
+            setIsClearAllDialogOpen(false);
+            return;
+        }
+
+        setClearAllSummary((prev) => ({ ...prev, isDeleting: true }));
 
         try {
-            // Delete all majors one by one
-            const deletePromises = majors.map((major) =>
+            const deletePromises = deletableMajors.map((major) =>
                 fetch("/api/majors", {
                     method: "DELETE",
                     headers: {
@@ -1024,17 +1078,24 @@ export default function MajorView() {
 
             await Promise.all(deletePromises);
             await fetchMajors();
-            setIsClearAllDialogOpen(false);
+
             showSuccessMessage(
-                "All Majors Deleted",
-                `Successfully deleted ${majorCount} majors`
+                "Majors Cleared",
+                `Successfully deleted ${deletableMajors.length} major(s).${
+                    undeletableMajors.length > 0
+                        ? ` ${undeletableMajors.length} major(s) could not be deleted.`
+                        : ""
+                }`
             );
         } catch (error) {
             console.error("Error clearing all majors:", error);
             showErrorMessage(
-                "Failed to Delete All Majors",
-                "Failed to delete all majors. Please try again."
+                "Failed to Delete Majors",
+                "Failed to delete some majors. Please try again."
             );
+        } finally {
+            setClearAllSummary((prev) => ({ ...prev, isDeleting: false }));
+            setIsClearAllDialogOpen(false);
         }
     };
 
@@ -1086,7 +1147,7 @@ export default function MajorView() {
                             <Plus className="mr-1 h-3 w-3" /> New Major
                         </Button>
                         <Button
-                            onClick={() => setIsClearAllDialogOpen(true)}
+                            onClick={openClearAllDialog}
                             variant="outline"
                             className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
                             disabled={majors.length === 0}
@@ -1725,28 +1786,76 @@ export default function MajorView() {
                         </DialogHeader>
 
                         <div className="py-4">
-                            <p className="text-sm text-gray-600 mb-2">
-                                Are you sure you want to delete all{" "}
-                                {majors.length} majors?
-                            </p>
-                            <p className="text-xs text-red-600 font-medium">
-                                This action cannot be undone.
-                            </p>
+                            {clearAllSummary.isChecking ? (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-600 text-sm">
+                                            ℹ️
+                                        </span>
+                                        <p className="text-sm text-blue-800">
+                                            Checking for major assignments and conflicts...
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-sm text-gray-600 mb-2">
+                                        Are you sure you want to proceed with clearing majors?
+                                    </p>
+                                    <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border mb-2">
+                                        {`Total majors to be deleted: ${clearAllSummary.deletableMajors.length}`}
+                                    </p>
+
+                                    {clearAllSummary.undeletableMajors.length > 0 && (
+                                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 max-h-48 overflow-y-auto">
+                                            <p className="text-sm text-red-800 font-medium mb-2">
+                                                The following {clearAllSummary.undeletableMajors.length} major(s) cannot be deleted:
+                                            </p>
+                                            <ul className="list-disc list-inside text-xs text-red-700 space-y-1">
+                                                {clearAllSummary.undeletableMajors.map((item, index) => (
+                                                    <li key={index}>
+                                                        <span className="font-semibold">
+                                                            {item.major.name}:
+                                                        </span>{" "}
+                                                        {item.reason}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    <p className="text-xs text-red-600 font-medium">
+                                        This action cannot be undone for deleted majors.
+                                    </p>
+                                </>
+                            )}
                         </div>
 
                         <DialogFooter className="border-t border-gray-200 pt-3">
                             <Button
                                 variant="outline"
                                 onClick={() => setIsClearAllDialogOpen(false)}
+                                disabled={clearAllSummary.isChecking || clearAllSummary.isDeleting}
                                 className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                             >
                                 Cancel
                             </Button>
                             <Button
                                 onClick={handleClearAllMajors}
-                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                                disabled={
+                                    clearAllSummary.isChecking ||
+                                    clearAllSummary.deletableMajors.length === 0 ||
+                                    clearAllSummary.isDeleting
+                                }
+                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                Delete All
+                                {clearAllSummary.isChecking
+                                    ? "Checking..."
+                                    : clearAllSummary.isDeleting
+                                    ? `Deleting ${clearAllSummary.deletableMajors.length} major(s)...`
+                                    : clearAllSummary.deletableMajors.length > 0
+                                    ? `Delete ${clearAllSummary.deletableMajors.length} Major(s)`
+                                    : "No Majors to Delete"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

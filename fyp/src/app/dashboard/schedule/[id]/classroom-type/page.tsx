@@ -72,6 +72,55 @@ export default function ClassroomTypeView() {
     const [currentPage, setCurrentPage] = useState(1);
     const params = useParams();
 
+    const [clearAllSummary, setClearAllSummary] = useState<{
+        undeletableClassroomTypes: {
+            classroomType: ClassroomType;
+            reason: string;
+        }[];
+        deletableClassroomTypes: ClassroomType[];
+        isChecking: boolean;
+        isDeleting: boolean;
+    }>({
+        undeletableClassroomTypes: [],
+        deletableClassroomTypes: [],
+        isChecking: false,
+        isDeleting: false,
+    });
+
+    const openClearAllDialog = async () => {
+        setIsClearAllDialogOpen(true);
+        setClearAllSummary({
+            deletableClassroomTypes: [],
+            undeletableClassroomTypes: [],
+            isChecking: true,
+            isDeleting: false,
+        });
+
+        const undeletable: { classroomType: ClassroomType; reason: string }[] = [];
+        const deletableClassroomTypes: ClassroomType[] = [];
+
+        for (const classroomType of classroomTypes) {
+            const assignmentCheck = await checkClassroomTypeAssignments(
+                classroomType.name
+            );
+            if (assignmentCheck.hasAssignments) {
+                undeletable.push({
+                    classroomType,
+                    reason: assignmentCheck.info,
+                });
+            } else {
+                deletableClassroomTypes.push(classroomType);
+            }
+        }
+
+        setClearAllSummary({
+            deletableClassroomTypes,
+            undeletableClassroomTypes: undeletable,
+            isDeleting: false,
+            isChecking: false,
+        });
+    };
+
     // Cleanup function for message timers
     useEffect(() => {
         return () => {
@@ -729,9 +778,7 @@ export default function ClassroomTypeView() {
                         }));
 
                         // Small delay to prevent overwhelming the server
-                        await new Promise((resolve) =>
-                            setTimeout(resolve, 10)
-                        );
+                        await new Promise((resolve) => setTimeout(resolve, 10));
                     }
 
                     // Final update
@@ -900,11 +947,24 @@ export default function ClassroomTypeView() {
 
     // Add this function with your other handler functions
     const handleClearAllClassroomTypes = async () => {
-        const classroomTypeCount = classroomTypes.length;
+        const {
+            deletableClassroomTypes,
+            undeletableClassroomTypes,
+        } = clearAllSummary;
+
+        if (deletableClassroomTypes.length === 0) {
+            showErrorMessage(
+                "Cannot Clear All Classroom Types",
+                "All classroom types have assignments or other issues preventing deletion. Please resolve them first."
+            );
+            setIsClearAllDialogOpen(false);
+            return;
+        }
+
+        setClearAllSummary((prev) => ({ ...prev, isDeleting: true }));
 
         try {
-            // Delete all classroom types one by one
-            const deletePromises = classroomTypes.map((classroomType) =>
+            const deletePromises = deletableClassroomTypes.map((classroomType) =>
                 fetch("/api/classroom-types", {
                     method: "DELETE",
                     headers: {
@@ -916,17 +976,26 @@ export default function ClassroomTypeView() {
 
             await Promise.all(deletePromises);
             await fetchClassroomTypes();
-            setIsClearAllDialogOpen(false);
+
             showSuccessMessage(
-                "All Classroom Types Deleted",
-                `Successfully deleted ${classroomTypeCount} classroom types`
+                "Classroom Types Cleared",
+                `Successfully deleted ${
+                    deletableClassroomTypes.length
+                } classroom type(s).${
+                    undeletableClassroomTypes.length > 0
+                        ? ` ${undeletableClassroomTypes.length} classroom type(s) could not be deleted.`
+                        : ""
+                }`
             );
         } catch (error) {
             console.error("Error clearing all classroom types:", error);
             showErrorMessage(
-                "Failed to Delete All Classroom Types",
-                "Failed to delete all classroom types. Please try again."
+                "Failed to Delete Classroom Types",
+                "Failed to delete some classroom types. Please try again."
             );
+        } finally {
+            setClearAllSummary((prev) => ({ ...prev, isDeleting: false }));
+            setIsClearAllDialogOpen(false);
         }
     };
 
@@ -979,7 +1048,7 @@ export default function ClassroomTypeView() {
                             <Plus className="h-3 w-3" /> New Classroom Type
                         </Button>
                         <Button
-                            onClick={() => setIsClearAllDialogOpen(true)}
+                            onClick={openClearAllDialog}
                             variant="outline"
                             className="border-red-600 text-red-600 hover:bg-red-50 text-xs px-3 py-1.5 rounded-md"
                             disabled={classroomTypes.length === 0}
@@ -1630,28 +1699,76 @@ export default function ClassroomTypeView() {
                         </DialogHeader>
 
                         <div className="py-4">
-                            <p className="text-sm text-gray-600 mb-2">
-                                Are you sure you want to delete all{" "}
-                                {classroomTypes.length} classroom types?
-                            </p>
-                            <p className="text-xs text-red-600 font-medium">
-                                This action cannot be undone.
-                            </p>
+                            {clearAllSummary.isChecking ? (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-600 text-sm">
+                                            ℹ️
+                                        </span>
+                                        <p className="text-sm text-blue-800">
+                                            Checking for classroom type assignments and conflicts...
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-sm text-gray-600 mb-2">
+                                        Are you sure you want to proceed with clearing classroom types?
+                                    </p>
+                                    <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border mb-2">
+                                        {`Total classroom types to be deleted: ${clearAllSummary.deletableClassroomTypes.length}`}
+                                    </p>
+
+                                    {clearAllSummary.undeletableClassroomTypes.length > 0 && (
+                                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 max-h-48 overflow-y-auto">
+                                            <p className="text-sm text-red-800 font-medium mb-2">
+                                                The following {clearAllSummary.undeletableClassroomTypes.length} classroom type(s) cannot be deleted:
+                                            </p>
+                                            <ul className="list-disc list-inside text-xs text-red-700 space-y-1">
+                                                {clearAllSummary.undeletableClassroomTypes.map((item, index) => (
+                                                    <li key={index}>
+                                                        <span className="font-semibold">
+                                                            {item.classroomType.name}:
+                                                        </span>{" "}
+                                                        {item.reason}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    <p className="text-xs text-red-600 font-medium">
+                                        This action cannot be undone for deleted classroom types.
+                                    </p>
+                                </>
+                            )}
                         </div>
 
                         <DialogFooter className="border-t border-gray-200 pt-3">
                             <Button
                                 variant="outline"
                                 onClick={() => setIsClearAllDialogOpen(false)}
+                                disabled={clearAllSummary.isChecking || clearAllSummary.isDeleting}
                                 className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                             >
                                 Cancel
                             </Button>
                             <Button
                                 onClick={handleClearAllClassroomTypes}
-                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5"
+                                disabled={
+                                    clearAllSummary.isChecking ||
+                                    clearAllSummary.deletableClassroomTypes.length === 0 ||
+                                    clearAllSummary.isDeleting
+                                }
+                                className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                Delete All
+                                {clearAllSummary.isChecking
+                                    ? "Checking..."
+                                    : clearAllSummary.isDeleting
+                                    ? `Deleting ${clearAllSummary.deletableClassroomTypes.length} classroom type(s)...`
+                                    : clearAllSummary.deletableClassroomTypes.length > 0
+                                    ? `Delete ${clearAllSummary.deletableClassroomTypes.length} Classroom Type(s)`
+                                    : "No Classroom Types to Delete"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
