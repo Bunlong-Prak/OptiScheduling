@@ -111,8 +111,7 @@ export default function ClassroomView() {
             isDeleting: false,
         });
 
-        const undeletable: { classroom: Classroom; reason: string }[] =
-            [];
+        const undeletable: { classroom: Classroom; reason: string }[] = [];
         const deletableClassrooms: Classroom[] = [];
 
         for (const classroom of classrooms) {
@@ -326,8 +325,8 @@ export default function ClassroomView() {
         // Validate capacity
         const capacity = Number.parseInt(formData.capacity);
         if (!formData.capacity.trim()) {
-            errors.capacity = "Capacity is required";
-        } else if (isNaN(capacity) || capacity <= 0) {
+            errors.capacity = "Please Enter a number";
+        } else if (isNaN(capacity) || capacity < 0) {
             errors.capacity = "Capacity must be a positive number";
         } else if (capacity > 100) {
             errors.capacity = "Capacity cannot exceed 100";
@@ -803,7 +802,7 @@ export default function ClassroomView() {
             errors.push(`Row ${rowIndex + 1}: Capacity is required`);
         } else {
             const capacityNum = Number(row.capacity);
-            if (isNaN(capacityNum) || capacityNum <= 0) {
+            if (isNaN(capacityNum) || capacityNum < 0) {
                 errors.push(
                     `Row ${
                         rowIndex + 1
@@ -1141,7 +1140,9 @@ export default function ClassroomView() {
 
             showSuccessMessage(
                 "Classrooms Cleared",
-                `Successfully deleted ${deletableClassrooms.length} classroom(s).${
+                `Successfully deleted ${
+                    deletableClassrooms.length
+                } classroom(s).${
                     undeletableClassrooms.length > 0
                         ? ` ${undeletableClassrooms.length} classroom(s) could not be deleted.`
                         : ""
@@ -2197,39 +2198,62 @@ export default function ClassroomView() {
                                             ℹ️
                                         </span>
                                         <p className="text-sm text-blue-800">
-                                            Checking for classroom assignments and conflicts...
+                                            Checking for classroom assignments
+                                            and conflicts...
                                         </p>
                                     </div>
                                 </div>
                             ) : (
                                 <>
                                     <p className="text-sm text-gray-600 mb-2">
-                                        Are you sure you want to proceed with clearing classrooms?
+                                        Are you sure you want to proceed with
+                                        clearing classrooms?
                                     </p>
                                     <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border mb-2">
                                         {`Total classrooms to be deleted: ${clearAllSummary.deletableClassrooms.length}`}
                                     </p>
 
-                                    {clearAllSummary.undeletableClassrooms.length > 0 && (
+                                    {clearAllSummary.undeletableClassrooms
+                                        .length > 0 && (
                                         <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 max-h-48 overflow-y-auto">
                                             <p className="text-sm text-red-800 font-medium mb-2">
-                                                The following {clearAllSummary.undeletableClassrooms.length} classroom(s) cannot be deleted:
+                                                The following{" "}
+                                                {
+                                                    clearAllSummary
+                                                        .undeletableClassrooms
+                                                        .length
+                                                }{" "}
+                                                classroom(s) cannot be deleted:
                                             </p>
                                             <ul className="list-disc list-inside text-xs text-red-700 space-y-1">
-                                                {clearAllSummary.undeletableClassrooms.map((item, index) => (
-                                                    <li key={index}>
-                                                        <span className="font-semibold">
-                                                            {item.classroom.code} ({item.classroom.name}):
-                                                        </span>{" "}
-                                                        {item.reason}
-                                                    </li>
-                                                ))}
+                                                {clearAllSummary.undeletableClassrooms.map(
+                                                    (item, index) => (
+                                                        <li key={index}>
+                                                            <span className="font-semibold">
+                                                                {
+                                                                    item
+                                                                        .classroom
+                                                                        .code
+                                                                }{" "}
+                                                                (
+                                                                {
+                                                                    item
+                                                                        .classroom
+                                                                        .name
+                                                                }
+                                                                ):
+                                                            </span>{" "}
+                                                            {item.reason}
+                                                        </li>
+                                                    )
+                                                )}
                                             </ul>
                                         </div>
                                     )}
 
                                     <p className="text-xs text-red-600 font-medium">
-                                        This action cannot be undone for deleted classrooms.
+                                        This action cannot be undone for deleted
+                                        classrooms.
                                     </p>
                                 </>
                             )}
@@ -2239,7 +2263,10 @@ export default function ClassroomView() {
                             <Button
                                 variant="outline"
                                 onClick={() => setIsClearAllDialogOpen(false)}
-                                disabled={clearAllSummary.isChecking || clearAllSummary.isDeleting}
+                                disabled={
+                                    clearAllSummary.isChecking ||
+                                    clearAllSummary.isDeleting
+                                }
                                 className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                             >
                                 Cancel
@@ -2248,7 +2275,8 @@ export default function ClassroomView() {
                                 onClick={handleClearAllClassrooms}
                                 disabled={
                                     clearAllSummary.isChecking ||
-                                    clearAllSummary.deletableClassrooms.length === 0 ||
+                                    clearAllSummary.deletableClassrooms
+                                        .length === 0 ||
                                     clearAllSummary.isDeleting
                                 }
                                 className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -2257,7 +2285,8 @@ export default function ClassroomView() {
                                     ? "Checking..."
                                     : clearAllSummary.isDeleting
                                     ? `Deleting ${clearAllSummary.deletableClassrooms.length} classroom(s)...`
-                                    : clearAllSummary.deletableClassrooms.length > 0
+                                    : clearAllSummary.deletableClassrooms
+                                          .length > 0
                                     ? `Delete ${clearAllSummary.deletableClassrooms.length} Classroom(s)`
                                     : "No Classrooms to Delete"}
                             </Button>

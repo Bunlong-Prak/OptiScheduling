@@ -254,18 +254,6 @@ export async function PATCH(request: Request) {
             );
         }
 
-        // FIXED: Check for duplicate email (excluding current instructor)
-        const duplicateEmail = await db.query.instructors.findFirst({
-            where: eq(instructors.email, email),
-        });
-
-        if (duplicateEmail && duplicateEmail.id !== id) {
-            return NextResponse.json(
-                { error: "Another instructor with this email already exists" },
-                { status: 409 }
-            );
-        }
-
         // FIXED: Map frontend fields to database fields
         await db
             .update(instructors)

@@ -1399,9 +1399,8 @@ export default function CoursesView() {
                 ? (course as any).separatedDurations
                 : [courseDuration],
             showSplitControls: shouldShowSplitControls,
-            preferClassRoomType: findClassRoomTypeById(
-                course.preferClassRoomTypeId
-            ),
+            preferClassRoomType:
+                findClassRoomTypeById(course.preferClassRoomTypeId) ?? null,
         };
 
         console.log("Opening edit dialog with section:", editSection);

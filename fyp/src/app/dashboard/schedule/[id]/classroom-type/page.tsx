@@ -96,7 +96,8 @@ export default function ClassroomTypeView() {
             isDeleting: false,
         });
 
-        const undeletable: { classroomType: ClassroomType; reason: string }[] = [];
+        const undeletable: { classroomType: ClassroomType; reason: string }[] =
+            [];
         const deletableClassroomTypes: ClassroomType[] = [];
 
         for (const classroomType of classroomTypes) {
@@ -377,15 +378,6 @@ export default function ClassroomTypeView() {
 
     const handleEditClassroomType = async () => {
         if (!selectedClassroomType) return;
-
-        // Prevent editing if classroom type has assignments
-        if (hasAssignedClassrooms) {
-            showErrorMessage(
-                "Cannot Edit Classroom Type",
-                "This classroom type is assigned to classrooms and cannot be edited. Please remove all classroom assignments first."
-            );
-            return;
-        }
 
         // Final validation before submission
         const errors = validateForm(formData.name, formData.description);
@@ -947,10 +939,8 @@ export default function ClassroomTypeView() {
 
     // Add this function with your other handler functions
     const handleClearAllClassroomTypes = async () => {
-        const {
-            deletableClassroomTypes,
-            undeletableClassroomTypes,
-        } = clearAllSummary;
+        const { deletableClassroomTypes, undeletableClassroomTypes } =
+            clearAllSummary;
 
         if (deletableClassroomTypes.length === 0) {
             showErrorMessage(
@@ -964,14 +954,15 @@ export default function ClassroomTypeView() {
         setClearAllSummary((prev) => ({ ...prev, isDeleting: true }));
 
         try {
-            const deletePromises = deletableClassroomTypes.map((classroomType) =>
-                fetch("/api/classroom-types", {
-                    method: "DELETE",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ id: classroomType.id }),
-                })
+            const deletePromises = deletableClassroomTypes.map(
+                (classroomType) =>
+                    fetch("/api/classroom-types", {
+                        method: "DELETE",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ id: classroomType.id }),
+                    })
             );
 
             await Promise.all(deletePromises);
@@ -1315,8 +1306,7 @@ export default function ClassroomTypeView() {
                         </DialogHeader>
 
                         <div className="py-4 space-y-4">
-                            {/* Warning message when classroom type has assignments */}
-                            {hasAssignedClassrooms && (
+                            {/* {hasAssignedClassrooms && (
                                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
                                     <div className="flex items-center gap-2">
                                         <span className="text-red-600 text-sm">
@@ -1332,7 +1322,7 @@ export default function ClassroomTypeView() {
                                         this classroom type.
                                     </p>
                                 </div>
-                            )}
+                            )}  */}
 
                             {isCheckingAssignments && (
                                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
@@ -1361,20 +1351,20 @@ export default function ClassroomTypeView() {
                                     value={formData.name}
                                     onChange={handleInputChange}
                                     placeholder="Enter classroom type name"
-                                    disabled={
-                                        hasAssignedClassrooms ||
-                                        isCheckingAssignments
-                                    }
-                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                        validationErrors.name
-                                            ? "border-red-300 focus:border-red-500 animate-pulse"
-                                            : ""
-                                    } ${
-                                        hasAssignedClassrooms ||
-                                        isCheckingAssignments
-                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
-                                            : ""
-                                    }`}
+                                    // disabled={
+                                    //     hasAssignedClassrooms ||
+                                    //     isCheckingAssignments
+                                    // }
+                                    // className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    //     validationErrors.name
+                                    //         ? "border-red-300 focus:border-red-500 animate-pulse"
+                                    //         : ""
+                                    // } ${
+                                    //     hasAssignedClassrooms ||
+                                    //     isCheckingAssignments
+                                    //         ? "bg-gray-100 cursor-not-allowed opacity-60"
+                                    //         : ""
+                                    // }`}
                                 />
                                 {validationErrors.name && (
                                     <div className="flex items-center gap-1">
@@ -1401,20 +1391,20 @@ export default function ClassroomTypeView() {
                                     value={formData.description}
                                     onChange={handleInputChange}
                                     placeholder="Enter classroom type description (optional)"
-                                    disabled={
-                                        hasAssignedClassrooms ||
-                                        isCheckingAssignments
-                                    }
-                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm min-h-[80px] ${
-                                        validationErrors.description
-                                            ? "border-red-300 focus:border-red-500 animate-pulse"
-                                            : ""
-                                    } ${
-                                        hasAssignedClassrooms ||
-                                        isCheckingAssignments
-                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
-                                            : ""
-                                    }`}
+                                    // disabled={
+                                    //     hasAssignedClassrooms ||
+                                    //     isCheckingAssignments
+                                    // }
+                                    // className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm min-h-[80px] ${
+                                    //     validationErrors.description
+                                    //         ? "border-red-300 focus:border-red-500 animate-pulse"
+                                    //         : ""
+                                    // } ${
+                                    //     hasAssignedClassrooms ||
+                                    //     isCheckingAssignments
+                                    //         ? "bg-gray-100 cursor-not-allowed opacity-60"
+                                    //         : ""
+                                    // }`}
                                 />
                                 {validationErrors.description && (
                                     <div className="flex items-center gap-1">
@@ -1442,14 +1432,14 @@ export default function ClassroomTypeView() {
                             </Button>
                             <Button
                                 onClick={handleEditClassroomType}
-                                disabled={
-                                    !isFormValid() ||
-                                    hasAssignedClassrooms ||
-                                    isCheckingAssignments
-                                }
-                                className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                // disabled={
+                                //     !isFormValid() ||
+                                //     hasAssignedClassrooms ||
+                                //     isCheckingAssignments
+                                // }
+                                // className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                {hasAssignedClassrooms ? "Cannot Edit" : "Save"}
+                                {"Save"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -1706,39 +1696,57 @@ export default function ClassroomTypeView() {
                                             ℹ️
                                         </span>
                                         <p className="text-sm text-blue-800">
-                                            Checking for classroom type assignments and conflicts...
+                                            Checking for classroom type
+                                            assignments and conflicts...
                                         </p>
                                     </div>
                                 </div>
                             ) : (
                                 <>
                                     <p className="text-sm text-gray-600 mb-2">
-                                        Are you sure you want to proceed with clearing classroom types?
+                                        Are you sure you want to proceed with
+                                        clearing classroom types?
                                     </p>
                                     <p className="font-medium text-sm text-gray-900 bg-gray-50 p-2 rounded border mb-2">
                                         {`Total classroom types to be deleted: ${clearAllSummary.deletableClassroomTypes.length}`}
                                     </p>
 
-                                    {clearAllSummary.undeletableClassroomTypes.length > 0 && (
+                                    {clearAllSummary.undeletableClassroomTypes
+                                        .length > 0 && (
                                         <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 max-h-48 overflow-y-auto">
                                             <p className="text-sm text-red-800 font-medium mb-2">
-                                                The following {clearAllSummary.undeletableClassroomTypes.length} classroom type(s) cannot be deleted:
+                                                The following{" "}
+                                                {
+                                                    clearAllSummary
+                                                        .undeletableClassroomTypes
+                                                        .length
+                                                }{" "}
+                                                classroom type(s) cannot be
+                                                deleted:
                                             </p>
                                             <ul className="list-disc list-inside text-xs text-red-700 space-y-1">
-                                                {clearAllSummary.undeletableClassroomTypes.map((item, index) => (
-                                                    <li key={index}>
-                                                        <span className="font-semibold">
-                                                            {item.classroomType.name}:
-                                                        </span>{" "}
-                                                        {item.reason}
-                                                    </li>
-                                                ))}
+                                                {clearAllSummary.undeletableClassroomTypes.map(
+                                                    (item, index) => (
+                                                        <li key={index}>
+                                                            <span className="font-semibold">
+                                                                {
+                                                                    item
+                                                                        .classroomType
+                                                                        .name
+                                                                }
+                                                                :
+                                                            </span>{" "}
+                                                            {item.reason}
+                                                        </li>
+                                                    )
+                                                )}
                                             </ul>
                                         </div>
                                     )}
 
                                     <p className="text-xs text-red-600 font-medium">
-                                        This action cannot be undone for deleted classroom types.
+                                        This action cannot be undone for deleted
+                                        classroom types.
                                     </p>
                                 </>
                             )}
@@ -1748,7 +1756,10 @@ export default function ClassroomTypeView() {
                             <Button
                                 variant="outline"
                                 onClick={() => setIsClearAllDialogOpen(false)}
-                                disabled={clearAllSummary.isChecking || clearAllSummary.isDeleting}
+                                disabled={
+                                    clearAllSummary.isChecking ||
+                                    clearAllSummary.isDeleting
+                                }
                                 className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm px-3 py-1.5"
                             >
                                 Cancel
@@ -1757,7 +1768,8 @@ export default function ClassroomTypeView() {
                                 onClick={handleClearAllClassroomTypes}
                                 disabled={
                                     clearAllSummary.isChecking ||
-                                    clearAllSummary.deletableClassroomTypes.length === 0 ||
+                                    clearAllSummary.deletableClassroomTypes
+                                        .length === 0 ||
                                     clearAllSummary.isDeleting
                                 }
                                 className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -1766,7 +1778,8 @@ export default function ClassroomTypeView() {
                                     ? "Checking..."
                                     : clearAllSummary.isDeleting
                                     ? `Deleting ${clearAllSummary.deletableClassroomTypes.length} classroom type(s)...`
-                                    : clearAllSummary.deletableClassroomTypes.length > 0
+                                    : clearAllSummary.deletableClassroomTypes
+                                          .length > 0
                                     ? `Delete ${clearAllSummary.deletableClassroomTypes.length} Classroom Type(s)`
                                     : "No Classroom Types to Delete"}
                             </Button>
