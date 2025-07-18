@@ -822,6 +822,8 @@ export default function TimetableViewClassroom() {
                         { id: -1, code: "Online", capacity: 999 },
                         { id: -2, code: "Online", capacity: 999 },
                         { id: -3, code: "Online", capacity: 999 },
+                        { id: -4, code: "Online", capacity: 999 },
+                        { id: -5, code: "Online", capacity: 999 },
                     ];
 
                     setClassrooms([...data, ...virtualOnlineClassrooms]);
