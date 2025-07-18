@@ -78,7 +78,10 @@ export async function GET(request: Request) {
                 console.log("Formatted schedules:", formattedSchedules);
                 return NextResponse.json(formattedSchedules);
             } else {
-                return NextResponse.json({ error: "User not found" }, { status: 404 });
+                return NextResponse.json(
+                    { error: "User not found" },
+                    { status: 404 }
+                );
             }
         } else {
             let query = db
@@ -147,6 +150,25 @@ export async function POST(request: Request) {
 
         // Generate academic year string
         const academicYear = generateAcademicYear(startDate, endDate);
+
+        const currentSchedules = await db
+            .select({
+                id: schedules.id,
+                name: schedules.name,
+            })
+            .from(schedules)
+            .where(eq(schedules.userId, userId));
+
+        const conflictingName = currentSchedules.find(
+            (schedule) => schedule.name === name
+        );
+
+        if (conflictingName) {
+            return NextResponse.json(
+                { error: "Schedule name already exists" },
+                { status: 400 }
+            );
+        }
 
         return await db.transaction(async (tx) => {
             const newSchedule = await tx.insert(schedules).values({
@@ -342,13 +364,17 @@ export async function DELETE(request: Request) {
                 .from(classroomTypes)
                 .where(eq(classroomTypes.scheduleId, id));
 
-            const classroomTypeIds = scheduleClassroomTypes.map((type) => type.id);
+            const classroomTypeIds = scheduleClassroomTypes.map(
+                (type) => type.id
+            );
 
             if (classroomTypeIds.length > 0) {
                 // Delete classrooms that reference these classroom types
                 await tx
                     .delete(classrooms)
-                    .where(inArray(classrooms.classroomTypeId, classroomTypeIds));
+                    .where(
+                        inArray(classrooms.classroomTypeId, classroomTypeIds)
+                    );
             }
 
             // Delete classroom types for this schedule
