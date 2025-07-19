@@ -190,8 +190,12 @@ type SchedulingError = {
         conflicting_instructor?: string;
         required_duration?: number;
         available_duration?: number;
+        classroom_attempt?: number;
+        classrooms_attempted?: number[];
+        total_classrooms_tried?: number;
         attempted_day?: string;
         attempted_time?: string;
+        total_suitable_classrooms?: number;
         attempted_classroom?: string;
     };
 };
@@ -255,7 +259,23 @@ export async function POST(request: Request) {
 
         console.log("Schedule Generation Result:", result);
 
-        // 3. Store successful assignments in the database
+        // 3. Handle failed assignments by nullifying database records
+        if (result.failedUnits.length > 0) {
+            console.log(
+                `\n=== HANDLING ${result.failedUnits.length} FAILED ASSIGNMENTS ===`
+            );
+
+            for (const failedUnit of result.failedUnits) {
+                await handleFailedAssignment(
+                    failedUnit.unit.section_id,
+                    failedUnit.courseHoursId
+                );
+            }
+
+            console.log("✅ Completed handling failed assignments");
+        }
+
+        // 4. Store successful assignments in the database
         if (result.assignments.length > 0) {
             const storageResult = await storeScheduleInDatabase(
                 result.assignments,
@@ -263,14 +283,14 @@ export async function POST(request: Request) {
             );
         }
 
-        // 4. Transform assignments to match frontend expectations
+        // 5. Transform assignments to match frontend expectations
         const transformedSchedule = await transformAssignmentsForFrontend(
             result.assignments,
             coursesData,
             schedule_id
         );
 
-        // 5. Calculate enhanced stats
+        // 6. Calculate enhanced stats
         const stats = {
             totalCourses: coursesData.length,
             totalSections: coursesData.reduce(
@@ -284,13 +304,13 @@ export async function POST(request: Request) {
             failedAssignments: result.errors.length,
         };
 
-        // 6. Prepare response with detailed error information
+        // 7. Prepare response with detailed error information
         const response: EnhancedScheduleResponse = {
             success: result.errors.length === 0,
             message:
                 result.errors.length === 0
                     ? "Schedule generated successfully"
-                    : `Schedule generated with ${result.errors.length} failed assignments`,
+                    : `Schedule generated with ${result.errors.length} failed assignments (database records nullified)`,
             schedule: transformedSchedule,
             stats: stats,
             errors: result.errors,
@@ -1073,26 +1093,84 @@ function createSchedulingUnits(coursesData: Course[]): SchedulingUnit[] {
     );
     return schedulingUnits;
 }
-// UPDATED: Modified to include classroom_id in the Assignment object
-function scheduleSchedulingUnitWithErrorTracking(
+
+function getSuitableClassroomsForUnit(
+    unit: SchedulingUnit,
+    classroomsData: any[]
+): any[] {
+    console.log(
+        `Finding suitable classrooms for section ${unit.section_number}...`
+    );
+
+    // Handle online sections
+    if (unit.status === "online") {
+        return [
+            { id: -1, code: "Online-1", capacity: 9999, classroom_type_id: -1 },
+            { id: -2, code: "Online-2", capacity: 9999, classroom_type_id: -1 },
+            { id: -3, code: "Online-3", capacity: 9999, classroom_type_id: -1 },
+        ];
+    }
+
+    const courseCapacity = getCourseCapacity(unit.course);
+
+    // Get all classrooms that meet capacity requirements
+    const capacitySuitableClassrooms = classroomsData.filter((classroom) => {
+        const hasEnoughSeats =
+            classroom.capacity >= (unit.course.capacity || 0);
+        const meetsCapacityRequirement =
+            courseCapacity === 0 || classroom.capacity >= courseCapacity;
+        return hasEnoughSeats && meetsCapacityRequirement;
+    });
+
+    // Separate classrooms by type preference
+    const preferredTypeClassrooms = [];
+    const otherSuitableClassrooms = [];
+
+    for (const classroom of capacitySuitableClassrooms) {
+        if (
+            unit.prefer_classroom_type_id &&
+            classroom.classroom_type_id === unit.prefer_classroom_type_id
+        ) {
+            preferredTypeClassrooms.push(classroom);
+        } else {
+            otherSuitableClassrooms.push(classroom);
+        }
+    }
+
+    // Return preferred type first, then others
+    const allSuitable = [
+        ...preferredTypeClassrooms,
+        ...otherSuitableClassrooms,
+    ];
+
+    console.log(`Found ${allSuitable.length} suitable classrooms:`);
+    console.log(`  - Preferred type: ${preferredTypeClassrooms.length}`);
+    console.log(`  - Other suitable: ${otherSuitableClassrooms.length}`);
+
+    return allSuitable;
+}
+
+function scheduleSchedulingUnitWithRetry(
     unit: SchedulingUnit,
     timeConstraints: TimeConstraint[],
     classroomsData: any[],
     instructorsData: any[],
     timeSlots: string[],
     scheduleGrid: ScheduleGrid,
-    instructorGrid: InstructorGrid
+    instructorGrid: InstructorGrid,
+    maxClassroomRetries: number = 5 // Maximum classroom alternatives to try
 ): {
     success: boolean;
     assignment?: Assignment;
     error?: SchedulingError;
     warnings?: string[];
+    shouldNullifyDB?: boolean;
 } {
     const duration = unit.duration;
     const warnings: string[] = [];
 
     console.log(
-        `\n=== ENHANCED SCHEDULING: ${unit.section_number} (${unit.course.code}) ===`
+        `\n=== ENHANCED SCHEDULING WITH RETRY: ${unit.section_number} (${unit.course.code}) ===`
     );
 
     // Get instructor info
@@ -1103,10 +1181,11 @@ function scheduleSchedulingUnitWithErrorTracking(
         ? `${instructor.first_name} ${instructor.last_name}`
         : "Unknown";
 
-    // Check 1: Instructor Assignment
+    // Check instructor assignment first
     if (!unit.instructor_id) {
         return {
             success: false,
+            shouldNullifyDB: true,
             error: {
                 section_id: unit.section_id,
                 section_number: unit.section_number,
@@ -1120,37 +1199,26 @@ function scheduleSchedulingUnitWithErrorTracking(
             warnings,
         };
     }
-    if (!unit.classroom_id) {
-        unit.classroom_id = assignClassroomToSectionWithTypePreference(
-            unit,
-            classroomsData
-        );
-    }
-    if (!unit.classroom_id) {
-        // Determine specific reason for classroom assignment failure
-        const courseCapacity = getCourseCapacity(unit.course);
-        const suitableClassrooms = classroomsData.filter(
-            (cls) =>
-                cls.capacity >= courseCapacity &&
-                cls.capacity >= (unit.course.capacity || 0)
-        );
 
+    // Get ALL suitable classrooms for this unit (instead of just one)
+    const suitableClassrooms = getSuitableClassroomsForUnit(
+        unit,
+        classroomsData
+    );
+
+    if (suitableClassrooms.length === 0) {
+        const courseCapacity = getCourseCapacity(unit.course);
         return {
             success: false,
+            shouldNullifyDB: true,
             error: {
                 section_id: unit.section_id,
                 section_number: unit.section_number,
                 course_code: unit.course.code,
                 course_title: unit.course.title,
                 instructor_name: instructorName,
-                error_type:
-                    suitableClassrooms.length === 0
-                        ? "CAPACITY_CONSTRAINT"
-                        : "NO_CLASSROOM",
-                error_message:
-                    suitableClassrooms.length === 0
-                        ? `No classroom has sufficient capacity for ${courseCapacity} students`
-                        : `Failed to assign classroom due to unknown error`,
+                error_type: "NO_CLASSROOM",
+                error_message: `No suitable classrooms found for ${courseCapacity} students`,
                 details: {
                     required_capacity: courseCapacity,
                     available_capacity: Math.max(
@@ -1162,42 +1230,9 @@ function scheduleSchedulingUnitWithErrorTracking(
         };
     }
 
-    // Check 3: Capacity Validation
-    const capacityValidation = validateSchedulingUnitCapacity(
-        unit,
-        unit.classroom_id,
-        classroomsData
+    console.log(
+        `Found ${suitableClassrooms.length} suitable classrooms to try`
     );
-    if (!capacityValidation.isValid) {
-        return {
-            success: false,
-            error: {
-                section_id: unit.section_id,
-                section_number: unit.section_number,
-                course_code: unit.course.code,
-                course_title: unit.course.title,
-                instructor_name: instructorName,
-                error_type: "CAPACITY_CONSTRAINT",
-                error_message:
-                    capacityValidation.reason ||
-                    "Capacity constraint violation",
-                details: capacityValidation.capacityInfo,
-            },
-            warnings,
-        };
-    }
-
-    // Get classroom info
-    const classroom = classroomsData.find(
-        (cls) => cls.id === unit.classroom_id
-    );
-    const classroomCode = classroom
-        ? classroom.code
-        : unit.classroom_id === -1 ||
-          unit.classroom_id === -2 ||
-          unit.classroom_id === -3
-        ? "Online"
-        : "Unknown";
 
     // Get instructor constraints
     const instructorConstraints = timeConstraints.filter(
@@ -1210,6 +1245,7 @@ function scheduleSchedulingUnitWithErrorTracking(
     if (possibleCombinations.length === 0) {
         return {
             success: false,
+            shouldNullifyDB: true,
             error: {
                 section_id: unit.section_id,
                 section_number: unit.section_number,
@@ -1218,124 +1254,170 @@ function scheduleSchedulingUnitWithErrorTracking(
                 instructor_name: instructorName,
                 error_type: "DURATION_MISMATCH",
                 error_message: `No time slot combinations found for ${duration} hour duration`,
-                details: {
-                    required_duration: duration,
-                    available_duration: timeSlots.length,
-                },
+                details: { required_duration: duration },
             },
             warnings,
         };
     }
 
-    // Try to schedule on each day
+    // Try different classroom and time combinations
     const availableDays = [...DAYS];
     shuffleArray(availableDays);
 
+    // Shuffle classrooms to try different ones each time
+    const shuffledClassrooms = [...suitableClassrooms];
+    shuffleArray(shuffledClassrooms);
+
+    // Limit the number of classrooms to try
+    const classroomsToTry = shuffledClassrooms.slice(0, maxClassroomRetries);
+
+    console.log(
+        `Trying up to ${classroomsToTry.length} different classrooms...`
+    );
+
     let lastAttemptError: SchedulingError | null = null;
+    let attemptCount = 0;
 
-    for (const day of availableDays) {
-        console.log(`Trying to schedule on ${day} for ${duration} hours`);
-
-        // Get instructor's available time slots for this day
-        const dayConstraint = instructorConstraints.find(
-            (constraint) => constraint.day === day
+    // TRY EACH SUITABLE CLASSROOM
+    for (const classroom of classroomsToTry) {
+        attemptCount++;
+        console.log(
+            `\n--- Attempt ${attemptCount}: Trying classroom ${classroom.code} (ID: ${classroom.id}) ---`
         );
-        let instructorAvailableTimeSlots: string[];
 
-        if (dayConstraint) {
-            const unavailableTimeSlots = dayConstraint.timeSlots;
-            instructorAvailableTimeSlots = timeSlots.filter(
-                (slot) => !unavailableTimeSlots.includes(slot)
+        // Set classroom for this attempt
+        unit.classroom_id = classroom.id;
+
+        // Validate capacity for this specific classroom
+        const capacityValidation = validateSchedulingUnitCapacity(
+            unit,
+            classroom.id,
+            classroomsData
+        );
+
+        if (!capacityValidation.isValid) {
+            console.log(
+                `❌ Capacity validation failed for ${classroom.code}: ${capacityValidation.reason}`
             );
-        } else {
-            instructorAvailableTimeSlots = [...timeSlots];
+            continue; // Try next classroom
         }
 
-        // Sort combinations to prioritize continuous ones
-        const sortedCombinations = possibleCombinations.sort((a, b) => {
-            const aContinuous = areTimeSlotsContinuous(a);
-            const bContinuous = areTimeSlotsContinuous(b);
-            if (aContinuous && !bContinuous) return -1;
-            if (!aContinuous && bContinuous) return 1;
-            return 0;
-        });
+        // Try scheduling on each day with this classroom
+        for (const day of availableDays) {
+            console.log(`  Trying ${day} with ${classroom.code}...`);
 
-        // Try each combination
-        for (const combination of sortedCombinations) {
-            const validation = validateTimeSlotAssignment(
-                combination,
-                duration,
-                unit.section_number
+            // Get instructor's available time slots for this day
+            const dayConstraint = instructorConstraints.find(
+                (constraint) => constraint.day === day
             );
+            let instructorAvailableTimeSlots: string[];
 
-            if (!validation.isValid) {
-                continue;
-            }
-
-            // Check if this combination can be scheduled
-            const canScheduleResult = canScheduleAtTimeWithDetails(
-                day,
-                combination,
-                unit.classroom_id!,
-                unit.instructor_id,
-                scheduleGrid,
-                instructorGrid,
-                instructorAvailableTimeSlots
-            );
-
-            if (canScheduleResult.canSchedule) {
-                // Mark slots as occupied
-                markSlotsAsOccupied(
-                    day,
-                    combination,
-                    unit.classroom_id!,
-                    unit.instructor_id,
-                    unit.section_id,
-                    scheduleGrid,
-                    instructorGrid
+            if (dayConstraint) {
+                instructorAvailableTimeSlots = timeSlots.filter(
+                    (slot) => !dayConstraint.timeSlots.includes(slot)
                 );
-
-                console.log(
-                    `✅ Successfully scheduled ${unit.section_number} part ${
-                        unit.separationIndex + 1
-                    } on ${day}`
-                );
-
-                const assignment = createAssignmentForNonConsecutiveSlots(
-                    unit,
-                    combination,
-                    day,
-                    instructorName,
-                    classroomCode
-                );
-
-                return { success: true, assignment, warnings };
             } else {
-                // Store the most recent detailed error
-                lastAttemptError = {
-                    section_id: unit.section_id,
-                    section_number: unit.section_number,
-                    course_code: unit.course.code,
-                    course_title: unit.course.title,
-                    instructor_name: instructorName,
-                    error_type: canScheduleResult.errorType,
-                    error_message: canScheduleResult.errorMessage,
-                    details: {
-                        attempted_day: day,
-                        attempted_time: combination.join(", "),
-                        attempted_classroom: classroomCode,
-                        conflicting_course: canScheduleResult.conflictingCourse,
-                        conflicting_instructor:
-                            canScheduleResult.conflictingInstructor,
-                    },
-                };
+                instructorAvailableTimeSlots = [...timeSlots];
+            }
+
+            // Sort combinations to prioritize continuous ones
+            const sortedCombinations = possibleCombinations.sort((a, b) => {
+                const aContinuous = areTimeSlotsContinuous(a);
+                const bContinuous = areTimeSlotsContinuous(b);
+                if (aContinuous && !bContinuous) return -1;
+                if (!aContinuous && bContinuous) return 1;
+                return 0;
+            });
+
+            // Try each time combination with this classroom
+            for (const combination of sortedCombinations) {
+                const validation = validateTimeSlotAssignment(
+                    combination,
+                    duration,
+                    unit.section_number
+                );
+
+                if (!validation.isValid) continue;
+
+                // Check if this combination can be scheduled with this classroom
+                const canScheduleResult = canScheduleAtTimeWithDetails(
+                    day,
+                    combination,
+                    classroom.id,
+                    unit.instructor_id,
+                    scheduleGrid,
+                    instructorGrid,
+                    instructorAvailableTimeSlots
+                );
+
+                if (canScheduleResult.canSchedule) {
+                    // SUCCESS! Mark slots as occupied
+                    markSlotsAsOccupied(
+                        day,
+                        combination,
+                        classroom.id,
+                        unit.instructor_id,
+                        unit.section_id,
+                        scheduleGrid,
+                        instructorGrid
+                    );
+
+                    console.log(
+                        `✅ SUCCESS: Scheduled ${unit.section_number} in ${classroom.code} on ${day}`
+                    );
+                    console.log(`   Time slots: ${combination.join(", ")}`);
+                    console.log(
+                        `   Attempt: ${attemptCount} of ${classroomsToTry.length} classrooms tried`
+                    );
+
+                    const assignment = createAssignmentForNonConsecutiveSlots(
+                        unit,
+                        combination,
+                        day,
+                        instructorName,
+                        classroom.code
+                    );
+
+                    return { success: true, assignment, warnings };
+                } else {
+                    // Store the most recent detailed error
+                    lastAttemptError = {
+                        section_id: unit.section_id,
+                        section_number: unit.section_number,
+                        course_code: unit.course.code,
+                        course_title: unit.course.title,
+                        instructor_name: instructorName,
+                        error_type: canScheduleResult.errorType,
+                        error_message: `${canScheduleResult.errorMessage} (Classroom: ${classroom.code})`,
+                        details: {
+                            attempted_day: day,
+                            attempted_time: combination.join(", "),
+                            attempted_classroom: classroom.code,
+                            classroom_attempt: attemptCount,
+                            total_classrooms_tried: classroomsToTry.length,
+                            conflicting_course:
+                                canScheduleResult.conflictingCourse,
+                            conflicting_instructor:
+                                canScheduleResult.conflictingInstructor,
+                        },
+                    };
+                }
             }
         }
+
+        console.log(
+            `❌ Could not schedule in ${classroom.code}, trying next classroom...`
+        );
     }
 
-    // If we get here, scheduling failed
+    // If we get here, all classroom attempts failed
+    console.log(
+        `❌ SCHEDULING FAILED: Tried ${attemptCount} different classrooms`
+    );
+
     return {
         success: false,
+        shouldNullifyDB: true,
         error: lastAttemptError || {
             section_id: unit.section_id,
             section_number: unit.section_number,
@@ -1343,15 +1425,17 @@ function scheduleSchedulingUnitWithErrorTracking(
             course_title: unit.course.title,
             instructor_name: instructorName,
             error_type: "NO_AVAILABLE_SLOTS",
-            error_message: `No available time slots found for ${duration} hour course`,
+            error_message: `Failed to schedule after trying ${classroomsToTry.length} suitable classrooms`,
             details: {
                 required_duration: duration,
-                attempted_classroom: classroomCode,
+                classrooms_attempted: [classroomsToTry.length],
+                total_suitable_classrooms: suitableClassrooms.length,
             },
         },
         warnings,
     };
 }
+
 function validateTimeSlotAssignment(
     slotCombination: string[],
     durationHours: number,
@@ -1451,7 +1535,6 @@ function findGapTolerantCombinations(
     return combinations;
 }
 
-// Function to generate schedule automatically
 function generateScheduleWithErrorTracking(
     coursesData: Course[],
     timeConstraints: TimeConstraint[],
@@ -1462,12 +1545,14 @@ function generateScheduleWithErrorTracking(
     assignments: Assignment[];
     errors: SchedulingError[];
     warnings: string[];
+    failedUnits: { unit: SchedulingUnit; courseHoursId?: number }[]; // New: track failed units for DB updates
 } {
     console.log("=== STARTING ENHANCED SCHEDULE GENERATION ===");
 
     const assignments: Assignment[] = [];
     const errors: SchedulingError[] = [];
     const warnings: string[] = [];
+    const failedUnits: { unit: SchedulingUnit; courseHoursId?: number }[] = []; // New
     const scheduleGrid = initializeScheduleGrid(classroomsData, timeSlots);
     const instructorGrid = initializeInstructorGrid(instructorsData, timeSlots);
 
@@ -1501,7 +1586,7 @@ function generateScheduleWithErrorTracking(
             } (${unit.duration}h, Part ${unit.separationIndex + 1})`
         );
 
-        const result = scheduleSchedulingUnitWithErrorTracking(
+        const result = scheduleSchedulingUnitWithRetry(
             unit,
             timeConstraints,
             classroomsData,
@@ -1520,6 +1605,15 @@ function generateScheduleWithErrorTracking(
             );
         } else {
             errors.push(result.error!);
+
+            // Add to failed units if DB nullification is needed
+            if (result.shouldNullifyDB) {
+                failedUnits.push({
+                    unit: unit,
+                    courseHoursId: unit.courseHours_id,
+                });
+            }
+
             console.log(
                 `❌ Failed to schedule unit ${unit.section_number} part ${
                     unit.separationIndex + 1
@@ -1540,9 +1634,11 @@ function generateScheduleWithErrorTracking(
     console.log(
         `${errors.length} units failed with detailed error information.`
     );
+    console.log(`${failedUnits.length} units need database nullification.`);
 
-    return { assignments, errors, warnings };
+    return { assignments, errors, warnings, failedUnits };
 }
+
 function initializeInstructorGrid(
     instructorsData: any[],
     timeSlots: string[]
@@ -1926,10 +2022,69 @@ function findConsecutiveCombinations(
 
     return combinations;
 }
-// Find all possible time slot combinations for a given duration
-// Updated functions to ensure continuous time slot scheduling
+async function handleFailedAssignment(
+    sectionId: number,
+    courseHoursId?: number
+): Promise<void> {
+    try {
+        if (courseHoursId) {
+            // Update existing courseHours record to set scheduling fields to null
+            await db
+                .update(courseHours)
+                .set({
+                    day: null,
+                    timeSlot: null,
+                    classroomId: null,
+                })
+                .where(eq(courseHours.id, courseHoursId));
 
-// Main function to find possible time slots - now prioritizes continuous slots
+            console.log(
+                `✅ Set courseHours ID ${courseHoursId} fields to null for failed assignment (section ${sectionId})`
+            );
+        } else {
+            // For sections without courseHours_id, we might need to find existing records
+            // or create a new record with null values
+            const existingCourseHours = await db
+                .select()
+                .from(courseHours)
+                .where(eq(courseHours.sectionId, sectionId));
+
+            if (existingCourseHours.length > 0) {
+                // Update all existing courseHours for this section
+                await db
+                    .update(courseHours)
+                    .set({
+                        day: null,
+                        timeSlot: null,
+                        classroomId: null,
+                    })
+                    .where(eq(courseHours.sectionId, sectionId));
+
+                console.log(
+                    `✅ Set ${existingCourseHours.length} courseHours records to null for failed assignment (section ${sectionId})`
+                );
+            } else {
+                // Optionally create a new courseHours record with null values
+                await db.insert(courseHours).values({
+                    day: null,
+                    timeSlot: null,
+                    separatedDuration: null,
+                    classroomId: null,
+                    sectionId: sectionId,
+                });
+
+                console.log(
+                    `✅ Created new courseHours record with null values for failed assignment (section ${sectionId})`
+                );
+            }
+        }
+    } catch (error) {
+        console.error(
+            `❌ Error handling failed assignment for section ${sectionId}:`,
+            error
+        );
+    }
+}
 function findPossibleTimeSlots(
     timeSlots: string[],
     durationHours: number
@@ -2519,6 +2674,7 @@ function removeDuplicateCombinations(combinations: string[][]): string[][] {
 
     return uniqueCombinations;
 }
+
 // Check if a section can be scheduled at a specific time
 function canScheduleAtTimeWithDetails(
     day: string,
@@ -2553,7 +2709,7 @@ function canScheduleAtTimeWithDetails(
             return {
                 canSchedule: false,
                 errorType: "NO_AVAILABLE_SLOTS",
-                errorMessage: `Classroom is not available at ${day} ${timeSlot}`,
+                errorMessage: `Classroom ${classroomId} is not available at ${day} ${timeSlot}`,
                 conflictingCourse: conflictingSection
                     ? `Section ID: ${conflictingSection}`
                     : undefined,

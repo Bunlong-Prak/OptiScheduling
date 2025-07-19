@@ -1921,7 +1921,7 @@ export default function InstructorsView() {
                                 </div>
                             )}
 
-                            {/* Warning message when instructor has duplicate name */}
+                            {/* Warning message when instructor has duplicate name
                             {hasDuplicateName && !hasAssignedCourses && (
                                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
                                     <div className="flex items-center gap-2">
@@ -1950,7 +1950,7 @@ export default function InstructorsView() {
                                         </p>
                                     </div>
                                 </div>
-                            )}
+                            )} */}
 
                             {/* Only show confirmation text if no assignments or duplicates */}
                             {!hasAssignedCourses &&

@@ -24,7 +24,9 @@ import { Input } from "@/components/ui/input";
 import { MAX_TIMESLOTS } from "@/lib/utils";
 import {
     AlertCircle,
+    AlertTriangle,
     CheckCircle,
+    ChevronDown,
     Download,
     Plus,
     Search,
@@ -156,6 +158,8 @@ export default function TimetableViewClassroom() {
     const [classrooms, setClassrooms] = useState<Classroom[]>([]);
     const [isGeneratingSchedule, setIsGeneratingSchedule] =
         useState<boolean>(false);
+
+    const [schedulingWarnings, setSchedulingWarnings] = useState<string[]>([]);
     const [scheduleGenerated, setScheduleGenerated] = useState<boolean>(false);
     const [generationStats, setGenerationStats] = useState<{
         totalCourses: number;
@@ -1445,6 +1449,286 @@ export default function TimetableViewClassroom() {
         return 1;
     };
 
+    const ErrorBanner = ({
+        errors,
+        warnings,
+    }: {
+        errors: SchedulingError[];
+        warnings: string[];
+    }) => {
+        const [isExpanded, setIsExpanded] = useState(false);
+
+        if (errors.length === 0 && warnings.length === 0) return null;
+
+        const errorGroups = groupErrorsByType(errors);
+        const totalErrors = errors.length;
+
+        return (
+            <div className="mb-6 border border-red-200 rounded-lg bg-red-50">
+                {/* Error Summary Header */}
+                <div
+                    className="p-4 cursor-pointer flex items-center justify-between hover:bg-red-100 transition-colors"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                >
+                    <div className="flex items-center space-x-3">
+                        <AlertCircle className="h-5 w-5 text-red-600" />
+                        <div>
+                            <h3 className="font-medium text-red-800">
+                                Schedule Generation Issues
+                            </h3>
+                            <p className="text-sm text-red-600">
+                                {totalErrors} course
+                                {totalErrors !== 1 ? "s" : ""} could not be
+                                scheduled
+                                {warnings.length > 0 &&
+                                    `, ${warnings.length} warning${
+                                        warnings.length !== 1 ? "s" : ""
+                                    }`}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <span className="text-xs text-red-600 font-medium">
+                            Click to {isExpanded ? "hide" : "view"} details
+                        </span>
+                        <ChevronDown
+                            className={`h-4 w-4 text-red-600 transition-transform ${
+                                isExpanded ? "rotate-180" : ""
+                            }`}
+                        />
+                    </div>
+                </div>
+
+                {/* Expanded Error Details */}
+                {isExpanded && (
+                    <div className="border-t border-red-200 p-4 space-y-6">
+                        {/* Warnings Section */}
+                        {warnings.length > 0 && (
+                            <div>
+                                <h4 className="font-semibold text-yellow-700 mb-3 flex items-center">
+                                    <AlertTriangle className="w-4 h-4 mr-2" />
+                                    Warnings ({warnings.length})
+                                </h4>
+                                <div className="space-y-2">
+                                    {warnings.map((warning, index) => (
+                                        <div
+                                            key={index}
+                                            className="p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800"
+                                        >
+                                            {warning}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Errors Section */}
+                        {Object.entries(errorGroups).map(
+                            ([errorType, typeErrors]) => (
+                                <div key={errorType}>
+                                    <h4 className="font-semibold text-red-700 mb-3 flex items-center">
+                                        <XCircle className="w-4 h-4 mr-2" />
+                                        {getErrorTypeDisplayName(
+                                            errorType as SchedulingError["error_type"]
+                                        )}
+                                        <span className="ml-2 text-sm font-normal text-red-600">
+                                            ({typeErrors.length} course
+                                            {typeErrors.length !== 1 ? "s" : ""}
+                                            )
+                                        </span>
+                                    </h4>
+
+                                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                                        {typeErrors.map((error) => (
+                                            <ErrorCard
+                                                key={error.section_id}
+                                                error={error}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // Individual Error Card Component
+    const ErrorCard = ({ error }: { error: SchedulingError }) => {
+        const [isDetailExpanded, setIsDetailExpanded] = useState(false);
+
+        return (
+            <div className="bg-white border border-red-200 rounded-lg p-4 space-y-3">
+                <div className="space-y-2">
+                    <div className="flex items-start justify-between">
+                        <h5 className="font-medium text-red-800 text-sm">
+                            {error.course_code} - {error.section_number}
+                        </h5>
+                        <div className="flex items-center space-x-1">
+                            <div
+                                className={`w-2 h-2 rounded-full ${getErrorTypeColor(
+                                    error.error_type
+                                )}`}
+                            />
+                        </div>
+                    </div>
+
+                    <p className="text-xs text-gray-700 line-clamp-1">
+                        {error.course_title}
+                    </p>
+
+                    <p className="text-xs text-gray-600">
+                        Instructor: {error.instructor_name}
+                    </p>
+
+                    <p className="text-xs text-red-700 bg-red-50 p-2 rounded">
+                        {error.error_message}
+                    </p>
+                </div>
+
+                {/* Error Details Toggle */}
+                {error.details && Object.keys(error.details).length > 0 && (
+                    <div>
+                        <button
+                            onClick={() =>
+                                setIsDetailExpanded(!isDetailExpanded)
+                            }
+                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                        >
+                            <span>
+                                {isDetailExpanded ? "Hide" : "Show"} details
+                            </span>
+                            <ChevronDown
+                                className={`w-3 h-3 transition-transform ${
+                                    isDetailExpanded ? "rotate-180" : ""
+                                }`}
+                            />
+                        </button>
+
+                        {isDetailExpanded && (
+                            <div className="mt-2 pt-2 border-t border-gray-200">
+                                <div className="space-y-1 text-xs">
+                                    {error.details.required_capacity && (
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">
+                                                Required Capacity:
+                                            </span>
+                                            <span className="font-medium">
+                                                {
+                                                    error.details
+                                                        .required_capacity
+                                                }{" "}
+                                                students
+                                            </span>
+                                        </div>
+                                    )}
+                                    {error.details.available_capacity && (
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">
+                                                Available Capacity:
+                                            </span>
+                                            <span className="font-medium">
+                                                {
+                                                    error.details
+                                                        .available_capacity
+                                                }{" "}
+                                                students
+                                            </span>
+                                        </div>
+                                    )}
+                                    {error.details.conflicting_course && (
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">
+                                                Conflicts with:
+                                            </span>
+                                            <span className="font-medium">
+                                                {
+                                                    error.details
+                                                        .conflicting_course
+                                                }
+                                            </span>
+                                        </div>
+                                    )}
+                                    {error.details.attempted_day && (
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">
+                                                Attempted Day:
+                                            </span>
+                                            <span className="font-medium">
+                                                {error.details.attempted_day}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {error.details.attempted_time && (
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">
+                                                Attempted Time:
+                                            </span>
+                                            <span className="font-medium">
+                                                {error.details.attempted_time}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {error.details.attempted_classroom && (
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">
+                                                Attempted Classroom:
+                                            </span>
+                                            <span className="font-medium">
+                                                {
+                                                    error.details
+                                                        .attempted_classroom
+                                                }
+                                            </span>
+                                        </div>
+                                    )}
+                                    {error.details.required_duration && (
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">
+                                                Required Duration:
+                                            </span>
+                                            <span className="font-medium">
+                                                {
+                                                    error.details
+                                                        .required_duration
+                                                }{" "}
+                                                hours
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // Helper function to get error type color
+    const getErrorTypeColor = (
+        errorType: SchedulingError["error_type"]
+    ): string => {
+        switch (errorType) {
+            case "CAPACITY_CONSTRAINT":
+                return "bg-red-500";
+            case "TIME_CONSTRAINT":
+                return "bg-yellow-500";
+            case "INSTRUCTOR_CONFLICT":
+                return "bg-orange-500";
+            case "NO_AVAILABLE_SLOTS":
+                return "bg-purple-500";
+            case "NO_CLASSROOM":
+                return "bg-blue-500";
+            case "DURATION_MISMATCH":
+                return "bg-pink-500";
+            default:
+                return "bg-gray-500";
+        }
+    };
+
     const parseTimeToHours = (timeStr: string): number => {
         if (!timeStr) return 0;
 
@@ -2682,6 +2966,9 @@ export default function TimetableViewClassroom() {
         }
 
         setIsGeneratingSchedule(true);
+        // Clear previous errors and warnings
+        setSchedulingErrors([]);
+        setSchedulingWarnings([]);
 
         try {
             const scheduleId = params.id.toString();
@@ -2704,6 +2991,14 @@ export default function TimetableViewClassroom() {
 
             const data: EnhancedScheduleResponse = await response.json();
 
+            // Store errors and warnings for display
+            if (data.errors && data.errors.length > 0) {
+                setSchedulingErrors(data.errors);
+            }
+            if (data.warnings && data.warnings.length > 0) {
+                setSchedulingWarnings(data.warnings);
+            }
+
             // Update stats if available
             if (data.stats) {
                 setGenerationStats(data.stats);
@@ -2724,50 +3019,8 @@ export default function TimetableViewClassroom() {
                     const failedCount = data.stats.failedAssignments;
 
                     showSuccessMessage(
-                        `Partial schedule generated: ${successCount} courses scheduled, ${failedCount} failed.`
+                        `Partial schedule generated: ${successCount} courses scheduled, ${failedCount} failed. Check details above.`
                     );
-                }
-
-                // Display warnings if any
-                if (data.warnings && data.warnings.length > 0) {
-                    data.warnings.forEach((warning, index) => {
-                        setTimeout(() => {
-                            showErrorMessage(`Warning: ${warning}`);
-                        }, 1000 + index * 800);
-                    });
-                }
-
-                // Display detailed error messages for failed courses
-                if (data.errors && data.errors.length > 0) {
-                    // Group errors by type for better organization
-                    const errorGroups = groupErrorsByType(data.errors);
-
-                    let messageDelay = 2000; // Start after 2 seconds
-
-                    Object.entries(errorGroups).forEach(
-                        ([errorType, errors]) => {
-                            const errorTypeDisplay = getErrorTypeDisplayName(
-                                errorType as SchedulingError["error_type"]
-                            );
-
-                            errors.forEach((error) => {
-                                setTimeout(() => {
-                                    const detailedMessage =
-                                        formatErrorMessage(error);
-                                    showErrorMessage(detailedMessage);
-                                }, messageDelay);
-
-                                messageDelay += 1200; // Stagger messages by 1.2 seconds
-                            });
-                        }
-                    );
-
-                    // Show summary message at the end
-                    setTimeout(() => {
-                        showErrorMessage(
-                            `Schedule generation completed with ${data.errors.length} course(s) that could not be scheduled. `
-                        );
-                    }, messageDelay + 500);
                 }
             } else {
                 console.error("Invalid schedule data format", data);
@@ -2786,7 +3039,10 @@ export default function TimetableViewClassroom() {
             setIsGeneratingSchedule(false);
         }
     };
-
+    const clearSchedulingErrors = () => {
+        setSchedulingErrors([]);
+        setSchedulingWarnings([]);
+    };
     const groupErrorsByType = (
         errors: SchedulingError[]
     ): Record<string, SchedulingError[]> => {
@@ -4265,18 +4521,11 @@ export default function TimetableViewClassroom() {
                     )}
                 </div>
 
-                {/* Course Combining Instructions */}
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-center text-blue-800">
-                        <Plus className="w-4 h-4 mr-2" />
-                        <strong>Course Combining:</strong>
-                    </div>
-                    <p className="text-sm text-blue-700 mt-1">
-                        Drag courses onto existing scheduled courses to combine
-                        them in the same time slot. Combined courses must have
-                        Same instructors and the same duration.
-                    </p>
-                </div>
+                {/* ERROR BANNER - Add this here */}
+                <ErrorBanner
+                    errors={schedulingErrors}
+                    warnings={schedulingWarnings}
+                />
 
                 <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-350px)] mb-8">
                     <div className="inline-block min-w-full">
@@ -4362,7 +4611,7 @@ export default function TimetableViewClassroom() {
                     onDragLeave={handleAvailableDragLeave}
                     onDrop={handleAvailableDrop}
                 >
-                    <div className="max-w-9xl mx-auto h-80">
+                    <div className="max-w-9xl mx-auto h-60">
                         <h3 className="text-lg font-semibold mb-4 flex items-center">
                             <span className="">Available Courses</span>
                             {isDraggingToAvailable && (
@@ -4586,16 +4835,6 @@ export default function TimetableViewClassroom() {
             )}
         </>
     );
-}
-
-function getContrastColor(hexColor: string) {
-    const color = hexColor.replace("#", "");
-    const r = parseInt(color.substr(0, 2), 16);
-    const g = parseInt(color.substr(2, 2), 16);
-    const b = parseInt(color.substr(4, 2), 16);
-
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.5 ? "#000000" : "#ffffff";
 }
 
 /**
