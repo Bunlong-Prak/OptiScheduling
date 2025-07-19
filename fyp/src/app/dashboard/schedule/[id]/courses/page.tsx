@@ -97,9 +97,8 @@ export default function CoursesView() {
         status: string;
         splitDurations: number[];
         showSplitControls: boolean;
-        preferClassRoomType: ClassroomType | null;
+        preferClassRoomTypes: (ClassroomType | null)[]; // Changed to array to support multiple
     };
-
     // Update sections state structure to include status and split durations
     const [sections, setSections] = useState<SectionState[]>([]);
 
@@ -274,6 +273,10 @@ export default function CoursesView() {
                     ? {
                           ...section,
                           splitDurations: [...section.splitDurations, 1], // Default to 1 hour
+                          preferClassRoomTypes: [
+                              ...(section.preferClassRoomTypes || []),
+                              null,
+                          ], // Add corresponding classroom type slot
                       }
                     : section
             )
@@ -289,6 +292,9 @@ export default function CoursesView() {
                           splitDurations: section.splitDurations.filter(
                               (_, i) => i !== index
                           ),
+                          preferClassRoomTypes: (
+                              section.preferClassRoomTypes || []
+                          ).filter((_, i) => i !== index),
                       }
                     : section
             )
@@ -982,7 +988,7 @@ export default function CoursesView() {
             status: "offline",
             showSplitControls: false,
             splitDurations: [Number(formData.duration) || 1],
-            preferClassRoomType: null, // Default to null, can be updated later
+            preferClassRoomTypes: [null], // Initialize with one classroom type slot
         };
 
         setSections((prevSections) => [...prevSections, newSection]);
@@ -1024,20 +1030,29 @@ export default function CoursesView() {
 
     const updateSectionPreferClassroomType = (
         sectionId: number,
+        index: number,
         classRoomType: ClassroomType
     ) => {
-        console.log("Updating classroom type:", sectionId, classRoomType);
+        console.log(
+            "Updating classroom type:",
+            sectionId,
+            index,
+            classRoomType
+        );
         setSections(
             sections.map((section) =>
                 section.id === sectionId
                     ? {
                           ...section,
-                          preferClassRoomType:
-                              section.preferClassRoomType &&
-                              section.preferClassRoomType.id ===
-                                  classRoomType.id
-                                  ? null // unselect if already selected
-                                  : classRoomType,
+                          preferClassRoomTypes: (
+                              section.preferClassRoomTypes || []
+                          ).map((type, i) =>
+                              i === index
+                                  ? type?.id === classRoomType.id
+                                      ? null // unselect if already selected
+                                      : classRoomType
+                                  : type
+                          ),
                       }
                     : section
             )
@@ -1129,9 +1144,9 @@ export default function CoursesView() {
             return;
         }
 
-        // Validate split durations for sections that have split controls enabled
+        // Validate split durations for all sections (since split controls are always visible now)
         for (const section of sections) {
-            if (section.showSplitControls && !isSectionSplitValid(section.id)) {
+            if (!isSectionSplitValid(section.id)) {
                 showErrorMessage(
                     "Split Duration Error",
                     `Section ${section.section_id}: Split durations must equal course duration (${formData.duration} hours)`
@@ -1148,12 +1163,12 @@ export default function CoursesView() {
                 section: item.section_id,
                 instructorId: item.instructor_id || null,
                 status: item.status || "offline",
-                splitDurations: item.showSplitControls
-                    ? item.splitDurations.map((duration) => ({
-                          separatedDuration: formatDecimal(duration),
-                      }))
-                    : [{ separatedDuration: formatDecimal(formData.duration) }],
-                preferClassRoomType: item.preferClassRoomType || null,
+                // Always use the actual split durations from the section
+                splitDurations: item.splitDurations.map((duration, index) => ({
+                    separatedDuration: formatDecimal(duration),
+                    preferClassRoomType:
+                        item.preferClassRoomTypes?.[index] || null,
+                })),
             }));
 
             // Create API payload with the base course data, the major, and schedule ID
@@ -1169,6 +1184,15 @@ export default function CoursesView() {
             };
 
             console.log("Sending to API:", apiData);
+            console.log(
+                "Split durations being sent:",
+                sectionsList.map((s) => ({
+                    section: s.section,
+                    splitDurations: s.splitDurations.map(
+                        (sd) => sd.separatedDuration
+                    ),
+                }))
+            );
 
             const response = await fetch("/api/courses", {
                 method: "POST",
@@ -1200,7 +1224,6 @@ export default function CoursesView() {
             );
         }
     };
-
     const handleEditCourse = async () => {
         if (!validateForm()) {
             showErrorMessage(
@@ -1221,9 +1244,9 @@ export default function CoursesView() {
             return;
         }
 
-        // Validate split durations for sections that have split controls enabled
+        // Validate split durations for all sections (since split controls are always visible now)
         for (const section of sections) {
-            if (section.showSplitControls && !isSectionSplitValid(section.id)) {
+            if (!isSectionSplitValid(section.id)) {
                 showErrorMessage(
                     "Split Duration Error",
                     `Section ${section.section_id}: Split durations must equal course duration (${formData.duration} hours)`
@@ -1264,29 +1287,29 @@ export default function CoursesView() {
                 return;
             }
 
-            // Create API payload
+            // Create API payload with updated structure
             const apiData = {
                 sectionId: sectionId,
                 code: formData.code,
                 title: formData.title,
                 majorsList: [selectedMajor],
                 color: formData.color,
-                duration: Number(formData.duration) || 1,
-                capacity: Number(formData.capacity) || 1,
+                duration: formatDecimal(Number(formData.duration)),
+                capacity: Number(formData.capacity),
                 sectionsList: sections.map((item) => ({
                     section: item.section_id,
                     instructorId: item.instructor_id || null,
                     status: item.status || "offline",
-                    splitDurations: item.showSplitControls
-                        ? item.splitDurations.map((duration) => ({
-                              separatedDuration: duration,
-                          }))
-                        : [{ separatedDuration: formData.duration }],
-                    preferClassRoomType: item.preferClassRoomType || null,
+                    // Always use the actual split durations from the section
+                    splitDurations: item.splitDurations.map(
+                        (duration, index) => ({
+                            separatedDuration: formatDecimal(duration),
+                            preferClassRoomType:
+                                item.preferClassRoomTypes?.[index] || null,
+                        })
+                    ),
                 })),
             };
-
-            console.log("Sending to API:", apiData);
 
             const response = await fetch("/api/courses", {
                 method: "PATCH",
@@ -1440,13 +1463,6 @@ export default function CoursesView() {
     // ]);
 
     // Instructor validation helper
-    const getInstructorValidationMessage = () => {
-        if (instructors.length === 0) {
-            return "Please create an instructor first";
-        }
-        return null;
-    };
-
     const openEditDialog = (course: Course) => {
         setSelectedCourse(course);
         const courseDuration = Number(course.duration);
@@ -1475,12 +1491,35 @@ export default function CoursesView() {
             (course as any).separatedDurations &&
             (course as any).separatedDurations.length > 0;
 
-        // Determine if split controls should be shown
-        const shouldShowSplitControls =
-            hasSeparatedDurations &&
-            (course as any).separatedDurations.length > 1;
-
         console.log("Course in open edit dialog:", course);
+        console.log(
+            "Course separated durations:",
+            (course as any).separatedDurations
+        );
+
+        // Prepare classroom types array based on separated durations
+        const preferClassRoomTypes: (ClassroomType | null)[] = [];
+
+        if (hasSeparatedDurations) {
+            // For each separated duration, try to find the corresponding classroom type
+            // Note: The current data structure might not have individual classroom types per split
+            // so we'll initialize with the first classroom type for all parts
+            const foundClassroomType = findClassRoomTypeById(
+                course.preferClassRoomTypeId
+            );
+            for (
+                let i = 0;
+                i < (course as any).separatedDurations.length;
+                i++
+            ) {
+                preferClassRoomTypes.push(foundClassroomType || null);
+            }
+        } else {
+            // Single duration, single classroom type
+            preferClassRoomTypes.push(
+                findClassRoomTypeById(course.preferClassRoomTypeId) || null
+            );
+        }
 
         // Initialize with existing section data, including separated durations
         const editSection = {
@@ -1494,18 +1533,12 @@ export default function CoursesView() {
             splitDurations: hasSeparatedDurations
                 ? (course as any).separatedDurations
                 : [courseDuration],
-            showSplitControls: shouldShowSplitControls,
-            preferClassRoomType:
-                findClassRoomTypeById(course.preferClassRoomTypeId) ?? null,
+            showSplitControls: false, // Always false since controls are always visible now
+            preferClassRoomTypes: preferClassRoomTypes, // Use the array we prepared
         };
 
         console.log("Opening edit dialog with section:", editSection);
-        console.log(
-            "Course separated durations:",
-            (course as any).separatedDurations
-        );
         setSections([editSection]);
-
         setSelectedMajor(course.major);
 
         // Reset the add section form
@@ -1775,121 +1808,6 @@ export default function CoursesView() {
             prefer_classroom_type: row.prefer_classroom_type,
         };
     };
-
-    const renderFormField = (
-        id: string,
-        name: string,
-        label: string,
-        value: string,
-        placeholder: string,
-        error?: string,
-        additionalMessage?: string
-    ) => (
-        <div className="space-y-2">
-            <Label htmlFor={id} className="text-sm font-medium text-gray-700">
-                {label}
-            </Label>
-            <Input
-                id={id}
-                name={name}
-                value={value}
-                onChange={handleInputChange}
-                className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                    error ? "border-red-300 bg-red-50" : ""
-                }`}
-                placeholder={placeholder}
-            />
-            {error && (
-                <p className="text-xs text-red-600 flex items-center">
-                    <svg
-                        className="w-3 h-3 mr-1"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                    >
-                        <path
-                            fillRule="evenodd"
-                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                            clipRule="evenodd"
-                        />
-                    </svg>
-                    {error}
-                </p>
-            )}
-            {additionalMessage && !error && (
-                <p className="text-xs text-amber-600 flex items-center">
-                    <svg
-                        className="w-3 h-3 mr-1"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                    >
-                        <path
-                            fillRule="evenodd"
-                            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                            clipRule="evenodd"
-                        />
-                    </svg>
-                    {additionalMessage}
-                </p>
-            )}
-        </div>
-    );
-
-    const renderMajorSelect = () => (
-        <div className="space-y-2">
-            <Label
-                htmlFor="major"
-                className="text-sm font-medium text-gray-700"
-            >
-                Major
-            </Label>
-            <Select value={selectedMajor} onValueChange={handleMajorChange}>
-                <SelectTrigger
-                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                        validationErrors.major ? "border-red-300 bg-red-50" : ""
-                    }`}
-                >
-                    <SelectValue placeholder="Select a major" />
-                </SelectTrigger>
-                <SelectContent>
-                    {majors.map((major) => (
-                        <SelectItem key={major.id} value={major.name}>
-                            {major.name}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            {validationErrors.major && (
-                <p className="text-xs text-red-600 flex items-center">
-                    <svg
-                        className="w-3 h-3 mr-1"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                    >
-                        <path
-                            fillRule="evenodd"
-                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                            clipRule="evenodd"
-                        />
-                    </svg>
-                    {validationErrors.major}
-                </p>
-            )}
-        </div>
-    );
-
-    const renderSubmitButton = (isEdit: boolean = false) => (
-        <Button
-            onClick={isEdit ? handleEditCourse : handleAddCourse}
-            disabled={!isFormValid()}
-            className={`text-sm px-3 py-1.5 ${
-                isFormValid()
-                    ? "bg-[#2F2F85] hover:bg-[#3F3F8F] text-white"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }`}
-        >
-            {isEdit ? "Save Changes" : "Add Course"}
-        </Button>
-    );
 
     // Group courses by code for import
     const groupCoursesByCode = (validCourses: CSVCourseRow[]) => {
@@ -3325,7 +3243,7 @@ export default function CoursesView() {
                                     </Button>
                                 </div>
 
-                                {/* Existing sections list code - WITH SPLIT DURATION CONTROLS */}
+                                {/* Existing sections list with reorganized layout */}
                                 {sections.length > 0 && (
                                     <div className="space-y-2">
                                         {sections.map((section) => (
@@ -3333,7 +3251,7 @@ export default function CoursesView() {
                                                 key={section.id}
                                                 className="p-3 border border-gray-200 rounded bg-gray-50"
                                             >
-                                                <div className="flex justify-between items-center mb-2">
+                                                <div className="flex justify-between items-center mb-3">
                                                     <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
                                                         Section{" "}
                                                         {section.section_id}
@@ -3351,7 +3269,9 @@ export default function CoursesView() {
                                                         <Trash className="h-3 w-3" />
                                                     </Button>
                                                 </div>
-                                                <div className="mt-2">
+
+                                                {/* Instructor Selection */}
+                                                <div className="mb-3">
                                                     <Label className="text-xs text-gray-700">
                                                         Instructor
                                                     </Label>
@@ -3415,136 +3335,115 @@ export default function CoursesView() {
                                                         </PopoverContent>
                                                     </Popover>
                                                 </div>
-                                                <div className="mt-2">
+
+                                                {/* Status Selection */}
+                                                <div className="mb-3">
                                                     <Label className="text-xs text-gray-700">
-                                                        Preferred Classroom Type
+                                                        Status
                                                     </Label>
-                                                    <Popover>
-                                                        <PopoverTrigger asChild>
-                                                            <Button
-                                                                variant="outline"
-                                                                role="combobox"
-                                                                className="w-full justify-between mt-1 text-sm border-gray-300"
-                                                            >
-                                                                {section
-                                                                    .preferClassRoomType
-                                                                    ?.name ||
-                                                                    "Select classroom type..."}
-                                                                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-                                                            </Button>
-                                                        </PopoverTrigger>
-                                                        <PopoverContent className="w-full p-0">
-                                                            <Command>
-                                                                <CommandInput placeholder="Search classroom type..." />
-                                                                <CommandEmpty>
-                                                                    No classroom
-                                                                    type found.
-                                                                </CommandEmpty>
-                                                                <CommandGroup>
-                                                                    {classroomTypes.map(
-                                                                        (
-                                                                            classroomType
-                                                                        ) => (
-                                                                            <CommandItem
-                                                                                key={
-                                                                                    classroomType.id
-                                                                                }
-                                                                                value={
-                                                                                    classroomType.name
-                                                                                }
-                                                                                onSelect={() => {
-                                                                                    updateSectionPreferClassroomType(
-                                                                                        section.id,
-                                                                                        classroomType
-                                                                                    );
-                                                                                }}
-                                                                            >
-                                                                                <Check
-                                                                                    className={`mr-2 h-3 w-3 ${
-                                                                                        section.preferClassRoomType &&
-                                                                                        section
-                                                                                            .preferClassRoomType
-                                                                                            .id ===
-                                                                                            classroomType.id
-                                                                                            ? "opacity-100"
-                                                                                            : "opacity-0"
-                                                                                    }`}
-                                                                                />
-                                                                                {
-                                                                                    classroomType.name
-                                                                                }
-                                                                            </CommandItem>
-                                                                        )
-                                                                    )}
-                                                                </CommandGroup>
-                                                            </Command>
-                                                        </PopoverContent>
-                                                    </Popover>
+                                                    <Select
+                                                        value={
+                                                            section.status ||
+                                                            "offline"
+                                                        }
+                                                        onValueChange={(
+                                                            value
+                                                        ) =>
+                                                            updateSectionStatus(
+                                                                section.id,
+                                                                value
+                                                            )
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="mt-1 text-sm border-gray-300">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="online">
+                                                                Online
+                                                            </SelectItem>
+                                                            <SelectItem value="offline">
+                                                                Offline
+                                                            </SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
                                                 </div>
 
-                                                {/* Split Duration Controls */}
-                                                <div className="mt-4 mb-4 space-y-3">
-                                                    <div className="flex justify-between items-center mb-3">
-                                                        <Label className="text-xs text-gray-700 mr-2">
-                                                            Split Duration
+                                                {/* Classroom Type and Split Duration Section */}
+                                                <div className="border-t border-gray-200 pt-3">
+                                                    {/* Split Duration and Classroom Type Controls - Always Visible */}
+                                                    <div className="space-y-3">
+                                                        <Label className="text-xs text-gray-700">
+                                                            Split Duration &
+                                                            Classroom Types
                                                         </Label>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() =>
-                                                                toggleSectionSplitControls(
-                                                                    section.id
-                                                                )
-                                                            }
-                                                            className="text-xs ml-2"
-                                                        >
-                                                            {section.showSplitControls
-                                                                ? "Hide Split"
-                                                                : "Split Duration"}
-                                                        </Button>
-                                                    </div>
 
-                                                    {section.showSplitControls && (
-                                                        <div className="mt-4 mb-4">
-                                                            <div className="text-xs text-gray-600 mb-3">
-                                                                Original
-                                                                Duration:{" "}
-                                                                {durationHours}h{" "}
-                                                                {
-                                                                    durationMinutes
-                                                                }
-                                                                m (
-                                                                {formData.duration.toFixed(
-                                                                    2
-                                                                )}{" "}
-                                                                hours)
-                                                            </div>
+                                                        <div className="text-xs text-gray-600 mb-3">
+                                                            Original Duration:{" "}
+                                                            {durationHours}h{" "}
+                                                            {durationMinutes}m (
+                                                            {formData.duration.toFixed(
+                                                                2
+                                                            )}{" "}
+                                                            hours)
+                                                        </div>
 
-                                                            {section.splitDurations.map(
-                                                                (
-                                                                    duration,
-                                                                    index
-                                                                ) => {
-                                                                    const {
-                                                                        hours,
-                                                                        minutes,
-                                                                    } =
-                                                                        convertSplitDurationToHoursMinutes(
-                                                                            duration
-                                                                        );
-                                                                    return (
-                                                                        <div
-                                                                            key={
-                                                                                index
-                                                                            }
-                                                                            className="flex items-center gap-2 mb-3"
-                                                                        >
-                                                                            <Label className="text-xs w-12 mr-2">
+                                                        {section.splitDurations.map(
+                                                            (
+                                                                duration,
+                                                                index
+                                                            ) => {
+                                                                const {
+                                                                    hours,
+                                                                    minutes,
+                                                                } =
+                                                                    convertSplitDurationToHoursMinutes(
+                                                                        duration
+                                                                    );
+                                                                const currentClassroomType =
+                                                                    section
+                                                                        .preferClassRoomTypes?.[
+                                                                        index
+                                                                    ] || null;
+
+                                                                return (
+                                                                    <div
+                                                                        key={
+                                                                            index
+                                                                        }
+                                                                        className="border border-gray-200 rounded p-3 mb-3 bg-white"
+                                                                    >
+                                                                        <div className="flex items-center justify-between mb-3">
+                                                                            <Label className="text-xs font-medium text-gray-700">
                                                                                 Part{" "}
                                                                                 {index +
                                                                                     1}
+                                                                            </Label>
+                                                                            {/* Remove button */}
+                                                                            {section
+                                                                                .splitDurations
+                                                                                .length >
+                                                                                1 && (
+                                                                                <Button
+                                                                                    variant="outline"
+                                                                                    size="sm"
+                                                                                    onClick={() =>
+                                                                                        removeSectionSplit(
+                                                                                            section.id,
+                                                                                            index
+                                                                                        )
+                                                                                    }
+                                                                                    className="h-6 w-6 p-0"
+                                                                                >
+                                                                                    <Minus className="h-3 w-3" />
+                                                                                </Button>
+                                                                            )}
+                                                                        </div>
 
-                                                                                :
+                                                                        {/* Duration Controls */}
+                                                                        <div className="flex items-center gap-2 mb-3">
+                                                                            <Label className="text-xs w-16 text-gray-600">
+                                                                                Duration:
                                                                             </Label>
 
                                                                             {/* Hours Input */}
@@ -3623,7 +3522,7 @@ export default function CoursesView() {
                                                                             </div>
 
                                                                             {/* Total for this part */}
-                                                                            <span className="text-xs text-gray-500 mx-2">
+                                                                            <span className="text-xs text-gray-500 ml-2">
                                                                                 (
                                                                                 {duration.toFixed(
                                                                                     2
@@ -3632,177 +3531,194 @@ export default function CoursesView() {
                                                                                 h
                                                                                 total)
                                                                             </span>
-
-                                                                            {/* Remove button */}
-                                                                            {section
-                                                                                .splitDurations
-                                                                                .length >
-                                                                                1 && (
-                                                                                <Button
-                                                                                    variant="outline"
-                                                                                    size="sm"
-                                                                                    onClick={() =>
-                                                                                        removeSectionSplit(
-                                                                                            section.id,
-                                                                                            index
-                                                                                        )
-                                                                                    }
-                                                                                    className="h-6 w-6 p-0 ml-2"
-                                                                                >
-                                                                                    <Minus className="h-3 w-3" />
-                                                                                </Button>
-                                                                            )}
                                                                         </div>
-                                                                    );
-                                                                }
-                                                            )}
 
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() =>
-                                                                    addSectionSplit(
-                                                                        section.id
-                                                                    )
-                                                                }
-                                                                className="w-full text-xs mt-3 mb-4"
-                                                            >
-                                                                <Plus className="h-3 w-3 mr-1" />
-                                                                Add Another Part
-                                                            </Button>
-
-                                                            <div
-                                                                className={`text-xs p-3 rounded transition-colors mt-4 ${
-                                                                    isSectionSplitValid(
-                                                                        section.id
-                                                                    )
-                                                                        ? "bg-green-100 border border-green-200"
-                                                                        : "bg-red-50 border border-red-200"
-                                                                }`}
-                                                            >
-                                                                <div className="flex justify-between items-center mb-2">
-                                                                    <span className="mr-2">
-                                                                        Total
-                                                                        Duration:
-                                                                    </span>
-                                                                    <span
-                                                                        className={`font-bold text-sm ml-2 ${
-                                                                            isSectionSplitValid(
-                                                                                section.id
-                                                                            )
-                                                                                ? "text-green-700"
-                                                                                : "text-red-700"
-                                                                        }`}
-                                                                    >
-                                                                        {(() => {
-                                                                            const totalDecimal =
-                                                                                getSectionTotalSplitDuration(
-                                                                                    section.id
-                                                                                );
-                                                                            const {
-                                                                                hours: totalHours,
-                                                                                minutes:
-                                                                                    totalMinutes,
-                                                                            } =
-                                                                                convertSplitDurationToHoursMinutes(
-                                                                                    totalDecimal
-                                                                                );
-                                                                            return `${totalHours}h ${totalMinutes}m (${totalDecimal.toFixed(
-                                                                                2
-                                                                            )}) / ${durationHours}h ${durationMinutes}m (${formData.duration.toFixed(
-                                                                                2
-                                                                            )})`;
-                                                                        })()}
-                                                                    </span>
-                                                                </div>
-                                                                {isSectionSplitValid(
-                                                                    section.id
-                                                                ) ? (
-                                                                    <div className="text-green-700 text-xs mt-2 flex items-center">
-                                                                        <Check className="h-3 w-3 mr-2" />
-                                                                        Duration
-                                                                        split is
-                                                                        valid
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="text-red-700 text-xs mt-2 space-y-1">
+                                                                        {/* Classroom Type for this part */}
                                                                         <div>
-                                                                            Total
-                                                                            must
-                                                                            equal
-                                                                            course
-                                                                            duration
-                                                                            (
-                                                                            {
-                                                                                durationHours
-                                                                            }
-                                                                            h{" "}
-                                                                            {
-                                                                                durationMinutes
-                                                                            }
-                                                                            m)
-                                                                        </div>
-                                                                        {section.splitDurations.map(
-                                                                            (
-                                                                                partDuration,
-                                                                                idx
-                                                                            ) =>
-                                                                                partDuration <=
-                                                                                    0 && (
-                                                                                    <div
-                                                                                        key={
-                                                                                            idx
-                                                                                        }
+                                                                            <Label className="text-xs text-gray-600 mb-1 block">
+                                                                                Classroom
+                                                                                Type:
+                                                                            </Label>
+                                                                            <Popover>
+                                                                                <PopoverTrigger
+                                                                                    asChild
+                                                                                >
+                                                                                    <Button
+                                                                                        variant="outline"
+                                                                                        role="combobox"
+                                                                                        className="w-full justify-between text-xs border-gray-300"
                                                                                     >
-                                                                                        Part{" "}
-                                                                                        {idx +
-                                                                                            1}{" "}
-                                                                                        duration
-                                                                                        must
-                                                                                        be
-                                                                                        greater
-                                                                                        than
-                                                                                        0
-                                                                                    </div>
-                                                                                )
-                                                                        )}
+                                                                                        {currentClassroomType?.name ||
+                                                                                            "Select classroom type..."}
+                                                                                        <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                                                    </Button>
+                                                                                </PopoverTrigger>
+                                                                                <PopoverContent className="w-full p-0">
+                                                                                    <Command>
+                                                                                        <CommandInput placeholder="Search classroom type..." />
+                                                                                        <CommandEmpty>
+                                                                                            No
+                                                                                            classroom
+                                                                                            type
+                                                                                            found.
+                                                                                        </CommandEmpty>
+                                                                                        <CommandGroup>
+                                                                                            {classroomTypes.map(
+                                                                                                (
+                                                                                                    classroomType
+                                                                                                ) => (
+                                                                                                    <CommandItem
+                                                                                                        key={
+                                                                                                            classroomType.id
+                                                                                                        }
+                                                                                                        value={
+                                                                                                            classroomType.name
+                                                                                                        }
+                                                                                                        onSelect={() => {
+                                                                                                            updateSectionPreferClassroomType(
+                                                                                                                section.id,
+                                                                                                                index,
+                                                                                                                classroomType
+                                                                                                            );
+                                                                                                        }}
+                                                                                                    >
+                                                                                                        <Check
+                                                                                                            className={`mr-2 h-3 w-3 ${
+                                                                                                                currentClassroomType?.id ===
+                                                                                                                classroomType.id
+                                                                                                                    ? "opacity-100"
+                                                                                                                    : "opacity-0"
+                                                                                                            }`}
+                                                                                                        />
+                                                                                                        {
+                                                                                                            classroomType.name
+                                                                                                        }
+                                                                                                    </CommandItem>
+                                                                                                )
+                                                                                            )}
+                                                                                        </CommandGroup>
+                                                                                    </Command>
+                                                                                </PopoverContent>
+                                                                            </Popover>
+                                                                        </div>
                                                                     </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                                );
+                                                            }
+                                                        )}
 
-                                                <div className="mt-2">
-                                                    <Label className="text-xs text-gray-700">
-                                                        Status
-                                                    </Label>
-                                                    <Select
-                                                        value={
-                                                            section.status ||
-                                                            "offline"
-                                                        }
-                                                        onValueChange={(
-                                                            value
-                                                        ) =>
-                                                            updateSectionStatus(
-                                                                section.id,
-                                                                value
-                                                            )
-                                                        }
-                                                    >
-                                                        <SelectTrigger className="mt-1 text-sm border-gray-300">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="online">
-                                                                Online
-                                                            </SelectItem>
-                                                            <SelectItem value="offline">
-                                                                Offline
-                                                            </SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                addSectionSplit(
+                                                                    section.id
+                                                                )
+                                                            }
+                                                            className="w-full text-xs mt-3 mb-4"
+                                                        >
+                                                            <Plus className="h-3 w-3 mr-1" />
+                                                            Add Another Part
+                                                        </Button>
+
+                                                        <div
+                                                            className={`text-xs p-3 rounded transition-colors mt-4 ${
+                                                                isSectionSplitValid(
+                                                                    section.id
+                                                                )
+                                                                    ? "bg-green-100 border border-green-200"
+                                                                    : "bg-red-50 border border-red-200"
+                                                            }`}
+                                                        >
+                                                            <div className="flex justify-between items-center mb-2">
+                                                                <span className="mr-2">
+                                                                    Total
+                                                                    Duration:
+                                                                </span>
+                                                                <span
+                                                                    className={`font-bold text-sm ml-2 ${
+                                                                        isSectionSplitValid(
+                                                                            section.id
+                                                                        )
+                                                                            ? "text-green-700"
+                                                                            : "text-red-700"
+                                                                    }`}
+                                                                >
+                                                                    {(() => {
+                                                                        const totalDecimal =
+                                                                            getSectionTotalSplitDuration(
+                                                                                section.id
+                                                                            );
+                                                                        const {
+                                                                            hours: totalHours,
+                                                                            minutes:
+                                                                                totalMinutes,
+                                                                        } =
+                                                                            convertSplitDurationToHoursMinutes(
+                                                                                totalDecimal
+                                                                            );
+                                                                        return `${totalHours}h ${totalMinutes}m (${totalDecimal.toFixed(
+                                                                            2
+                                                                        )}) / ${durationHours}h ${durationMinutes}m (${formData.duration.toFixed(
+                                                                            2
+                                                                        )})`;
+                                                                    })()}
+                                                                </span>
+                                                            </div>
+                                                            {isSectionSplitValid(
+                                                                section.id
+                                                            ) ? (
+                                                                <div className="text-green-700 text-xs mt-2 flex items-center">
+                                                                    <Check className="h-3 w-3 mr-2" />
+                                                                    Duration
+                                                                    split is
+                                                                    valid
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-red-700 text-xs mt-2 space-y-1">
+                                                                    <div>
+                                                                        Total
+                                                                        must
+                                                                        equal
+                                                                        course
+                                                                        duration
+                                                                        (
+                                                                        {
+                                                                            durationHours
+                                                                        }
+                                                                        h{" "}
+                                                                        {
+                                                                            durationMinutes
+                                                                        }
+                                                                        m)
+                                                                    </div>
+                                                                    {section.splitDurations.map(
+                                                                        (
+                                                                            partDuration,
+                                                                            idx
+                                                                        ) =>
+                                                                            partDuration <=
+                                                                                0 && (
+                                                                                <div
+                                                                                    key={
+                                                                                        idx
+                                                                                    }
+                                                                                >
+                                                                                    Part{" "}
+                                                                                    {idx +
+                                                                                        1}{" "}
+                                                                                    duration
+                                                                                    must
+                                                                                    be
+                                                                                    greater
+                                                                                    than
+                                                                                    0
+                                                                                </div>
+                                                                            )
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
@@ -3836,7 +3752,6 @@ export default function CoursesView() {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-
                 {/* Edit Course Dialog - Add this after your Add Course Dialog */}
                 <Dialog
                     open={isEditDialogOpen}
@@ -4023,7 +3938,7 @@ export default function CoursesView() {
                                                 name="color"
                                                 value={
                                                     formData?.color || "#3B82F6"
-                                                } // Default to blue hex
+                                                }
                                                 onChange={(e) =>
                                                     handleColorChange(
                                                         e.target.value
@@ -4036,7 +3951,6 @@ export default function CoursesView() {
                                                         "transparent",
                                                 }}
                                             />
-                                            {/* Visual preview of selected color */}
                                             <div
                                                 className="absolute inset-1 rounded pointer-events-none"
                                                 style={{
@@ -4077,14 +3991,11 @@ export default function CoursesView() {
                                                 <button
                                                     key={presetColor}
                                                     type="button"
-                                                    onClick={() => {
+                                                    onClick={() =>
                                                         handleColorChange(
                                                             presetColor
-                                                        );
-                                                        handleColorChange(
-                                                            presetColor
-                                                        );
-                                                    }}
+                                                        )
+                                                    }
                                                     className="w-6 h-6 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2F2F85] focus:ring-offset-1"
                                                     style={{
                                                         backgroundColor:
@@ -4186,35 +4097,28 @@ export default function CoursesView() {
                                     <Input
                                         id="capacity"
                                         name="capacity"
-                                        type="text" // Changed from "number" to "text" for better control
+                                        type="text"
                                         value={formData.capacity}
                                         onChange={handleInputChange}
                                         onKeyDown={(e) => {
-                                            // Only allow numbers, backspace, delete, tab, escape, enter, and arrow keys
                                             if (
                                                 ![
                                                     8, 9, 27, 13, 46, 110, 190,
                                                 ].includes(e.keyCode) &&
-                                                // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
                                                 !(
-                                                    (
-                                                        (e.keyCode === 65 &&
-                                                            e.ctrlKey) || // Ctrl+A
-                                                        (e.keyCode === 67 &&
-                                                            e.ctrlKey) || // Ctrl+C
-                                                        (e.keyCode === 86 &&
-                                                            e.ctrlKey) || // Ctrl+V
-                                                        (e.keyCode === 88 &&
-                                                            e.ctrlKey)
-                                                    ) // Ctrl+X
+                                                    (e.keyCode === 65 &&
+                                                        e.ctrlKey) ||
+                                                    (e.keyCode === 67 &&
+                                                        e.ctrlKey) ||
+                                                    (e.keyCode === 86 &&
+                                                        e.ctrlKey) ||
+                                                    (e.keyCode === 88 &&
+                                                        e.ctrlKey)
                                                 ) &&
-                                                // Allow home, end, left, right, down, up
                                                 (e.keyCode < 35 ||
                                                     e.keyCode > 40) &&
-                                                // Allow numeric keypad
                                                 (e.keyCode < 96 ||
                                                     e.keyCode > 105) &&
-                                                // Allow main keyboard numbers
                                                 (e.keyCode < 48 ||
                                                     e.keyCode > 57)
                                             ) {
@@ -4222,7 +4126,6 @@ export default function CoursesView() {
                                             }
                                         }}
                                         onPaste={(e) => {
-                                            // Prevent pasting non-numeric content
                                             const paste =
                                                 e.clipboardData.getData("text");
                                             if (!/^\d+$/.test(paste)) {
@@ -4261,7 +4164,7 @@ export default function CoursesView() {
                                 </div>
                             </div>
 
-                            {/* Sections with Validation - Same as Add Dialog */}
+                            {/* Sections with Validation */}
                             <div className="space-y-4">
                                 <div>
                                     <Label className="text-sm font-medium text-gray-700">
@@ -4397,7 +4300,6 @@ export default function CoursesView() {
                                                 </PopoverContent>
                                             </Popover>
 
-                                            {/* Show instructor validation error */}
                                             {instructorValidationError && (
                                                 <p className="text-xs text-red-600 flex items-center">
                                                     <svg
@@ -4415,7 +4317,6 @@ export default function CoursesView() {
                                                 </p>
                                             )}
 
-                                            {/* Show warning if no instructors available */}
                                             {instructors.length === 0 && (
                                                 <p className="text-xs text-amber-600 flex items-center">
                                                     <svg
@@ -4453,7 +4354,7 @@ export default function CoursesView() {
                                     </Button>
                                 </div>
 
-                                {/* Existing sections list - Same as Add Dialog */}
+                                {/* Existing sections list with new structure */}
                                 {sections.length > 0 && (
                                     <div className="space-y-2">
                                         {sections.map((section) => (
@@ -4461,7 +4362,7 @@ export default function CoursesView() {
                                                 key={section.id}
                                                 className="p-3 border border-gray-200 rounded bg-gray-50"
                                             >
-                                                <div className="flex justify-between items-center mb-2">
+                                                <div className="flex justify-between items-center mb-3">
                                                     <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
                                                         Section{" "}
                                                         {section.section_id}
@@ -4480,7 +4381,8 @@ export default function CoursesView() {
                                                     </Button>
                                                 </div>
 
-                                                <div className="mt-2">
+                                                {/* Instructor Selection */}
+                                                <div className="mb-3">
                                                     <Label className="text-xs text-gray-700">
                                                         Instructor
                                                     </Label>
@@ -4544,136 +4446,120 @@ export default function CoursesView() {
                                                         </PopoverContent>
                                                     </Popover>
                                                 </div>
-                                                <div className="mt-2">
+
+                                                {/* Status Selection */}
+                                                <div className="mb-3">
                                                     <Label className="text-xs text-gray-700">
-                                                        Preferred Classroom Type
+                                                        Status
                                                     </Label>
-                                                    <Popover>
-                                                        <PopoverTrigger asChild>
-                                                            <Button
-                                                                variant="outline"
-                                                                role="combobox"
-                                                                className="w-full justify-between mt-1 text-sm border-gray-300"
-                                                            >
-                                                                {section
-                                                                    .preferClassRoomType
-                                                                    ?.name ||
-                                                                    "Select classroom type..."}
-                                                                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-                                                            </Button>
-                                                        </PopoverTrigger>
-                                                        <PopoverContent className="w-full p-0">
-                                                            <Command>
-                                                                <CommandInput placeholder="Search classroom type..." />
-                                                                <CommandEmpty>
-                                                                    No classroom
-                                                                    type found.
-                                                                </CommandEmpty>
-                                                                <CommandGroup>
-                                                                    {classroomTypes.map(
-                                                                        (
-                                                                            classroomType
-                                                                        ) => (
-                                                                            <CommandItem
-                                                                                key={
-                                                                                    classroomType.id
-                                                                                }
-                                                                                value={
-                                                                                    classroomType.name
-                                                                                }
-                                                                                onSelect={() => {
-                                                                                    updateSectionPreferClassroomType(
-                                                                                        section.id,
-                                                                                        classroomType
-                                                                                    );
-                                                                                }}
-                                                                            >
-                                                                                <Check
-                                                                                    className={`mr-2 h-3 w-3 ${
-                                                                                        section.preferClassRoomType &&
-                                                                                        section
-                                                                                            .preferClassRoomType
-                                                                                            .id ===
-                                                                                            classroomType.id
-                                                                                            ? "opacity-100"
-                                                                                            : "opacity-0"
-                                                                                    }`}
-                                                                                />
-                                                                                {
-                                                                                    classroomType.name
-                                                                                }
-                                                                            </CommandItem>
-                                                                        )
-                                                                    )}
-                                                                </CommandGroup>
-                                                            </Command>
-                                                        </PopoverContent>
-                                                    </Popover>
+                                                    <Select
+                                                        value={
+                                                            section.status ||
+                                                            "offline"
+                                                        }
+                                                        onValueChange={(
+                                                            value
+                                                        ) =>
+                                                            updateSectionStatus(
+                                                                section.id,
+                                                                value
+                                                            )
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="mt-1 text-sm border-gray-300">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="online">
+                                                                Online
+                                                            </SelectItem>
+                                                            <SelectItem value="offline">
+                                                                Offline
+                                                            </SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
                                                 </div>
 
-                                                {/* Split Duration Controls - Same as Add Dialog */}
-                                                <div className="mt-4 mb-4 space-y-3">
-                                                    <div className="flex justify-between items-center mb-3">
-                                                        <Label className="text-xs text-gray-700 mr-2">
-                                                            Split Duration
+                                                {/* Classroom Type and Split Duration Section */}
+                                                <div className="border-t border-gray-200 pt-3">
+                                                    <Label className="text-xs text-gray-700 font-medium mb-3 block">
+                                                        Classroom & Duration
+                                                        Settings
+                                                    </Label>
+
+                                                    {/* Split Duration and Classroom Type Controls - Always Visible */}
+                                                    <div className="space-y-3">
+                                                        <Label className="text-xs text-gray-700">
+                                                            Split Duration &
+                                                            Classroom Types
                                                         </Label>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() =>
-                                                                toggleSectionSplitControls(
-                                                                    section.id
-                                                                )
-                                                            }
-                                                            className="text-xs ml-2"
-                                                        >
-                                                            {section.showSplitControls
-                                                                ? "Hide Split"
-                                                                : "Split Duration"}
-                                                        </Button>
-                                                    </div>
 
-                                                    {section.showSplitControls && (
-                                                        <div className="mt-4 mb-4">
-                                                            <div className="text-xs text-gray-600 mb-3">
-                                                                Original
-                                                                Duration:{" "}
-                                                                {durationHours}h{" "}
-                                                                {
-                                                                    durationMinutes
-                                                                }
-                                                                m (
-                                                                {formData.duration.toFixed(
-                                                                    2
-                                                                )}{" "}
-                                                                hours)
-                                                            </div>
+                                                        <div className="text-xs text-gray-600 mb-3">
+                                                            Original Duration:{" "}
+                                                            {durationHours}h{" "}
+                                                            {durationMinutes}m (
+                                                            {formData.duration.toFixed(
+                                                                2
+                                                            )}{" "}
+                                                            hours)
+                                                        </div>
 
-                                                            {section.splitDurations.map(
-                                                                (
-                                                                    duration,
-                                                                    index
-                                                                ) => {
-                                                                    const {
-                                                                        hours,
-                                                                        minutes,
-                                                                    } =
-                                                                        convertSplitDurationToHoursMinutes(
-                                                                            duration
-                                                                        );
-                                                                    return (
-                                                                        <div
-                                                                            key={
-                                                                                index
-                                                                            }
-                                                                            className="flex items-center gap-2 mb-3"
-                                                                        >
-                                                                            <Label className="text-xs w-12 mr-2">
+                                                        {section.splitDurations.map(
+                                                            (
+                                                                duration,
+                                                                index
+                                                            ) => {
+                                                                const {
+                                                                    hours,
+                                                                    minutes,
+                                                                } =
+                                                                    convertSplitDurationToHoursMinutes(
+                                                                        duration
+                                                                    );
+                                                                const currentClassroomType =
+                                                                    section
+                                                                        .preferClassRoomTypes?.[
+                                                                        index
+                                                                    ] || null;
+
+                                                                return (
+                                                                    <div
+                                                                        key={
+                                                                            index
+                                                                        }
+                                                                        className="border border-gray-200 rounded p-3 mb-3 bg-white"
+                                                                    >
+                                                                        <div className="flex items-center justify-between mb-3">
+                                                                            <Label className="text-xs font-medium text-gray-700">
                                                                                 Part{" "}
                                                                                 {index +
                                                                                     1}
+                                                                            </Label>
+                                                                            {/* Remove button */}
+                                                                            {section
+                                                                                .splitDurations
+                                                                                .length >
+                                                                                1 && (
+                                                                                <Button
+                                                                                    variant="outline"
+                                                                                    size="sm"
+                                                                                    onClick={() =>
+                                                                                        removeSectionSplit(
+                                                                                            section.id,
+                                                                                            index
+                                                                                        )
+                                                                                    }
+                                                                                    className="h-6 w-6 p-0"
+                                                                                >
+                                                                                    <Minus className="h-3 w-3" />
+                                                                                </Button>
+                                                                            )}
+                                                                        </div>
 
-                                                                                :
+                                                                        {/* Duration Controls */}
+                                                                        <div className="flex items-center gap-2 mb-3">
+                                                                            <Label className="text-xs w-16 text-gray-600">
+                                                                                Duration:
                                                                             </Label>
 
                                                                             {/* Hours Input */}
@@ -4752,7 +4638,7 @@ export default function CoursesView() {
                                                                             </div>
 
                                                                             {/* Total for this part */}
-                                                                            <span className="text-xs text-gray-500 mx-2">
+                                                                            <span className="text-xs text-gray-500 ml-2">
                                                                                 (
                                                                                 {duration.toFixed(
                                                                                     2
@@ -4761,177 +4647,194 @@ export default function CoursesView() {
                                                                                 h
                                                                                 total)
                                                                             </span>
-
-                                                                            {/* Remove button */}
-                                                                            {section
-                                                                                .splitDurations
-                                                                                .length >
-                                                                                1 && (
-                                                                                <Button
-                                                                                    variant="outline"
-                                                                                    size="sm"
-                                                                                    onClick={() =>
-                                                                                        removeSectionSplit(
-                                                                                            section.id,
-                                                                                            index
-                                                                                        )
-                                                                                    }
-                                                                                    className="h-6 w-6 p-0 ml-2"
-                                                                                >
-                                                                                    <Minus className="h-3 w-3" />
-                                                                                </Button>
-                                                                            )}
                                                                         </div>
-                                                                    );
-                                                                }
-                                                            )}
 
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() =>
-                                                                    addSectionSplit(
-                                                                        section.id
-                                                                    )
-                                                                }
-                                                                className="w-full text-xs mt-3 mb-4"
-                                                            >
-                                                                <Plus className="h-3 w-3 mr-1" />
-                                                                Add Another Part
-                                                            </Button>
-
-                                                            <div
-                                                                className={`text-xs p-3 rounded transition-colors mt-4 ${
-                                                                    isSectionSplitValid(
-                                                                        section.id
-                                                                    )
-                                                                        ? "bg-green-100 border border-green-200"
-                                                                        : "bg-red-50 border border-red-200"
-                                                                }`}
-                                                            >
-                                                                <div className="flex justify-between items-center mb-2">
-                                                                    <span className="mr-2">
-                                                                        Total
-                                                                        Duration:
-                                                                    </span>
-                                                                    <span
-                                                                        className={`font-bold text-sm ml-2 ${
-                                                                            isSectionSplitValid(
-                                                                                section.id
-                                                                            )
-                                                                                ? "text-green-700"
-                                                                                : "text-red-700"
-                                                                        }`}
-                                                                    >
-                                                                        {(() => {
-                                                                            const totalDecimal =
-                                                                                getSectionTotalSplitDuration(
-                                                                                    section.id
-                                                                                );
-                                                                            const {
-                                                                                hours: totalHours,
-                                                                                minutes:
-                                                                                    totalMinutes,
-                                                                            } =
-                                                                                convertSplitDurationToHoursMinutes(
-                                                                                    totalDecimal
-                                                                                );
-                                                                            return `${totalHours}h ${totalMinutes}m (${totalDecimal.toFixed(
-                                                                                2
-                                                                            )}) / ${durationHours}h ${durationMinutes}m (${formData.duration.toFixed(
-                                                                                2
-                                                                            )})`;
-                                                                        })()}
-                                                                    </span>
-                                                                </div>
-                                                                {isSectionSplitValid(
-                                                                    section.id
-                                                                ) ? (
-                                                                    <div className="text-green-700 text-xs mt-2 flex items-center">
-                                                                        <Check className="h-3 w-3 mr-2" />
-                                                                        Duration
-                                                                        split is
-                                                                        valid
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="text-red-700 text-xs mt-2 space-y-1">
+                                                                        {/* Classroom Type for this part */}
                                                                         <div>
-                                                                            Total
-                                                                            must
-                                                                            equal
-                                                                            course
-                                                                            duration
-                                                                            (
-                                                                            {
-                                                                                durationHours
-                                                                            }
-                                                                            h{" "}
-                                                                            {
-                                                                                durationMinutes
-                                                                            }
-                                                                            m)
-                                                                        </div>
-                                                                        {section.splitDurations.map(
-                                                                            (
-                                                                                partDuration,
-                                                                                idx
-                                                                            ) =>
-                                                                                partDuration <=
-                                                                                    0 && (
-                                                                                    <div
-                                                                                        key={
-                                                                                            idx
-                                                                                        }
+                                                                            <Label className="text-xs text-gray-600 mb-1 block">
+                                                                                Classroom
+                                                                                Type:
+                                                                            </Label>
+                                                                            <Popover>
+                                                                                <PopoverTrigger
+                                                                                    asChild
+                                                                                >
+                                                                                    <Button
+                                                                                        variant="outline"
+                                                                                        role="combobox"
+                                                                                        className="w-full justify-between text-xs border-gray-300"
                                                                                     >
-                                                                                        Part{" "}
-                                                                                        {idx +
-                                                                                            1}{" "}
-                                                                                        duration
-                                                                                        must
-                                                                                        be
-                                                                                        greater
-                                                                                        than
-                                                                                        0
-                                                                                    </div>
-                                                                                )
-                                                                        )}
+                                                                                        {currentClassroomType?.name ||
+                                                                                            "Select classroom type..."}
+                                                                                        <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                                                    </Button>
+                                                                                </PopoverTrigger>
+                                                                                <PopoverContent className="w-full p-0">
+                                                                                    <Command>
+                                                                                        <CommandInput placeholder="Search classroom type..." />
+                                                                                        <CommandEmpty>
+                                                                                            No
+                                                                                            classroom
+                                                                                            type
+                                                                                            found.
+                                                                                        </CommandEmpty>
+                                                                                        <CommandGroup>
+                                                                                            {classroomTypes.map(
+                                                                                                (
+                                                                                                    classroomType
+                                                                                                ) => (
+                                                                                                    <CommandItem
+                                                                                                        key={
+                                                                                                            classroomType.id
+                                                                                                        }
+                                                                                                        value={
+                                                                                                            classroomType.name
+                                                                                                        }
+                                                                                                        onSelect={() => {
+                                                                                                            updateSectionPreferClassroomType(
+                                                                                                                section.id,
+                                                                                                                index,
+                                                                                                                classroomType
+                                                                                                            );
+                                                                                                        }}
+                                                                                                    >
+                                                                                                        <Check
+                                                                                                            className={`mr-2 h-3 w-3 ${
+                                                                                                                currentClassroomType?.id ===
+                                                                                                                classroomType.id
+                                                                                                                    ? "opacity-100"
+                                                                                                                    : "opacity-0"
+                                                                                                            }`}
+                                                                                                        />
+                                                                                                        {
+                                                                                                            classroomType.name
+                                                                                                        }
+                                                                                                    </CommandItem>
+                                                                                                )
+                                                                                            )}
+                                                                                        </CommandGroup>
+                                                                                    </Command>
+                                                                                </PopoverContent>
+                                                                            </Popover>
+                                                                        </div>
                                                                     </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                                );
+                                                            }
+                                                        )}
 
-                                                <div className="mt-2">
-                                                    <Label className="text-xs text-gray-700">
-                                                        Status
-                                                    </Label>
-                                                    <Select
-                                                        value={
-                                                            section.status ||
-                                                            "offline"
-                                                        }
-                                                        onValueChange={(
-                                                            value
-                                                        ) =>
-                                                            updateSectionStatus(
-                                                                section.id,
-                                                                value
-                                                            )
-                                                        }
-                                                    >
-                                                        <SelectTrigger className="mt-1 text-sm border-gray-300">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="online">
-                                                                Online
-                                                            </SelectItem>
-                                                            <SelectItem value="offline">
-                                                                Offline
-                                                            </SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                addSectionSplit(
+                                                                    section.id
+                                                                )
+                                                            }
+                                                            className="w-full text-xs mt-3 mb-4"
+                                                        >
+                                                            <Plus className="h-3 w-3 mr-1" />
+                                                            Add Another Part
+                                                        </Button>
+
+                                                        <div
+                                                            className={`text-xs p-3 rounded transition-colors mt-4 ${
+                                                                isSectionSplitValid(
+                                                                    section.id
+                                                                )
+                                                                    ? "bg-green-100 border border-green-200"
+                                                                    : "bg-red-50 border border-red-200"
+                                                            }`}
+                                                        >
+                                                            <div className="flex justify-between items-center mb-2">
+                                                                <span className="mr-2">
+                                                                    Total
+                                                                    Duration:
+                                                                </span>
+                                                                <span
+                                                                    className={`font-bold text-sm ml-2 ${
+                                                                        isSectionSplitValid(
+                                                                            section.id
+                                                                        )
+                                                                            ? "text-green-700"
+                                                                            : "text-red-700"
+                                                                    }`}
+                                                                >
+                                                                    {(() => {
+                                                                        const totalDecimal =
+                                                                            getSectionTotalSplitDuration(
+                                                                                section.id
+                                                                            );
+                                                                        const {
+                                                                            hours: totalHours,
+                                                                            minutes:
+                                                                                totalMinutes,
+                                                                        } =
+                                                                            convertSplitDurationToHoursMinutes(
+                                                                                totalDecimal
+                                                                            );
+                                                                        return `${totalHours}h ${totalMinutes}m (${totalDecimal.toFixed(
+                                                                            2
+                                                                        )}) / ${durationHours}h ${durationMinutes}m (${formData.duration.toFixed(
+                                                                            2
+                                                                        )})`;
+                                                                    })()}
+                                                                </span>
+                                                            </div>
+                                                            {isSectionSplitValid(
+                                                                section.id
+                                                            ) ? (
+                                                                <div className="text-green-700 text-xs mt-2 flex items-center">
+                                                                    <Check className="h-3 w-3 mr-2" />
+                                                                    Duration
+                                                                    split is
+                                                                    valid
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-red-700 text-xs mt-2 space-y-1">
+                                                                    <div>
+                                                                        Total
+                                                                        must
+                                                                        equal
+                                                                        course
+                                                                        duration
+                                                                        (
+                                                                        {
+                                                                            durationHours
+                                                                        }
+                                                                        h{" "}
+                                                                        {
+                                                                            durationMinutes
+                                                                        }
+                                                                        m)
+                                                                    </div>
+                                                                    {section.splitDurations.map(
+                                                                        (
+                                                                            partDuration,
+                                                                            idx
+                                                                        ) =>
+                                                                            partDuration <=
+                                                                                0 && (
+                                                                                <div
+                                                                                    key={
+                                                                                        idx
+                                                                                    }
+                                                                                >
+                                                                                    Part{" "}
+                                                                                    {idx +
+                                                                                        1}{" "}
+                                                                                    duration
+                                                                                    must
+                                                                                    be
+                                                                                    greater
+                                                                                    than
+                                                                                    0
+                                                                                </div>
+                                                                            )
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
