@@ -1861,7 +1861,9 @@ export default function TimetableViewClassroom() {
                             const combinedAssignment = {
                                 ...baseAssignment,
                                 // Ensure we use the normalized time
-                                startTime: baseAssignment.normalizedStartTime,
+                                startTime: baseAssignment.normalizedStartTime
+                                    .split("-")[0]
+                                    .trim(),
                                 timeSlot: baseAssignment.normalizedStartTime,
                                 // Mark as combined
                                 isCombined: true,
@@ -4522,7 +4524,7 @@ export default function TimetableViewClassroom() {
                                             <th
                                                 key={day}
                                                 colSpan={timeSlots.length}
-                                                className="px-2 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border  "
+                                                className="px-2 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border "
                                             >
                                                 {day}
                                             </th>
@@ -4648,7 +4650,6 @@ export default function TimetableViewClassroom() {
                                                 Duration: {course.duration} hour
                                                 {course.duration > 1 ? "s" : ""}
                                             </p>
-
                                             <p className="text-xs mt-1 truncate text-gray-700">
                                                 Instructor: {course.instructor}
                                             </p>
