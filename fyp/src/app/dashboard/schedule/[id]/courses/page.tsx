@@ -272,7 +272,10 @@ export default function CoursesView() {
                 section.id === sectionId
                     ? {
                           ...section,
-                          splitDurations: [...section.splitDurations, formatDecimal(1)], // Default to 1 hour
+                          splitDurations: [
+                              ...section.splitDurations,
+                              formatDecimal(1),
+                          ], // Default to 1 hour
                           preferClassRoomTypes: [
                               ...(section.preferClassRoomTypes || []),
                               null,
@@ -600,7 +603,9 @@ export default function CoursesView() {
 
         const currentDuration = section.splitDurations[index];
         const { minutes } = convertSplitDurationToHoursMinutes(currentDuration);
-        const newDuration = formatDecimal(convertSplitDurationToDecimal(hours, minutes));
+        const newDuration = formatDecimal(
+            convertSplitDurationToDecimal(hours, minutes)
+        );
 
         console.log(
             `Updating section ${sectionId}, part ${index} hours to ${hours}, total: ${newDuration}`
@@ -629,7 +634,9 @@ export default function CoursesView() {
 
         const currentDuration = section.splitDurations[index];
         const { hours } = convertSplitDurationToHoursMinutes(currentDuration);
-        const newDuration = formatDecimal(convertSplitDurationToDecimal(hours, minutes));
+        const newDuration = formatDecimal(
+            convertSplitDurationToDecimal(hours, minutes)
+        );
 
         console.log(
             `Updating section ${sectionId}, part ${index} minutes to ${minutes}, total: ${newDuration}`
@@ -675,7 +682,9 @@ export default function CoursesView() {
             );
 
             if (!isNaN(hours) && !isNaN(minutes)) {
-                const newDuration = formatDecimal(convertToDecimalHours(hours, minutes));
+                const newDuration = formatDecimal(
+                    convertToDecimalHours(hours, minutes)
+                );
                 const newFormData = { ...formData, duration: newDuration };
 
                 setFormData(newFormData);
@@ -698,7 +707,9 @@ export default function CoursesView() {
             const minutes = parseInt(value === "" ? "0" : value, 10);
 
             if (!isNaN(hours) && !isNaN(minutes)) {
-                const newDuration = formatDecimal(convertToDecimalHours(hours, minutes));
+                const newDuration = formatDecimal(
+                    convertToDecimalHours(hours, minutes)
+                );
                 const newFormData = { ...formData, duration: newDuration };
 
                 setFormData(newFormData);
@@ -1154,7 +1165,11 @@ export default function CoursesView() {
 
     // Helper function to check if two decimal values are approximately equal
     // to handle floating-point precision issues
-    function isApproximatelyEqual(a: number, b: number, tolerance: number = 0.01): boolean {
+    function isApproximatelyEqual(
+        a: number,
+        b: number,
+        tolerance: number = 0.01
+    ): boolean {
         return Math.abs(a - b) < tolerance;
     }
     const handleAddCourse = async () => {
@@ -1564,7 +1579,9 @@ export default function CoursesView() {
             instructor_name: instructorName !== "" ? instructorName : undefined,
             status: course.status || "offline",
             splitDurations: hasSeparatedDurations
-                ? (course as any).separatedDurations.map((duration: number) => formatDecimal(duration))
+                ? (course as any).separatedDurations.map((duration: number) =>
+                      formatDecimal(duration)
+                  )
                 : [formatDecimal(courseDuration)],
             showSplitControls: false, // Always false since controls are always visible now
             preferClassRoomTypes: preferClassRoomTypes, // Use the array we prepared
