@@ -99,28 +99,28 @@ type Course = {
     capacity: number;
     duration: number;
     sections: {
-        prefer_classroom_id: number | null;
+        prefer_classroom_id: number | null; // Keep for backward compatibility
         id: number;
         number: string;
-        instructor_id: number | null; // Keep as nullable since schema allows null
+        instructor_id: number | null;
         status?: string | null;
         separatedDurations?: number[];
         courseHoursIds: number[];
-
-        // Remove classroom_id since it's not in the sections table
+        preferClassroomIds?: (number | null)[]; // NEW: Array of classroom preferences per courseHour
     }[];
 };
 type SchedulingUnit = {
     section_id: number;
     section_number: string;
     course: Course;
-    instructor_id: number | null; // Allow null
-    prefer_classroom_type_id: number | null;
-    classroom_id: number | null; // This will be assigned during scheduling
+    instructor_id: number | null;
+    prefer_classroom_type_id: number | null; // This will now come from courseHours
+    classroom_id: number | null;
     status?: string | null;
     duration: number;
     separationIndex: number;
     courseHours_id?: number;
+    prefer_classroom_id?: number | null; // NEW: Store the specific classroom preference from courseHours
 };
 
 // UPDATED: Added classroom_id to Assignment type
@@ -520,26 +520,26 @@ async function fetchCourses(schedule_id: number): Promise<Course[]> {
 
         const result: Course[] = [];
         for (const course of coursesData) {
-            // Get sections for this course - NO classroom_id since it's not in schema
+            // Get sections for this course
             const sectionsData = await db
                 .select({
                     id: sections.id,
                     number: sections.number,
                     instructor_id: sections.instructorId,
                     status: sections.status,
-                    prefer_classroom_id: sections.preferClassRoomId,
                 })
                 .from(sections)
                 .where(eq(sections.courseId, course.id));
 
-            // For each section, get separated durations and courseHours IDs from courseHours table
+            // For each section, get separated durations and courseHours info
             const sectionsWithSeparatedDurations = [];
             for (const section of sectionsData) {
-                // Fetch separated durations and courseHours IDs from courseHours table for this section
+                // Fetch separated durations, courseHours IDs, and classroom preferences from courseHours table
                 const courseHoursData = await db
                     .select({
                         id: courseHours.id,
                         separatedDuration: courseHours.separatedDuration,
+                        prefer_classroom_id: courseHours.preferClassRoomId,
                     })
                     .from(courseHours)
                     .where(eq(courseHours.sectionId, section.id))
@@ -547,6 +547,7 @@ async function fetchCourses(schedule_id: number): Promise<Course[]> {
 
                 let separatedDurations: number[] = [];
                 let courseHoursIds: number[] = [];
+                let preferClassroomIds: (number | null)[] = [];
 
                 if (courseHoursData.length > 0) {
                     courseHoursData.forEach((ch) => {
@@ -556,6 +557,7 @@ async function fetchCourses(schedule_id: number): Promise<Course[]> {
                         ) {
                             separatedDurations.push(ch.separatedDuration);
                             courseHoursIds.push(ch.id);
+                            preferClassroomIds.push(ch.prefer_classroom_id);
                         }
                     });
 
@@ -566,13 +568,16 @@ async function fetchCourses(schedule_id: number): Promise<Course[]> {
                             section.number
                         }: durations [${separatedDurations.join(
                             ", "
-                        )}] with IDs [${courseHoursIds.join(", ")}]`
+                        )}] with IDs [${courseHoursIds.join(
+                            ", "
+                        )}] and preferences [${preferClassroomIds.join(", ")}]`
                     );
                 }
 
                 // If no separated durations found in courseHours, use the full course duration
                 if (separatedDurations.length === 0) {
                     separatedDurations = [course.duration];
+                    preferClassroomIds = [null]; // No preference for default duration
                     console.log(
                         `No separated durations found for section ${section.number}, using full duration: ${course.duration}`
                     );
@@ -582,6 +587,7 @@ async function fetchCourses(schedule_id: number): Promise<Course[]> {
                     ...section,
                     separatedDurations: separatedDurations,
                     courseHoursIds: courseHoursIds,
+                    preferClassroomIds: preferClassroomIds, // NEW: Store classroom preferences per courseHour
                 });
             }
 
@@ -594,7 +600,7 @@ async function fetchCourses(schedule_id: number): Promise<Course[]> {
         }
 
         console.log(
-            `Fetched ${result.length} courses with separated duration information`
+            `Fetched ${result.length} courses with separated duration and classroom preference information`
         );
         return result;
     } catch (error) {
@@ -1035,6 +1041,7 @@ function createSchedulingUnits(coursesData: Course[]): SchedulingUnit[] {
                 course.duration,
             ];
             const courseHoursIds = section.courseHoursIds || [];
+            const preferClassroomIds = section.preferClassroomIds || [];
 
             // Validate that separated durations sum to total course duration
             if (
@@ -1061,17 +1068,22 @@ function createSchedulingUnits(coursesData: Course[]): SchedulingUnit[] {
                     separatedDurations.length
                 } scheduling units for section ${section.number} (${
                     course.code
-                }): [${separatedDurations.join(", ")}] hours`
+                }): [${separatedDurations.join(
+                    ", "
+                )}] hours with preferences [${preferClassroomIds.join(", ")}]`
             );
 
             // Create a scheduling unit for each separated duration
             separatedDurations.forEach((duration, index) => {
+                const preferClassroomId = preferClassroomIds[index] || null;
+
                 schedulingUnits.push({
                     section_id: section.id,
                     section_number: section.number,
                     course: course,
-                    instructor_id: section.instructor_id, // Keep as nullable
-                    prefer_classroom_type_id: section.prefer_classroom_id,
+                    instructor_id: section.instructor_id,
+                    prefer_classroom_type_id: preferClassroomId, // Will be resolved to type later
+                    prefer_classroom_id: preferClassroomId, // Store the actual classroom preference
                     classroom_id: null, // Will be assigned during scheduling
                     status: section.status,
                     duration: duration,
@@ -1082,7 +1094,9 @@ function createSchedulingUnits(coursesData: Course[]): SchedulingUnit[] {
                 console.log(
                     `  - Unit ${index + 1}: ${duration} hour(s) for section ${
                         section.number
-                    } (courseHours_id: ${courseHoursIds[index] || "new"})`
+                    } (courseHours_id: ${
+                        courseHoursIds[index] || "new"
+                    }, prefer_classroom: ${preferClassroomId || "none"})`
                 );
             });
         }
@@ -1092,6 +1106,18 @@ function createSchedulingUnits(coursesData: Course[]): SchedulingUnit[] {
         `Created ${schedulingUnits.length} total scheduling units from ${coursesData.length} courses`
     );
     return schedulingUnits;
+}
+
+async function resolveClassroomTypeFromId(
+    preferClassroomId: number | null,
+    classroomsData: any[]
+): Promise<number | null> {
+    if (!preferClassroomId) return null;
+
+    const classroom = classroomsData.find(
+        (cls) => cls.id === preferClassroomId
+    );
+    return classroom ? classroom.classroom_type_id : null;
 }
 
 function getSuitableClassroomsForUnit(
@@ -1122,29 +1148,42 @@ function getSuitableClassroomsForUnit(
         return hasEnoughSeats && meetsCapacityRequirement;
     });
 
-    // Separate classrooms by type preference
-    const preferredTypeClassrooms = [];
+    // Separate classrooms by preference - first by specific classroom, then by type
+    const specificPreferredClassrooms = [];
+    const typePreferredClassrooms = [];
     const otherSuitableClassrooms = [];
 
     for (const classroom of capacitySuitableClassrooms) {
+        // Check for specific classroom preference first
         if (
+            unit.prefer_classroom_id &&
+            classroom.id === unit.prefer_classroom_id
+        ) {
+            specificPreferredClassrooms.push(classroom);
+        }
+        // Then check for classroom type preference
+        else if (
             unit.prefer_classroom_type_id &&
             classroom.classroom_type_id === unit.prefer_classroom_type_id
         ) {
-            preferredTypeClassrooms.push(classroom);
+            typePreferredClassrooms.push(classroom);
         } else {
             otherSuitableClassrooms.push(classroom);
         }
     }
 
-    // Return preferred type first, then others
+    // Return in order of preference: specific > type > others
     const allSuitable = [
-        ...preferredTypeClassrooms,
+        ...specificPreferredClassrooms,
+        ...typePreferredClassrooms,
         ...otherSuitableClassrooms,
     ];
 
     console.log(`Found ${allSuitable.length} suitable classrooms:`);
-    console.log(`  - Preferred type: ${preferredTypeClassrooms.length}`);
+    console.log(
+        `  - Specific preference: ${specificPreferredClassrooms.length}`
+    );
+    console.log(`  - Type preference: ${typePreferredClassrooms.length}`);
     console.log(`  - Other suitable: ${otherSuitableClassrooms.length}`);
 
     return allSuitable;
@@ -1572,6 +1611,26 @@ function findGapTolerantCombinations(
     return combinations;
 }
 
+async function updateSchedulingUnitsWithClassroomTypes(
+    units: SchedulingUnit[],
+    classroomsData: any[]
+): Promise<SchedulingUnit[]> {
+    return units.map((unit) => {
+        if (unit.prefer_classroom_id) {
+            const classroom = classroomsData.find(
+                (cls) => cls.id === unit.prefer_classroom_id
+            );
+            if (classroom) {
+                unit.prefer_classroom_type_id = classroom.classroom_type_id;
+                console.log(
+                    `Resolved classroom ID ${unit.prefer_classroom_id} to type ${classroom.classroom_type_id} for unit ${unit.section_number}`
+                );
+            }
+        }
+        return unit;
+    });
+}
+
 function generateScheduleWithErrorTracking(
     coursesData: Course[],
     timeConstraints: TimeConstraint[],
@@ -1582,21 +1641,39 @@ function generateScheduleWithErrorTracking(
     assignments: Assignment[];
     errors: SchedulingError[];
     warnings: string[];
-    failedUnits: { unit: SchedulingUnit; courseHoursId?: number }[]; // New: track failed units for DB updates
+    failedUnits: { unit: SchedulingUnit; courseHoursId?: number }[];
 } {
-    console.log("=== STARTING ENHANCED SCHEDULE GENERATION ===");
+    console.log(
+        "=== STARTING ENHANCED SCHEDULE GENERATION WITH COURSEHOURS PREFERENCES ==="
+    );
 
     const assignments: Assignment[] = [];
     const errors: SchedulingError[] = [];
     const warnings: string[] = [];
-    const failedUnits: { unit: SchedulingUnit; courseHoursId?: number }[] = []; // New
+    const failedUnits: { unit: SchedulingUnit; courseHoursId?: number }[] = [];
     const scheduleGrid = initializeScheduleGrid(classroomsData, timeSlots);
     const instructorGrid = initializeInstructorGrid(instructorsData, timeSlots);
 
     // Create scheduling units from courses
-    const schedulingUnits = createSchedulingUnits(coursesData);
+    let schedulingUnits = createSchedulingUnits(coursesData);
 
-    // Sort by duration (longest first) and then by priority
+    // Resolve classroom types for units that have specific classroom preferences
+    schedulingUnits = schedulingUnits.map((unit) => {
+        if (unit.prefer_classroom_id) {
+            const classroom = classroomsData.find(
+                (cls) => cls.id === unit.prefer_classroom_id
+            );
+            if (classroom) {
+                unit.prefer_classroom_type_id = classroom.classroom_type_id;
+                console.log(
+                    `Resolved classroom ID ${unit.prefer_classroom_id} to type ${classroom.classroom_type_id} for unit ${unit.section_number}`
+                );
+            }
+        }
+        return unit;
+    });
+
+    // Sort by duration and priority as before
     schedulingUnits.sort((a, b) => {
         if (Math.abs(b.duration - a.duration) > 0.01) {
             return b.duration - a.duration;
@@ -1613,14 +1690,16 @@ function generateScheduleWithErrorTracking(
     });
 
     console.log(
-        `Processing ${schedulingUnits.length} scheduling units with enhanced error tracking...`
+        `Processing ${schedulingUnits.length} scheduling units with courseHours-based preferences...`
     );
 
     for (const unit of schedulingUnits) {
         console.log(
             `\nProcessing: Section ${unit.section_number} of ${
                 unit.course.code
-            } (${unit.duration}h, Part ${unit.separationIndex + 1})`
+            } (${unit.duration}h, Part ${
+                unit.separationIndex + 1
+            }, Prefer Classroom: ${unit.prefer_classroom_id || "none"})`
         );
 
         const result = scheduleSchedulingUnitWithRetry(
@@ -1643,7 +1722,6 @@ function generateScheduleWithErrorTracking(
         } else {
             errors.push(result.error!);
 
-            // Add to failed units if DB nullification is needed
             if (result.shouldNullifyDB) {
                 failedUnits.push({
                     unit: unit,
@@ -1658,13 +1736,14 @@ function generateScheduleWithErrorTracking(
             );
         }
 
-        // Add any warnings
         if (result.warnings) {
             warnings.push(...result.warnings);
         }
     }
 
-    console.log(`\n=== ENHANCED SCHEDULE GENERATION COMPLETED ===`);
+    console.log(
+        `\n=== ENHANCED SCHEDULE GENERATION WITH COURSEHOURS PREFERENCES COMPLETED ===`
+    );
     console.log(
         `Generated ${assignments.length} assignments out of ${schedulingUnits.length} units.`
     );
@@ -1839,12 +1918,12 @@ function assignClassroomToSection(
 }
 
 function assignClassroomToSectionWithTypePreference(
-    section: any,
+    unit: SchedulingUnit,
     classroomsData: any[],
     excludeClassroomIds: number[] = []
 ): number | null {
     console.log(
-        `=== ASSIGNING CLASSROOM WITH PRIORITY-BASED TYPE PREFERENCE TO SECTION ${section.section_number} ===`
+        `=== ASSIGNING CLASSROOM WITH COURSEOUR-BASED PREFERENCES TO UNIT ${unit.section_number} ===`
     );
 
     if (excludeClassroomIds.length > 0) {
@@ -1856,7 +1935,7 @@ function assignClassroomToSectionWithTypePreference(
     }
 
     // Handle online sections first
-    if (section.status === "online") {
+    if (unit.status === "online") {
         const onlineClassroomIds = [-1, -2, -3];
         const availableOnlineIds = onlineClassroomIds.filter(
             (id) => !excludeClassroomIds.includes(id)
@@ -1889,31 +1968,22 @@ function assignClassroomToSectionWithTypePreference(
     }
 
     // Get course capacity requirements
-    const courseCapacity = getCourseCapacity(section.course);
+    const courseCapacity = getCourseCapacity(unit.course);
     console.log(`📊 Course capacity needed: ${courseCapacity}`);
 
-    // Filter ALL classrooms by capacity requirements (regardless of type)
+    // Filter ALL classrooms by capacity requirements
     const capacitySuitableClassrooms = availableClassrooms.filter(
         (classroom) => {
             const hasEnoughSeats =
-                classroom.capacity >= (section.course.capacity || 0);
+                classroom.capacity >= (unit.course.capacity || 0);
             const meetsCapacityRequirement =
                 courseCapacity === 0 || classroom.capacity >= courseCapacity;
-
-            const isSuitable = hasEnoughSeats && meetsCapacityRequirement;
-
-            if (!isSuitable) {
-                console.log(
-                    `   ❌ ${classroom.code}: capacity ${classroom.capacity} insufficient (need: ${courseCapacity})`
-                );
-            }
-
-            return isSuitable;
+            return hasEnoughSeats && meetsCapacityRequirement;
         }
     );
 
     console.log(
-        `📊 Found ${capacitySuitableClassrooms.length} capacity-suitable classrooms (any type)`
+        `📊 Found ${capacitySuitableClassrooms.length} capacity-suitable classrooms`
     );
 
     if (capacitySuitableClassrooms.length === 0) {
@@ -1921,92 +1991,88 @@ function assignClassroomToSectionWithTypePreference(
         return null;
     }
 
-    // Check if section has a classroom type preference
+    // PRIORITY 1: Check for specific classroom preference from courseHours
+    if (unit.prefer_classroom_id) {
+        console.log(
+            `🎯 HIGHEST PRIORITY: Unit prefers specific classroom ID ${unit.prefer_classroom_id}`
+        );
+
+        const specificPreferredClassroom = capacitySuitableClassrooms.find(
+            (classroom) => classroom.id === unit.prefer_classroom_id
+        );
+
+        if (specificPreferredClassroom) {
+            console.log(
+                `✅ SPECIFIC CLASSROOM ASSIGNED: ${specificPreferredClassroom.code} (ID: ${specificPreferredClassroom.id})`
+            );
+            console.log(
+                `🎯 Highest priority satisfied - used preferred specific classroom!`
+            );
+            return specificPreferredClassroom.id;
+        } else {
+            console.log(
+                `⚠️ Preferred specific classroom ${unit.prefer_classroom_id} is not available or doesn't meet capacity`
+            );
+        }
+    }
+
+    // PRIORITY 2: Check for classroom type preference
     const hasTypePreference =
-        section.prefer_classroom_type_id !== null &&
-        section.prefer_classroom_type_id !== undefined;
+        unit.prefer_classroom_type_id !== null &&
+        unit.prefer_classroom_type_id !== undefined;
 
     if (hasTypePreference) {
         console.log(
-            `🎯 PRIORITY: Section prefers classroom type ${section.prefer_classroom_type_id}`
+            `🎯 SECONDARY PRIORITY: Unit prefers classroom type ${unit.prefer_classroom_type_id}`
         );
 
-        // Find preferred type classrooms from capacity-suitable ones
         const preferredTypeClassrooms = capacitySuitableClassrooms.filter(
             (classroom) =>
-                classroom.classroom_type_id === section.prefer_classroom_type_id
-        );
-
-        console.log(
-            `🎯 Found ${preferredTypeClassrooms.length} classrooms of preferred type ${section.prefer_classroom_type_id}`
+                classroom.classroom_type_id === unit.prefer_classroom_type_id
         );
 
         if (preferredTypeClassrooms.length > 0) {
-            // PRIORITY: Select from preferred type classrooms first
             const randomIndex = Math.floor(
                 Math.random() * preferredTypeClassrooms.length
             );
             const selectedClassroom = preferredTypeClassrooms[randomIndex];
 
             console.log(
-                `✅ PREFERRED TYPE ASSIGNED: ${selectedClassroom.code} (Type: ${selectedClassroom.classroom_type_id}, Capacity: ${selectedClassroom.capacity})`
+                `✅ TYPE PREFERENCE ASSIGNED: ${selectedClassroom.code} (Type: ${selectedClassroom.classroom_type_id})`
             );
             console.log(
-                `🎯 Priority satisfied - used preferred classroom type!`
+                `🎯 Secondary priority satisfied - used preferred classroom type!`
             );
-
             return selectedClassroom.id;
         } else {
             console.log(
-                `⚠️ No classrooms of preferred type ${section.prefer_classroom_type_id} are available`
-            );
-            console.log(
-                "📋 Will assign ANY suitable classroom type as fallback..."
+                `⚠️ No classrooms of preferred type ${unit.prefer_classroom_type_id} are available`
             );
         }
-    } else {
-        console.log("📋 No classroom type preference specified");
     }
 
-    // FALLBACK: Select from ANY capacity-suitable classroom (any type)
+    // FALLBACK: Select from ANY capacity-suitable classroom
     console.log(
-        `📋 FALLBACK ASSIGNMENT: Selecting from ${capacitySuitableClassrooms.length} suitable classrooms (any type)`
+        `📋 FALLBACK ASSIGNMENT: Selecting from any suitable classroom`
     );
 
-    // Log available classroom types for transparency
-    const typeBreakdown = new Map<number, string[]>();
-    capacitySuitableClassrooms.forEach((classroom) => {
-        const typeId = classroom.classroom_type_id;
-        if (!typeBreakdown.has(typeId)) {
-            typeBreakdown.set(typeId, []);
-        }
-        typeBreakdown.get(typeId)!.push(classroom.code);
-    });
-
-    console.log("📋 Available classroom types for fallback:");
-    typeBreakdown.forEach((classrooms, typeId) => {
-        console.log(`   Type ${typeId}: ${classrooms.join(", ")}`);
-    });
-
-    // Randomly select from ALL suitable classrooms
     const randomIndex = Math.floor(
         Math.random() * capacitySuitableClassrooms.length
     );
     const assignedClassroom = capacitySuitableClassrooms[randomIndex];
 
     console.log(
-        `✅ ASSIGNED: ${assignedClassroom.code} (Type: ${assignedClassroom.classroom_type_id}, Capacity: ${assignedClassroom.capacity})`
+        `✅ FALLBACK ASSIGNED: ${assignedClassroom.code} (Type: ${assignedClassroom.classroom_type_id})`
     );
 
-    if (hasTypePreference) {
+    if (unit.prefer_classroom_id || hasTypePreference) {
         console.log(
-            `⚠️ Note: Preferred type ${section.prefer_classroom_type_id} was full, assigned type ${assignedClassroom.classroom_type_id} instead`
+            `⚠️ Note: Preferences were not available, used fallback assignment`
         );
     }
 
     return assignedClassroom.id;
 }
-
 function scheduleWithPriorityBasedClassroomAssignment(
     unit: SchedulingUnit,
     timeConstraints: TimeConstraint[],
