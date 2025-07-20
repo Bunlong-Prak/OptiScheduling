@@ -222,6 +222,18 @@ export default function TimetableViewClassroom() {
         setMessages([]);
     };
 
+    const removeMessage = (messageId: string) => {
+        // Clear the timer for this message
+        const timer = messageTimersRef.current.get(messageId);
+        if (timer) {
+            clearTimeout(timer);
+            messageTimersRef.current.delete(messageId);
+        }
+
+        // Remove the message
+        setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+    };
+
     const addMessage = (type: MessageType, description: string) => {
         // Clear any existing messages first to prevent duplicates
         clearAllMessages();
@@ -240,18 +252,6 @@ export default function TimetableViewClassroom() {
         }, 5000);
 
         messageTimersRef.current.set(newMessage.id, timer);
-    };
-
-    const removeMessage = (messageId: string) => {
-        // Clear the timer for this message
-        const timer = messageTimersRef.current.get(messageId);
-        if (timer) {
-            clearTimeout(timer);
-            messageTimersRef.current.delete(messageId);
-        }
-
-        // Remove the message
-        setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
     };
 
     const showSuccessMessage = (description: string) => {
@@ -299,7 +299,7 @@ export default function TimetableViewClassroom() {
     );
     const params = useParams();
 
-    const normalizeTimeSlot = (timeSlot: any) => {
+    const normalizeTimeSlot = useCallback((timeSlot: any) => {
         if (!timeSlot) return "";
 
         if (typeof timeSlot === "string") {
@@ -321,7 +321,7 @@ export default function TimetableViewClassroom() {
         }
 
         return timeSlot.toString();
-    };
+    }, []);
 
     const normalizeTime = (time: any) => {
         if (!time) return "";
@@ -727,195 +727,191 @@ export default function TimetableViewClassroom() {
         setSearchQuery("");
     };
 
-    useEffect(() => {
-        const fetchInstructorConstraints = async () => {
-            try {
-                const scheduleId = params.id;
-                const response = await fetch(
-                    `/api/time-constraints?scheduleId=${scheduleId}`
-                );
+    const fetchInstructorConstraints = async () => {
+        try {
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/time-constraints?scheduleId=${scheduleId}`
+            );
 
-                if (response.ok) {
-                    const constraintsData = await response.json();
-                    setInstructorConstraints(constraintsData);
-                } else {
-                    console.error("Failed to fetch instructor constraints");
-                }
-            } catch (error) {
-                console.error("Error fetching instructor constraints:", error);
+            if (response.ok) {
+                const constraintsData = await response.json();
+                setInstructorConstraints(constraintsData);
+            } else {
+                console.error("Failed to fetch instructor constraints");
             }
-        };
-
-        if (params.id) {
-            fetchInstructorConstraints();
+        } catch (error) {
+            console.error("Error fetching instructor constraints:", error);
         }
-    }, [params.id]);
+    };
 
-    useEffect(() => {
-        const fetchTimeSlots = async () => {
-            try {
-                const scheduleId = params.id;
-                const response = await fetch(
-                    `/api/schedule-time-slots?scheduleId=${scheduleId}`
+    const fetchTimeSlots = async () => {
+        try {
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/schedule-time-slots?scheduleId=${scheduleId}`
+            );
+
+            if (response.ok) {
+                const schedulesData = await response.json();
+                const currentSchedule = schedulesData.find(
+                    (s: any) => s.id.toString() === scheduleId
                 );
 
-                if (response.ok) {
-                    const schedulesData = await response.json();
-                    const currentSchedule = schedulesData.find(
-                        (s: any) => s.id.toString() === scheduleId
-                    );
-
-                    if (currentSchedule && currentSchedule.timeSlots) {
-                        const apiTimeSlots = currentSchedule.timeSlots.map(
-                            (slot: any) => {
-                                const formattedSlot: any = {
-                                    id: slot.id,
-                                    time_slot:
-                                        slot.time_slot ||
-                                        (slot.startTime && slot.endTime
-                                            ? `${slot.startTime}-${slot.endTime}`
-                                            : slot.startTime),
-                                    startTime: slot.startTime,
-                                    endTime: slot.endTime,
-                                };
-
-                                if (
-                                    !slot.startTime &&
-                                    !slot.endTime &&
-                                    slot.time_slot &&
-                                    slot.time_slot.includes("-")
-                                ) {
-                                    const parsed = parseTimeSlot(
-                                        slot.time_slot
-                                    );
-                                    formattedSlot.startTime = parsed.startTime;
-                                    formattedSlot.endTime = parsed.endTime;
-                                }
-
-                                return formattedSlot;
-                            }
-                        );
-
-                        const isConsecutive =
-                            areTimeSlotsConsecutive(apiTimeSlots);
-                        setTimeSlots(apiTimeSlots);
-                    } else {
-                        console.error(
-                            "No time slots found for schedule",
-                            scheduleId
-                        );
-                    }
-                } else {
-                    console.error("Failed to fetch schedules");
-                }
-            } catch (error) {
-                console.error("Error fetching time slots:", error);
-            }
-        };
-
-        const fetchClassrooms = async () => {
-            try {
-                const scheduleId = params.id;
-                const response = await fetch(
-                    `/api/classrooms?scheduleId=${scheduleId}`
-                );
-                if (response.ok) {
-                    const data = await response.json();
-
-                    const virtualOnlineClassrooms = [
-                        { id: -1, code: "Online", capacity: 999 },
-                        { id: -2, code: "Online", capacity: 999 },
-                        { id: -3, code: "Online", capacity: 999 },
-                        { id: -4, code: "Online", capacity: 999 },
-                        { id: -5, code: "Online", capacity: 999 },
-                    ];
-
-                    setClassrooms([...data, ...virtualOnlineClassrooms]);
-                }
-            } catch (error) {
-                console.error("Error fetching classrooms:", error);
-            }
-        };
-
-        fetchTimeSlots();
-        fetchClassrooms();
-    }, [params.id]);
-
-    useEffect(() => {
-        const fetchCourses = async () => {
-            setIsLoading(true);
-            try {
-                const scheduleId = params.id;
-                const response = await fetch(
-                    `/api/courses?scheduleId=${scheduleId}`
-                );
-                if (response.ok) {
-                    const coursesData: Course[] = await response.json();
-
-                    const colorMap = new Map<
-                        string,
-                        { color: string; originalColor?: string }
-                    >();
-
-                    const transformedCourses = coursesData.map(
-                        (course: any) => {
-                            const colorClassName =
-                                colors_class[course.color] ||
-                                getConsistentCourseColor(course.code);
-
-                            colorMap.set(course.code, {
-                                color: colorClassName,
-                                originalColor: course.color,
-                            });
-
-                            const isOnlineCourse =
-                                course.status === "online" ||
-                                course.isOnline === true;
-
-                            return {
-                                id: course.id,
-                                code: course.code,
-                                sectionId: course.sectionId,
-                                name: course.title,
-                                color: colorClassName,
-                                duration:
-                                    course.separatedDuration || course.duration,
-                                instructor: `${course.firstName || ""} ${
-                                    course.lastName || ""
-                                }`.trim(),
-                                section: course.section,
-                                room: isOnlineCourse
-                                    ? "Online"
-                                    : course.classroom,
-                                uniqueId: `${course.code}-${course.section}-${course.id}`,
-                                majors: course.major || [],
-                                originalColor: course.color,
-                                status: isOnlineCourse ? "online" : "offline",
-                                isOnline: isOnlineCourse,
-                                day: course.day,
-                                timeSlot: course.timeSlot,
-                                capacity: course.capacity,
+                if (currentSchedule && currentSchedule.timeSlots) {
+                    const apiTimeSlots = currentSchedule.timeSlots.map(
+                        (slot: any) => {
+                            const formattedSlot: any = {
+                                id: slot.id,
+                                time_slot:
+                                    slot.time_slot ||
+                                    (slot.startTime && slot.endTime
+                                        ? `${slot.startTime}-${slot.endTime}`
+                                        : slot.startTime),
+                                startTime: slot.startTime,
+                                endTime: slot.endTime,
                             };
+
+                            if (
+                                !slot.startTime &&
+                                !slot.endTime &&
+                                slot.time_slot &&
+                                slot.time_slot.includes("-")
+                            ) {
+                                const parsed = parseTimeSlot(
+                                    slot.time_slot
+                                );
+                                formattedSlot.startTime = parsed.startTime;
+                                formattedSlot.endTime = parsed.endTime;
+                            }
+
+                            return formattedSlot;
                         }
                     );
 
-                    console.log("Transformed courses:", transformedCourses);
-
-                    setOriginalCourseColors(colorMap);
-                    setAvailableCourses(transformedCourses);
+                    const isConsecutive =
+                        areTimeSlotsConsecutive(apiTimeSlots);
+                    setTimeSlots(apiTimeSlots);
                 } else {
-                    console.error("Failed to fetch courses");
-                    setAvailableCourses([]);
+                    console.error(
+                        "No time slots found for schedule",
+                        scheduleId
+                    );
                 }
-            } catch (error) {
-                console.error("Error fetching courses:", error);
-                setAvailableCourses([]);
-            } finally {
-                setIsLoading(false);
+            } else {
+                console.error("Failed to fetch schedules");
             }
-        };
+        } catch (error) {
+            console.error("Error fetching time slots:", error);
+        }
+    };
 
-        fetchCourses();
+    const fetchClassrooms = async () => {
+        try {
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/classrooms?scheduleId=${scheduleId}`
+            );
+            if (response.ok) {
+                const data = await response.json();
+
+                const virtualOnlineClassrooms = [
+                    { id: -1, code: "Online", capacity: 999 },
+                    { id: -2, code: "Online", capacity: 999 },
+                    { id: -3, code: "Online", capacity: 999 },
+                    { id: -4, code: "Online", capacity: 999 },
+                    { id: -5, code: "Online", capacity: 999 },
+                ];
+
+                setClassrooms([...data, ...virtualOnlineClassrooms]);
+            }
+        } catch (error) {
+            console.error("Error fetching classrooms:", error);
+        }
+    };
+
+    const fetchCourses = async () => {
+        setIsLoading(true);
+        try {
+            const scheduleId = params.id;
+            const response = await fetch(
+                `/api/courses?scheduleId=${scheduleId}`
+            );
+            if (response.ok) {
+                const coursesData: Course[] = await response.json();
+
+                const colorMap = new Map<
+                    string,
+                    { color: string; originalColor?: string }
+                >();
+
+                const transformedCourses = coursesData.map(
+                    (course: any) => {
+                        const colorClassName =
+                            colors_class[course.color] ||
+                            getConsistentCourseColor(course.code);
+
+                        colorMap.set(course.code, {
+                            color: colorClassName,
+                            originalColor: course.color,
+                        });
+
+                        const isOnlineCourse =
+                            course.status === "online" ||
+                            course.isOnline === true;
+
+                        return {
+                            id: course.id,
+                            code: course.code,
+                            sectionId: course.sectionId,
+                            name: course.title,
+                            color: colorClassName,
+                            duration:
+                                course.separatedDuration || course.duration,
+                            instructor: `${course.firstName || ""} ${
+                                course.lastName || ""
+                            }`.trim(),
+                            section: course.section,
+                            room: isOnlineCourse
+                                ? "Online"
+                                : course.classroom,
+                            uniqueId: `${course.code}-${course.section}-${course.id}`,
+                            majors: course.major || [],
+                            originalColor: course.color,
+                            status: isOnlineCourse ? "online" : "offline",
+                            isOnline: isOnlineCourse,
+                            day: course.day,
+                            timeSlot: course.timeSlot,
+                            capacity: course.capacity,
+                        };
+                    }
+                );
+
+                console.log("Transformed courses:", transformedCourses);
+
+                setOriginalCourseColors(colorMap);
+                setAvailableCourses(transformedCourses);
+            } else {
+                console.error("Failed to fetch courses");
+                setAvailableCourses([]);
+            }
+        } catch (error) {
+            console.error("Error fetching courses:", error);
+            setAvailableCourses([]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (params.id) {
+            Promise.all([
+                fetchInstructorConstraints(),
+                fetchTimeSlots(),
+                fetchClassrooms(),
+                fetchCourses(),
+            ]);
+        }
     }, [params.id]);
 
     useEffect(() => {
@@ -1395,11 +1391,11 @@ export default function TimetableViewClassroom() {
         );
     };
 
-    function calculateSlotsNeeded(
+    const calculateSlotsNeeded = useCallback((
         durationHours: number,
         timeSlots: any[],
         startIndex: number
-    ) {
+    ) => {
         if (timeSlots.length === 0 || startIndex >= timeSlots.length) return 1;
 
         const firstSlotDuration = getSlotDurationHours(timeSlots[0]);
@@ -1425,9 +1421,9 @@ export default function TimetableViewClassroom() {
 
             return slotsNeeded;
         }
-    }
+    }, []);
 
-    const getSlotDurationHours = (slot: any): number => {
+    const getSlotDurationHours = useCallback((slot: any): number => {
         // Try to get duration from time_slot field first
         if (slot.time_slot && slot.time_slot.includes("-")) {
             const [start, end] = slot.time_slot
@@ -1447,7 +1443,7 @@ export default function TimetableViewClassroom() {
 
         // Default to 1 hour if no duration info available
         return 1;
-    };
+    }, []);
 
     const ErrorBanner = ({
         errors,
@@ -1751,10 +1747,10 @@ export default function TimetableViewClassroom() {
         return 0;
     };
 
-    function calculateEndTime(startTime: string, durationHours: number) {
+    const calculateEndTime = useCallback((startTime: string, durationHours: number) => {
         const startHour = parseInt(startTime);
         return (startHour + durationHours).toString();
-    }
+    }, []);
 
     const handleDragStart = (course: TimetableCourse) => {
         setDraggedCourse(course);
@@ -1771,7 +1767,7 @@ export default function TimetableViewClassroom() {
         setIsDraggingToAvailable(false);
     };
 
-    const autoCombineCourses = (assignmentsData: any[]): any[] => {
+    const autoCombineCourses = useCallback((assignmentsData: any[]): any[] => {
         console.log(
             "=== AUTO-COMBINING COURSES WITH SAME INSTRUCTOR AND DURATION ==="
         );
@@ -1894,7 +1890,7 @@ export default function TimetableViewClassroom() {
             `=== AUTO-COMBINE COMPLETE: ${assignmentsData.length} → ${combinedAssignments.length} ===`
         );
         return combinedAssignments;
-    };
+    }, [normalizeTimeSlot]); // Add dependencies for useCallback
     const saveAllAssignments = async () => {
         try {
             const validAssignedCourses =
@@ -3005,21 +3001,21 @@ export default function TimetableViewClassroom() {
             }
 
             if (data.schedule && Array.isArray(data.schedule)) {
-                // After successful generation, re-fetch assignments to update the timetable
-                await fetchTimetableAssignments();
+                // After successful generation, refetch ALL data to ensure consistency
+                await refetchAllData();
                 setScheduleGenerated(true);
 
                 // Show main success/partial success message
                 if (data.success) {
                     showSuccessMessage(
-                        `Schedule generated successfully! ${data.stats.scheduledAssignments} courses scheduled.`
+                        `Schedule generated successfully! ${data.stats.scheduledAssignments} courses scheduled. All data refreshed.`
                     );
                 } else {
                     const successCount = data.stats.scheduledAssignments;
                     const failedCount = data.stats.failedAssignments;
 
                     showSuccessMessage(
-                        `Partial schedule generated: ${successCount} courses scheduled, ${failedCount} failed. Check details above.`
+                        `Partial schedule generated: ${successCount} courses scheduled, ${failedCount} failed. All data refreshed. Check details above.`
                     );
                 }
             } else {
@@ -3249,100 +3245,17 @@ export default function TimetableViewClassroom() {
             console.log("Raw assignments data:", assignmentsData);
             console.log("Raw assignments count:", assignmentsData.length);
 
-            // 🔥 CRITICAL FIX: Collect ALL assigned course IDs BEFORE any processing
-            const allAssignedCourseIds = new Set<number>();
-
-            console.log(
-                "=== COLLECTING ALL ASSIGNED COURSE IDS BEFORE PROCESSING ==="
-            );
-            assignmentsData.forEach((assignment: any, index: number) => {
-                if (assignment.id) {
-                    allAssignedCourseIds.add(assignment.id);
-                    console.log(
-                        `Raw assignment ${index + 1}: ID ${
-                            assignment.id
-                        }, Code: ${assignment.code}`
-                    );
-                }
-
-                // Also check for any existing combined course data in the raw response
-                if (
-                    assignment.combinedCourses &&
-                    Array.isArray(assignment.combinedCourses)
-                ) {
-                    assignment.combinedCourses.forEach((combined: any) => {
-                        if (combined.id) {
-                            allAssignedCourseIds.add(combined.id);
-                            console.log(
-                                `  Combined course ID: ${combined.id}, Code: ${combined.code}`
-                            );
-                        }
-                    });
-                }
-
-                if (
-                    assignment.combinedIds &&
-                    Array.isArray(assignment.combinedIds)
-                ) {
-                    assignment.combinedIds.forEach((id: number) => {
-                        if (id) {
-                            allAssignedCourseIds.add(id);
-                            console.log(`  Combined ID: ${id}`);
-                        }
-                    });
-                }
-            });
-
-            console.log("=== COMPLETE LIST OF ASSIGNED COURSE IDS ===");
-            console.log(
-                "Total unique assigned course IDs:",
-                allAssignedCourseIds.size
-            );
-            console.log(
-                "All assigned course IDs:",
-                Array.from(allAssignedCourseIds).sort()
-            );
-
-            // 🔥 FILTER AVAILABLE COURSES IMMEDIATELY BEFORE PROCESSING
-            console.log(
-                "=== FILTERING AVAILABLE COURSES BEFORE PROCESSING ==="
-            );
-            setAvailableCourses((prev) => {
-                const beforeCount = prev.length;
-                console.log("Available courses BEFORE filtering:", beforeCount);
-
-                const filtered = prev.filter((course) => {
-                    const isAssigned = allAssignedCourseIds.has(course.id);
-                    console.log(
-                        `Checking course ${course.code} (ID: ${course.id}): ${
-                            isAssigned
-                                ? "ASSIGNED - FILTERING OUT"
-                                : "NOT ASSIGNED - KEEPING"
-                        }`
-                    );
-                    return !isAssigned;
-                });
-
-                console.log(
-                    `Available courses filtered: ${beforeCount} → ${filtered.length}`
-                );
-                console.log(
-                    "Remaining available courses:",
-                    filtered.map((c) => `${c.code} (ID: ${c.id})`)
-                );
-
-                return filtered;
-            });
-
-            // Now process assignments and auto-combine courses
-            const newSchedule: TimetableGrid = {};
-            const newAssignedCourses: TimetableCourse[] = [];
-
+            // Process assignments and auto-combine courses FIRST to determine what's actually placed
             const processedAssignments = autoCombineCourses(assignmentsData);
             console.log(
                 "Processed assignments after auto-combine:",
                 processedAssignments.length
             );
+
+            // Now process assignments and create schedule entries
+            const newSchedule: TimetableGrid = {};
+            const newAssignedCourses: TimetableCourse[] = [];
+            const actuallyPlacedCourseIds = new Set<number>();
 
             // Process each assignment and create schedule entries
             processedAssignments.forEach((assignment: any) => {
@@ -3544,6 +3457,17 @@ export default function TimetableViewClassroom() {
                     )
                 ) {
                     newAssignedCourses.push({ ...course });
+                    // Track this course as actually placed
+                    actuallyPlacedCourseIds.add(courseHourId);
+                    
+                    // Also track combined courses if any
+                    if (isCombined && combinedCourses) {
+                        combinedCourses.forEach((combined: any) => {
+                            if (combined.id) {
+                                actuallyPlacedCourseIds.add(combined.id);
+                            }
+                        });
+                    }
                 }
 
                 // Create schedule entries for all required time slots
@@ -3576,6 +3500,27 @@ export default function TimetableViewClassroom() {
             setSchedule(newSchedule);
             setAssignedCourses(newAssignedCourses);
 
+            // 🔥 FILTER AVAILABLE COURSES BASED ON ACTUALLY PLACED COURSES ONLY
+            console.log("=== FILTERING AVAILABLE COURSES BASED ON ACTUAL PLACEMENT ===");
+            console.log("Actually placed course IDs:", Array.from(actuallyPlacedCourseIds).sort());
+            
+            setAvailableCourses((prev) => {
+                const beforeCount = prev.length;
+                const filtered = prev.filter((course) => {
+                    const isActuallyPlaced = actuallyPlacedCourseIds.has(course.id);
+                    console.log(
+                        `Course ${course.code} (ID: ${course.id}): ${
+                            isActuallyPlaced ? "PLACED - REMOVING" : "NOT PLACED - KEEPING"
+                        }`
+                    );
+                    return !isActuallyPlaced;
+                });
+                
+                console.log(`Available courses filtered: ${beforeCount} → ${filtered.length}`);
+                console.log("Remaining available courses:", filtered.map((c) => `${c.code} (ID: ${c.id})`));
+                return filtered;
+            });
+
             console.log("=== FINAL STATE UPDATE ===");
             console.log(
                 "Schedule entries created:",
@@ -3595,10 +3540,32 @@ export default function TimetableViewClassroom() {
         autoCombineCourses,
         calculateSlotsNeeded,
         calculateEndTime,
-        getTimeSlotKey,
-        colors_class,
-        getConsistentCourseColor,
+        // Remove other function dependencies to reduce re-renders
     ]);
+
+    const refetchAllData = async () => {
+        console.log("=== REFETCHING ALL DATA AFTER SCHEDULE GENERATION ===");
+        
+        try {
+            // Only refetch time slots and classrooms, not courses
+            // The courses should remain the same, only their assignments change
+            await Promise.all([
+                fetchTimeSlots(),
+                fetchCourses(),
+                fetchClassrooms(),
+                fetchInstructorConstraints(),
+            ]);
+
+            // After all base data is refetched, fetch timetable assignments
+            // This will automatically update availableCourses by filtering out assigned ones
+            await fetchTimetableAssignments();
+            
+            console.log("=== ALL DATA REFETCHED SUCCESSFULLY ===");
+        } catch (error) {
+            console.error("Error during data refetch:", error);
+            showErrorMessage("Failed to refresh data after schedule generation");
+        }
+    };
 
     const calculateSlotDuration = (slot: any): number => {
         if (slot.time_slot && slot.time_slot.includes("-")) {

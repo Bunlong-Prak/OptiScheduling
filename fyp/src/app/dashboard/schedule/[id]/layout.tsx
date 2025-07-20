@@ -4,7 +4,7 @@ import { PropsWithChildren } from "react";
 import ScheduleLayoutClient from "./client_layout";
 
 interface ScheduleLayoutProps {
-    params: { id: string };
+    params: Promise<{ id: string }>;
 }
 
 export default async function ScheduleLayout({
@@ -12,7 +12,7 @@ export default async function ScheduleLayout({
     children,
 }: PropsWithChildren<ScheduleLayoutProps>) {
     const user = await getAuthUser();
-    const scheduleId = params.id;
+    const { id: scheduleId } = await params;
 
     if (!user) {
         return <UnauthorizedAccess message="You must be logged in." />;
