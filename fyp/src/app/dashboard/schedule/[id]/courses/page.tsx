@@ -857,14 +857,25 @@ export default function CoursesView() {
         }
 
         // Check for duplicates in current courses list
-        const isDuplicate = courses.some(
+        // Allow same course code only for sections of the same logical course
+        const duplicateCourses = courses.filter(
             (course) =>
-                course.code.toLowerCase().trim() ===
-                    code.toLowerCase().trim() &&
+                course.code.toLowerCase().trim() === code.toLowerCase().trim() &&
                 course.sectionId !== excludeSectionId
         );
 
-        if (isDuplicate) {
+        if (duplicateCourses.length > 0) {
+            // When editing, check if all existing courses with this code have the same code as the original course
+            if (excludeSectionId && isEditDialogOpen && selectedCourse) {
+                // Allow if we're editing a section of an existing course with the same code
+                const originalCourseCode = selectedCourse.code.toLowerCase().trim();
+                if (code.toLowerCase().trim() === originalCourseCode) {
+                    // Same course code as the original, this is allowed (editing sections of same course)
+                    return undefined;
+                }
+            }
+            
+            // For new courses or when changing to a different course code, don't allow duplicates
             return "This course code already exists";
         }
 
@@ -881,14 +892,22 @@ export default function CoursesView() {
         }
 
         // Check for duplicates in current courses list
-        const isDuplicate = courses.some(
+        const duplicateCourses = courses.filter(
             (course) =>
-                course.title.toLowerCase().trim() ===
-                    title.toLowerCase().trim() &&
+                course.title.toLowerCase().trim() === title.toLowerCase().trim() &&
                 course.sectionId !== excludeSectionId
         );
 
-        if (isDuplicate) {
+        if (duplicateCourses.length > 0) {
+            // When editing, allow if we're editing a section of an existing course with the same title
+            if (excludeSectionId && isEditDialogOpen && selectedCourse) {
+                const originalCourseTitle = selectedCourse.title.toLowerCase().trim();
+                if (title.toLowerCase().trim() === originalCourseTitle) {
+                    // Same title as the original, allowed
+                    return undefined;
+                }
+            }
+            // For new courses or when changing to a different title, don't allow duplicates
             return "This course name already exists";
         }
 
