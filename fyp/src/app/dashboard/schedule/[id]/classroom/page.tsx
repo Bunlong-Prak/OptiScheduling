@@ -273,14 +273,26 @@ export default function ClassroomView() {
         if (!code.trim()) {
             return "Classroom code is required";
         }
-
         if (code.length > 255) {
             return "Classroom code cannot exceed 255 characters";
         }
 
-        const codeRegex = /^[A-Za-z0-9\-_\.]+$/;
-        if (!codeRegex.test(code)) {
-            return "Classroom code can only contain letters, numbers, hyphens, underscores, and periods";
+        // Exception for "online" or "Online" - allow these as valid codes
+        const trimmedCode = code.trim().toLowerCase();
+        const isOnlineCode =
+            trimmedCode === "online" ||
+            trimmedCode.startsWith("online-") ||
+            trimmedCode.startsWith("online_");
+
+        if (!isOnlineCode) {
+            const codeRegex = /^[A-Za-z0-9\-_\.]+$/;
+            if (!codeRegex.test(code)) {
+                return "Classroom code can only contain letters, numbers, hyphens, underscores, and periods";
+            }
+        }
+
+        if (isOnlineCode) {
+            return null; // No validation needed for "online" codes
         }
 
         // Check for duplicates in current classroom list
@@ -289,11 +301,9 @@ export default function ClassroomView() {
                 classroom.code.toLowerCase().trim() ===
                     code.toLowerCase().trim() && classroom.id !== excludeId
         );
-
         if (isDuplicate) {
             return "This classroom code already exists";
         }
-
         return null;
     };
 
@@ -567,14 +577,14 @@ export default function ClassroomView() {
             return;
         }
 
-        // Prevent editing if classroom has assignments
-        if (hasAssignedCourses) {
-            showErrorMessage(
-                "Cannot Edit Classroom",
-                "This classroom is assigned to courses and cannot be edited. Please remove all course assignments first."
-            );
-            return;
-        }
+        // // Prevent editing if classroom has assignments
+        // if (hasAssignedCourses) {
+        //     showErrorMessage(
+        //         "Cannot Edit Classroom",
+        //         "This classroom is assigned to courses and cannot be edited. Please remove all course assignments first."
+        //     );
+        //     return;
+        // }
 
         setIsLoading(true);
         try {
@@ -1616,8 +1626,7 @@ export default function ClassroomView() {
                         </DialogHeader>
 
                         <div className="py-4 space-y-4">
-                            {/* Warning message when classroom has assignments */}
-                            {hasAssignedCourses && (
+                            {/* {hasAssignedCourses && (
                                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
                                     <div className="flex items-center gap-2">
                                         <span className="text-red-600 text-sm">
@@ -1646,7 +1655,7 @@ export default function ClassroomView() {
                                         </p>
                                     </div>
                                 </div>
-                            )}
+                            )} */}
 
                             <div className="space-y-2">
                                 <Label
@@ -1661,20 +1670,20 @@ export default function ClassroomView() {
                                     name="code"
                                     value={formData.code}
                                     onChange={handleInputChange}
-                                    disabled={
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                    }
-                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                        formErrors.code
-                                            ? "border-red-300 focus:border-red-500 animate-pulse"
-                                            : ""
-                                    } ${
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
-                                            : ""
-                                    }`}
+                                    // disabled={
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    // }
+                                    // className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    //     formErrors.code
+                                    //         ? "border-red-300 focus:border-red-500 animate-pulse"
+                                    //         : ""
+                                    // } ${
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    //         ? "bg-gray-100 cursor-not-allowed opacity-60"
+                                    //         : ""
+                                    // }`}
                                     placeholder="Enter classroom code (e.g., 101, 2A1)"
                                 />
                                 {formErrors.code && (
@@ -1697,20 +1706,20 @@ export default function ClassroomView() {
                                     name="name"
                                     value={formData.name}
                                     onChange={handleInputChange}
-                                    disabled={
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                    }
-                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                        formErrors.name
-                                            ? "border-red-300 focus:border-red-500 animate-pulse"
-                                            : ""
-                                    } ${
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
-                                            : ""
-                                    }`}
+                                    // disabled={
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    // }
+                                    // className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    //     formErrors.name
+                                    //         ? "border-red-300 focus:border-red-500 animate-pulse"
+                                    //         : ""
+                                    // } ${
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    //         ? "bg-gray-100 cursor-not-allowed opacity-60"
+                                    //         : ""
+                                    // }`}
                                     placeholder="Enter classroom name"
                                 />
                                 {formErrors.name && (
@@ -1733,20 +1742,20 @@ export default function ClassroomView() {
                                     name="location"
                                     value={formData.location}
                                     onChange={handleInputChange}
-                                    disabled={
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                    }
-                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                        formErrors.location
-                                            ? "border-red-300 focus:border-red-500 animate-pulse"
-                                            : ""
-                                    } ${
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
-                                            : ""
-                                    }`}
+                                    // disabled={
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    // }
+                                    // className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    //     formErrors.location
+                                    //         ? "border-red-300 focus:border-red-500 animate-pulse"
+                                    //         : ""
+                                    // } ${
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    //         ? "bg-gray-100 cursor-not-allowed opacity-60"
+                                    //         : ""
+                                    // }`}
                                     placeholder="Enter location"
                                 />
                                 {formErrors.location && (
@@ -1768,22 +1777,13 @@ export default function ClassroomView() {
                                     onValueChange={(value) =>
                                         handleSelectChange("type", value)
                                     }
-                                    disabled={
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                    }
+                                    // disabled={
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    // }
                                 >
                                     <SelectTrigger
-                                        className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                            formErrors.type
-                                                ? "border-red-300 focus:border-red-500 animate-pulse"
-                                                : ""
-                                        } ${
-                                            hasAssignedCourses ||
-                                            isCheckingAssignments
-                                                ? "bg-gray-100 cursor-not-allowed opacity-60"
-                                                : ""
-                                        }`}
+                                        className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm`}
                                     >
                                         <SelectValue placeholder="Select type" />
                                     </SelectTrigger>
@@ -1832,20 +1832,20 @@ export default function ClassroomView() {
                                     type="number"
                                     value={formData.capacity}
                                     onChange={handleInputChange}
-                                    disabled={
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                    }
-                                    className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
-                                        formErrors.capacity
-                                            ? "border-red-300 focus:border-red-500 animate-pulse"
-                                            : ""
-                                    } ${
-                                        hasAssignedCourses ||
-                                        isCheckingAssignments
-                                            ? "bg-gray-100 cursor-not-allowed opacity-60"
-                                            : ""
-                                    }`}
+                                    // disabled={
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    // }
+                                    // className={`border-gray-300 focus:border-[#2F2F85] focus:ring-[#2F2F85] text-sm ${
+                                    //     formErrors.capacity
+                                    //         ? "border-red-300 focus:border-red-500 animate-pulse"
+                                    //         : ""
+                                    // } ${
+                                    //     hasAssignedCourses ||
+                                    //     isCheckingAssignments
+                                    //         ? "bg-gray-100 cursor-not-allowed opacity-60"
+                                    //         : ""
+                                    // }`}
                                     placeholder="Enter capacity (1-100)"
                                     min="1"
                                     max="100"
@@ -1872,21 +1872,17 @@ export default function ClassroomView() {
                             </Button>
                             <Button
                                 onClick={handleEditClassroom}
-                                disabled={
-                                    isLoading ||
-                                    Object.values(formErrors).some(
-                                        (error) => error !== undefined
-                                    ) ||
-                                    hasAssignedCourses ||
-                                    isCheckingAssignments
-                                }
+                                // disabled={
+                                //     isLoading ||
+                                //     Object.values(formErrors).some(
+                                //         (error) => error !== undefined
+                                //     ) ||
+                                //     hasAssignedCourses ||
+                                //     isCheckingAssignments
+                                // }
                                 className="bg-[#2F2F85] hover:bg-[#3F3F8F] text-white text-sm px-3 py-1.5 disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                                {hasAssignedCourses
-                                    ? "Cannot Edit"
-                                    : isLoading
-                                    ? "Saving..."
-                                    : "Save"}
+                                {"Save"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

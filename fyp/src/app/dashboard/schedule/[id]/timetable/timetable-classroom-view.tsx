@@ -778,9 +778,7 @@ export default function TimetableViewClassroom() {
                                 slot.time_slot &&
                                 slot.time_slot.includes("-")
                             ) {
-                                const parsed = parseTimeSlot(
-                                    slot.time_slot
-                                );
+                                const parsed = parseTimeSlot(slot.time_slot);
                                 formattedSlot.startTime = parsed.startTime;
                                 formattedSlot.endTime = parsed.endTime;
                             }
@@ -789,8 +787,7 @@ export default function TimetableViewClassroom() {
                         }
                     );
 
-                    const isConsecutive =
-                        areTimeSlotsConsecutive(apiTimeSlots);
+                    const isConsecutive = areTimeSlotsConsecutive(apiTimeSlots);
                     setTimeSlots(apiTimeSlots);
                 } else {
                     console.error(
@@ -845,47 +842,41 @@ export default function TimetableViewClassroom() {
                     { color: string; originalColor?: string }
                 >();
 
-                const transformedCourses = coursesData.map(
-                    (course: any) => {
-                        const colorClassName =
-                            colors_class[course.color] ||
-                            getConsistentCourseColor(course.code);
+                const transformedCourses = coursesData.map((course: any) => {
+                    const colorClassName =
+                        colors_class[course.color] ||
+                        getConsistentCourseColor(course.code);
 
-                        colorMap.set(course.code, {
-                            color: colorClassName,
-                            originalColor: course.color,
-                        });
+                    colorMap.set(course.code, {
+                        color: colorClassName,
+                        originalColor: course.color,
+                    });
 
-                        const isOnlineCourse =
-                            course.status === "online" ||
-                            course.isOnline === true;
+                    const isOnlineCourse =
+                        course.status === "online" || course.isOnline === true;
 
-                        return {
-                            id: course.id,
-                            code: course.code,
-                            sectionId: course.sectionId,
-                            name: course.title,
-                            color: colorClassName,
-                            duration:
-                                course.separatedDuration || course.duration,
-                            instructor: `${course.firstName || ""} ${
-                                course.lastName || ""
-                            }`.trim(),
-                            section: course.section,
-                            room: isOnlineCourse
-                                ? "Online"
-                                : course.classroom,
-                            uniqueId: `${course.code}-${course.section}-${course.id}`,
-                            majors: course.major || [],
-                            originalColor: course.color,
-                            status: isOnlineCourse ? "online" : "offline",
-                            isOnline: isOnlineCourse,
-                            day: course.day,
-                            timeSlot: course.timeSlot,
-                            capacity: course.capacity,
-                        };
-                    }
-                );
+                    return {
+                        id: course.id,
+                        code: course.code,
+                        sectionId: course.sectionId,
+                        name: course.title,
+                        color: colorClassName,
+                        duration: course.separatedDuration || course.duration,
+                        instructor: `${course.firstName || ""} ${
+                            course.lastName || ""
+                        }`.trim(),
+                        section: course.section,
+                        room: isOnlineCourse ? "Online" : course.classroom,
+                        uniqueId: `${course.code}-${course.section}-${course.id}`,
+                        majors: course.major || [],
+                        originalColor: course.color,
+                        status: isOnlineCourse ? "online" : "offline",
+                        isOnline: isOnlineCourse,
+                        day: course.day,
+                        timeSlot: course.timeSlot,
+                        capacity: course.capacity,
+                    };
+                });
 
                 console.log("Transformed courses:", transformedCourses);
 
@@ -1391,37 +1382,37 @@ export default function TimetableViewClassroom() {
         );
     };
 
-    const calculateSlotsNeeded = useCallback((
-        durationHours: number,
-        timeSlots: any[],
-        startIndex: number
-    ) => {
-        if (timeSlots.length === 0 || startIndex >= timeSlots.length) return 1;
+    const calculateSlotsNeeded = useCallback(
+        (durationHours: number, timeSlots: any[], startIndex: number) => {
+            if (timeSlots.length === 0 || startIndex >= timeSlots.length)
+                return 1;
 
-        const firstSlotDuration = getSlotDurationHours(timeSlots[0]);
-        const allSlotsUniform = timeSlots.every(
-            (slot) => getSlotDurationHours(slot) === firstSlotDuration
-        );
+            const firstSlotDuration = getSlotDurationHours(timeSlots[0]);
+            const allSlotsUniform = timeSlots.every(
+                (slot) => getSlotDurationHours(slot) === firstSlotDuration
+            );
 
-        if (allSlotsUniform) {
-            return Math.ceil(durationHours / firstSlotDuration);
-        } else {
-            let hoursRemaining = durationHours;
-            let slotsNeeded = 0;
+            if (allSlotsUniform) {
+                return Math.ceil(durationHours / firstSlotDuration);
+            } else {
+                let hoursRemaining = durationHours;
+                let slotsNeeded = 0;
 
-            for (
-                let i = startIndex;
-                i < timeSlots.length && hoursRemaining > 0;
-                i++
-            ) {
-                const slotDuration = getSlotDurationHours(timeSlots[i]);
-                hoursRemaining -= slotDuration;
-                slotsNeeded++;
+                for (
+                    let i = startIndex;
+                    i < timeSlots.length && hoursRemaining > 0;
+                    i++
+                ) {
+                    const slotDuration = getSlotDurationHours(timeSlots[i]);
+                    hoursRemaining -= slotDuration;
+                    slotsNeeded++;
+                }
+
+                return slotsNeeded;
             }
-
-            return slotsNeeded;
-        }
-    }, []);
+        },
+        []
+    );
 
     const getSlotDurationHours = useCallback((slot: any): number => {
         // Try to get duration from time_slot field first
@@ -1747,10 +1738,13 @@ export default function TimetableViewClassroom() {
         return 0;
     };
 
-    const calculateEndTime = useCallback((startTime: string, durationHours: number) => {
-        const startHour = parseInt(startTime);
-        return (startHour + durationHours).toString();
-    }, []);
+    const calculateEndTime = useCallback(
+        (startTime: string, durationHours: number) => {
+            const startHour = parseInt(startTime);
+            return (startHour + durationHours).toString();
+        },
+        []
+    );
 
     const handleDragStart = (course: TimetableCourse) => {
         setDraggedCourse(course);
@@ -1767,130 +1761,137 @@ export default function TimetableViewClassroom() {
         setIsDraggingToAvailable(false);
     };
 
-    const autoCombineCourses = useCallback((assignmentsData: any[]): any[] => {
-        console.log(
-            "=== AUTO-COMBINING COURSES WITH SAME INSTRUCTOR AND DURATION ==="
-        );
-        console.log("Input assignments:", assignmentsData.length);
-
-        // First, normalize all time representations
-        const normalizedAssignments = assignmentsData.map((assignment) => {
-            const normalizedStartTime = normalizeTimeSlot(
-                assignment.startTime || assignment.timeSlot
-            );
-            const isOnline =
-                assignment.isOnline || assignment.classroomId === null;
-            const classroomKey = isOnline
-                ? "-1"
-                : assignment.classroom ||
-                  assignment.classroomId?.toString() ||
-                  "unknown";
-            const day = assignment.day?.trim() || "unknown";
-
-            return {
-                ...assignment,
-                normalizedStartTime,
-                isOnline,
-                classroomKey,
-                day,
-                scheduleKey: `${day}-${classroomKey}-${normalizedStartTime}`,
-            };
-        });
-
-        // Group by exact schedule key (day + classroom + normalized time)
-        const scheduleGroups = new Map<string, any[]>();
-
-        normalizedAssignments.forEach((assignment) => {
-            const scheduleKey = assignment.scheduleKey;
-
-            if (!scheduleGroups.has(scheduleKey)) {
-                scheduleGroups.set(scheduleKey, []);
-            }
-            scheduleGroups.get(scheduleKey)!.push(assignment);
-        });
-
-        const combinedAssignments: any[] = [];
-
-        scheduleGroups.forEach((assignments, scheduleKey) => {
+    const autoCombineCourses = useCallback(
+        (assignmentsData: any[]): any[] => {
             console.log(
-                `Processing schedule key: ${scheduleKey} with ${assignments.length} assignments`
+                "=== AUTO-COMBINING COURSES WITH SAME INSTRUCTOR AND DURATION ==="
             );
+            console.log("Input assignments:", assignmentsData.length);
 
-            if (assignments.length === 1) {
-                // Single assignment, no combining needed
-                combinedAssignments.push(assignments[0]);
-                return;
-            }
+            // First, normalize all time representations
+            const normalizedAssignments = assignmentsData.map((assignment) => {
+                const normalizedStartTime = normalizeTimeSlot(
+                    assignment.startTime || assignment.timeSlot
+                );
+                const isOnline =
+                    assignment.isOnline || assignment.classroomId === null;
+                const classroomKey = isOnline
+                    ? "-1"
+                    : assignment.classroom ||
+                      assignment.classroomId?.toString() ||
+                      "unknown";
+                const day = assignment.day?.trim() || "unknown";
 
-            // For multiple assignments at same time/place, group by instructor and duration
-            const instructorDurationGroups = new Map<string, any[]>();
-
-            assignments.forEach((assignment) => {
-                const instructor =
-                    `${assignment.firstName || ""} ${
-                        assignment.lastName || ""
-                    }`.trim() || "TBA";
-                const duration =
-                    assignment.separatedDuration || assignment.duration || "1";
-                const groupKey = `${instructor}-${duration}`;
-
-                if (!instructorDurationGroups.has(groupKey)) {
-                    instructorDurationGroups.set(groupKey, []);
-                }
-                instructorDurationGroups.get(groupKey)!.push(assignment);
+                return {
+                    ...assignment,
+                    normalizedStartTime,
+                    isOnline,
+                    classroomKey,
+                    day,
+                    scheduleKey: `${day}-${classroomKey}-${normalizedStartTime}`,
+                };
             });
 
-            instructorDurationGroups.forEach((groupAssignments, groupKey) => {
-                if (groupAssignments.length === 1) {
-                    // Single course in this instructor-duration group
-                    combinedAssignments.push(groupAssignments[0]);
-                } else {
-                    // Multiple courses with same instructor, duration, and schedule - combine them
-                    console.log(
-                        `🔄 Auto-combining ${groupAssignments.length} courses for ${groupKey} at ${scheduleKey}:`
-                    );
-                    groupAssignments.forEach((assignment) => {
-                        console.log(
-                            `  - ${assignment.code} (ID: ${assignment.id})`
-                        );
-                    });
+            // Group by exact schedule key (day + classroom + normalized time)
+            const scheduleGroups = new Map<string, any[]>();
 
-                    // Use the first assignment as the base
-                    const baseAssignment = groupAssignments[0];
-                    const additionalCourses = groupAssignments.slice(1);
+            normalizedAssignments.forEach((assignment) => {
+                const scheduleKey = assignment.scheduleKey;
 
-                    // Create combined assignment
-                    const combinedAssignment = {
-                        ...baseAssignment,
-                        // Ensure we use the normalized time
-                        startTime: baseAssignment.normalizedStartTime,
-                        timeSlot: baseAssignment.normalizedStartTime,
-                        // Mark as combined
-                        isCombined: true,
-                        combinedCourses: additionalCourses,
-                        // Update display information
-                        combinedCodes: groupAssignments
-                            .map((a) => a.code)
-                            .join(" + "),
-                        combinedTitles: groupAssignments
-                            .map((a) => a.title || a.code)
-                            .join(" + "),
-                        combinedIds: groupAssignments.map((a) => a.id),
-                    };
-
-                    combinedAssignments.push(combinedAssignment);
-                    console.log(
-                        `✅ Combined into: ${combinedAssignment.combinedCodes} at ${scheduleKey}`
-                    );
+                if (!scheduleGroups.has(scheduleKey)) {
+                    scheduleGroups.set(scheduleKey, []);
                 }
+                scheduleGroups.get(scheduleKey)!.push(assignment);
             });
-        });
 
-        console.log(
-            `=== AUTO-COMBINE COMPLETE: ${assignmentsData.length} → ${combinedAssignments.length} ===`
-        );
-        return combinedAssignments;
-    }, [normalizeTimeSlot]); // Add dependencies for useCallback
+            const combinedAssignments: any[] = [];
+
+            scheduleGroups.forEach((assignments, scheduleKey) => {
+                console.log(
+                    `Processing schedule key: ${scheduleKey} with ${assignments.length} assignments`
+                );
+
+                if (assignments.length === 1) {
+                    // Single assignment, no combining needed
+                    combinedAssignments.push(assignments[0]);
+                    return;
+                }
+
+                // For multiple assignments at same time/place, group by instructor and duration
+                const instructorDurationGroups = new Map<string, any[]>();
+
+                assignments.forEach((assignment) => {
+                    const instructor =
+                        `${assignment.firstName || ""} ${
+                            assignment.lastName || ""
+                        }`.trim() || "TBA";
+                    const duration =
+                        assignment.separatedDuration ||
+                        assignment.duration ||
+                        "1";
+                    const groupKey = `${instructor}-${duration}`;
+
+                    if (!instructorDurationGroups.has(groupKey)) {
+                        instructorDurationGroups.set(groupKey, []);
+                    }
+                    instructorDurationGroups.get(groupKey)!.push(assignment);
+                });
+
+                instructorDurationGroups.forEach(
+                    (groupAssignments, groupKey) => {
+                        if (groupAssignments.length === 1) {
+                            // Single course in this instructor-duration group
+                            combinedAssignments.push(groupAssignments[0]);
+                        } else {
+                            // Multiple courses with same instructor, duration, and schedule - combine them
+                            console.log(
+                                `🔄 Auto-combining ${groupAssignments.length} courses for ${groupKey} at ${scheduleKey}:`
+                            );
+                            groupAssignments.forEach((assignment) => {
+                                console.log(
+                                    `  - ${assignment.code} (ID: ${assignment.id})`
+                                );
+                            });
+
+                            // Use the first assignment as the base
+                            const baseAssignment = groupAssignments[0];
+                            const additionalCourses = groupAssignments.slice(1);
+
+                            // Create combined assignment
+                            const combinedAssignment = {
+                                ...baseAssignment,
+                                // Ensure we use the normalized time
+                                startTime: baseAssignment.normalizedStartTime,
+                                timeSlot: baseAssignment.normalizedStartTime,
+                                // Mark as combined
+                                isCombined: true,
+                                combinedCourses: additionalCourses,
+                                // Update display information
+                                combinedCodes: groupAssignments
+                                    .map((a) => a.code)
+                                    .join(" + "),
+                                combinedTitles: groupAssignments
+                                    .map((a) => a.title || a.code)
+                                    .join(" + "),
+                                combinedIds: groupAssignments.map((a) => a.id),
+                            };
+
+                            combinedAssignments.push(combinedAssignment);
+                            console.log(
+                                `✅ Combined into: ${combinedAssignment.combinedCodes} at ${scheduleKey}`
+                            );
+                        }
+                    }
+                );
+            });
+
+            console.log(
+                `=== AUTO-COMBINE COMPLETE: ${assignmentsData.length} → ${combinedAssignments.length} ===`
+            );
+            return combinedAssignments;
+        },
+        [normalizeTimeSlot]
+    ); // Add dependencies for useCallback
     const saveAllAssignments = async () => {
         try {
             const validAssignedCourses =
@@ -3459,7 +3460,7 @@ export default function TimetableViewClassroom() {
                     newAssignedCourses.push({ ...course });
                     // Track this course as actually placed
                     actuallyPlacedCourseIds.add(courseHourId);
-                    
+
                     // Also track combined courses if any
                     if (isCombined && combinedCourses) {
                         combinedCourses.forEach((combined: any) => {
@@ -3501,23 +3502,37 @@ export default function TimetableViewClassroom() {
             setAssignedCourses(newAssignedCourses);
 
             // 🔥 FILTER AVAILABLE COURSES BASED ON ACTUALLY PLACED COURSES ONLY
-            console.log("=== FILTERING AVAILABLE COURSES BASED ON ACTUAL PLACEMENT ===");
-            console.log("Actually placed course IDs:", Array.from(actuallyPlacedCourseIds).sort());
-            
+            console.log(
+                "=== FILTERING AVAILABLE COURSES BASED ON ACTUAL PLACEMENT ==="
+            );
+            console.log(
+                "Actually placed course IDs:",
+                Array.from(actuallyPlacedCourseIds).sort()
+            );
+
             setAvailableCourses((prev) => {
                 const beforeCount = prev.length;
                 const filtered = prev.filter((course) => {
-                    const isActuallyPlaced = actuallyPlacedCourseIds.has(course.id);
+                    const isActuallyPlaced = actuallyPlacedCourseIds.has(
+                        course.id
+                    );
                     console.log(
                         `Course ${course.code} (ID: ${course.id}): ${
-                            isActuallyPlaced ? "PLACED - REMOVING" : "NOT PLACED - KEEPING"
+                            isActuallyPlaced
+                                ? "PLACED - REMOVING"
+                                : "NOT PLACED - KEEPING"
                         }`
                     );
                     return !isActuallyPlaced;
                 });
-                
-                console.log(`Available courses filtered: ${beforeCount} → ${filtered.length}`);
-                console.log("Remaining available courses:", filtered.map((c) => `${c.code} (ID: ${c.id})`));
+
+                console.log(
+                    `Available courses filtered: ${beforeCount} → ${filtered.length}`
+                );
+                console.log(
+                    "Remaining available courses:",
+                    filtered.map((c) => `${c.code} (ID: ${c.id})`)
+                );
                 return filtered;
             });
 
@@ -3545,7 +3560,7 @@ export default function TimetableViewClassroom() {
 
     const refetchAllData = async () => {
         console.log("=== REFETCHING ALL DATA AFTER SCHEDULE GENERATION ===");
-        
+
         try {
             await Promise.all([
                 fetchTimeSlots(),
@@ -3557,11 +3572,13 @@ export default function TimetableViewClassroom() {
             // After all base data is refetched, fetch timetable assignments
             // This will automatically update availableCourses by filtering out assigned ones
             await fetchTimetableAssignments();
-            
+
             console.log("=== ALL DATA REFETCHED SUCCESSFULLY ===");
         } catch (error) {
             console.error("Error during data refetch:", error);
-            showErrorMessage("Failed to refresh data after schedule generation");
+            showErrorMessage(
+                "Failed to refresh data after schedule generation"
+            );
         }
     };
 
@@ -4505,7 +4522,7 @@ export default function TimetableViewClassroom() {
                                             <th
                                                 key={day}
                                                 colSpan={timeSlots.length}
-                                                className="px-2 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border "
+                                                className="px-2 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border  "
                                             >
                                                 {day}
                                             </th>
@@ -4631,6 +4648,7 @@ export default function TimetableViewClassroom() {
                                                 Duration: {course.duration} hour
                                                 {course.duration > 1 ? "s" : ""}
                                             </p>
+
                                             <p className="text-xs mt-1 truncate text-gray-700">
                                                 Instructor: {course.instructor}
                                             </p>

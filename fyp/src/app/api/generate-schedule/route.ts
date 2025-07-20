@@ -1129,7 +1129,7 @@ function getSuitableClassroomsForUnit(
     );
 
     // Handle online sections
-    if (unit.status === "online") {
+    if (unit.status === "online" || unit.status) {
         return [
             { id: -1, code: "Online-1", capacity: 9999, classroom_type_id: -1 },
             { id: -2, code: "Online-2", capacity: 9999, classroom_type_id: -1 },
@@ -1935,7 +1935,7 @@ function assignClassroomToSectionWithTypePreference(
     }
 
     // Handle online sections first
-    if (unit.status === "online") {
+    if (unit.status === "online" || unit.status === "Online") {
         const onlineClassroomIds = [-1, -2, -3];
         const availableOnlineIds = onlineClassroomIds.filter(
             (id) => !excludeClassroomIds.includes(id)

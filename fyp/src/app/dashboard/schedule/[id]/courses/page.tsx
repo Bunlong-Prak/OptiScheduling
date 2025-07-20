@@ -3445,11 +3445,7 @@ export default function CoursesView() {
                                                         <div className="text-xs text-gray-600 mb-3">
                                                             Original Duration:{" "}
                                                             {durationHours}h{" "}
-                                                            {durationMinutes}m (
-                                                            {formData.duration.toFixed(
-                                                                2
-                                                            )}{" "}
-                                                            hours)
+                                                            {durationMinutes}m
                                                         </div>
 
                                                         {section.splitDurations.map(
@@ -3720,11 +3716,7 @@ export default function CoursesView() {
                                                                             convertSplitDurationToHoursMinutes(
                                                                                 totalDecimal
                                                                             );
-                                                                        return `${totalHours}h ${totalMinutes}m (${totalDecimal.toFixed(
-                                                                            2
-                                                                        )}) / ${durationHours}h ${durationMinutes}m (${formData.duration.toFixed(
-                                                                            2
-                                                                        )})`;
+                                                                        return `${totalHours}h ${totalMinutes}m  / ${durationHours}h ${durationMinutes}m `;
                                                                     })()}
                                                                 </span>
                                                             </div>
@@ -4568,11 +4560,7 @@ export default function CoursesView() {
                                                         <div className="text-xs text-gray-600 mb-3">
                                                             Original Duration:{" "}
                                                             {durationHours}h{" "}
-                                                            {durationMinutes}m (
-                                                            {formData.duration.toFixed(
-                                                                2
-                                                            )}{" "}
-                                                            hours)
+                                                            {durationMinutes}m
                                                         </div>
 
                                                         {section.splitDurations.map(
@@ -4843,11 +4831,7 @@ export default function CoursesView() {
                                                                             convertSplitDurationToHoursMinutes(
                                                                                 totalDecimal
                                                                             );
-                                                                        return `${totalHours}h ${totalMinutes}m (${totalDecimal.toFixed(
-                                                                            2
-                                                                        )}) / ${durationHours}h ${durationMinutes}m (${formData.duration.toFixed(
-                                                                            2
-                                                                        )})`;
+                                                                        return `${totalHours}h ${totalMinutes}m  / ${durationHours}h ${durationMinutes}m`;
                                                                     })()}
                                                                 </span>
                                                             </div>
