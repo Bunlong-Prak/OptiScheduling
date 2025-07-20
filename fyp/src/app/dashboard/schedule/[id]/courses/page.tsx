@@ -303,19 +303,16 @@ export default function CoursesView() {
 
     const getSectionTotalSplitDuration = (sectionId: number) => {
         const section = sections.find((s) => s.id === sectionId);
-        if (!section) return 0;
-        
-        // Calculate total by summing up individual formatted durations
-        // This ensures consistency with how individual parts are displayed
-        const total = section.splitDurations.reduce(
-            (sum, duration) => sum + formatDecimal(duration),
-            0
-        );
+        const total = section
+            ? section.splitDurations.reduce(
+                  (sum, duration) => sum + formatDecimal(duration),
+                  0
+              )
+            : 0;
         const formattedTotal = formatDecimal(total);
         console.log(
             `Section ${sectionId}: splitDurations =`,
             section?.splitDurations,
-            `individual formatted:`, section?.splitDurations.map(d => formatDecimal(d)),
             `total = ${formattedTotal}, formData.duration = ${formData.duration}`
         );
         return formattedTotal;
@@ -333,20 +330,15 @@ export default function CoursesView() {
             (duration) => formatDecimal(duration) > 0
         );
 
-        // Use both approximate equality and duration equivalence to handle floating-point precision issues
-        const approximatelyEqual = isApproximatelyEqual(total, courseDuration);
-        const durationEquivalent = isDurationEquivalent(total, courseDuration);
+        // Use approximate equality to handle floating-point precision issues
         const isValid =
             courseDuration > 0 &&
-            (approximatelyEqual || durationEquivalent) &&
+            isApproximatelyEqual(total, courseDuration) &&
             allSplitsArePositive;
-        
         console.log(
             `Section ${sectionId}: splitDurations =`,
             section.splitDurations,
-            `total = ${total}, courseDuration=${courseDuration}`,
-            `approximatelyEqual=${approximatelyEqual}, durationEquivalent=${durationEquivalent}`,
-            `allSplitsArePositive=${allSplitsArePositive}, isValid=${isValid}`
+            `total = ${total}, courseDuration=${courseDuration}, allSplitsArePositive=${allSplitsArePositive}, isValid=${isValid}`
         );
         return isValid;
     };
@@ -1162,16 +1154,8 @@ export default function CoursesView() {
 
     // Helper function to check if two decimal values are approximately equal
     // to handle floating-point precision issues
-    function isApproximatelyEqual(a: number, b: number, tolerance: number = 0.02): boolean {
+    function isApproximatelyEqual(a: number, b: number, tolerance: number = 0.01): boolean {
         return Math.abs(a - b) < tolerance;
-    }
-
-    // Helper function to check if durations are equivalent by converting to minutes
-    // This provides more accurate comparison for time-based calculations
-    function isDurationEquivalent(duration1: number, duration2: number): boolean {
-        const minutes1 = Math.round(duration1 * 60);
-        const minutes2 = Math.round(duration2 * 60);
-        return Math.abs(minutes1 - minutes2) <= 1; // Allow 1 minute tolerance
     }
     const handleAddCourse = async () => {
         if (!validateForm()) {
