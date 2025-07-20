@@ -3140,13 +3140,20 @@ export default function CoursesView() {
                                                         <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                                                     </Button>
                                                 </PopoverTrigger>
-                                                <PopoverContent className="w-full p-0">
+                                                <PopoverContent
+                                                    className="p-0"
+                                                    side="bottom"
+                                                    align="start"
+                                                    onWheel={(e) => {
+                                                        e.stopPropagation();
+                                                    }}
+                                                >
                                                     <Command>
                                                         <CommandInput placeholder="Search instructor..." />
                                                         <CommandEmpty>
                                                             No instructor found.
                                                         </CommandEmpty>
-                                                        <CommandGroup>
+                                                        <CommandGroup className="max-h-40 overflow-y-auto">
                                                             {instructors.map(
                                                                 (
                                                                     instructor
@@ -3287,7 +3294,14 @@ export default function CoursesView() {
                                                                 <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                                                             </Button>
                                                         </PopoverTrigger>
-                                                        <PopoverContent className="w-full p-0">
+                                                        <PopoverContent
+                                                            className="p-0"
+                                                            side="bottom"
+                                                            align="start"
+                                                            onWheel={(e) => {
+                                                                e.stopPropagation();
+                                                            }}
+                                                        >
                                                             <Command>
                                                                 <CommandInput placeholder="Search instructor..." />
                                                                 <CommandEmpty>
@@ -3295,7 +3309,7 @@ export default function CoursesView() {
                                                                     instructor
                                                                     found.
                                                                 </CommandEmpty>
-                                                                <CommandGroup>
+                                                                <CommandGroup className="max-h-40 overflow-y-auto">
                                                                     {instructors.map(
                                                                         (
                                                                             instructor
@@ -4253,13 +4267,20 @@ export default function CoursesView() {
                                                         <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                                                     </Button>
                                                 </PopoverTrigger>
-                                                <PopoverContent className="w-full p-0">
+                                                <PopoverContent
+                                                    className="p-0"
+                                                    side="bottom"
+                                                    align="start"
+                                                    onWheel={(e) => {
+                                                        e.stopPropagation();
+                                                    }}
+                                                >
                                                     <Command>
                                                         <CommandInput placeholder="Search instructor..." />
                                                         <CommandEmpty>
                                                             No instructor found.
                                                         </CommandEmpty>
-                                                        <CommandGroup>
+                                                        <CommandGroup className="max-h-40 overflow-y-auto">
                                                             {instructors.map(
                                                                 (
                                                                     instructor

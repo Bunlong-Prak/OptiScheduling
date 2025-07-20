@@ -3547,8 +3547,6 @@ export default function TimetableViewClassroom() {
         console.log("=== REFETCHING ALL DATA AFTER SCHEDULE GENERATION ===");
         
         try {
-            // Only refetch time slots and classrooms, not courses
-            // The courses should remain the same, only their assignments change
             await Promise.all([
                 fetchTimeSlots(),
                 fetchCourses(),
