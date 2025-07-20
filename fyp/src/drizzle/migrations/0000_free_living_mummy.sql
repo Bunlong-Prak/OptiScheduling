@@ -23,6 +23,7 @@ CREATE TABLE `course_hours` (
 	`separated_duration` float,
 	`classroom_id` int,
 	`section_id` int NOT NULL,
+	`prefer_classroom_id` int,
 	CONSTRAINT `course_hours_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -102,7 +103,6 @@ CREATE TABLE `sections` (
 	`status` varchar(50),
 	`course_id` int NOT NULL,
 	`instructor_id` int,
-	`prefer_classroom_id` int,
 	CONSTRAINT `sections_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint

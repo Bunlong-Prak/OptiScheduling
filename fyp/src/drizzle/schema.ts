@@ -99,16 +99,11 @@ export const sections = mysqlTable("sections", {
     status: varchar("status", { length: 50 }),
     courseId: int("course_id").notNull(),
     instructorId: int("instructor_id"),
-    preferClassRoomId: int("prefer_classroom_id"),
 });
 
 export const sectionRelations = relations(sections, ({ many, one }) => ({
     courseHours: many(courseHours),
     classrooms: many(classrooms),
-    classroomTypes: one(classroomTypes, {
-        fields: [sections.preferClassRoomId],
-        references: [classroomTypes.id],
-    }),
 }));
 
 export const courseHours = mysqlTable("course_hours", {
@@ -118,6 +113,7 @@ export const courseHours = mysqlTable("course_hours", {
     separatedDuration: float("separated_duration"),
     classroomId: int("classroom_id"),
     sectionId: int("section_id").notNull(),
+    preferClassRoomId: int("prefer_classroom_id"),
 });
 
 export const majors = mysqlTable("majors", {

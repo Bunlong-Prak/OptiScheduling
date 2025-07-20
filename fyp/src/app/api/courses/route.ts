@@ -22,18 +22,20 @@ const sectionSchema = z.object({
         .optional() // Make it optional
         .or(z.literal(null)), // Allow null values
     status: z.enum(["online", "offline"]).default("offline"),
-    preferClassRoomType: z
-        .object({
-            id: z.number().optional(),
-            name: z.string().optional(),
-            description: z.string().optional().nullable(),
-        })
-        .optional()
-        .nullable(),
+
     splitDurations: z
         .array(
             z.object({
                 separatedDuration: z.number().optional(),
+                preferClassRoomType: z
+                    .object({
+                        id: z.number().optional(),
+                        name: z.string().optional(),
+                        description: z.string().optional().nullable(),
+                    })
+
+                    .optional()
+                    .nullable(),
             })
         )
         .optional(),
@@ -165,14 +167,14 @@ export async function GET(request: Request) {
                 separatedDuration: courseHours.separatedDuration, // This is now unique per courseHours.id
                 day: courseHours.day, // Include day information
                 timeSlot: courseHours.timeSlot, // Include time slot information
-                preferClassRoomTypeId: sections.preferClassRoomId,
+                preferClassRoomTypeId: courseHours.preferClassRoomId,
                 preferClassRoomTypeName: classroomTypes.name,
             })
             .from(courseHours) // Start from courseHours to ensure unique records
             .innerJoin(sections, eq(courseHours.sectionId, sections.id))
             .leftJoin(
                 classroomTypes,
-                eq(sections.preferClassRoomId, classroomTypes.id)
+                eq(courseHours.preferClassRoomId, classroomTypes.id)
             )
             .innerJoin(courses, eq(sections.courseId, courses.id))
             .innerJoin(majors, eq(courses.majorId, majors.id)) // Direct join with majors
@@ -301,7 +303,6 @@ export async function POST(request: Request) {
                 number: section,
                 courseId: newCourse.id,
                 status: status || "offline", // Default to offline if not provided
-                preferClassRoomId: sectionData.preferClassRoomType?.id || null, // Allow null for no preference
             };
 
             // Add instructor if provided
@@ -321,7 +322,6 @@ export async function POST(request: Request) {
                     id: sections.id,
                     number: sections.number,
                     status: sections.status,
-                    preferClassRoomId: sections.preferClassRoomId,
                 })
                 .from(sections)
                 .where(
@@ -340,7 +340,8 @@ export async function POST(request: Request) {
                 // Insert courseHours if splitDurations are provided
                 if (splitDurations && splitDurations.length > 0) {
                     for (const timeSlot of splitDurations) {
-                        const { separatedDuration } = timeSlot;
+                        const { separatedDuration, preferClassRoomType } =
+                            timeSlot;
 
                         // Use separatedDuration if provided, otherwise use course duration
                         const durationToUse =
@@ -351,6 +352,7 @@ export async function POST(request: Request) {
                         await db.insert(courseHours).values({
                             separatedDuration: durationToUse,
                             sectionId: newSectionId,
+                            preferClassRoomId: preferClassRoomType?.id || null,
                         });
                     }
                 }
@@ -490,13 +492,8 @@ export async function PATCH(request: Request) {
         // STEP 2: Update existing sections and create new sections
         if (sectionsList && sectionsList.length > 0) {
             for (const sectionData of sectionsList) {
-                const {
-                    section,
-                    instructorId,
-                    status,
-                    splitDurations,
-                    preferClassRoomType,
-                } = sectionData;
+                const { section, instructorId, status, splitDurations } =
+                    sectionData;
 
                 // Check if section with this number already exists for this course
                 const existingSection = await db
@@ -519,7 +516,6 @@ export async function PATCH(request: Request) {
                     const sectionUpdateData: any = {
                         number: section,
                         status: status || "offline",
-                        preferClassRoomId: preferClassRoomType?.id || null, // Allow null for no preference
                     };
 
                     // Handle instructor assignment/removal
@@ -578,7 +574,8 @@ export async function PATCH(request: Request) {
                         // Update existing courseHours
                         for (let i = 0; i < splitDurations.length; i++) {
                             const timeSlot = splitDurations[i];
-                            const { separatedDuration } = timeSlot;
+                            const { separatedDuration, preferClassRoomType } =
+                                timeSlot;
 
                             const durationToUse =
                                 separatedDuration !== undefined
@@ -589,7 +586,10 @@ export async function PATCH(request: Request) {
 
                             await db
                                 .update(courseHours)
-                                .set({ separatedDuration: durationToUse })
+                                .set({
+                                    separatedDuration: durationToUse,
+                                    preferClassRoomId: preferClassRoomType?.id,
+                                })
                                 .where(
                                     eq(
                                         courseHours.id,
@@ -604,7 +604,8 @@ export async function PATCH(request: Request) {
                             .where(eq(courseHours.sectionId, currentSectionId));
 
                         for (const timeSlot of splitDurations) {
-                            const { separatedDuration } = timeSlot;
+                            const { separatedDuration, preferClassRoomType } =
+                                timeSlot;
 
                             const durationToUse =
                                 separatedDuration !== undefined
@@ -616,6 +617,7 @@ export async function PATCH(request: Request) {
                             await db.insert(courseHours).values({
                                 separatedDuration: durationToUse,
                                 sectionId: currentSectionId,
+                                preferClassRoomId: preferClassRoomType?.id,
                             });
                         }
                     }
