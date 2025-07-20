@@ -257,7 +257,7 @@ export default function CoursesView() {
                 ? {
                       ...section,
                       splitDurations: section.splitDurations.map((d, i) =>
-                          i === index ? Number(duration) : d
+                          i === index ? formatDecimal(Number(duration)) : d
                       ),
                   }
                 : section
@@ -272,7 +272,7 @@ export default function CoursesView() {
                 section.id === sectionId
                     ? {
                           ...section,
-                          splitDurations: [...section.splitDurations, 1], // Default to 1 hour
+                          splitDurations: [...section.splitDurations, formatDecimal(1)], // Default to 1 hour
                           preferClassRoomTypes: [
                               ...(section.preferClassRoomTypes || []),
                               null,
@@ -309,12 +309,13 @@ export default function CoursesView() {
                   0
               )
             : 0;
+        const formattedTotal = formatDecimal(total);
         console.log(
             `Section ${sectionId}: splitDurations =`,
             section?.splitDurations,
-            `total = ${total}, formData.duration = ${formData.duration}`
+            `total = ${formattedTotal}, formData.duration = ${formData.duration}`
         );
-        return total;
+        return formattedTotal;
     };
 
     const isSectionSplitValid = (sectionId: number) => {
@@ -329,9 +330,10 @@ export default function CoursesView() {
             (duration) => formatDecimal(duration) > 0
         );
 
+        // Use approximate equality to handle floating-point precision issues
         const isValid =
             courseDuration > 0 &&
-            total === courseDuration &&
+            isApproximatelyEqual(total, courseDuration) &&
             allSplitsArePositive;
         console.log(
             `Section ${sectionId}: splitDurations =`,
@@ -598,7 +600,7 @@ export default function CoursesView() {
 
         const currentDuration = section.splitDurations[index];
         const { minutes } = convertSplitDurationToHoursMinutes(currentDuration);
-        const newDuration = convertSplitDurationToDecimal(hours, minutes);
+        const newDuration = formatDecimal(convertSplitDurationToDecimal(hours, minutes));
 
         console.log(
             `Updating section ${sectionId}, part ${index} hours to ${hours}, total: ${newDuration}`
@@ -627,7 +629,7 @@ export default function CoursesView() {
 
         const currentDuration = section.splitDurations[index];
         const { hours } = convertSplitDurationToHoursMinutes(currentDuration);
-        const newDuration = convertSplitDurationToDecimal(hours, minutes);
+        const newDuration = formatDecimal(convertSplitDurationToDecimal(hours, minutes));
 
         console.log(
             `Updating section ${sectionId}, part ${index} minutes to ${minutes}, total: ${newDuration}`
@@ -673,7 +675,7 @@ export default function CoursesView() {
             );
 
             if (!isNaN(hours) && !isNaN(minutes)) {
-                const newDuration = convertToDecimalHours(hours, minutes);
+                const newDuration = formatDecimal(convertToDecimalHours(hours, minutes));
                 const newFormData = { ...formData, duration: newDuration };
 
                 setFormData(newFormData);
@@ -696,7 +698,7 @@ export default function CoursesView() {
             const minutes = parseInt(value === "" ? "0" : value, 10);
 
             if (!isNaN(hours) && !isNaN(minutes)) {
-                const newDuration = convertToDecimalHours(hours, minutes);
+                const newDuration = formatDecimal(convertToDecimalHours(hours, minutes));
                 const newFormData = { ...formData, duration: newDuration };
 
                 setFormData(newFormData);
@@ -860,7 +862,8 @@ export default function CoursesView() {
         // Allow same course code only for sections of the same logical course
         const duplicateCourses = courses.filter(
             (course) =>
-                course.code.toLowerCase().trim() === code.toLowerCase().trim() &&
+                course.code.toLowerCase().trim() ===
+                    code.toLowerCase().trim() &&
                 course.sectionId !== excludeSectionId
         );
 
@@ -868,13 +871,15 @@ export default function CoursesView() {
             // When editing, check if all existing courses with this code have the same code as the original course
             if (excludeSectionId && isEditDialogOpen && selectedCourse) {
                 // Allow if we're editing a section of an existing course with the same code
-                const originalCourseCode = selectedCourse.code.toLowerCase().trim();
+                const originalCourseCode = selectedCourse.code
+                    .toLowerCase()
+                    .trim();
                 if (code.toLowerCase().trim() === originalCourseCode) {
                     // Same course code as the original, this is allowed (editing sections of same course)
                     return undefined;
                 }
             }
-            
+
             // For new courses or when changing to a different course code, don't allow duplicates
             return "This course code already exists";
         }
@@ -894,14 +899,17 @@ export default function CoursesView() {
         // Check for duplicates in current courses list
         const duplicateCourses = courses.filter(
             (course) =>
-                course.title.toLowerCase().trim() === title.toLowerCase().trim() &&
+                course.title.toLowerCase().trim() ===
+                    title.toLowerCase().trim() &&
                 course.sectionId !== excludeSectionId
         );
 
         if (duplicateCourses.length > 0) {
             // When editing, allow if we're editing a section of an existing course with the same title
             if (excludeSectionId && isEditDialogOpen && selectedCourse) {
-                const originalCourseTitle = selectedCourse.title.toLowerCase().trim();
+                const originalCourseTitle = selectedCourse.title
+                    .toLowerCase()
+                    .trim();
                 if (title.toLowerCase().trim() === originalCourseTitle) {
                     // Same title as the original, allowed
                     return undefined;
@@ -1006,7 +1014,7 @@ export default function CoursesView() {
             instructor_name: currentInstructor?.name || undefined,
             status: "offline",
             showSplitControls: false,
-            splitDurations: [Number(formData.duration) || 1],
+            splitDurations: [formatDecimal(Number(formData.duration) || 1)],
             preferClassRoomTypes: [null], // Initialize with one classroom type slot
         };
 
@@ -1141,7 +1149,13 @@ export default function CoursesView() {
         return isValid;
     };
     function formatDecimal(value: number): number {
-        return Math.round(value * 100) / 100; // Truncate to 2 decimals, don't round
+        return Math.round(value * 100) / 100; // Round to 2 decimals
+    }
+
+    // Helper function to check if two decimal values are approximately equal
+    // to handle floating-point precision issues
+    function isApproximatelyEqual(a: number, b: number, tolerance: number = 0.005): boolean {
+        return Math.abs(a - b) < tolerance;
     }
     const handleAddCourse = async () => {
         if (!validateForm()) {
@@ -1550,8 +1564,8 @@ export default function CoursesView() {
             instructor_name: instructorName !== "" ? instructorName : undefined,
             status: course.status || "offline",
             splitDurations: hasSeparatedDurations
-                ? (course as any).separatedDurations
-                : [courseDuration],
+                ? (course as any).separatedDurations.map((duration: number) => formatDecimal(duration))
+                : [formatDecimal(courseDuration)],
             showSplitControls: false, // Always false since controls are always visible now
             preferClassRoomTypes: preferClassRoomTypes, // Use the array we prepared
         };
