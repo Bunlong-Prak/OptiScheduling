@@ -3133,7 +3133,7 @@ function canScheduleAtTimeWithDetails(
             return {
                 canSchedule: false,
                 errorType: "NO_AVAILABLE_SLOTS",
-                errorMessage: `Classroom ${classroomId} is not available at ${day} ${timeSlot}`,
+                errorMessage: `Classroom is not available at ${day} ${timeSlot}`,
                 conflictingCourse: conflictingSection
                     ? `Section ID: ${conflictingSection}`
                     : undefined,

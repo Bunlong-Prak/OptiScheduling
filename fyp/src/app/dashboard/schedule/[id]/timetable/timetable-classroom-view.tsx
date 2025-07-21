@@ -1602,7 +1602,7 @@ export default function TimetableViewClassroom() {
                                             </span>
                                         </div>
                                     )}
-                                    {error.details.conflicting_course && (
+                                    {/* {error.details.conflicting_course && (
                                         <div className="flex justify-between">
                                             <span className="text-gray-600">
                                                 Conflicts with:
@@ -1614,7 +1614,7 @@ export default function TimetableViewClassroom() {
                                                 }
                                             </span>
                                         </div>
-                                    )}
+                                    )} */}
                                     {error.details.attempted_day && (
                                         <div className="flex justify-between">
                                             <span className="text-gray-600">
