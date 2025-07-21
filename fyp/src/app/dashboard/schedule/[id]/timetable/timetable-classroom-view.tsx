@@ -502,8 +502,8 @@ export default function TimetableViewClassroom() {
 
         console.log(`New course time range: slot ${newCourseStartIndex} to ${newCourseEndIndex} (duration: ${duration})`);
 
-        // Group existing courses by their schedule key prefix (day-classroom) to find unique courses
-        const existingCoursesByPrefix = new Map<string, TimetableCourse & { startIndex: number; endIndex: number; classroomId: string }>();
+        // Collect all time slots occupied by the instructor, considering split durations
+        const occupiedTimeSlots = new Map<number, { course: TimetableCourse; classroomId: string }>();
         
         Object.entries(schedule).forEach(([scheduleKey, scheduledCourse]) => {
             // Skip self
@@ -522,82 +522,83 @@ export default function TimetableViewClassroom() {
                 return;
             }
 
-            // Extract day-classroom prefix to group course segments
+            // Extract classroom and time slot from schedule key
             const keyParts = scheduleKey.split("-");
             const scheduleClassroomId = keyParts[keyParts.length - 2];
-            const prefix = `${day}-${scheduleClassroomId}`;
+            const timeSlotKey = keyParts[keyParts.length - 1];
 
-            // Only store the first occurrence (isStart segment) of each course
-            if (scheduledCourse.isStart && !existingCoursesByPrefix.has(prefix)) {
-                // Find the start and end indices for this existing course
-                const existingStartIndex = timeSlots.findIndex(ts => 
-                    getTimeSlotKey(ts) === keyParts[keyParts.length - 1]
-                );
+            // Find the time slot index for this scheduled course segment
+            const timeSlotIndex = timeSlots.findIndex(ts => 
+                getTimeSlotKey(ts) === timeSlotKey
+            );
+            
+            if (timeSlotIndex !== -1) {
+                // Each schedule entry represents a single time slot, so record it
+                occupiedTimeSlots.set(timeSlotIndex, {
+                    course: scheduledCourse,
+                    classroomId: scheduleClassroomId
+                });
                 
-                if (existingStartIndex !== -1) {
-                    const existingEndIndex = existingStartIndex + scheduledCourse.duration - 1;
-                    
-                    // Add range information to the course object
-                    existingCoursesByPrefix.set(prefix, {
-                        ...scheduledCourse,
-                        startIndex: existingStartIndex,
-                        endIndex: existingEndIndex,
-                        classroomId: scheduleClassroomId
-                    });
-                }
+                console.log(`Instructor ${instructorName} is busy at slot ${timeSlotIndex} (${timeSlotKey}) teaching ${scheduledCourse.code} in classroom ${scheduleClassroomId}`);
             }
         });
 
-        console.log(`Found ${existingCoursesByPrefix.size} existing courses taught by ${instructorName} on ${day}`);
+        console.log(`Found ${occupiedTimeSlots.size} occupied time slots for instructor ${instructorName} on ${day}`);
 
-        // Check for overlaps with each existing course
-        for (const [, existingCourse] of existingCoursesByPrefix) {
-            const existingStartIndex = existingCourse.startIndex;
-            const existingEndIndex = existingCourse.endIndex;
-            const existingClassroomId = existingCourse.classroomId;
+        // Check for conflicts with each time slot the new course would occupy
+        for (let slotOffset = 0; slotOffset < duration; slotOffset++) {
+            const checkSlotIndex = newCourseStartIndex + slotOffset;
+            
+            if (checkSlotIndex >= timeSlots.length) {
+                console.log(`⚠️ Time slot ${checkSlotIndex} is beyond available slots`);
+                break;
+            }
 
-            console.log(`Checking overlap with ${existingCourse.code} (slots ${existingStartIndex}-${existingEndIndex}) in classroom ${existingClassroomId}`);
-
-            // Check if time ranges overlap
-            const hasTimeOverlap = !(newCourseEndIndex < existingStartIndex || newCourseStartIndex > existingEndIndex);
-
-            if (hasTimeOverlap) {
-                // Time ranges overlap - check if it's the same classroom and exact same time (for combining)
+            const occupiedSlot = occupiedTimeSlots.get(checkSlotIndex);
+            
+            if (occupiedSlot) {
+                const existingCourse = occupiedSlot.course;
+                const existingClassroomId = occupiedSlot.classroomId;
+                
+                // Check if it's the same classroom and we're trying to combine courses
                 const isSameClassroom = existingClassroomId === targetClassroomId;
-                const isExactSameTime = newCourseStartIndex === existingStartIndex && newCourseEndIndex === existingEndIndex;
+                
+                console.log(`❌ INSTRUCTOR CONFLICT DETECTED at slot ${checkSlotIndex}`);
+                console.log("Existing course:", existingCourse.code);
+                console.log("New course:", course.code);
+                console.log("Same classroom:", isSameClassroom);
+                console.log("Existing classroom ID:", existingClassroomId);
+                console.log("Target classroom ID:", targetClassroomId);
 
-                if (isSameClassroom && isExactSameTime) {
-                    console.log("✅ Same classroom and exact same time - allowing for course combining");
-                    continue; // This is allowed for combining
-                } else {
-                    // This is a conflict - either different classrooms or overlapping but not identical times
-                    const conflictClassroom = classrooms.find(
-                        (c) => c.id.toString() === existingClassroomId
-                    );
-
-                    console.log("❌ INSTRUCTOR CONFLICT DETECTED");
-                    console.log("Existing course:", existingCourse.code);
-                    console.log("Existing time range:", `${existingStartIndex}-${existingEndIndex}`);
-                    console.log("New course time range:", `${newCourseStartIndex}-${newCourseEndIndex}`);
-                    console.log("Same classroom:", isSameClassroom);
-                    console.log("Exact same time:", isExactSameTime);
-
-                    if (!isSameClassroom) {
-                        return {
-                            isValid: false,
-                            conflictMessage: `Instructor ${instructorName} is already teaching ${existingCourse.code} in ${
-                                conflictClassroom?.code || "another classroom"
-                            } during an overlapping time period on ${day}. Cannot teach in multiple classrooms simultaneously.`,
-                        };
+                if (isSameClassroom) {
+                    // Same classroom - check if this is for course combining (exact same time range)
+                    const isExactSameTimeRange = newCourseStartIndex === timeSlotIndex && 
+                                               newCourseEndIndex === (timeSlotIndex + duration - 1);
+                    
+                    if (isExactSameTimeRange) {
+                        console.log("✅ Same classroom and exact same time range - allowing for course combining");
+                        continue; // This specific slot is allowed for combining
                     } else {
                         return {
                             isValid: false,
                             conflictMessage: `Instructor ${instructorName} is already teaching ${existingCourse.code} during an overlapping time period in the same classroom on ${day}. Courses can only be combined if they have identical start and end times.`,
                         };
                     }
+                } else {
+                    // Different classrooms - instructor cannot be in two places at once
+                    const conflictClassroom = classrooms.find(
+                        (c) => c.id.toString() === existingClassroomId
+                    );
+                    
+                    return {
+                        isValid: false,
+                        conflictMessage: `Instructor ${instructorName} is already teaching ${existingCourse.code} in ${
+                            conflictClassroom?.code || "another classroom"
+                        } at this time on ${day}. Cannot teach in multiple classrooms simultaneously.`,
+                    };
                 }
             } else {
-                console.log(`✅ No time overlap with ${existingCourse.code}`);
+                console.log(`✅ Time slot ${checkSlotIndex} is free for instructor ${instructorName}`);
             }
         }
 
