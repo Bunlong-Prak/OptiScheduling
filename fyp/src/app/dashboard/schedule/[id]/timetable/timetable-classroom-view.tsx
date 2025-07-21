@@ -931,6 +931,22 @@ export default function TimetableViewClassroom() {
                 // Courses with day, timeslot, and null classroom should remain in available courses
                 const properlySavedCourseIds = new Set<number>();
 
+                console.log("=== RAW ASSIGNMENT DEBUG ===");
+                console.log("Assignment keys:", Object.keys(assignmentsData[0] || {}));
+                assignmentsData.slice(0, 3).forEach((assignment, index) => {
+                    console.log(`Assignment ${index}:`, {
+                        id: assignment.id,
+                        code: assignment.code,
+                        day: assignment.day,
+                        timeSlot: assignment.timeSlot,
+                        startTime: assignment.startTime,
+                        classroom: assignment.classroom,
+                        classroomId: assignment.classroomId,
+                        isOnline: assignment.isOnline,
+                        status: assignment.status,
+                    });
+                });
+
                 // First pass: collect only course IDs that have complete assignment data
                 assignmentsData.forEach((assignment: any) => {
                     if (assignment.id) {
@@ -938,19 +954,19 @@ export default function TimetableViewClassroom() {
                             assignment.day && assignment.day.trim() !== "";
                         const hasTimeSlot =
                             assignment.timeSlot || assignment.startTime;
-                        const hasClassroom =
-                            assignment.classroom &&
-                            assignment.classroom !== null;
-                        const hasClassroomId =
-                            assignment.classroomId &&
-                            assignment.classroomId !== null;
+                        
+                        // For online courses, check if classroomId is a negative number OR if the course is marked as online
+                        // For physical courses, check if classroom name exists
+                        const isOnlineCourse = (assignment.classroomId && assignment.classroomId < 0) || 
+                                             assignment.isOnline || 
+                                             assignment.status === "online" ||
+                                             (assignment.classroom === null && assignment.classroomId === null);
+                        
+                        const hasValidClassroom = isOnlineCourse || 
+                            (assignment.classroom && assignment.classroom !== null && assignment.classroom.trim() !== "");
 
                         // Only consider it properly saved if it has complete assignment data
-                        if (
-                            hasDay &&
-                            hasTimeSlot &&
-                            (hasClassroom || hasClassroomId)
-                        ) {
+                        if (hasDay && hasTimeSlot && hasValidClassroom) {
                             properlySavedCourseIds.add(assignment.id);
                             console.log(
                                 `Found PROPERLY SAVED course ID: ${
@@ -960,9 +976,8 @@ export default function TimetableViewClassroom() {
                                 }, Time: ${
                                     assignment.timeSlot || assignment.startTime
                                 }, Classroom: ${
-                                    assignment.classroom ||
-                                    assignment.classroomId
-                                }`
+                                    isOnlineCourse ? `Online (ID: ${assignment.classroomId})` : assignment.classroom
+                                }, IsOnline: ${isOnlineCourse}`
                             );
                         } else {
                             console.log(
@@ -975,7 +990,7 @@ export default function TimetableViewClassroom() {
                                 }, Classroom: ${
                                     assignment.classroom ||
                                     assignment.classroomId
-                                }`
+                                }, IsOnline: ${isOnlineCourse}, HasValidClassroom: ${hasValidClassroom}`
                             );
                         }
                     }
@@ -1084,13 +1099,15 @@ export default function TimetableViewClassroom() {
                                 }
                             }
                         } else {
-                            // Legacy online courses without virtual classroom ID, assign to first available
-                            const virtualClassroom = classrooms.find(
-                                (c) => c.id < 0
-                            );
-                            if (virtualClassroom) {
-                                classroom = virtualClassroom;
-                                classroomId = virtualClassroom.id.toString();
+                            // Legacy online courses without virtual classroom ID, distribute across available virtual classrooms
+                            const virtualClassrooms = classrooms.filter((c) => c.id < 0);
+                            if (virtualClassrooms.length > 0) {
+                                // Use course ID to consistently assign to a virtual classroom
+                                const virtualClassroomIndex = courseHourId % virtualClassrooms.length;
+                                const selectedVirtualClassroom = virtualClassrooms[virtualClassroomIndex];
+                                classroom = selectedVirtualClassroom;
+                                classroomId = selectedVirtualClassroom.id.toString();
+                                console.log(`🔄 Distributed online course ${code} (ID: ${courseHourId}) to virtual classroom ${selectedVirtualClassroom.id}`);
                             } else {
                                 classroomId = "-1";
                                 classroom = {
@@ -1098,6 +1115,7 @@ export default function TimetableViewClassroom() {
                                     code: "Online",
                                     capacity: 999,
                                 };
+                                console.log(`⚠️ No virtual classrooms available, using fallback for ${code}`);
                             }
                         }
                     } else {
@@ -1336,79 +1354,8 @@ export default function TimetableViewClassroom() {
         if (timeSlots.length > 0 && classrooms.length > 0) {
             fetchTimetableAssignments();
         }
-    }, [params.id, timeSlots, classrooms]); // 🔥 REMOVED availableCourses from dependency array
-
-    const checkCapacityConstraints = (
-        course: TimetableCourse,
-        classroomId: string
-    ): { isValid: boolean; conflictMessage?: string } => {
-        // Skip capacity check for online classrooms
-        const isOnlineClassroom = parseInt(classroomId) < 0;
-        if (isOnlineClassroom) {
-            return { isValid: true };
-        }
-
-        // Find the classroom
-        const classroom = classrooms.find(
-            (c) => c.id.toString() === classroomId
-        );
-        if (!classroom) {
-            return {
-                isValid: false,
-                conflictMessage: "Classroom not found",
-            };
-        }
-
-        // Get course capacity - check different possible property names
-        const courseCapacity = course.capacity;
-
-        // Check if course capacity exceeds classroom capacity
-        if (courseCapacity > classroom.capacity) {
-            return {
-                isValid: false,
-                conflictMessage: `Course capacity (${courseCapacity} students) exceeds classroom capacity (${classroom.capacity} students)`,
-            };
-        }
-
-        return { isValid: true };
-    };
-
-    const renderCapacityInfo = (
-        course: TimetableCourse,
-        classroom: Classroom
-    ) => {
-        const isOnlineClassroom = classroom.id < 0;
-        if (isOnlineClassroom) return null;
-
-        const courseCapacity = course.capacity;
-
-        const capacityCheck = checkCapacityConstraints(
-            course,
-            classroom.id.toString()
-        );
-
-        if (courseCapacity === 0) {
-            return (
-                <div className="text-yellow-400 mb-1">
-                    ⚠️ Course capacity not specified
-                </div>
-            );
-        }
-
-        if (!capacityCheck.isValid) {
-            return (
-                <div className="text-red-400 mb-1 whitespace-normal">
-                    ⚠️ {capacityCheck.conflictMessage}
-                </div>
-            );
-        }
-
-        return (
-            <div className="text-green-400 mb-1">
-                ✓ Capacity: {courseCapacity}/{classroom.capacity}
-            </div>
-        );
-    };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [params.id, timeSlots, classrooms]);
 
     const calculateSlotsNeeded = useCallback(
         (durationHours: number, timeSlots: any[], startIndex: number) => {
@@ -1439,6 +1386,7 @@ export default function TimetableViewClassroom() {
                 return slotsNeeded;
             }
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         []
     );
 
@@ -1802,12 +1750,26 @@ export default function TimetableViewClassroom() {
                     assignment.startTime || assignment.timeSlot
                 );
                 const isOnline =
-                    assignment.isOnline || assignment.classroomId === null;
-                const classroomKey = isOnline
-                    ? "-1"
-                    : assignment.classroom ||
+                    assignment.isOnline || 
+                    assignment.status === "online" ||
+                    assignment.classroomId === null ||
+                    (assignment.classroomId && assignment.classroomId < 0);
+                    
+                let classroomKey;
+                if (isOnline) {
+                    // If it already has a virtual classroom ID, use it
+                    if (assignment.classroomId && assignment.classroomId < 0) {
+                        classroomKey = assignment.classroomId.toString();
+                    } else {
+                        // Distribute online courses across virtual classrooms based on course ID
+                        const virtualClassroomId = -1 - (assignment.id % 5); // Use 5 virtual classrooms (-1 to -5)
+                        classroomKey = virtualClassroomId.toString();
+                    }
+                } else {
+                    classroomKey = assignment.classroom ||
                       assignment.classroomId?.toString() ||
                       "unknown";
+                }
                 const day = assignment.day?.trim() || "unknown";
 
                 return {
