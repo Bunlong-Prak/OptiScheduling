@@ -377,7 +377,6 @@ export default function CoursesView() {
 
     const fetchData = async () => {
         try {
-            // Fetch courses
             const scheduleId = params.id;
             const response = await fetch(
                 `/api/courses?scheduleId=${scheduleId}`,
@@ -398,89 +397,115 @@ export default function CoursesView() {
             const courseHoursData = await response.json();
             console.log("Original API response:", courseHoursData);
 
-            // Group course hours by sectionId to combine separated durations
             const sectionMap = new Map();
 
-            courseHoursData.forEach((courseHour: any) => {
-                const sectionKey = courseHour.sectionId.toString();
+            courseHoursData.forEach(
+                (courseHour: {
+                    sectionId: { toString: () => any };
+                    id: any;
+                    title: any;
+                    code: any;
+                    year: any;
+                    major: any;
+                    color: any;
+                    firstName: any;
+                    lastName: any;
+                    instructorId: any;
+                    duration: any;
+                    capacity: any;
+                    status: any;
+                    section: any;
+                    classroom: any;
+                    separatedDuration: any;
+                    preferClassRoomTypeName: any;
+                    day: any;
+                    timeSlot: any;
+                }) => {
+                    const sectionKey = courseHour.sectionId.toString();
 
-                if (!sectionMap.has(sectionKey)) {
-                    // Create a new section entry with the original Course type structure
-                    sectionMap.set(sectionKey, {
+                    if (!sectionMap.has(sectionKey)) {
+                        // Create a new section entry
+                        sectionMap.set(sectionKey, {
+                            id: courseHour.id,
+                            sectionId: courseHour.sectionId,
+                            title: courseHour.title,
+                            code: courseHour.code,
+                            year: courseHour.year,
+                            major: courseHour.major,
+                            color: courseHour.color,
+                            firstName: courseHour.firstName,
+                            lastName: courseHour.lastName,
+                            instructorId: courseHour.instructorId,
+                            duration: courseHour.duration,
+                            capacity: courseHour.capacity,
+                            status: courseHour.status,
+                            section: courseHour.section,
+                            classroom: courseHour.classroom,
+                            // New array to store all separated durations
+                            separatedDurations: [courseHour.separatedDuration],
+                            // New array to store all course hours for a section
+                            courseHours: [],
+                            // New array to store all classroom types
+                            preferClassRoomTypeNames: [
+                                courseHour.preferClassRoomTypeName,
+                            ],
+                        });
+                    } else {
+                        // Get existing section data
+                        const sectionData = sectionMap.get(sectionKey);
+                        // Add separated duration to existing section
+                        sectionData.separatedDurations.push(
+                            courseHour.separatedDuration
+                        );
+                        // Add classroom type to existing section, checking for duplicates
+                        if (
+                            !sectionData.preferClassRoomTypeNames.includes(
+                                courseHour.preferClassRoomTypeName
+                            )
+                        ) {
+                            sectionData.preferClassRoomTypeNames.push(
+                                courseHour.preferClassRoomTypeName
+                            );
+                        }
+                    }
+
+                    // Add this course hour to the section's course hours
+                    sectionMap.get(sectionKey).courseHours.push({
                         id: courseHour.id,
-                        sectionId: courseHour.sectionId,
-                        title: courseHour.title,
-                        code: courseHour.code,
-                        year: courseHour.year,
-                        major: courseHour.major,
-                        color: courseHour.color,
-                        firstName: courseHour.firstName,
-                        lastName: courseHour.lastName,
-                        instructorId: courseHour.instructorId,
-                        duration: courseHour.duration,
                         separatedDuration: courseHour.separatedDuration,
-                        capacity: courseHour.capacity,
-                        status: courseHour.status,
-                        section: courseHour.section,
-                        classroom: courseHour.classroom,
-                        separatedDurations: [courseHour.separatedDuration],
-                        courseHours: [],
-                        preferClassRoomTypeId: courseHour.preferClassRoomTypeId,
-                        preferClassRoomTypeName:
-                            courseHour.preferClassRoomTypeName,
+                        day: courseHour.day,
+                        timeSlot: courseHour.timeSlot,
                     });
-                } else {
-                    // Always add separated duration to existing section
-                    const sectionData = sectionMap.get(sectionKey);
-                    sectionData.separatedDurations.push(
-                        courseHour.separatedDuration
-                    );
                 }
+            );
 
-                // Add this course hour to the section's course hours
-                sectionMap.get(sectionKey).courseHours.push({
-                    id: courseHour.id,
-                    separatedDuration: courseHour.separatedDuration,
-                    day: courseHour.day,
-                    timeSlot: courseHour.timeSlot,
-                });
-            });
-
-            // After grouping, calculate combined separated duration for each section
             const processedCourses = Array.from(sectionMap.values()).map(
                 (course) => {
-                    // Calculate the total combined separated duration
                     const combinedSeparatedDuration =
                         course.separatedDurations.reduce(
-                            (total: number, duration: number) =>
-                                total + duration,
+                            (total: any, duration: any) => total + duration,
                             0
                         );
                     return {
                         ...course,
                         combinedSeparatedDuration,
+                        // Joins the unique classroom type names into a single string
+                        preferClassRoomTypeName:
+                            course.preferClassRoomTypeNames.join(", "),
                         separatedDuration: course.separatedDurations[0],
-                        preferClassRoomTypeId: course.preferClassRoomTypeId,
-                        preferClassRoomTypeName: course.preferClassRoomTypeName,
                     };
                 }
             );
 
             console.log(
-                "Processed courses with combined durations:",
+                "Processed courses with combined durations and classroom types:",
                 processedCourses
             );
 
-            // Set the processed courses to state
             setCourses(processedCourses);
-
-            // Reset to first page when data changes
             setCurrentPage(1);
-
-            // Calculate total pages
             setTotalPages(Math.ceil(processedCourses.length / ITEMS_PER_PAGE));
 
-            // Fetch majors data
             if (scheduleId !== undefined) {
                 await Promise.allSettled([
                     fetchMajors(scheduleId),
@@ -1511,6 +1536,13 @@ export default function CoursesView() {
     // ]);
 
     // Instructor validation helper
+
+    const findClassRoomTypeByName = (
+        name: string | undefined
+    ): ClassroomType | null => {
+        if (!name) return null;
+        return classroomTypes.find((type) => type.name === name.trim()) || null;
+    };
     const openEditDialog = (course: Course) => {
         setSelectedCourse(course);
         const courseDuration = Number(course.duration);
@@ -1550,23 +1582,29 @@ export default function CoursesView() {
 
         if (hasSeparatedDurations) {
             // For each separated duration, try to find the corresponding classroom type
-            // Note: The current data structure might not have individual classroom types per split
-            // so we'll initialize with the first classroom type for all parts
-            const foundClassroomType = findClassRoomTypeById(
-                course.preferClassRoomTypeId
-            );
+            // Parse the preferClassRoomTypeName which might contain multiple comma-separated names
+            const classroomTypeNames = course.preferClassRoomTypeName
+                ? course.preferClassRoomTypeName
+                      .split(",")
+                      .map((name) => name.trim())
+                : [];
+
             for (
                 let i = 0;
                 i < (course as any).separatedDurations.length;
                 i++
             ) {
-                preferClassRoomTypes.push(foundClassroomType || null);
+                // Use the corresponding classroom type name or the first one if not enough names
+                const typeName = classroomTypeNames[i] || classroomTypeNames[0];
+                const foundClassroomType = findClassRoomTypeByName(typeName);
+                preferClassRoomTypes.push(foundClassroomType);
             }
         } else {
             // Single duration, single classroom type
-            preferClassRoomTypes.push(
-                findClassRoomTypeById(course.preferClassRoomTypeId) || null
+            const foundClassroomType = findClassRoomTypeByName(
+                course.preferClassRoomTypeName
             );
+            preferClassRoomTypes.push(foundClassroomType);
         }
 
         // Initialize with existing section data, including separated durations
@@ -2584,10 +2622,10 @@ export default function CoursesView() {
                                             <td className="px-2 py-2 text-xs text-gray-900">
                                                 {course.duration}h
                                             </td>
-                                            <td className="px-2 py-2 text-xs text-gray-900">
-                                                {/* Display separated durations - check if separatedDurations array exists */}
+                                            <td>
                                                 <div className="space-y-1">
                                                     {/* Individual separated durations */}
+
                                                     <div className="flex flex-wrap gap-1">
                                                         {(course as any)
                                                             .separatedDurations &&
@@ -2599,6 +2637,7 @@ export default function CoursesView() {
                                                             ).separatedDurations.map(
                                                                 (
                                                                     duration: number,
+
                                                                     idx: number
                                                                 ) => (
                                                                     <span
@@ -2625,6 +2664,7 @@ export default function CoursesView() {
                                                     </div>
 
                                                     {/* Show combined total when there are multiple separated durations */}
+
                                                     {(course as any)
                                                         .separatedDurations &&
                                                         (course as any)
@@ -2636,9 +2676,9 @@ export default function CoursesView() {
                                                 {course.capacity}
                                             </td>
                                             <td className="px-2 py-2 text-xs text-gray-900">
-                                                {course.preferClassRoomTypeName}
+                                                {course.preferClassRoomTypeName ||
+                                                    "—"}
                                             </td>
-
                                             <td className="px-2 py-2">
                                                 <span
                                                     className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
