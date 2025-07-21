@@ -729,14 +729,19 @@ export default function Dashboard({ authUser }: DashboardProps) {
             setHasAssignedCourses(hasAssignments);
 
             const timeSlots = schedule.timeSlots || [];
+            
+            // Set persistent time slots first to ensure the useEffect has the correct data
+            setPersistentTimeSlots([...timeSlots]);
+            
+            // Then set form data - the useEffect will use the persistent time slots
             setFormData({
                 name: schedule.name,
                 startDate: formatDateForInput(schedule.startDate),
                 endDate: formatDateForInput(schedule.endDate),
                 numTimeSlots: timeSlots.length,
-                timeSlots: timeSlots,
+                timeSlots: [...timeSlots], // Create a copy to ensure reactivity
             });
-            setPersistentTimeSlots([...timeSlots]);
+            
             setTimeSlotErrors({});
             setIsEditDialogOpen(true);
         }
@@ -1103,9 +1108,7 @@ export default function Dashboard({ authUser }: DashboardProps) {
                             formData.timeSlots[index - 1].endTime
                         ) &&
                         timeToMinutes(timeSlot.startTime) <
-                            timeToMinutes(
-                                formData.timeSlots[index - 1].endTime
-                            );
+                            timeToMinutes(formData.timeSlots[index - 1].endTime);
 
                     return (
                         <div
@@ -1836,7 +1839,51 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                                     : ""
                                                             }`}
                                                         />
-                                                        {/* Error messages remain the same */}
+                                                        {/* Add error messages for start time */}
+                                                        {timeSlot.startTime &&
+                                                            !isCompleteTimeFormat(
+                                                                timeSlot.startTime
+                                                            ) && (
+                                                                <div className='flex items-center gap-1'>
+                                                                    <span className='text-red-500 text-xs'>
+                                                                        ⚠️
+                                                                    </span>
+                                                                    <p className='text-xs text-red-600 font-medium'>
+                                                                        Enter time in HH:MM format
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        {hasPreviousOverlap && (
+                                                            <div className='flex items-center gap-1'>
+                                                                <span className='text-red-500 text-xs'>
+                                                                    ❌
+                                                                </span>
+                                                                <p className='text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded'>
+                                                                    Start time must be after time slot{" "}
+                                                                    {index} end time (
+                                                                    {
+                                                                        formData.timeSlots[
+                                                                            index - 1
+                                                                        ].endTime
+                                                                    }
+                                                                    )
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                        {timeSlotErrors[index] &&
+                                                            timeSlotErrors[index].includes(
+                                                                "start time"
+                                                            ) &&
+                                                            !hasPreviousOverlap && (
+                                                                <div className='flex items-center gap-1'>
+                                                                    <span className='text-red-500 text-xs'>
+                                                                        ❌
+                                                                    </span>
+                                                                    <p className='text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded'>
+                                                                        {timeSlotErrors[index]}
+                                                                    </p>
+                                                                </div>
+                                                            )}
                                                     </div>
                                                     <div className='space-y-2'>
                                                         <Label
@@ -1885,8 +1932,64 @@ export default function Dashboard({ authUser }: DashboardProps) {
                                                                     : ""
                                                             }`}
                                                         />
-                                                        {/* Error messages remain the same */}
+                                                        {/* Add error messages for end time */}
+                                                        {timeSlot.endTime &&
+                                                            !isCompleteTimeFormat(timeSlot.endTime) && (
+                                                                <div className='flex items-center gap-1'>
+                                                                    <span className='text-red-500 text-xs'>
+                                                                        ⚠️
+                                                                    </span>
+                                                                    <p className='text-xs text-red-600 font-medium'>
+                                                                        Enter time in HH:MM format
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        {hasEndTimeError && (
+                                                            <div className='flex items-center gap-1'>
+                                                                <span className='text-red-500 text-xs'>
+                                                                    ❌
+                                                                </span>
+                                                                <p className='text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded'>
+                                                                    End time must be after start time (
+                                                                    {timeSlot.startTime})
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                        {timeSlotErrors[index] &&
+                                                            timeSlotErrors[index].includes(
+                                                                "end time"
+                                                            ) &&
+                                                            !hasEndTimeError && (
+                                                                <div className='flex items-center gap-1'>
+                                                                    <span className='text-red-500 text-xs'>
+                                                                        ❌
+                                                                    </span>
+                                                                    <p className='text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded'>
+                                                                        {timeSlotErrors[index]}
+                                                                    </p>
+                                                                </div>
+                                                            )}
                                                     </div>
+
+                                                    {/* Show other general time slot validation errors */}
+                                                    {timeSlotErrors[index] &&
+                                                        !timeSlotErrors[index].includes("start time") &&
+                                                        !timeSlotErrors[index].includes("end time") &&
+                                                        !timeSlotErrors[index].includes(
+                                                            "End time must be after start time"
+                                                        ) &&
+                                                        !hasPreviousOverlap && (
+                                                            <div className='col-span-2'>
+                                                                <div className='flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3'>
+                                                                    <span className='text-red-500 text-sm'>
+                                                                        🚫
+                                                                    </span>
+                                                                    <p className='text-sm text-red-700 font-medium'>
+                                                                        {timeSlotErrors[index]}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                 </div>
                                             );
                                         }
