@@ -1761,8 +1761,9 @@ export default function TimetableViewClassroom() {
                     if (assignment.classroomId && assignment.classroomId < 0) {
                         classroomKey = assignment.classroomId.toString();
                     } else {
-                        // Distribute online courses across virtual classrooms based on course ID
-                        const virtualClassroomId = -1 - (assignment.id % 5); // Use 5 virtual classrooms (-1 to -5)
+                        // Each online course gets its own unique virtual classroom to prevent conflicts
+                        // Use the course ID directly to ensure uniqueness
+                        const virtualClassroomId = -assignment.id; // Use negative course ID as virtual classroom ID
                         classroomKey = virtualClassroomId.toString();
                     }
                 } else {
