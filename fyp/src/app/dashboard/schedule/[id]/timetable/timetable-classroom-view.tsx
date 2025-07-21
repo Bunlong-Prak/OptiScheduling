@@ -2194,7 +2194,7 @@ export default function TimetableViewClassroom() {
                 )} returned to available courses`
             );
         } else {
-            showErrorMessage(
+            showSuccessMessage(
                 `Course ${course.code} returned to available courses`
             );
         }
