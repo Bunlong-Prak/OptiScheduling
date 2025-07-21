@@ -79,7 +79,7 @@ export async function GET(request: Request) {
 
         // Process assignments to handle online courses
         const processedAssignments = assignments.map((assignment) => {
-            const isOnline = assignment.classroomId === null;
+            const isOnline = assignment.classroomId !== null && assignment.classroomId < 0;
 
             return {
                 ...assignment,
@@ -314,9 +314,16 @@ export async function POST(request: Request) {
                 }
 
                 // Now, update the classroom ID for the identified or newly created course hour.
-                // For online courses or if classroom is not provided, set classroomId to null.
-                const classroomId =
-                    isOnline || !classroom ? null : parseInt(classroom);
+                // For online courses, preserve the virtual classroom ID; for physical courses, use the actual classroom ID
+                let classroomId: number | null;
+                
+                if (isOnline) {
+                    // For online courses, parse the classroom parameter which contains the virtual classroom ID
+                    classroomId = classroom ? parseInt(classroom) : -1;
+                } else {
+                    // For physical courses, set to null if no classroom provided, otherwise parse the classroom ID
+                    classroomId = classroom ? parseInt(classroom) : null;
+                }
 
                 await db
                     .update(courseHours)

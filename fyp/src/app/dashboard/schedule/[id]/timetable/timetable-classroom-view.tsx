@@ -1058,19 +1058,47 @@ export default function TimetableViewClassroom() {
                     let classroomId;
 
                     if (isOnline) {
-                        const virtualClassroom = classrooms.find(
-                            (c) => c.id < 0
-                        );
-                        if (virtualClassroom) {
-                            classroom = virtualClassroom;
-                            classroomId = virtualClassroom.id.toString();
+                        // For online courses, use the stored classroomId if it's a virtual classroom ID
+                        if (assignment.classroomId && assignment.classroomId < 0) {
+                            const virtualClassroom = classrooms.find(
+                                (c) => c.id === assignment.classroomId
+                            );
+                            if (virtualClassroom) {
+                                classroom = virtualClassroom;
+                                classroomId = virtualClassroom.id.toString();
+                            } else {
+                                // Fallback to first available virtual classroom
+                                const fallbackVirtualClassroom = classrooms.find(
+                                    (c) => c.id < 0
+                                );
+                                if (fallbackVirtualClassroom) {
+                                    classroom = fallbackVirtualClassroom;
+                                    classroomId = fallbackVirtualClassroom.id.toString();
+                                } else {
+                                    classroomId = "-1";
+                                    classroom = {
+                                        id: -1,
+                                        code: "Online",
+                                        capacity: 999,
+                                    };
+                                }
+                            }
                         } else {
-                            classroomId = "-1";
-                            classroom = {
-                                id: -1,
-                                code: "Online",
-                                capacity: 999,
-                            };
+                            // Legacy online courses without virtual classroom ID, assign to first available
+                            const virtualClassroom = classrooms.find(
+                                (c) => c.id < 0
+                            );
+                            if (virtualClassroom) {
+                                classroom = virtualClassroom;
+                                classroomId = virtualClassroom.id.toString();
+                            } else {
+                                classroomId = "-1";
+                                classroom = {
+                                    id: -1,
+                                    code: "Online",
+                                    capacity: 999,
+                                };
+                            }
                         }
                     } else {
                         classroom = classrooms.find(
@@ -1219,7 +1247,7 @@ export default function TimetableViewClassroom() {
 
                     const dayValue = assignment.day?.trim();
                     const classroomIdValue = isOnline
-                        ? "-1"
+                        ? classroomId  // Use the actual virtual classroom ID
                         : classroom.id.toString();
 
                     for (let i = 0; i < slotsToSpan; i++) {
@@ -1924,7 +1952,7 @@ export default function TimetableViewClassroom() {
                     day: course.day,
                     startTime: course.startTime,
                     endTime: course.endTime,
-                    classroom: isOnlineClassroom ? null : classroomValue,
+                    classroom: isOnlineClassroom ? classroomValue : classroomValue, // Send the actual classroom ID for both online and physical
                     isOnline: isOnlineClassroom,
                     duration: course.duration,
                 };
@@ -1945,7 +1973,7 @@ export default function TimetableViewClassroom() {
                         day: course.day,
                         startTime: course.startTime,
                         endTime: course.endTime,
-                        classroom: isOnlineClassroom ? null : classroomValue,
+                        classroom: isOnlineClassroom ? classroomValue : classroomValue, // Send the actual classroom ID
                         isOnline: isOnlineClassroom,
                         duration: course.duration,
                     };
@@ -1965,7 +1993,7 @@ export default function TimetableViewClassroom() {
                                 startTime: course.startTime,
                                 endTime: course.endTime,
                                 classroom: isOnlineClassroom
-                                    ? null
+                                    ? classroomValue // Send the virtual classroom ID for online courses
                                     : classroomValue,
                                 isOnline: isOnlineClassroom,
                                 duration: combinedCourse.duration,
