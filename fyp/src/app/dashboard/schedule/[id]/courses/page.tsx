@@ -445,7 +445,7 @@ export default function CoursesView() {
                             separatedDurations: [courseHour.separatedDuration],
                             // New array to store all course hours for a section
                             courseHours: [],
-                            // New array to store all classroom types
+                            // New array to store all classroom types (now allows duplicates)
                             preferClassRoomTypeNames: [
                                 courseHour.preferClassRoomTypeName,
                             ],
@@ -457,16 +457,10 @@ export default function CoursesView() {
                         sectionData.separatedDurations.push(
                             courseHour.separatedDuration
                         );
-                        // Add classroom type to existing section, checking for duplicates
-                        if (
-                            !sectionData.preferClassRoomTypeNames.includes(
-                                courseHour.preferClassRoomTypeName
-                            )
-                        ) {
-                            sectionData.preferClassRoomTypeNames.push(
-                                courseHour.preferClassRoomTypeName
-                            );
-                        }
+                        // Add classroom type to existing section (now allows duplicates)
+                        sectionData.preferClassRoomTypeNames.push(
+                            courseHour.preferClassRoomTypeName
+                        );
                     }
 
                     // Add this course hour to the section's course hours
@@ -489,7 +483,7 @@ export default function CoursesView() {
                     return {
                         ...course,
                         combinedSeparatedDuration,
-                        // Joins the unique classroom type names into a single string
+                        // Joins ALL classroom type names into a single string (including duplicates)
                         preferClassRoomTypeName:
                             course.preferClassRoomTypeNames.join(", "),
                         separatedDuration: course.separatedDurations[0],
