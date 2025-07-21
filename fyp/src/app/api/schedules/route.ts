@@ -19,7 +19,7 @@ import {
     deleteScheduleSchema,
     editScheduleSchema,
 } from "@/lib/validations/schedules";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, asc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -49,7 +49,8 @@ export async function GET(request: Request) {
                     .leftJoin(
                         scheduleTimeSlots,
                         eq(scheduleTimeSlots.scheduleId, schedules.id)
-                    );
+                    )
+                    .orderBy(asc(scheduleTimeSlots.startTime));
 
                 const scheduleMap = new Map();
                 allScheduleData.forEach((item) => {
@@ -74,7 +75,10 @@ export async function GET(request: Request) {
                     }
                 });
 
-                const formattedSchedules = Array.from(scheduleMap.values());
+                // Sort schedules by id descending (newest first)
+                const formattedSchedules = Array.from(scheduleMap.values()).sort(
+                    (a, b) => b.id - a.id
+                );
                 console.log("Formatted schedules:", formattedSchedules);
                 return NextResponse.json(formattedSchedules);
             } else {
@@ -84,7 +88,7 @@ export async function GET(request: Request) {
                 );
             }
         } else {
-            let query = db
+            const query = db
                 .select({
                     id: schedules.id,
                     name: schedules.name,
@@ -99,7 +103,8 @@ export async function GET(request: Request) {
                 .innerJoin(
                     scheduleTimeSlots,
                     eq(scheduleTimeSlots.scheduleId, schedules.id)
-                );
+                )
+                .orderBy(asc(scheduleTimeSlots.startTime));
 
             const scheduleData = await query;
 

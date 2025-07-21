@@ -1,6 +1,6 @@
 import { scheduleTimeSlots } from "@/drizzle/schema";
 import { db } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 export async function GET(request: Request) {
     try {
@@ -25,7 +25,8 @@ export async function GET(request: Request) {
                 scheduleId: scheduleTimeSlots.scheduleId,
             })
             .from(scheduleTimeSlots)
-            .where(eq(scheduleTimeSlots.scheduleId, parseInt(scheduleId)));
+            .where(eq(scheduleTimeSlots.scheduleId, parseInt(scheduleId)))
+            .orderBy(asc(scheduleTimeSlots.startTime));
 
         if (timeSlots.length === 0) {
             return NextResponse.json(
