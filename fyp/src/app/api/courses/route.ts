@@ -584,11 +584,24 @@ export async function PATCH(request: Request) {
                                     ? duration
                                     : existingCourse.duration;
 
+                            // Handle preferClassRoomType explicitly
+                            let preferClassRoomId;
+                            if (preferClassRoomType === null) {
+                                preferClassRoomId = null;
+                            } else if (
+                                preferClassRoomType &&
+                                preferClassRoomType.id
+                            ) {
+                                preferClassRoomId = preferClassRoomType.id;
+                            } else {
+                                preferClassRoomId = null;
+                            }
+
                             await db
                                 .update(courseHours)
                                 .set({
                                     separatedDuration: durationToUse,
-                                    preferClassRoomId: preferClassRoomType?.id,
+                                    preferClassRoomId: preferClassRoomId,
                                 })
                                 .where(
                                     eq(
@@ -614,10 +627,23 @@ export async function PATCH(request: Request) {
                                     ? duration
                                     : existingCourse.duration;
 
+                            // Handle preferClassRoomType explicitly
+                            let preferClassRoomId;
+                            if (preferClassRoomType === null) {
+                                preferClassRoomId = null;
+                            } else if (
+                                preferClassRoomType &&
+                                preferClassRoomType.id
+                            ) {
+                                preferClassRoomId = preferClassRoomType.id;
+                            } else {
+                                preferClassRoomId = null;
+                            }
+
                             await db.insert(courseHours).values({
                                 separatedDuration: durationToUse,
                                 sectionId: currentSectionId,
-                                preferClassRoomId: preferClassRoomType?.id,
+                                preferClassRoomId: preferClassRoomId,
                             });
                         }
                     }
@@ -701,6 +727,7 @@ export async function PATCH(request: Request) {
         );
     }
 }
+
 // DELETE - Remove a course (updated to handle courseHours)
 export async function DELETE(request: Request) {
     try {
