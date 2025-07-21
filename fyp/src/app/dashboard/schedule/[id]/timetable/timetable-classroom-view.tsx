@@ -496,109 +496,109 @@ export default function TimetableViewClassroom() {
             "=== CHECKING INSTRUCTOR CONFLICTS WITH EXISTING COURSES ==="
         );
 
-        for (let i = 0; i < duration; i++) {
-            if (timeSlotIndex + i >= timeSlots.length) break;
+        // Calculate the time range for the course being placed
+        const newCourseStartIndex = timeSlotIndex;
+        const newCourseEndIndex = timeSlotIndex + duration - 1;
 
-            const currentTimeSlot = getTimeSlotKey(
-                timeSlots[timeSlotIndex + i]
-            );
+        console.log(`New course time range: slot ${newCourseStartIndex} to ${newCourseEndIndex} (duration: ${duration})`);
 
-            console.log(
-                `Checking time slot ${i + 1}/${duration}: ${currentTimeSlot}`
-            );
-
-            // Check all existing courses at this time slot
-            const conflictingCourses = Object.entries(schedule).filter(
-                ([scheduleKey, scheduledCourse]) => {
-                    // Skip self
-                    if (scheduledCourse.id === course.id) {
-                        return false;
-                    }
-
-                    // Check if it's the same day
-                    if (scheduledCourse.day !== day) {
-                        return false;
-                    }
-
-                    // Check if it's the same time slot
-                    const keyParts = scheduleKey.split("-");
-                    const scheduleTimeSlot = keyParts[keyParts.length - 1];
-                    const scheduleClassroomId = keyParts[keyParts.length - 2];
-
-                    if (scheduleTimeSlot !== currentTimeSlot) {
-                        return false;
-                    }
-
-                    // Check if it's the same instructor
-                    const scheduledInstructor =
-                        scheduledCourse.instructor.trim();
-                    if (scheduledInstructor !== instructorName) {
-                        return false;
-                    }
-
-                    console.log(
-                        "Found course with same instructor at same time:",
-                        {
-                            scheduledCourse: scheduledCourse.code,
-                            scheduledInstructor,
-                            scheduleClassroomId,
-                            targetClassroomId,
-                            scheduleKey,
-                        }
-                    );
-
-                    if (scheduleClassroomId === targetClassroomId) {
-                        console.log(
-                            "✅ Same classroom - allowing for course combining"
-                        );
-                        return false; // Don't consider this a conflict
-                    } else {
-                        console.log(
-                            "❌ Different classroom - instructor conflict"
-                        );
-                        return true; // This is a conflict
-                    }
-                }
-            );
-
-            if (conflictingCourses.length > 0) {
-                const [conflictKey, conflictingCourse] = conflictingCourses[0];
-                const conflictKeyParts = conflictKey.split("-");
-                const conflictClassroomId =
-                    conflictKeyParts[conflictKeyParts.length - 2];
-
-                // Find classroom name for better error message
-                const conflictClassroom = classrooms.find(
-                    (c) => c.id.toString() === conflictClassroomId
-                );
-                const targetClassroom = classrooms.find(
-                    (c) => c.id.toString() === targetClassroomId
-                );
-
-                console.log("❌ INSTRUCTOR CONFLICT DETECTED");
-                console.log("Conflicting course:", conflictingCourse.code);
-                console.log(
-                    "Conflict classroom:",
-                    conflictClassroom?.code || conflictClassroomId
-                );
-                console.log(
-                    "Target classroom:",
-                    targetClassroom?.code || targetClassroomId
-                );
-
-                return {
-                    isValid: false,
-                    conflictMessage: `Instructor ${instructorName} is already teaching ${
-                        conflictingCourse.code
-                    } in ${
-                        conflictClassroom?.code || "another classroom"
-                    } on ${day} at ${currentTimeSlot}. Cannot teach in multiple classrooms simultaneously.`,
-                };
+        // Group existing courses by their schedule key prefix (day-classroom) to find unique courses
+        const existingCoursesByPrefix = new Map<string, TimetableCourse & { startIndex: number; endIndex: number; classroomId: string }>();
+        
+        Object.entries(schedule).forEach(([scheduleKey, scheduledCourse]) => {
+            // Skip self
+            if (scheduledCourse.id === course.id) {
+                return;
             }
 
-            console.log(
-                `✅ No conflicts found for time slot: ${currentTimeSlot}`
-            );
+            // Check if it's the same day
+            if (scheduledCourse.day !== day) {
+                return;
+            }
+
+            // Check if it's the same instructor
+            const scheduledInstructor = scheduledCourse.instructor.trim();
+            if (scheduledInstructor !== instructorName) {
+                return;
+            }
+
+            // Extract day-classroom prefix to group course segments
+            const keyParts = scheduleKey.split("-");
+            const scheduleClassroomId = keyParts[keyParts.length - 2];
+            const prefix = `${day}-${scheduleClassroomId}`;
+
+            // Only store the first occurrence (isStart segment) of each course
+            if (scheduledCourse.isStart && !existingCoursesByPrefix.has(prefix)) {
+                // Find the start and end indices for this existing course
+                const existingStartIndex = timeSlots.findIndex(ts => 
+                    getTimeSlotKey(ts) === keyParts[keyParts.length - 1]
+                );
+                
+                if (existingStartIndex !== -1) {
+                    const existingEndIndex = existingStartIndex + scheduledCourse.duration - 1;
+                    
+                    // Add range information to the course object
+                    existingCoursesByPrefix.set(prefix, {
+                        ...scheduledCourse,
+                        startIndex: existingStartIndex,
+                        endIndex: existingEndIndex,
+                        classroomId: scheduleClassroomId
+                    });
+                }
+            }
+        });
+
+        console.log(`Found ${existingCoursesByPrefix.size} existing courses taught by ${instructorName} on ${day}`);
+
+        // Check for overlaps with each existing course
+        for (const [, existingCourse] of existingCoursesByPrefix) {
+            const existingStartIndex = existingCourse.startIndex;
+            const existingEndIndex = existingCourse.endIndex;
+            const existingClassroomId = existingCourse.classroomId;
+
+            console.log(`Checking overlap with ${existingCourse.code} (slots ${existingStartIndex}-${existingEndIndex}) in classroom ${existingClassroomId}`);
+
+            // Check if time ranges overlap
+            const hasTimeOverlap = !(newCourseEndIndex < existingStartIndex || newCourseStartIndex > existingEndIndex);
+
+            if (hasTimeOverlap) {
+                // Time ranges overlap - check if it's the same classroom and exact same time (for combining)
+                const isSameClassroom = existingClassroomId === targetClassroomId;
+                const isExactSameTime = newCourseStartIndex === existingStartIndex && newCourseEndIndex === existingEndIndex;
+
+                if (isSameClassroom && isExactSameTime) {
+                    console.log("✅ Same classroom and exact same time - allowing for course combining");
+                    continue; // This is allowed for combining
+                } else {
+                    // This is a conflict - either different classrooms or overlapping but not identical times
+                    const conflictClassroom = classrooms.find(
+                        (c) => c.id.toString() === existingClassroomId
+                    );
+
+                    console.log("❌ INSTRUCTOR CONFLICT DETECTED");
+                    console.log("Existing course:", existingCourse.code);
+                    console.log("Existing time range:", `${existingStartIndex}-${existingEndIndex}`);
+                    console.log("New course time range:", `${newCourseStartIndex}-${newCourseEndIndex}`);
+                    console.log("Same classroom:", isSameClassroom);
+                    console.log("Exact same time:", isExactSameTime);
+
+                    if (!isSameClassroom) {
+                        return {
+                            isValid: false,
+                            conflictMessage: `Instructor ${instructorName} is already teaching ${existingCourse.code} in ${
+                                conflictClassroom?.code || "another classroom"
+                            } during an overlapping time period on ${day}. Cannot teach in multiple classrooms simultaneously.`,
+                        };
+                    } else {
+                        return {
+                            isValid: false,
+                            conflictMessage: `Instructor ${instructorName} is already teaching ${existingCourse.code} during an overlapping time period in the same classroom on ${day}. Courses can only be combined if they have identical start and end times.`,
+                        };
+                    }
+                }
+            } else {
+                console.log(`✅ No time overlap with ${existingCourse.code}`);
+            }
         }
 
         console.log("✅ All instructor constraints passed");
