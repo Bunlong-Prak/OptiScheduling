@@ -1905,7 +1905,44 @@ export default function CoursesView() {
 
         return grouped;
     };
+    const downloadCoursesTemplate = () => {
+    try {
+        const headers = ["code", "title", "major", "color", "status", "duration", "separated_duration", "capacity", "section", "preferred_classroom", "instructor_name"];
+        const templateData = [
+            ["CS101", "Introduction to Programming", "Computer Science", "#3B82F6", "offline", "2.5", "[1.66667, 0.833333]", "30", "1", "Computer Lab", "John Smith"],
+            ["MATH101", "Calculus I", "Mathematics", "#6B7280", "offline", "2.5", "2.5", "50", "1", "Lecture Hall", "Jane Doe"],
+            ["BUS101", "Introduction to Business", "Business Administration", "#EF4444", "online", "2.5", "[1.66667, 0.833333]", "40", "1", "Seminar Room", "Mike Johnson"]
+        ];
 
+        const allRows = [headers, ...templateData];
+        const csvContent = allRows
+            .map(row => row
+                .map(field => {
+                    const fieldStr = String(field || "");
+                    if (fieldStr.includes(",") || fieldStr.includes('"') || fieldStr.includes("\n")) {
+                        return `"${fieldStr.replace(/"/g, '""')}"`;
+                    }
+                    return fieldStr;
+                })
+                .join(",")
+            )
+            .join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "courses_template.csv");
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showSuccessMessage("Template Downloaded", "Courses template CSV downloaded successfully");
+    } catch (error) {
+        showErrorMessage("Download Failed", "Failed to download template. Please try again.");
+    }
+};
     const handleImportCSV = async () => {
         if (!importFile) {
             showErrorMessage(
@@ -2446,6 +2483,13 @@ export default function CoursesView() {
                         </p>
                     </div>
                     <div className="flex gap-2">
+                        <Button
+    onClick={downloadCoursesTemplate} // Replace XXX with respective function name
+    variant="outline"
+    className="border-purple-600 text-purple-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md"
+>
+    <Download className="mr-1 h-3 w-3" /> Download Template
+</Button>
                         <Button
                             onClick={() => setIsImportDialogOpen(true)}
                             variant="outline"

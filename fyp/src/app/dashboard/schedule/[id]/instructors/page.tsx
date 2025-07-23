@@ -838,7 +838,44 @@ export default function InstructorsView() {
             setIsClearAllDialogOpen(false);
         }
     };
+    const downloadInstructorsTemplate = () => {
+    try {
+        const headers = ["instructor_id", "first_name", "last_name", "gender", "email", "phone_number"];
+        const templateData = [
+            ["1001", "John", "Smith", "Male", "john.smith@university.edu", "01234567"],
+            ["1002", "Jane", "Doe", "Female", "jane.doe@university.edu", "02345678"],
+            ["1003", "Mike", "Johnson", "Male", "mike.johnson@university.edu", "03456789"]
+        ];
 
+        const allRows = [headers, ...templateData];
+        const csvContent = allRows
+            .map(row => row
+                .map(field => {
+                    const fieldStr = String(field || "");
+                    if (fieldStr.includes(",") || fieldStr.includes('"') || fieldStr.includes("\n")) {
+                        return `"${fieldStr.replace(/"/g, '""')}"`;
+                    }
+                    return fieldStr;
+                })
+                .join(",")
+            )
+            .join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "instructors_template.csv");
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showSuccessMessage("Template Downloaded", "Instructors template CSV downloaded successfully");
+    } catch (error) {
+        showErrorMessage("Download Failed", "Failed to download template. Please try again.");
+    }
+};
     // Import CSV function with proper validation and field mapping
     const handleImportCSV = async () => {
         if (!importFile) {
@@ -1348,6 +1385,13 @@ export default function InstructorsView() {
                     </div>
 
                     <div className="flex gap-2">
+                        <Button
+    onClick={downloadInstructorsTemplate} // Replace XXX with respective function name
+    variant="outline"
+    className="border-purple-600 text-purple-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md"
+>
+    <Download className="mr-1 h-3 w-3" /> Download Template
+</Button>
                         <Button
                             onClick={() => setIsImportDialogOpen(true)}
                             variant="outline"

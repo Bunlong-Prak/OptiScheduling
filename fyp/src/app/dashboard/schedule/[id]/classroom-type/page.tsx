@@ -624,7 +624,44 @@ export default function ClassroomTypeView() {
             setIsCheckingAssignments(false);
         }
     };
+    const downloadClassroomTypeTemplate = () => {
+    try {
+        const headers = ["name", "description"];
+        const templateData = [
+            ["Computer Lab", "A room equipped with computers for practical learning"],
+            ["Lecture Hall", "A large room for lectures and presentations"],
+            ["Seminar Room", "A small room for group discussions and seminars"]
+        ];
 
+        const allRows = [headers, ...templateData];
+        const csvContent = allRows
+            .map(row => row
+                .map(field => {
+                    const fieldStr = String(field || "");
+                    if (fieldStr.includes(",") || fieldStr.includes('"') || fieldStr.includes("\n")) {
+                        return `"${fieldStr.replace(/"/g, '""')}"`;
+                    }
+                    return fieldStr;
+                })
+                .join(",")
+            )
+            .join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "classroom_type_template.csv");
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showSuccessMessage("Template Downloaded", "Classroom type template CSV downloaded successfully");
+    } catch (error) {
+        showErrorMessage("Download Failed", "Failed to download template. Please try again.");
+    }
+};
     // Main import function
     const handleImportCSV = async () => {
         if (!importFile) {
@@ -1016,6 +1053,13 @@ export default function ClassroomTypeView() {
                         </p>
                     </div>
                     <div className="flex gap-2">
+                        <Button
+    onClick={downloadClassroomTypeTemplate} // Replace XXX with respective function name
+    variant="outline"
+    className="border-purple-600 text-purple-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md"
+>
+    <Download className="mr-1 h-3 w-3" /> Download Template
+</Button>
                         <Button
                             onClick={() => setIsImportDialogOpen(true)}
                             variant="outline"

@@ -725,7 +725,44 @@ export default function MajorView() {
             shortTag: row.short_tag.trim(),
         };
     };
+    const downloadMajorTemplate = () => {
+    try {
+        const headers = ["name", "short_tag"];
+        const templateData = [
+            ["Computer Science", "CS"],
+            ["Business Administration", "BUS"],
+            ["Mathematics", "MATH"]
+        ];
 
+        const allRows = [headers, ...templateData];
+        const csvContent = allRows
+            .map(row => row
+                .map(field => {
+                    const fieldStr = String(field || "");
+                    if (fieldStr.includes(",") || fieldStr.includes('"') || fieldStr.includes("\n")) {
+                        return `"${fieldStr.replace(/"/g, '""')}"`;
+                    }
+                    return fieldStr;
+                })
+                .join(",")
+            )
+            .join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "major_template.csv");
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showSuccessMessage("Template Downloaded", "Major template CSV downloaded successfully");
+    } catch (error) {
+        showErrorMessage("Download Failed", "Failed to download template. Please try again.");
+    }
+};
     // Main import function
     const handleImportCSV = async () => {
         if (!importFile) {
@@ -1116,6 +1153,13 @@ export default function MajorView() {
                         </p>
                     </div>
                     <div className="flex gap-2">
+                        <Button
+    onClick={downloadMajorTemplate} // Replace XXX with respective function name
+    variant="outline"
+    className="border-purple-600 text-purple-600 hover:bg-purple-50 text-xs px-3 py-1.5 rounded-md"
+>
+    <Download className="mr-1 h-3 w-3" /> Download Template
+</Button>
                         <Button
                             onClick={() => setIsImportDialogOpen(true)}
                             variant="outline"
