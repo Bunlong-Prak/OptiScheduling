@@ -1,36 +1,16 @@
-# OptiScheduling FYP PROJECT
+# 🎯 Overview
+OptiScheduling addresses university course scheduling challenges by providing an automated solution that optimizes resource allocation, reduces administrative workload, and eliminates scheduling conflicts. Originally developed for Paragon International University with 67% part-time instructors.
+# ✨ Features
 
-For Frontend: Next Js 15
-UI framework: shad Cn
-Backend: API routes handled by Next js
-Database: MySQL
-ORM: Prisma
-Authentication: manages using NextAuth for Login and also session management
+Automated Schedule Generation - AI-powered conflict-free scheduling
+Manual Scheduling - Drag-and-drop interface for adjustments
+Real-time Conflict Detection - Instant alerts for scheduling conflicts
+Resource Management - Courses, instructors, classrooms, and majors
+Time Constraints - Instructor availability and blackout periods
+Google OAuth - Secure authentication
 
-**HOW TO INSTALL DEPENDENCIES**
+# 🛠 Tech Stack
 
-npm install
-
-_set up enviroment_
-
-create .env file in root folder
-
-**HOW TO START PROJECT**
-
-npm run dev
-
-or
-
-pnpm dev
-
-**SHADCN COMPONENTS INSTALLATION**
-
-npm install @radix-ui/react-aspect-ratio
-npm install @radix-ui/react-avatar
-npm install @radix-ui/react-label
-npm install react-hook-form
-npm install @radix-ui/react-radio-group
-npm install @radix-ui/react-select
-npm install @radix-ui/react-separator
-npm install @radix-ui/react-switch
-npm install @radix-ui/react-toast
+Frontend: Next.js 15.2.3, TypeScript, Tailwind CSS, Shadcn/ui
+Backend: Next.js API Routes, Drizzle ORM, MySQL, Python
+Infrastructure: DigitalOcean, Cloudflare, Nginx, Paragon Internation University Server
