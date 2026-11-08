@@ -1,4 +1,4 @@
-# 🎯 OptiScheduling
+# OptiScheduling
 
 > **High-Performance University Course Timetabling Engine & Web Platform**  
 > Originally developed as a Bachelor's Capstone for **Paragon International University** (July 2025) by Bunlong Prak & Bovisal Zhou, re-architected with a native **Rust** optimization engine to eliminate extreme latency and enforce complex real-world institutional constraints.
@@ -21,7 +21,7 @@
 
 ---
 
-## 🎓 Overview & Problem Context
+## Overview & Problem Context
 
 Universities face NP-hard combinatorial challenges in scheduling coursework across departments, instructors, classrooms, and student cohorts. At **Paragon International University**, these complexities are amplified by:
 - **High proportion of part-time instructors (~67%)** who have strictly limited availability windows and preferred teaching days.
@@ -33,7 +33,7 @@ The original prototype suffered from severe runtime bottlenecks (taking dozens o
 
 ---
 
-## ⚡ Key Constraints Solved
+## Key Constraints Solved
 
 ### Hard Constraints
 * **Instructor Double-Booking**: An instructor cannot teach two courses simultaneously.
@@ -52,7 +52,7 @@ The original prototype suffered from severe runtime bottlenecks (taking dozens o
 
 ---
 
-## 🏗 Architecture
+## Architecture
 
 ```
 OptiScheduling/
@@ -85,7 +85,7 @@ OptiScheduling/
 
 ---
 
-## 📊 Empirical Benchmarks
+## Empirical Benchmarks
 
 ### 1. Scaling Benchmark (Python Greedy vs. Rust Engine)
 *Tested on an Apple Silicon host across synthetic course loads with ~67% part-time faculty and 25% room-to-course ratio:*
@@ -115,7 +115,7 @@ OptiScheduling/
 
 ---
 
-## 🐛 Thesis Prototype Bugs Fixed
+## Thesis Prototype Bugs Fixed
 
 1. **`preferClassRoomId` Schema Mismatch**:
    - *Bug*: In `fyp/src/app/api/courses/route.ts`, the frontend saved `classroomTypes.id` into `courseHours.preferClassRoomId`, but `generate-schedule/route.ts` tried matching it against `classrooms.id`, causing room preferences to be silently discarded.
@@ -135,7 +135,7 @@ OptiScheduling/
 
 ---
 
-## 🚀 Quick Start with Docker (Recommended — One Command)
+## Quick Start with Docker (Recommended — One Command)
 
 Everything (MySQL 8 database with pre-loaded Paragon IU seed data, Rust scheduler microservice, and Next.js web application) is fully containerized.
 
@@ -162,7 +162,7 @@ docker compose down
 
 ---
 
-## 💻 Manual / Standalone Development Setup
+## Manual / Standalone Development Setup
 
 If you prefer testing individual components locally without Docker:
 
@@ -267,7 +267,7 @@ print("Valid:", sched.check_schedule_validity())
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 * **Core Scheduling Engine**: Rust 2021, `tokio`, `hyper 0.14`, `rayon`, `serde`, `rand`.
 * **Web Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS, Lucide Icons, Shadcn UI.
