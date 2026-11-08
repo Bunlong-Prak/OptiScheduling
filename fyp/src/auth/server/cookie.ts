@@ -1,7 +1,7 @@
 "use server";
 import { IS_PRODUCTION } from "@/utils";
 import { cookies } from "next/headers";
-import { getSessionCookieName } from "..";
+import { getSessionCookieName, isLocalhost } from "..";
 
 /*
  * httpOnly: Cookies are only accessible server-side
@@ -17,11 +17,12 @@ export async function setSessionCookie(
     expiresAt: Date
 ): Promise<void> {
     const cookieStore = await cookies();
+    const isSecure = IS_PRODUCTION && !isLocalhost();
 
     cookieStore.set(getSessionCookieName(), token, {
         httpOnly: true,
         sameSite: "lax",
-        secure: IS_PRODUCTION,
+        secure: isSecure,
         expires: expiresAt,
         path: "/",
     });
@@ -29,11 +30,12 @@ export async function setSessionCookie(
 
 export async function deleteSessionCookie(): Promise<void> {
     const cookieStore = await cookies();
+    const isSecure = IS_PRODUCTION && !isLocalhost();
 
     cookieStore.set(getSessionCookieName(), "", {
         httpOnly: true,
         sameSite: "lax",
-        secure: IS_PRODUCTION,
+        secure: isSecure,
         maxAge: 0,
         path: "/",
     });

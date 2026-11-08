@@ -1,7 +1,10 @@
 import copy
 import json
-import requests
+import os
+import subprocess
 from collections import defaultdict
+from pathlib import Path
+import requests
 
 class Course:
     def __init__(self, id, name, section, major, instructor_id, classroom_id, hours_per_week, student_count, is_online=False):
@@ -41,6 +44,21 @@ class Schedule:
         self.hours = list(range(8, 22))  # 8 AM to 10 PM
         # Schedule representation: day -> hour -> room_id -> (course, instructor)
         self.timetable = {day: {hour: {} for hour in self.hours} for day in self.days}
+        self.last_rust_metrics = None
+
+    def _find_rust_binary(self, binary_path=None):
+        if binary_path and os.path.exists(binary_path):
+            return binary_path
+        env_bin = os.environ.get("OPTISCHEDULING_BIN")
+        if env_bin and os.path.exists(env_bin):
+            return env_bin
+        repo_root = Path(__file__).resolve().parent.parent
+        exe_name = "optischeduling-cli.exe" if os.name == "nt" else "optischeduling-cli"
+        for profile in ("release", "debug"):
+            candidate = repo_root / "rust_scheduler" / "target" / profile / exe_name
+            if candidate.exists():
+                return str(candidate)
+        return None
         
     def add_course(self, course):
         self.courses.append(course)
@@ -200,8 +218,213 @@ class Schedule:
         
         return score
 
-    def generate_schedule(self):
-        """Generate an optimal schedule using a greedy algorithm"""
+    def generate_schedule(self, use_rust=True, strategy="hybrid", time_budget_ms=150, binary_path=None):
+        """Generate an optimal schedule using the Rust engine (with legacy Python fallback)."""
+        if use_rust:
+            rust_bin = self._find_rust_binary(binary_path)
+            if rust_bin is not None:
+                try:
+                    return self.generate_schedule_rust(
+                        strategy=strategy,
+                        time_budget_ms=time_budget_ms,
+                        binary_path=rust_bin,
+                    )
+                except Exception as exc:
+                    print(f"Rust scheduler failed ({exc}); falling back to Python greedy solver.")
+
+        return self.generate_schedule_python()
+
+    def generate_schedule_rust(self, strategy="hybrid", time_budget_ms=150, binary_path=None):
+        """Solve this Schedule instance using the compiled Rust `optischeduling-cli` engine."""
+        rust_bin = self._find_rust_binary(binary_path)
+        if rust_bin is None:
+            raise FileNotFoundError(
+                "optischeduling-cli binary not found. Build it with `cd rust_scheduler && cargo build --release`."
+            )
+
+        # Reset existing assignments
+        self.timetable = {day: {hour: {} for hour in self.hours} for day in self.days}
+        for c in self.courses:
+            c.assigned_slots = []
+        for i in self.instructors:
+            i.assigned_courses = []
+
+        # Default active academic hours follow 08:00-17:00 unless extended via preferred_slots
+        min_h = 8
+        max_h = 17
+        for instr in self.instructors:
+            for _, ps, pe in instr.preferred_slots:
+                min_h = min(min_h, ps)
+                max_h = max(max_h, pe)
+
+        time_slots = [
+            {"id": h, "start_time": f"{h:02d}:00", "end_time": f"{h + 1:02d}:00"}
+            for h in range(min_h, max_h)
+        ]
+
+        room_type_to_id = {}
+        rust_classrooms = []
+        for room in self.classrooms:
+            rt_key = str(room.room_type).strip().lower()
+            if rt_key not in room_type_to_id:
+                room_type_to_id[rt_key] = len(room_type_to_id) + 1
+            rust_classrooms.append({
+                "id": int(room.id),
+                "code": str(room.name),
+                "name": str(room.name),
+                "capacity": int(room.capacity),
+                "classroom_type_id": room_type_to_id[rt_key],
+                "location": None,
+            })
+
+        rust_instructors = []
+        time_constraints = []
+        preferred_slots = []
+        weekday_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+
+        for instr in self.instructors:
+            rust_instructors.append({
+                "id": int(instr.id),
+                "name": str(instr.name),
+                "is_part_time": bool(instr.is_part_time),
+            })
+
+            # Explicit unavailable blackouts
+            by_day_unavail = defaultdict(list)
+            for day, s_hr, e_hr in instr.unavailable_slots:
+                for h in range(s_hr, e_hr):
+                    by_day_unavail[day].append(f"{h:02d}:00-{h + 1:02d}:00")
+
+            # Also restrict non-preferred slots to Mon-Fri 08:00-17:00 (matching Python availability semantics)
+            pref_lookup = set()
+            by_day_pref = defaultdict(list)
+            for p_day, p_start, p_end in instr.preferred_slots:
+                for h in range(p_start, p_end):
+                    pref_lookup.add((p_day, h))
+                    by_day_pref[p_day].append(f"{h:02d}:00-{h + 1:02d}:00")
+
+            for p_day, slots in by_day_pref.items():
+                preferred_slots.append({
+                    "instructor_id": int(instr.id),
+                    "day": p_day,
+                    "time_slots": slots,
+                })
+
+            for d in self.days:
+                for h in range(min_h, max_h):
+                    outside_std = d not in weekday_names or h < 8 or h >= 17
+                    if outside_std and (d, h) not in pref_lookup:
+                        by_day_unavail[d].append(f"{h:02d}:00-{h + 1:02d}:00")
+
+            for d, slots in by_day_unavail.items():
+                if slots:
+                    time_constraints.append({
+                        "instructor_id": int(instr.id),
+                        "day": d,
+                        "time_slots": slots,
+                    })
+
+        # Partition each course's weekly hours cleanly into <= 3h sessions so multi-day classes never exceed 4h
+        unit_to_course = {}
+        rust_courses = []
+        unit_counter = 1
+        for course in self.courses:
+            hours_left = int(course.hours_per_week)
+            unit_durations = []
+            while hours_left > 0:
+                if hours_left >= 6 or hours_left == 5 or hours_left == 3:
+                    d_hr = 3
+                elif hours_left in (4, 2):
+                    d_hr = 2
+                else:
+                    d_hr = 1
+                unit_durations.append(d_hr)
+                hours_left -= d_hr
+
+            prefer_type = room_type_to_id.get("computer_lab") if "computer" in course.name.lower() else None
+            units_payload = []
+            for dur in unit_durations:
+                ch_id = unit_counter
+                unit_counter += 1
+                unit_to_course[ch_id] = course
+                units_payload.append({
+                    "course_hours_id": ch_id,
+                    "duration": float(dur),
+                    "prefer_classroom_type_id": prefer_type,
+                    "prefer_classroom_id": int(course.classroom_id) if course.classroom_id and not course.is_online else None,
+                })
+
+            rust_courses.append({
+                "id": int(course.id),
+                "title": str(course.name),
+                "code": f"{course.name}-{course.section}",
+                "capacity": int(course.student_count),
+                "duration": float(course.hours_per_week),
+                "major_id": None,
+                "major_name": str(course.major),
+                "sections": [{
+                    "id": int(course.id),
+                    "number": str(course.section),
+                    "instructor_id": int(course.instructor_id) if course.instructor_id else None,
+                    "status": "online" if course.is_online else "offline",
+                    "is_online": bool(course.is_online),
+                    "units": units_payload,
+                }],
+            })
+
+        payload = {
+            "time_slots": time_slots,
+            "classrooms": rust_classrooms,
+            "instructors": rust_instructors,
+            "time_constraints": time_constraints,
+            "preferred_slots": preferred_slots,
+            "courses": rust_courses,
+            "config": {
+                "strategy": strategy,
+                "time_budget_ms": time_budget_ms,
+                "days": self.days,
+            },
+        }
+
+        proc = subprocess.run(
+            [rust_bin, "solve"],
+            input=json.dumps(payload),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        resp = json.loads(proc.stdout)
+        self.last_rust_metrics = resp.get("metrics")
+
+        room_by_id = {int(r.id): r for r in self.classrooms}
+        inst_by_id = {int(i.id): i for i in self.instructors}
+
+        for a in resp.get("assignments", []):
+            ch_id = a.get("course_hours_id")
+            course = unit_to_course.get(ch_id)
+            instructor = inst_by_id.get(a.get("instructor_id"))
+            if not course or not instructor:
+                continue
+            start_hr = int(a["start_time"].split(":")[0])
+            end_hr = int(a["end_time"].split(":")[0])
+            dur = max(1, end_hr - start_hr)
+            classroom_id = a.get("classroom_id")
+            room = room_by_id.get(classroom_id) if classroom_id is not None else None
+            if room is None:
+                # Online courses do not occupy physical classrooms; store under a virtual key so they never collide with physical rooms
+                virtual_id = f"online-{course.id}"
+                for hr in range(start_hr, end_hr):
+                    self.timetable[a["day"]][hr][virtual_id] = (course, instructor)
+                course.assigned_slots.append((a["day"], start_hr, end_hr))
+                if course not in instructor.assigned_courses:
+                    instructor.assigned_courses.append(course)
+            else:
+                self.assign_slot(course, instructor, room, a["day"], start_hr, dur)
+
+        return resp
+
+    def generate_schedule_python(self):
+        """Legacy Python greedy scheduling algorithm (retained for fallback comparison)"""
         # Sort courses by priority (more hours per week first, then by student count)
         sorted_courses = sorted(self.courses, key=lambda x: (x.hours_per_week, x.student_count), reverse=True)
         
@@ -249,7 +472,7 @@ class Schedule:
                         continue
                     
                     # Adjust hours_per_session if needed
-                    this_session_hours = min(hours_per_session, remaining_hours)
+                    this_session_hours = min(hours_per_session, remaining_hours, hours_left)
                     
                     for start_hour in range(8, 18 - this_session_hours):
                         end_hour = start_hour + this_session_hours
@@ -298,8 +521,9 @@ class Schedule:
                     if self.timetable[day][hour][room_id] is not None:
                         course, instructor = self.timetable[day][hour][room_id]
                         classroom = next((c for c in self.classrooms if c.id == room_id), None)
+                        room_name = classroom.name if classroom is not None else "ONLINE"
                         course_type = "ONLINE" if course.is_online else "IN-PERSON"
-                        print(f"  Room {classroom.name}: {course.name} (Section {course.section}) - {course_type} - Prof. {instructor.name}")
+                        print(f"  Room {room_name}: {course.name} (Section {course.section}) - {course_type} - Prof. {instructor.name}")
 
     def export_schedule_json(self):
         """Export the schedule as JSON for API purposes"""
@@ -320,8 +544,8 @@ class Schedule:
                             "section": course.section,
                             "instructor_id": instructor.id,
                             "instructor_name": instructor.name,
-                            "room_id": classroom.id,
-                            "room_name": classroom.name,
+                            "room_id": classroom.id if classroom is not None else None,
+                            "room_name": classroom.name if classroom is not None else "ONLINE",
                             "is_online": course.is_online
                         }
                         
@@ -343,14 +567,13 @@ class Schedule:
                             return False
                         instructors_at_hour[instructor.id] = True
         
-        # Check classroom conflicts
+        # Check classroom conflicts (note: each room slot holds a single (course, instructor) tuple)
         for day in self.days:
             for hour in self.hours:
-                for room_id in self.timetable[day][hour]:
-                    if room_id in self.timetable[day][hour]:
-                        if len(self.timetable[day][hour][room_id]) > 1:
-                            print(f"ERROR: Multiple courses scheduled in room {room_id} at {day} {hour}:00")
-                            return False
+                for room_id, entry in self.timetable[day][hour].items():
+                    if isinstance(entry, list) and len(entry) > 1:
+                        print(f"ERROR: Multiple courses scheduled in room {room_id} at {day} {hour}:00")
+                        return False
         
         # Check course hour integrity
         for course in self.courses:

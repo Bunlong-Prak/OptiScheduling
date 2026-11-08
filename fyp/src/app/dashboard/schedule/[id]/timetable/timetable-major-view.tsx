@@ -79,6 +79,21 @@ export default function MajorView() {
     const [isGeneratingSchedule, setIsGeneratingSchedule] =
         useState<boolean>(false);
     const [scheduleGenerated, setScheduleGenerated] = useState<boolean>(false);
+    const [solverStrategy, setSolverStrategy] = useState<
+        "hybrid" | "greedy_repair" | "backtracking" | "simulated_annealing"
+    >("hybrid");
+    const [solverMetrics, setSolverMetrics] = useState<{
+        solve_time_ms: number;
+        strategy: string;
+        threads_used: number;
+        ejection_repairs: number;
+        breakdown?: {
+            cohort_overlap_slots: number;
+            online_offline_proximity_violations: number;
+            same_section_same_day_violations: number;
+            building_switches: number;
+        };
+    } | null>(null);
 
     const getTimeSlotKey = useCallback((timeSlot: TimeSlot | string) => {
         if (typeof timeSlot === "string") return timeSlot;
@@ -674,13 +689,22 @@ export default function MajorView() {
             return;
         }
         setIsGeneratingSchedule(true);
+        setSolverMetrics(null);
         try {
             const response = await fetch(
                 `/api/generate-schedule?scheduleId=${params.id}`,
-                { method: "POST" }
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ strategy: solverStrategy }),
+                }
             );
             if (!response.ok)
                 throw new Error(`Failed to generate: ${response.statusText}`);
+            const data = await response.json();
+            if (data.metrics) {
+                setSolverMetrics(data.metrics);
+            }
             setScheduleGenerated(true);
             await loadInitialData(); // Reload data after generation
         } catch (error) {
@@ -711,7 +735,35 @@ export default function MajorView() {
         <div className="relative min-h-screen">
             <div className="flex justify-between items-center mb-8">
                 <h2 className="text-2xl font-bold">Major Timetable</h2>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                        aria-label="Scheduling Algorithm Strategy"
+                        value={solverStrategy}
+                        onChange={(e) =>
+                            setSolverStrategy(
+                                e.target.value as
+                                    | "hybrid"
+                                    | "greedy_repair"
+                                    | "backtracking"
+                                    | "simulated_annealing"
+                            )
+                        }
+                        disabled={isGeneratingSchedule}
+                        className="h-9 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm focus:outline-none"
+                    >
+                        <option value="hybrid">
+                            Rust Hybrid (MRV + Parallel LNS/SA)
+                        </option>
+                        <option value="greedy_repair">
+                            Fast Greedy + Ejection Repair (&lt;5ms)
+                        </option>
+                        <option value="backtracking">
+                            Exact CSP Backtracking (MRV)
+                        </option>
+                        <option value="simulated_annealing">
+                            Simulated Annealing Portfolio
+                        </option>
+                    </select>
                     <Button
                         onClick={generateSchedule}
                         variant="outline"
@@ -726,11 +778,33 @@ export default function MajorView() {
             </div>
 
             {scheduleGenerated && (
-                <div className="bg-green-50 border border-green-200 text-green-800 p-3 mb-4 rounded">
+                <div className="bg-green-50 border border-green-200 text-green-800 p-3 mb-4 rounded flex flex-wrap items-center justify-between gap-2 text-sm">
                     <p>
-                        Schedule generated successfully! You can still make
-                        manual adjustments by dragging courses.
+                        Schedule generated successfully
+                        {solverMetrics
+                            ? ` via Rust (${solverMetrics.strategy}) in ${solverMetrics.solve_time_ms.toFixed(2)} ms`
+                            : "!"}
+                        {" "}You can still make manual adjustments by dragging courses.
                     </p>
+                    {solverMetrics?.breakdown && (
+                        <div className="text-xs text-green-900 flex gap-3">
+                            <span>
+                                Cohort Overlaps:{" "}
+                                <strong>
+                                    {solverMetrics.breakdown.cohort_overlap_slots}
+                                </strong>
+                            </span>
+                            <span>
+                                On/Off Clashes:{" "}
+                                <strong>
+                                    {
+                                        solverMetrics.breakdown
+                                            .online_offline_proximity_violations
+                                    }
+                                </strong>
+                            </span>
+                        </div>
+                    )}
                 </div>
             )}
 

@@ -18,8 +18,9 @@ export default async function ScheduleLayout({
         return <UnauthorizedAccess message="You must be logged in." />;
     }
 
+    const domain = process.env.DOMAIN || "http://localhost:3000";
     const ownershipRes = await fetch(
-        `${process.env.DOMAIN}/api/schedules/ownership?scheduleId=${scheduleId}&userId=${user.id}`,
+        `${domain}/api/schedules/ownership?scheduleId=${scheduleId}&userId=${user.id}`,
         { cache: "no-store" }
     );
     const ownership = await ownershipRes.json();
