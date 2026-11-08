@@ -5,7 +5,7 @@
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 1. [Overview & Problem Context](#-overview--problem-context)
 2. [Key Constraints Solved](#-key-constraints-solved)
 3. [Architecture](#-architecture)
