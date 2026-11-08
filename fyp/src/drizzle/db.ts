@@ -2,7 +2,9 @@ import "dotenv/config";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "./schema";
 
-export const DB_URL = process.env.DATABASE_URL ?? "";
+export const DB_URL =
+    process.env.DATABASE_URL ||
+    "mysql://opti:optipass@localhost:3306/optischeduling";
 
 export const db = drizzle({
     connection: DB_URL,

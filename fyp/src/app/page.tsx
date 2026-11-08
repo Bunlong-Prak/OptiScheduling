@@ -26,29 +26,29 @@ export default async function Home() {
             {authUser ? (
               <Link href="/dashboard">
                 <Button className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#2F2F85] hover:bg-[#3F3F8F] rounded transition-colors">
-                  <Image
-                    src="/image/google.png"
-                    alt="Google logo"
-                    width={18}
-                    height={18}
-                    className="mr-2"
-                  />
                   Dashboard
                 </Button>
               </Link>
             ) : (
-              <Link href="/api/oauth/google">
-                <Button className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#2F2F85] hover:bg-[#3F3F8F] rounded transition-colors">
-                  <Image
-                    src="/image/google.png"
-                    alt="Google logo"
-                    width={18}
-                    height={18}
-                    className="mr-2"
-                  />
-                  Sign In
-                </Button>
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link href="/api/dev-login">
+                  <Button variant="outline" className="border-[#2F2F85] text-[#2F2F85] hover:bg-[#2F2F85] hover:text-white transition-colors">
+                    One-Click Demo Login
+                  </Button>
+                </Link>
+                <Link href="/api/oauth/google">
+                  <Button className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[#2F2F85] hover:bg-[#3F3F8F] rounded transition-colors">
+                    <Image
+                      src="/image/google.png"
+                      alt="Google logo"
+                      width={18}
+                      height={18}
+                      className="mr-2"
+                    />
+                    Sign In with Google
+                  </Button>
+                </Link>
+              </div>
             )}
           </div>
         </div>

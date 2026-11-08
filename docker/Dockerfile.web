@@ -1,0 +1,43 @@
+# Multi-stage Dockerfile for OptiScheduling Next.js Web Application
+FROM node:20-bookworm-slim AS builder
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
+
+COPY package.json package-lock.json ./
+RUN npm install
+
+COPY . .
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+ENV DATABASE_URL="mysql://opti:optipass@mysql:3306/optischeduling"
+ENV DOMAIN="http://localhost:3000"
+
+RUN npm run build
+
+# Runner stage
+FROM node:20-bookworm-slim AS runner
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+ENV DATABASE_URL="mysql://opti:optipass@mysql:3306/optischeduling"
+ENV DOMAIN="http://localhost:3000"
+
+COPY package.json package-lock.json ./
+RUN npm install --omit=dev
+
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/src ./src
+
+EXPOSE 3000
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 CMD curl -f http://localhost:3000 || exit 1
+
+CMD ["npm", "run", "start"]

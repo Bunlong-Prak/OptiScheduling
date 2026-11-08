@@ -3,9 +3,15 @@ import { IS_PRODUCTION } from "@/utils";
 
 export const SALT_ROUNDS = 10;
 export const SESSION_COOKIE_NAME = "OptiScheduling";
-// Convert session name to __Secure-prefix-type if in production
+
+export function isLocalhost(): boolean {
+    const domain = process.env.DOMAIN || "";
+    return domain.includes("localhost") || domain.includes("127.0.0.1") || !IS_PRODUCTION;
+}
+
+// Convert session name to __Secure-prefix-type if in production and not localhost
 export function getSessionCookieName(): string {
-    return IS_PRODUCTION
+    return IS_PRODUCTION && !isLocalhost()
         ? `__Secure-${SESSION_COOKIE_NAME}`
         : `${SESSION_COOKIE_NAME}`;
 }

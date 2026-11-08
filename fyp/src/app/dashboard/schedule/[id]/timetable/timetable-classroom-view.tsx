@@ -82,6 +82,35 @@ interface SchedulingError {
     };
 }
 
+type SolverStrategyOption =
+    | "hybrid"
+    | "greedy_repair"
+    | "backtracking"
+    | "simulated_annealing";
+
+interface SolverMetricsSummary {
+    solve_time_ms: number;
+    strategy: SolverStrategyOption;
+    objective_score: number;
+    hard_violations: number;
+    threads_used: number;
+    annealing_iterations: number;
+    ejection_repairs: number;
+    breakdown?: {
+        unassigned_count: number;
+        same_section_same_day_violations: number;
+        online_offline_proximity_violations: number;
+        outside_preferred_slot_violations: number;
+        classroom_type_mismatches: number;
+        specific_classroom_mismatches: number;
+        gapped_assignments: number;
+        cohort_overlap_slots: number;
+        building_switches: number;
+        over_consecutive_violations: number;
+        total_seat_waste: number;
+    };
+}
+
 interface EnhancedScheduleResponse {
     success: boolean;
     message: string;
@@ -95,6 +124,13 @@ interface EnhancedScheduleResponse {
     };
     errors: SchedulingError[];
     warnings: string[];
+    metrics?: SolverMetricsSummary;
+    timing?: {
+        dbFetchMs: number;
+        rustSolveMs: number;
+        dbWriteMs: number;
+        totalMs: number;
+    };
 }
 interface CourseSplitConfig {
     course: TimetableCourse;
@@ -161,6 +197,16 @@ export default function TimetableViewClassroom() {
 
     const [schedulingWarnings, setSchedulingWarnings] = useState<string[]>([]);
     const [scheduleGenerated, setScheduleGenerated] = useState<boolean>(false);
+    const [solverStrategy, setSolverStrategy] =
+        useState<SolverStrategyOption>("hybrid");
+    const [solverMetrics, setSolverMetrics] =
+        useState<SolverMetricsSummary | null>(null);
+    const [generationTiming, setGenerationTiming] = useState<{
+        dbFetchMs: number;
+        rustSolveMs: number;
+        dbWriteMs: number;
+        totalMs: number;
+    } | null>(null);
     const [generationStats, setGenerationStats] = useState<{
         totalCourses: number;
         totalSections: number;
@@ -2960,6 +3006,8 @@ export default function TimetableViewClassroom() {
         // Clear previous errors and warnings
         setSchedulingErrors([]);
         setSchedulingWarnings([]);
+        setSolverMetrics(null);
+        setGenerationTiming(null);
 
         try {
             const scheduleId = params.id.toString();
@@ -2971,6 +3019,9 @@ export default function TimetableViewClassroom() {
                     headers: {
                         "Content-Type": "application/json",
                     },
+                    body: JSON.stringify({
+                        strategy: solverStrategy,
+                    }),
                 }
             );
 
@@ -2994,23 +3045,33 @@ export default function TimetableViewClassroom() {
             if (data.stats) {
                 setGenerationStats(data.stats);
             }
+            if (data.metrics) {
+                setSolverMetrics(data.metrics);
+            }
+            if (data.timing) {
+                setGenerationTiming(data.timing);
+            }
 
             if (data.schedule && Array.isArray(data.schedule)) {
                 // After successful generation, refetch ALL data to ensure consistency
                 await refetchAllData();
                 setScheduleGenerated(true);
 
+                const speedNote = data.metrics
+                    ? ` (Rust ${data.metrics.strategy} in ${data.metrics.solve_time_ms.toFixed(1)} ms)`
+                    : "";
+
                 // Show main success/partial success message
                 if (data.success) {
                     showSuccessMessage(
-                        `Schedule generated successfully! ${data.stats.scheduledAssignments} courses scheduled. All data refreshed.`
+                        `Schedule generated successfully! ${data.stats.scheduledAssignments} sessions scheduled${speedNote}.`
                     );
                 } else {
                     const successCount = data.stats.scheduledAssignments;
                     const failedCount = data.stats.failedAssignments;
 
                     showSuccessMessage(
-                        `Partial schedule generated: ${successCount} courses scheduled, ${failedCount} failed. All data refreshed. Check details above.`
+                        `Partial schedule generated: ${successCount} scheduled, ${failedCount} failed${speedNote}. Check details above.`
                     );
                 }
             } else {
@@ -4436,7 +4497,31 @@ export default function TimetableViewClassroom() {
                         </p>
                     </div>
 
-                    <div className="flex gap-4">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <select
+                            aria-label="Scheduling Algorithm Strategy"
+                            value={solverStrategy}
+                            onChange={(e) =>
+                                setSolverStrategy(
+                                    e.target.value as SolverStrategyOption
+                                )
+                            }
+                            disabled={isGeneratingSchedule}
+                            className="h-9 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm focus:border-[#2F2F85] focus:outline-none"
+                        >
+                            <option value="hybrid">
+                                Rust Hybrid (MRV + Parallel LNS/SA)
+                            </option>
+                            <option value="greedy_repair">
+                                Fast Greedy + Ejection Repair (&lt;5ms)
+                            </option>
+                            <option value="backtracking">
+                                Exact CSP Backtracking (MRV)
+                            </option>
+                            <option value="simulated_annealing">
+                                Simulated Annealing Portfolio
+                            </option>
+                        </select>
                         <Button
                             onClick={generateSchedule}
                             disabled={
@@ -4496,6 +4581,77 @@ export default function TimetableViewClassroom() {
                         </div>
                     )}
                 </div>
+
+                {/* Rust Solver Performance & Quality Metrics Banner */}
+                {solverMetrics && (
+                    <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/70 px-4 py-2.5 text-xs text-blue-900 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <span className="font-semibold text-[#2F2F85]">
+                                Rust Engine ({solverMetrics.strategy})
+                            </span>
+                            <span>
+                                Solve:{" "}
+                                <strong>
+                                    {solverMetrics.solve_time_ms.toFixed(2)} ms
+                                </strong>
+                            </span>
+                            {generationTiming && (
+                                <span className="text-blue-700">
+                                    End-to-End: {generationTiming.totalMs.toFixed(1)} ms
+                                </span>
+                            )}
+                            <span>
+                                Scheduled:{" "}
+                                <strong>
+                                    {generationStats?.scheduledAssignments ?? 0}
+                                </strong>
+                            </span>
+                            <span>
+                                Threads: <strong>{solverMetrics.threads_used}</strong>
+                            </span>
+                            {solverMetrics.ejection_repairs > 0 && (
+                                <span>
+                                    Ejection Repairs:{" "}
+                                    <strong>{solverMetrics.ejection_repairs}</strong>
+                                </span>
+                            )}
+                        </div>
+                        {solverMetrics.breakdown && (
+                            <div className="flex flex-wrap items-center gap-3 text-blue-800">
+                                <span>
+                                    On/Off Clashes:{" "}
+                                    <strong>
+                                        {
+                                            solverMetrics.breakdown
+                                                .online_offline_proximity_violations
+                                        }
+                                    </strong>
+                                </span>
+                                <span>
+                                    Same-Day Section:{" "}
+                                    <strong>
+                                        {
+                                            solverMetrics.breakdown
+                                                .same_section_same_day_violations
+                                        }
+                                    </strong>
+                                </span>
+                                <span>
+                                    Building Switches:{" "}
+                                    <strong>
+                                        {solverMetrics.breakdown.building_switches}
+                                    </strong>
+                                </span>
+                                <span>
+                                    Cohort Overlaps:{" "}
+                                    <strong>
+                                        {solverMetrics.breakdown.cohort_overlap_slots}
+                                    </strong>
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* ERROR BANNER - Add this here */}
                 <ErrorBanner
@@ -4656,7 +4812,6 @@ export default function TimetableViewClassroom() {
                         )}
                     </div>
                 </div>
-                        //GG FYP
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogContent className="sm:max-w-md">
                         <DialogHeader>
