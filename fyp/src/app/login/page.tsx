@@ -1,6 +1,8 @@
 import { getAuthUser } from "@/auth/server/action";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export default async function Login() {
     const user = await getAuthUser();
 
