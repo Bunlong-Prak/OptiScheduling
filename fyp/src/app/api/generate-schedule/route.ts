@@ -575,7 +575,7 @@ export async function POST(request: Request) {
                 failedAssignments: rustResult.stats.failed_assignments,
             },
             errors: rustResult.errors,
-            warnings: rustResult.warnings,
+            warnings: rustResult.errors.length === 0 ? [] : rustResult.warnings,
             metrics: rustResult.metrics,
             timing: {
                 dbFetchMs: Math.round(dbFetchMs * 100) / 100,

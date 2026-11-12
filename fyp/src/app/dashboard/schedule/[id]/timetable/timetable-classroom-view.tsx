@@ -3033,12 +3033,15 @@ export default function TimetableViewClassroom() {
 
             const data: EnhancedScheduleResponse = await response.json();
 
-            // Store errors and warnings for display
+            // Store errors and warnings for display (suppress if everything was scheduled cleanly)
             if (data.errors && data.errors.length > 0) {
                 setSchedulingErrors(data.errors);
-            }
-            if (data.warnings && data.warnings.length > 0) {
-                setSchedulingWarnings(data.warnings);
+                if (data.warnings && data.warnings.length > 0) {
+                    setSchedulingWarnings(data.warnings);
+                }
+            } else {
+                setSchedulingErrors([]);
+                setSchedulingWarnings([]);
             }
 
             // Update stats if available
