@@ -11,8 +11,10 @@ pub const DEFAULT_DAYS: [&str; 6] = [
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum SolverStrategy {
     /// MRV + Ejection-Chain Constructive + Parallel Simulated Annealing & Ruin-and-Recreate LNS
+    #[default]
     Hybrid,
     /// Sub-millisecond MRV + Ejection-Chain Constructive + local polish
     GreedyRepair,
@@ -20,12 +22,6 @@ pub enum SolverStrategy {
     Backtracking,
     /// Multi-start Parallel Simulated Annealing Portfolio
     SimulatedAnnealing,
-}
-
-impl Default for SolverStrategy {
-    fn default() -> Self {
-        Self::Hybrid
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

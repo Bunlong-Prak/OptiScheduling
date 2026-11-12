@@ -60,7 +60,9 @@ fn parse_strategy(raw: &str) -> Result<SolverStrategy> {
         "hybrid" => Ok(SolverStrategy::Hybrid),
         "greedy" | "greedy_repair" | "greedy-repair" => Ok(SolverStrategy::GreedyRepair),
         "backtracking" | "csp" => Ok(SolverStrategy::Backtracking),
-        "sa" | "simulated_annealing" | "simulated-annealing" => Ok(SolverStrategy::SimulatedAnnealing),
+        "sa" | "simulated_annealing" | "simulated-annealing" => {
+            Ok(SolverStrategy::SimulatedAnnealing)
+        }
         _ => anyhow::bail!("Unknown strategy '{raw}'"),
     }
 }

@@ -59,14 +59,7 @@ pub fn solve_annealing<'a>(
     let mut worker_results: Vec<(ScheduleState<'a>, u64, usize)> = Vec::with_capacity(threads_used);
 
     if threads_used == 1 {
-        worker_results.push(run_worker(
-            problem,
-            &movable,
-            0,
-            base_seed,
-            start,
-            deadline,
-        ));
+        worker_results.push(run_worker(problem, &movable, 0, base_seed, start, deadline));
     } else {
         thread::scope(|scope| {
             let mut handles = Vec::with_capacity(threads_used);
@@ -108,7 +101,8 @@ pub fn solve_annealing<'a>(
         }
     }
 
-    let mut best_state = best_state_opt.unwrap_or_else(|| solve_greedy_repair(problem, None, 3).state);
+    let mut best_state =
+        best_state_opt.unwrap_or_else(|| solve_greedy_repair(problem, None, 3).state);
     greedy_local_polish(&mut best_state, 3);
 
     AnnealingResult {
@@ -261,7 +255,14 @@ fn run_worker<'a>(
             }
         } else if (iters & 31) == 0 {
             // Cluster LNS Ruin-and-Recreate
-            lns_ruin_and_recreate(problem, movable, &mut current, &mut best, &mut repairs, &mut rng);
+            lns_ruin_and_recreate(
+                problem,
+                movable,
+                &mut current,
+                &mut best,
+                &mut repairs,
+                &mut rng,
+            );
         }
     }
 
@@ -310,7 +311,7 @@ fn sample_best_of_k(
             for (r_idx, ro) in u.room_options.iter().enumerate() {
                 if state.can_place_room_hard(unit_idx, to.day, mask, ro) {
                     let d = t_delta + state.room_delta_cost(unit_idx, to, ro);
-                    if best.map_or(true, |(_, _, bd)| d < bd) {
+                    if best.is_none_or(|(_, _, bd)| d < bd) {
                         best = Some((t_idx, r_idx, d));
                     }
                     break;
@@ -321,7 +322,7 @@ fn sample_best_of_k(
             let ro = &u.room_options[r_idx];
             if state.can_place_room_hard(unit_idx, to.day, mask, ro) {
                 let d = t_delta + state.room_delta_cost(unit_idx, to, ro);
-                if best.map_or(true, |(_, _, bd)| d < bd) {
+                if best.is_none_or(|(_, _, bd)| d < bd) {
                     best = Some((t_idx, r_idx, d));
                 }
             }

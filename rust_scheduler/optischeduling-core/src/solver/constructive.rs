@@ -3,7 +3,9 @@ use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng};
 use smallvec::SmallVec;
 
-use super::state::{interval_gap, Placement, PreparedProblem, ScheduleState, StaticUnitIssue, NO_ROOM_SENTINEL};
+use super::state::{
+    interval_gap, Placement, PreparedProblem, ScheduleState, StaticUnitIssue, NO_ROOM_SENTINEL,
+};
 
 pub struct ConstructiveResult<'a> {
     pub state: ScheduleState<'a>,
@@ -29,7 +31,9 @@ pub fn order_units(problem: &PreparedProblem, rng_seed: Option<u64>) -> Vec<usiz
 
     let mut rng = rng_seed.map(SmallRng::seed_from_u64);
     let mut jitter: Vec<u32> = if let Some(ref mut r) = rng {
-        (0..problem.units.len()).map(|_| r.gen_range(0..8)).collect()
+        (0..problem.units.len())
+            .map(|_| r.gen_range(0..8))
+            .collect()
     } else {
         vec![0; problem.units.len()]
     };
@@ -221,7 +225,11 @@ pub fn greedy_local_polish(state: &mut ScheduleState<'_>, max_passes: usize) {
                     continue;
                 }
             }
-            state.place(u_idx, old_pl.time_opt_idx as usize, old_pl.room_opt_idx as usize);
+            state.place(
+                u_idx,
+                old_pl.time_opt_idx as usize,
+                old_pl.room_opt_idx as usize,
+            );
         }
         if !improved {
             break;
@@ -295,7 +303,10 @@ pub fn try_ejection_repair(
             // Place target unit now that blockers were evicted
             let to = &state.problem.units[unit_idx].time_options[t_idx];
             let ro = &state.problem.units[unit_idx].room_options[r_idx];
-            let mask = state.problem.combo_for(&state.problem.units[unit_idx], to.combo_idx).mask;
+            let mask = state
+                .problem
+                .combo_for(&state.problem.units[unit_idx], to.combo_idx)
+                .mask;
             let placeable_now = state.can_place_time_hard(unit_idx, to)
                 && state.can_place_room_hard(unit_idx, to.day, mask, ro);
 
@@ -367,11 +378,10 @@ fn collect_blockers(
                 if let Some(pl) = pl_opt {
                     if problem.units[other_idx].section_idx == u.section_idx
                         && pl.day == to.day
+                        && !push_blocker(other_idx)
                     {
-                        if !push_blocker(other_idx) {
-                            *impossible = true;
-                            return;
-                        }
+                        *impossible = true;
+                        return;
                     }
                 }
             }
@@ -384,18 +394,22 @@ fn collect_blockers(
         for other in &state.inst_day_units[id_idx] {
             let o_idx = other.unit_idx as usize;
             let o_pl = state.assignments[o_idx].unwrap();
-            let o_mask = problem.combo_for(&problem.units[o_idx], o_pl.combo_idx).mask;
+            let o_mask = problem
+                .combo_for(&problem.units[o_idx], o_pl.combo_idx)
+                .mask;
             let time_clash = (o_mask & combo.mask) != 0;
             let gap_clash = problem.config.enforce_online_offline_gap
                 && other.is_online != u.is_online
-                && interval_gap(combo.start_min, combo.end_min, other.start_min, other.end_min)
-                    < problem.config.min_online_offline_gap_minutes;
+                && interval_gap(
+                    combo.start_min,
+                    combo.end_min,
+                    other.start_min,
+                    other.end_min,
+                ) < problem.config.min_online_offline_gap_minutes;
 
-            if time_clash || gap_clash {
-                if !push_blocker(o_idx) {
-                    *impossible = true;
-                    return;
-                }
+            if (time_clash || gap_clash) && !push_blocker(o_idx) {
+                *impossible = true;
+                return;
             }
         }
     }
@@ -407,13 +421,16 @@ fn collect_blockers(
             for other in &state.cohort_day_units[cd_idx] {
                 if other.course_id != u.course_id
                     && other.is_online != u.is_online
-                    && interval_gap(combo.start_min, combo.end_min, other.start_min, other.end_min)
-                        < problem.config.min_online_offline_gap_minutes
+                    && interval_gap(
+                        combo.start_min,
+                        combo.end_min,
+                        other.start_min,
+                        other.end_min,
+                    ) < problem.config.min_online_offline_gap_minutes
+                    && !push_blocker(other.unit_idx as usize)
                 {
-                    if !push_blocker(other.unit_idx as usize) {
-                        *impossible = true;
-                        return;
-                    }
+                    *impossible = true;
+                    return;
                 }
             }
         }
@@ -429,11 +446,9 @@ fn collect_blockers(
                         let o_mask = problem
                             .combo_for(&problem.units[other_idx], pl.combo_idx)
                             .mask;
-                        if (o_mask & combo.mask) != 0 {
-                            if !push_blocker(other_idx) {
-                                *impossible = true;
-                                return;
-                            }
+                        if (o_mask & combo.mask) != 0 && !push_blocker(other_idx) {
+                            *impossible = true;
+                            return;
                         }
                     }
                 }

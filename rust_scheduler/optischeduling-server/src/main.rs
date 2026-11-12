@@ -163,13 +163,16 @@ async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infallible
 }
 
 async fn read_json_body(req: Request<Body>) -> Result<Vec<u8>, Response<Body>> {
-    let bytes = hyper::body::to_bytes(req.into_body())
-        .await
-        .map_err(|e| error_response(StatusCode::BAD_REQUEST, format!("Failed to read body: {e}")))?;
+    let bytes = hyper::body::to_bytes(req.into_body()).await.map_err(|e| {
+        error_response(StatusCode::BAD_REQUEST, format!("Failed to read body: {e}"))
+    })?;
     if bytes.len() > MAX_BODY_BYTES {
         return Err(error_response(
             StatusCode::PAYLOAD_TOO_LARGE,
-            format!("Payload exceeds {} MB limit", MAX_BODY_BYTES / (1024 * 1024)),
+            format!(
+                "Payload exceeds {} MB limit",
+                MAX_BODY_BYTES / (1024 * 1024)
+            ),
         ));
     }
     Ok(bytes.to_vec())

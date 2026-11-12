@@ -58,7 +58,9 @@ mod tests {
                     let to = &problem.units[u].time_options[ti];
                     let ro = &problem.units[u].room_options[ri];
                     let mask = problem.combo_for(&problem.units[u], to.combo_idx).mask;
-                    if state.can_place_time_hard(u, to) && state.can_place_room_hard(u, to.day, mask, ro) {
+                    if state.can_place_time_hard(u, to)
+                        && state.can_place_room_hard(u, to.day, mask, ro)
+                    {
                         state.place(u, ti, ri);
                         assert_eq!(
                             state.total_cost,
@@ -149,7 +151,11 @@ mod tests {
         let mut days: Vec<&str> = resp.assignments.iter().map(|a| a.day.as_str()).collect();
         days.sort();
         days.dedup();
-        assert_eq!(days.len(), 3, "All 3 units of section 10 must be on 3 distinct days");
+        assert_eq!(
+            days.len(),
+            3,
+            "All 3 units of section 10 must be on 3 distinct days"
+        );
         assert_eq!(resp.metrics.breakdown.same_section_same_day_violations, 0);
     }
 
@@ -161,9 +167,21 @@ mod tests {
         let req = ScheduleRequest {
             schedule_id: Some(1),
             time_slots: vec![
-                TimeSlotInput { id: Some(1), start_time: "08:00".into(), end_time: "09:00".into() },
-                TimeSlotInput { id: Some(2), start_time: "09:00".into(), end_time: "10:00".into() },
-                TimeSlotInput { id: Some(3), start_time: "10:00".into(), end_time: "11:00".into() },
+                TimeSlotInput {
+                    id: Some(1),
+                    start_time: "08:00".into(),
+                    end_time: "09:00".into(),
+                },
+                TimeSlotInput {
+                    id: Some(2),
+                    start_time: "09:00".into(),
+                    end_time: "10:00".into(),
+                },
+                TimeSlotInput {
+                    id: Some(3),
+                    start_time: "10:00".into(),
+                    end_time: "11:00".into(),
+                },
             ],
             classrooms: vec![ClassroomInput {
                 id: 1,
@@ -300,7 +318,10 @@ mod tests {
         let resp = solve(&req).unwrap();
         assert!(resp.success);
         assert_eq!(resp.assignments.len(), 10);
-        assert!(resp.assignments.iter().all(|a| a.is_online && a.classroom_code == "Online"));
+        assert!(resp
+            .assignments
+            .iter()
+            .all(|a| a.is_online && a.classroom_code == "Online"));
     }
 
     #[test]
@@ -308,8 +329,16 @@ mod tests {
         let req = ScheduleRequest {
             schedule_id: Some(1),
             time_slots: vec![
-                TimeSlotInput { id: Some(1), start_time: "08:00".into(), end_time: "09:00".into() },
-                TimeSlotInput { id: Some(2), start_time: "09:00".into(), end_time: "10:00".into() },
+                TimeSlotInput {
+                    id: Some(1),
+                    start_time: "08:00".into(),
+                    end_time: "09:00".into(),
+                },
+                TimeSlotInput {
+                    id: Some(2),
+                    start_time: "09:00".into(),
+                    end_time: "10:00".into(),
+                },
             ],
             classrooms: vec![
                 ClassroomInput {
@@ -410,8 +439,16 @@ mod tests {
 
         let resp = solve(&req).unwrap();
         assert!(resp.success);
-        let lab = resp.assignments.iter().find(|a| a.course_code == "CS301").unwrap();
-        let lec = resp.assignments.iter().find(|a| a.course_code == "CS302").unwrap();
+        let lab = resp
+            .assignments
+            .iter()
+            .find(|a| a.course_code == "CS301")
+            .unwrap();
+        let lec = resp
+            .assignments
+            .iter()
+            .find(|a| a.course_code == "CS302")
+            .unwrap();
         assert_eq!(lab.classroom_code, "EW-LAB");
         // For lecture, picking EW-101 avoids switching from Engineering Wing to Main Building!
         assert_eq!(lec.classroom_code, "EW-101");
@@ -434,8 +471,16 @@ mod tests {
         let req = ScheduleRequest {
             schedule_id: Some(1),
             time_slots: vec![
-                TimeSlotInput { id: Some(1), start_time: "08:00".into(), end_time: "09:00".into() },
-                TimeSlotInput { id: Some(2), start_time: "09:00".into(), end_time: "10:00".into() },
+                TimeSlotInput {
+                    id: Some(1),
+                    start_time: "08:00".into(),
+                    end_time: "09:00".into(),
+                },
+                TimeSlotInput {
+                    id: Some(2),
+                    start_time: "09:00".into(),
+                    end_time: "10:00".into(),
+                },
             ],
             classrooms: vec![ClassroomInput {
                 id: 1,
@@ -446,8 +491,20 @@ mod tests {
                 location: None,
             }],
             instructors: vec![
-                InstructorInput { id: 1, first_name: "A".into(), last_name: "Flex".into(), name: None, is_part_time: Some(false) },
-                InstructorInput { id: 2, first_name: "B".into(), last_name: "Tight".into(), name: None, is_part_time: Some(false) },
+                InstructorInput {
+                    id: 1,
+                    first_name: "A".into(),
+                    last_name: "Flex".into(),
+                    name: None,
+                    is_part_time: Some(false),
+                },
+                InstructorInput {
+                    id: 2,
+                    first_name: "B".into(),
+                    last_name: "Tight".into(),
+                    name: None,
+                    is_part_time: Some(false),
+                },
             ],
             time_constraints: vec![TimeConstraintInput {
                 instructor_id: 2,
@@ -509,35 +566,37 @@ mod tests {
         let resp = solve(&req).unwrap();
         assert!(resp.success);
         assert_eq!(resp.assignments.len(), 2);
-        let tight = resp.assignments.iter().find(|a| a.course_code == "TGT1").unwrap();
+        let tight = resp
+            .assignments
+            .iter()
+            .find(|a| a.course_code == "TGT1")
+            .unwrap();
         assert_eq!(tight.start_time, "08:00");
     }
 
     #[test]
     fn validator_detects_room_instructor_and_soft_proximity_conflicts() {
-        let existing = vec![
-            ExistingAssignmentInput {
-                course_hours_id: Some(1),
-                section_id: 10,
-                course_id: 1,
-                course_code: "CS101".into(),
-                course_title: "Intro".into(),
-                section_number: "S1".into(),
-                capacity: 30,
-                major_id: Some(1),
-                major_name: Some("CS Year 1".into()),
-                year: Some(1),
-                instructor_id: Some(1),
-                instructor_name: Some("Prof A".into()),
-                is_online: false,
-                day: "Monday".into(),
-                start_time: "08:00".into(),
-                end_time: "09:00".into(),
-                classroom_id: Some(5),
-                classroom_code: Some("MB-101".into()),
-                classroom_location: Some("Main Building".into()),
-            },
-        ];
+        let existing = vec![ExistingAssignmentInput {
+            course_hours_id: Some(1),
+            section_id: 10,
+            course_id: 1,
+            course_code: "CS101".into(),
+            course_title: "Intro".into(),
+            section_number: "S1".into(),
+            capacity: 30,
+            major_id: Some(1),
+            major_name: Some("CS Year 1".into()),
+            year: Some(1),
+            instructor_id: Some(1),
+            instructor_name: Some("Prof A".into()),
+            is_online: false,
+            day: "Monday".into(),
+            start_time: "08:00".into(),
+            end_time: "09:00".into(),
+            classroom_id: Some(5),
+            classroom_code: Some("MB-101".into()),
+            classroom_location: Some("Main Building".into()),
+        }];
 
         // 1. Editing SAME unit (course_hours_id=1) should NOT conflict with itself!
         let self_edit = check_manual_conflict(&ConflictCheckRequest {
@@ -592,7 +651,10 @@ mod tests {
             config: SolverConfig::default(),
         });
         assert!(!res_err.is_valid);
-        assert!(res_err.hard_conflicts.iter().any(|c| c.kind == "ROOM_CONFLICT"));
+        assert!(res_err
+            .hard_conflicts
+            .iter()
+            .any(|c| c.kind == "ROOM_CONFLICT"));
     }
 
     #[test]
@@ -629,7 +691,11 @@ mod tests {
                 day: a.day.clone(),
                 start_time: a.start_time.clone(),
                 end_time: a.end_time.clone(),
-                classroom_id: if a.classroom_id > 0 { Some(a.classroom_id) } else { None },
+                classroom_id: if a.classroom_id > 0 {
+                    Some(a.classroom_id)
+                } else {
+                    None
+                },
                 classroom_code: Some(a.classroom_code.clone()),
                 classroom_location: a.classroom_location.clone(),
             })

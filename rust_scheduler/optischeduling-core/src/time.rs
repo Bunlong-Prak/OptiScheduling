@@ -175,7 +175,12 @@ pub fn normalize_time_slots(
     for i in 0..out.len() {
         let mut mask = 0u128;
         for j in 0..out.len() {
-            if intervals_overlap(out[i].start_min, out[i].end_min, out[j].start_min, out[j].end_min) {
+            if intervals_overlap(
+                out[i].start_min,
+                out[i].end_min,
+                out[j].start_min,
+                out[j].end_min,
+            ) {
                 mask |= 1u128 << j;
             }
         }
@@ -192,10 +197,7 @@ pub fn intervals_overlap(a_start: u16, a_end: u16, b_start: u16, b_end: u16) -> 
 
 /// Convert constraint string(s) into a slot bitmask.
 /// Supports exact slot strings ("08:00-09:00", "8:00 AM - 9:00 AM") AND single-time strings ("08:00").
-pub fn constraint_strings_to_mask(
-    entries: &[String],
-    slots: &[NormalizedTimeSlot],
-) -> u128 {
+pub fn constraint_strings_to_mask(entries: &[String], slots: &[NormalizedTimeSlot]) -> u128 {
     let mut mask = 0u128;
     for entry in entries {
         let trimmed = entry.trim();
@@ -561,9 +563,21 @@ mod tests {
     #[test]
     fn handles_50_min_slots_for_1_66h_course() {
         let raw_slots = vec![
-            TimeSlotInput { id: Some(1), start_time: "08:00".into(), end_time: "08:50".into() },
-            TimeSlotInput { id: Some(2), start_time: "09:00".into(), end_time: "09:50".into() },
-            TimeSlotInput { id: Some(3), start_time: "10:00".into(), end_time: "10:50".into() },
+            TimeSlotInput {
+                id: Some(1),
+                start_time: "08:00".into(),
+                end_time: "08:50".into(),
+            },
+            TimeSlotInput {
+                id: Some(2),
+                start_time: "09:00".into(),
+                end_time: "09:50".into(),
+            },
+            TimeSlotInput {
+                id: Some(3),
+                start_time: "10:00".into(),
+                end_time: "10:50".into(),
+            },
         ];
         let slots = normalize_time_slots(&raw_slots).unwrap();
         let combos = find_slot_combinations(&slots, 1.66, 30);
@@ -576,9 +590,21 @@ mod tests {
     #[test]
     fn prefers_continuous_over_adjacent() {
         let raw_slots = vec![
-            TimeSlotInput { id: Some(1), start_time: "08:00".into(), end_time: "09:00".into() },
-            TimeSlotInput { id: Some(2), start_time: "09:00".into(), end_time: "10:00".into() },
-            TimeSlotInput { id: Some(3), start_time: "10:15".into(), end_time: "11:15".into() },
+            TimeSlotInput {
+                id: Some(1),
+                start_time: "08:00".into(),
+                end_time: "09:00".into(),
+            },
+            TimeSlotInput {
+                id: Some(2),
+                start_time: "09:00".into(),
+                end_time: "10:00".into(),
+            },
+            TimeSlotInput {
+                id: Some(3),
+                start_time: "10:15".into(),
+                end_time: "11:15".into(),
+            },
         ];
         let slots = normalize_time_slots(&raw_slots).unwrap();
         let combos = find_slot_combinations(&slots, 2.0, 30);

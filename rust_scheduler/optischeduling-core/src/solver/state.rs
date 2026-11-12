@@ -9,8 +9,7 @@ use crate::model::{
 };
 use crate::time::{
     constraint_strings_to_mask, find_slot_combinations, format_minutes, intervals_overlap,
-    normalize_time_slots, parse_hhmm_minutes, ComboKind, NormalizedTimeSlot, SlotCombo,
-    TimeError,
+    normalize_time_slots, parse_hhmm_minutes, ComboKind, NormalizedTimeSlot, SlotCombo, TimeError,
 };
 
 pub const NO_ROOM_SENTINEL: u16 = u16::MAX;
@@ -209,9 +208,9 @@ impl PreparedProblem {
         let mut instructors: Vec<PreparedInstructor> = Vec::with_capacity(req.instructors.len());
 
         for inst in &req.instructors {
-            if !inst_map.contains_key(&inst.id) {
+            if let std::collections::hash_map::Entry::Vacant(e) = inst_map.entry(inst.id) {
                 let idx = instructors.len();
-                inst_map.insert(inst.id, idx);
+                e.insert(idx);
                 instructors.push(PreparedInstructor {
                     id: inst.id,
                     name: inst.display_name(),
@@ -272,8 +271,11 @@ impl PreparedProblem {
         }
 
         // Finalize instructor part-time flag and available slot counts
-        let explicit_pt_map: FxHashMap<i64, Option<bool>> =
-            req.instructors.iter().map(|i| (i.id, i.is_part_time)).collect();
+        let explicit_pt_map: FxHashMap<i64, Option<bool>> = req
+            .instructors
+            .iter()
+            .map(|i| (i.id, i.is_part_time))
+            .collect();
         let all_slots_mask: u128 = if slots.len() == 128 {
             u128::MAX
         } else {
@@ -308,7 +310,8 @@ impl PreparedProblem {
         let max_room_capacity = classrooms.iter().map(|c| c.capacity).max().unwrap_or(0);
 
         for course in &req.courses {
-            let base_major_key = normalize_base_major(course.major_id, course.major_name.as_deref());
+            let base_major_key =
+                normalize_base_major(course.major_id, course.major_name.as_deref());
             let major_idx = base_major_key.as_ref().map(|k| {
                 let next_id = major_map.len();
                 *major_map.entry(k.clone()).or_insert(next_id)
@@ -406,9 +409,8 @@ impl PreparedProblem {
                                 None => true,
                             };
                             let seat_waste = (room.capacity - course.capacity).max(0);
-                            let mut static_room_cost = (seat_waste as i64
-                                * config.weights.seat_waste_per_seat)
-                                as i32;
+                            let mut static_room_cost =
+                                (seat_waste as i64 * config.weights.seat_waste_per_seat) as i32;
                             if !matches_specific {
                                 static_room_cost += config.weights.wrong_specific_classroom as i32;
                             }
@@ -452,7 +454,9 @@ impl PreparedProblem {
                             Ok((day_idx, combo_idx, matched_room_opt)) => {
                                 let combo = &combos[combo_idx];
                                 let inst_avail_ok = match inst_idx {
-                                    Some(ii) => (instructors[ii].unavail_mask[day_idx] & combo.mask) == 0,
+                                    Some(ii) => {
+                                        (instructors[ii].unavail_mask[day_idx] & combo.mask) == 0
+                                    }
                                     None => true,
                                 };
                                 if !inst_avail_ok {
@@ -644,8 +648,8 @@ fn resolve_locked_candidate(
     classrooms: &[PreparedClassroom],
     room_options: &[RoomOption],
 ) -> Result<(usize, usize, Option<RoomOption>), String> {
-    let day_idx = day_lookup(&locked.day)
-        .ok_or_else(|| format!("Unknown locked day '{}'", locked.day))?;
+    let day_idx =
+        day_lookup(&locked.day).ok_or_else(|| format!("Unknown locked day '{}'", locked.day))?;
     let start_min = parse_hhmm_minutes(&locked.start_time)
         .map_err(|e| format!("Invalid locked start_time: {e}"))?;
     let end_min = parse_hhmm_minutes(&locked.end_time)
@@ -666,7 +670,9 @@ fn resolve_locked_candidate(
                     mask |= s.overlap_mask;
                 }
             }
-            combos.iter().position(|c| (c.mask & mask) == c.mask && mask != 0)
+            combos
+                .iter()
+                .position(|c| (c.mask & mask) == c.mask && mask != 0)
         })
         .ok_or_else(|| {
             format!(
@@ -829,10 +835,10 @@ impl<'a> ScheduleState<'a> {
         let combo = self.problem.combo_for(u, time_opt.combo_idx);
 
         // 1. Separate days per section
-        if self.problem.section_hard_separate[u.section_idx] {
-            if self.section_day_count[self.sec_day_idx(u.section_idx, day)] > 0 {
-                return false;
-            }
+        if self.problem.section_hard_separate[u.section_idx]
+            && self.section_day_count[self.sec_day_idx(u.section_idx, day)] > 0
+        {
+            return false;
         }
 
         // 2. Instructor no double-booking + optional hard online/offline gap
@@ -845,8 +851,12 @@ impl<'a> ScheduleState<'a> {
                 let min_gap = self.problem.config.min_online_offline_gap_minutes;
                 for other in &self.inst_day_units[id_idx] {
                     if other.is_online != u.is_online
-                        && interval_gap(combo.start_min, combo.end_min, other.start_min, other.end_min)
-                            < min_gap
+                        && interval_gap(
+                            combo.start_min,
+                            combo.end_min,
+                            other.start_min,
+                            other.end_min,
+                        ) < min_gap
                     {
                         return false;
                     }
@@ -862,8 +872,12 @@ impl<'a> ScheduleState<'a> {
                 for other in &self.cohort_day_units[cd_idx] {
                     if other.course_id != u.course_id
                         && other.is_online != u.is_online
-                        && interval_gap(combo.start_min, combo.end_min, other.start_min, other.end_min)
-                            < min_gap
+                        && interval_gap(
+                            combo.start_min,
+                            combo.end_min,
+                            other.start_min,
+                            other.end_min,
+                        ) < min_gap
                     {
                         return false;
                     }
@@ -875,7 +889,13 @@ impl<'a> ScheduleState<'a> {
     }
 
     #[inline]
-    pub fn can_place_room_hard(&self, _unit_idx: usize, day: u8, combo_mask: u128, room_opt: &RoomOption) -> bool {
+    pub fn can_place_room_hard(
+        &self,
+        _unit_idx: usize,
+        day: u8,
+        combo_mask: u128,
+        room_opt: &RoomOption,
+    ) -> bool {
         if room_opt.room_idx == NO_ROOM_SENTINEL {
             return true;
         }
@@ -915,8 +935,12 @@ impl<'a> ScheduleState<'a> {
             if !existing.is_empty() {
                 for other in existing {
                     if other.is_online != u.is_online
-                        && interval_gap(combo.start_min, combo.end_min, other.start_min, other.end_min)
-                            < cfg.min_online_offline_gap_minutes
+                        && interval_gap(
+                            combo.start_min,
+                            combo.end_min,
+                            other.start_min,
+                            other.end_min,
+                        ) < cfg.min_online_offline_gap_minutes
                     {
                         delta += w.online_offline_proximity;
                     }
@@ -1015,7 +1039,9 @@ impl<'a> ScheduleState<'a> {
         let mut delta = room_opt.static_room_cost as i64;
         let cfg = &self.problem.config;
         if cfg.penalize_building_switches && !self.problem.units[unit_idx].is_online {
-            if let (Some(ii), Some(b_id)) = (self.problem.units[unit_idx].inst_idx, room_opt.building_id) {
+            if let (Some(ii), Some(b_id)) =
+                (self.problem.units[unit_idx].inst_idx, room_opt.building_id)
+            {
                 let u = &self.problem.units[unit_idx];
                 let combo = self.problem.combo_for(u, time_opt.combo_idx);
                 let id_idx = self.inst_day_idx(ii, time_opt.day as usize);
@@ -1192,12 +1218,14 @@ impl<'a> ScheduleState<'a> {
             let combo_mask = self.problem.combo_for(u, to.combo_idx).mask;
 
             // If we don't care about building switches or building switch isn't active, the FIRST free room is optimal!
-            if !self.problem.config.penalize_building_switches || u.is_online || u.inst_idx.is_none()
+            if !self.problem.config.penalize_building_switches
+                || u.is_online
+                || u.inst_idx.is_none()
             {
                 for (r_idx, ro) in u.room_options.iter().enumerate() {
                     if self.can_place_room_hard(unit_idx, to.day, combo_mask, ro) {
                         let d = t_delta + ro.static_room_cost as i64;
-                        if best.map_or(true, |(_, _, bd)| d < bd) {
+                        if best.is_none_or(|(_, _, bd)| d < bd) {
                             best = Some((t_idx, r_idx, d));
                         }
                         break; // room_options is sorted by static_room_cost!
@@ -1217,13 +1245,13 @@ impl<'a> ScheduleState<'a> {
                         continue;
                     }
                     let rd = self.room_delta_cost(unit_idx, to, ro);
-                    if best_for_time.map_or(true, |(_, b)| rd < b) {
+                    if best_for_time.is_none_or(|(_, b)| rd < b) {
                         best_for_time = Some((r_idx, rd));
                     }
                 }
                 if let Some((r_idx, rd)) = best_for_time {
                     let d = t_delta + rd;
-                    if best.map_or(true, |(_, _, bd)| d < bd) {
+                    if best.is_none_or(|(_, _, bd)| d < bd) {
                         best = Some((t_idx, r_idx, d));
                     }
                 }
@@ -1314,8 +1342,8 @@ impl<'a> ScheduleState<'a> {
                         }
                     }
                     if cfg.avoid_cohort_overlap {
-                        total += distinct_course_overlap_slots_cohort(units)
-                            * w.cohort_overlap_per_slot;
+                        total +=
+                            distinct_course_overlap_slots_cohort(units) * w.cohort_overlap_per_slot;
                     }
                 }
             }
@@ -1345,8 +1373,10 @@ impl<'a> ScheduleState<'a> {
 
     pub fn compute_breakdown(&self) -> ObjectiveBreakdown {
         let cfg = &self.problem.config;
-        let mut bd = ObjectiveBreakdown::default();
-        bd.unassigned_count = self.problem.units.len() - self.assigned_count;
+        let mut bd = ObjectiveBreakdown {
+            unassigned_count: self.problem.units.len() - self.assigned_count,
+            ..Default::default()
+        };
 
         for (u_idx, pl_opt) in self.assignments.iter().enumerate() {
             if let Some(pl) = pl_opt {
@@ -1436,8 +1466,7 @@ impl<'a> ScheduleState<'a> {
                             }
                         }
                     }
-                    bd.cohort_overlap_slots +=
-                        distinct_course_overlap_slots_cohort(units) as usize;
+                    bd.cohort_overlap_slots += distinct_course_overlap_slots_cohort(units) as usize;
                 }
             }
         }
@@ -1447,7 +1476,11 @@ impl<'a> ScheduleState<'a> {
 
     pub fn extract_outputs(
         &self,
-    ) -> (Vec<AssignmentOutput>, Vec<FailedUnitOutput>, Vec<SchedulingError>) {
+    ) -> (
+        Vec<AssignmentOutput>,
+        Vec<FailedUnitOutput>,
+        Vec<SchedulingError>,
+    ) {
         let mut assignments = Vec::with_capacity(self.assigned_count);
         let mut failed_units = Vec::new();
         let mut errors = Vec::new();
@@ -1613,10 +1646,8 @@ impl<'a> ScheduleState<'a> {
 pub fn interval_gap(a_start: u16, a_end: u16, b_start: u16, b_end: u16) -> u16 {
     if a_end <= b_start {
         b_start - a_end
-    } else if b_end <= a_start {
-        a_start - b_end
     } else {
-        0
+        a_start.saturating_sub(b_end)
     }
 }
 
@@ -1640,7 +1671,9 @@ fn consecutive_excess_penalty(
         items.push(ex);
     }
     if items.len() <= 1 {
-        let single_dur = items.first().map_or(0, |x| (x.end_min - x.start_min) as i64);
+        let single_dur = items
+            .first()
+            .map_or(0, |x| (x.end_min - x.start_min) as i64);
         if single_dur > max_consec_min {
             return ((single_dur - max_consec_min) * weight_per_hour) / 60;
         }
