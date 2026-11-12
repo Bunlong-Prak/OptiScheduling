@@ -69,12 +69,7 @@ pub fn solve(request: &ScheduleRequest) -> Result<ScheduleResponse, SolverError>
             (res.state, 1, res.nodes_explored, res.ejection_repairs)
         }
         SolverStrategy::SimulatedAnnealing | SolverStrategy::Hybrid => {
-            let res = solve_annealing(
-                &problem,
-                cfg.time_budget_ms.max(10),
-                cfg.seed,
-                cfg.threads,
-            );
+            let res = solve_annealing(&problem, cfg.time_budget_ms.max(10), cfg.seed, cfg.threads);
             (
                 res.state,
                 res.threads_used,

@@ -135,7 +135,10 @@ pub fn check_manual_conflict(req: &ConflictCheckRequest) -> ConflictCheckResult 
                     kind: "INSTRUCTOR_CONFLICT".into(),
                     message: format!(
                         "Instructor {} is already teaching {} ({}-{})",
-                        ex.raw.instructor_name.as_deref().unwrap_or("assigned instructor"),
+                        ex.raw
+                            .instructor_name
+                            .as_deref()
+                            .unwrap_or("assigned instructor"),
                         ex.raw.course_code,
                         ex.raw.start_time,
                         ex.raw.end_time
@@ -176,15 +179,20 @@ pub fn check_manual_conflict(req: &ConflictCheckRequest) -> ConflictCheckResult 
         if (same_inst || same_cohort) && cand.raw.is_online != ex.raw.is_online {
             let gap = interval_gap(cand.start_min, cand.end_min, ex.start_min, ex.end_min);
             if gap < req.config.min_online_offline_gap_minutes {
-                let target = if same_inst { "instructor" } else { "student cohort" };
-                let item = ConflictItem {
-                    severity: if req.config.enforce_online_offline_gap {
-                        "error".into()
-                    } else {
-                        "warning".into()
-                    },
-                    kind: "ONLINE_OFFLINE_PROXIMITY".into(),
-                    message: format!(
+                let target = if same_inst {
+                    "instructor"
+                } else {
+                    "student cohort"
+                };
+                let item =
+                    ConflictItem {
+                        severity: if req.config.enforce_online_offline_gap {
+                            "error".into()
+                        } else {
+                            "warning".into()
+                        },
+                        kind: "ONLINE_OFFLINE_PROXIMITY".into(),
+                        message: format!(
                         "Online/offline class {} is only {} min from {} class {} on {} for same {}",
                         if cand.raw.is_online { "(online)" } else { "(offline)" },
                         gap,
@@ -193,9 +201,9 @@ pub fn check_manual_conflict(req: &ConflictCheckRequest) -> ConflictCheckResult 
                         cand.raw.day,
                         target
                     ),
-                    conflicting_course_code: Some(ex.raw.course_code.clone()),
-                    conflicting_section_id: Some(ex.raw.section_id),
-                };
+                        conflicting_course_code: Some(ex.raw.course_code.clone()),
+                        conflicting_section_id: Some(ex.raw.section_id),
+                    };
                 if req.config.enforce_online_offline_gap {
                     hard_conflicts.push(item);
                 } else {
@@ -226,7 +234,11 @@ pub fn check_manual_conflict(req: &ConflictCheckRequest) -> ConflictCheckResult 
         all_day.sort_by_key(|x| (x.start_min, x.end_min));
 
         let max_consec_min = (req.config.max_consecutive_hours * 60.0).round() as u16;
-        if exceeds_consecutive_limit(&all_day, req.config.max_adjacent_gap_minutes, max_consec_min) {
+        if exceeds_consecutive_limit(
+            &all_day,
+            req.config.max_adjacent_gap_minutes,
+            max_consec_min,
+        ) {
             soft_warnings.push(ConflictItem {
                 severity: "warning".into(),
                 kind: "CONSECUTIVE_HOURS_EXCEEDED".into(),
@@ -240,10 +252,8 @@ pub fn check_manual_conflict(req: &ConflictCheckRequest) -> ConflictCheckResult 
         }
 
         if req.config.penalize_building_switches {
-            let switches = count_building_switches(
-                &all_day,
-                req.config.max_building_transition_minutes,
-            );
+            let switches =
+                count_building_switches(&all_day, req.config.max_building_transition_minutes);
             if switches > 0 {
                 soft_warnings.push(ConflictItem {
                     severity: "warning".into(),
@@ -351,7 +361,7 @@ pub fn validate_schedule(req: &ValidateScheduleRequest) -> ValidationReport {
     }
 
     // Per-day pairwise & instructor sequences
-    for (_day, idxs) in &by_day {
+    for idxs in by_day.values() {
         let mut by_inst: HashMap<i64, Vec<usize>> = HashMap::new();
         for &idx in idxs {
             if let Some(iid) = parsed[idx].raw.instructor_id.filter(|&x| x > 0) {
@@ -435,8 +445,16 @@ pub fn validate_schedule(req: &ValidateScheduleRequest) -> ValidationReport {
                             kind: "ONLINE_OFFLINE_PROXIMITY".into(),
                             message: format!(
                                 "Online {} & offline {} only {} min apart on {}",
-                                if a.raw.is_online { &a.raw.course_code } else { &b.raw.course_code },
-                                if a.raw.is_online { &b.raw.course_code } else { &a.raw.course_code },
+                                if a.raw.is_online {
+                                    &a.raw.course_code
+                                } else {
+                                    &b.raw.course_code
+                                },
+                                if a.raw.is_online {
+                                    &b.raw.course_code
+                                } else {
+                                    &a.raw.course_code
+                                },
                                 gap,
                                 a.raw.day
                             ),
@@ -478,15 +496,22 @@ pub fn validate_schedule(req: &ValidateScheduleRequest) -> ValidationReport {
                 list.iter().map(|&idx| parsed[idx].clone()).collect();
             items.sort_by_key(|x| (x.start_min, x.end_min));
 
-            if exceeds_consecutive_limit(&items, req.config.max_adjacent_gap_minutes, max_consec_min)
-            {
+            if exceeds_consecutive_limit(
+                &items,
+                req.config.max_adjacent_gap_minutes,
+                max_consec_min,
+            ) {
                 breakdown.over_consecutive_violations += 1;
                 soft_warnings.push(ConflictItem {
                     severity: "warning".into(),
                     kind: "CONSECUTIVE_HOURS_EXCEEDED".into(),
                     message: format!(
                         "Instructor {} exceeds {:.1} consecutive hours on {}",
-                        items[0].raw.instructor_name.as_deref().unwrap_or("instructor"),
+                        items[0]
+                            .raw
+                            .instructor_name
+                            .as_deref()
+                            .unwrap_or("instructor"),
                         req.config.max_consecutive_hours,
                         items[0].raw.day
                     ),
@@ -505,7 +530,11 @@ pub fn validate_schedule(req: &ValidateScheduleRequest) -> ValidationReport {
                         kind: "BUILDING_SWITCH".into(),
                         message: format!(
                             "Instructor {} has {} building transition(s) on {}",
-                            items[0].raw.instructor_name.as_deref().unwrap_or("instructor"),
+                            items[0]
+                                .raw
+                                .instructor_name
+                                .as_deref()
+                                .unwrap_or("instructor"),
                             sw,
                             items[0].raw.day
                         ),
@@ -594,7 +623,10 @@ fn is_same_unit(a: &ExistingAssignmentInput, b: &ExistingAssignmentInput) -> boo
 }
 
 fn same_room(a: &ExistingAssignmentInput, b: &ExistingAssignmentInput) -> bool {
-    match (a.classroom_id.filter(|&x| x > 0), b.classroom_id.filter(|&x| x > 0)) {
+    match (
+        a.classroom_id.filter(|&x| x > 0),
+        b.classroom_id.filter(|&x| x > 0),
+    ) {
         (Some(id1), Some(id2)) => id1 == id2,
         _ => match (&a.classroom_code, &b.classroom_code) {
             (Some(c1), Some(c2)) => {

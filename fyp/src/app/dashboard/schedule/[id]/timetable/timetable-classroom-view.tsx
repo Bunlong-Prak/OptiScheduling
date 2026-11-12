@@ -980,7 +980,7 @@ export default function TimetableViewClassroom() {
 
                 console.log("=== RAW ASSIGNMENT DEBUG ===");
                 console.log("Assignment keys:", Object.keys(assignmentsData[0] || {}));
-                assignmentsData.slice(0, 3).forEach((assignment, index) => {
+                assignmentsData.slice(0, 3).forEach((assignment: any, index: number) => {
                     console.log(`Assignment ${index}:`, {
                         id: assignment.id,
                         code: assignment.code,
@@ -1468,7 +1468,7 @@ export default function TimetableViewClassroom() {
     }) => {
         const [isExpanded, setIsExpanded] = useState(false);
 
-        if (errors.length === 0 && warnings.length === 0) return null;
+        if (errors.length === 0) return null;
 
         const errorGroups = groupErrorsByType(errors);
         const totalErrors = errors.length;
@@ -3033,12 +3033,15 @@ export default function TimetableViewClassroom() {
 
             const data: EnhancedScheduleResponse = await response.json();
 
-            // Store errors and warnings for display
+            // Store errors and warnings for display (suppress if everything was scheduled cleanly)
             if (data.errors && data.errors.length > 0) {
                 setSchedulingErrors(data.errors);
-            }
-            if (data.warnings && data.warnings.length > 0) {
-                setSchedulingWarnings(data.warnings);
+                if (data.warnings && data.warnings.length > 0) {
+                    setSchedulingWarnings(data.warnings);
+                }
+            } else {
+                setSchedulingErrors([]);
+                setSchedulingWarnings([]);
             }
 
             // Update stats if available
@@ -4582,82 +4585,13 @@ export default function TimetableViewClassroom() {
                     )}
                 </div>
 
-                {/* Rust Solver Performance & Quality Metrics Banner */}
-                {solverMetrics && (
-                    <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/70 px-4 py-2.5 text-xs text-blue-900 flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-3">
-                            <span className="font-semibold text-[#2F2F85]">
-                                Rust Engine ({solverMetrics.strategy})
-                            </span>
-                            <span>
-                                Solve:{" "}
-                                <strong>
-                                    {solverMetrics.solve_time_ms.toFixed(2)} ms
-                                </strong>
-                            </span>
-                            {generationTiming && (
-                                <span className="text-blue-700">
-                                    End-to-End: {generationTiming.totalMs.toFixed(1)} ms
-                                </span>
-                            )}
-                            <span>
-                                Scheduled:{" "}
-                                <strong>
-                                    {generationStats?.scheduledAssignments ?? 0}
-                                </strong>
-                            </span>
-                            <span>
-                                Threads: <strong>{solverMetrics.threads_used}</strong>
-                            </span>
-                            {solverMetrics.ejection_repairs > 0 && (
-                                <span>
-                                    Ejection Repairs:{" "}
-                                    <strong>{solverMetrics.ejection_repairs}</strong>
-                                </span>
-                            )}
-                        </div>
-                        {solverMetrics.breakdown && (
-                            <div className="flex flex-wrap items-center gap-3 text-blue-800">
-                                <span>
-                                    On/Off Clashes:{" "}
-                                    <strong>
-                                        {
-                                            solverMetrics.breakdown
-                                                .online_offline_proximity_violations
-                                        }
-                                    </strong>
-                                </span>
-                                <span>
-                                    Same-Day Section:{" "}
-                                    <strong>
-                                        {
-                                            solverMetrics.breakdown
-                                                .same_section_same_day_violations
-                                        }
-                                    </strong>
-                                </span>
-                                <span>
-                                    Building Switches:{" "}
-                                    <strong>
-                                        {solverMetrics.breakdown.building_switches}
-                                    </strong>
-                                </span>
-                                <span>
-                                    Cohort Overlaps:{" "}
-                                    <strong>
-                                        {solverMetrics.breakdown.cohort_overlap_slots}
-                                    </strong>
-                                </span>
-                            </div>
-                        )}
-                    </div>
+                {/* Error Banner - Only displayed if courses failed to schedule */}
+                {schedulingErrors.length > 0 && (
+                    <ErrorBanner
+                        errors={schedulingErrors}
+                        warnings={schedulingWarnings}
+                    />
                 )}
-
-                {/* ERROR BANNER - Add this here */}
-                <ErrorBanner
-                    errors={schedulingErrors}
-                    warnings={schedulingWarnings}
-                />
 
                 <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-350px)] mb-8">
                     <div className="inline-block min-w-full">

@@ -166,17 +166,17 @@ pub fn generate_paragon_benchmark(num_sections: usize, seed: u64) -> ScheduleReq
         course_idx += 1;
         let (maj_id, maj_name) = majors[(course_idx - 1) % majors.len()];
         let year = (((course_idx - 1) / majors.len()) % 4 + 1) as u16;
-        let is_lab_course = (course_idx % 3) == 0;
+        let is_lab_course = course_idx.is_multiple_of(3);
         let prefer_type = if is_lab_course {
             2
-        } else if (course_idx % 5) == 0 {
+        } else if course_idx.is_multiple_of(5) {
             3
         } else {
             1
         };
         let capacity = if is_lab_course {
             30
-        } else if (course_idx % 7) == 0 {
+        } else if course_idx.is_multiple_of(7) {
             55
         } else {
             35
@@ -193,8 +193,9 @@ pub fn generate_paragon_benchmark(num_sections: usize, seed: u64) -> ScheduleReq
             sec_created += 1;
             let s_id = section_id_counter;
             section_id_counter += 1;
-            let inst_id = (((sec_created * 7 + rng.gen_range(0..5)) % total_instructors) + 1) as i64;
-            let is_online = (sec_created % 5) == 0;
+            let inst_id =
+                (((sec_created * 7 + rng.gen_range(0..5)) % total_instructors) + 1) as i64;
+            let is_online = sec_created.is_multiple_of(5);
 
             // Split course hours (2.0 + 1.0 or 1.0 + 1.0 + 1.0 or 2.0 + 2.0)
             let split_durations: &[f64] = match sec_created % 3 {
