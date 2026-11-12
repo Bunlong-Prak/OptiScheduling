@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - RustOptischeduling
+  pull_request:
+    branches:
+      - main
+      - RustOptischeduling
+
+jobs:
+  rust-check:
+    name: Rust Scheduler Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust_scheduler -> target
+
+      - name: Format check
+        run: cargo fmt --manifest-path rust_scheduler/Cargo.toml --all -- --check
+
+      - name: Clippy check
+        run: cargo clippy --manifest-path rust_scheduler/Cargo.toml --all -- -D warnings
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path rust_scheduler/Cargo.toml --verbose
+
+  web-check:
+    name: Next.js Web Typecheck & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: fyp/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./fyp
+        run: npm ci
+
+      - name: TypeScript type-check
+        working-directory: ./fyp
+        run: npm run type-check
+
+      - name: Production build
+        working-directory: ./fyp
+        env:
+          DATABASE_URL: mysql://opti:optipass@localhost:3306/optischeduling
+          DOMAIN: http://localhost:3000
+          NODE_ENV: production
+        run: npm run build
