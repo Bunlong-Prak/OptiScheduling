@@ -162,6 +162,7 @@ async fn handle_request(req: Request<Body>) -> Result<Response<Body>, Infallible
     }
 }
 
+#[allow(clippy::result_large_err)]
 async fn read_json_body(req: Request<Body>) -> Result<Vec<u8>, Response<Body>> {
     let bytes = hyper::body::to_bytes(req.into_body()).await.map_err(|e| {
         error_response(StatusCode::BAD_REQUEST, format!("Failed to read body: {e}"))
