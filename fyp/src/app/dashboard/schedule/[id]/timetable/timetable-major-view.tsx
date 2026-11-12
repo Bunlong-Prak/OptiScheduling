@@ -29,7 +29,7 @@ const days = [
 ];
 
 // Custom interface for time slots (since CourseHour doesn't fully match our needs)
-interface TimeSlot extends CourseHour {
+interface TimeSlot extends Omit<CourseHour, "time_slot"> {
     time_slot?: string;
 }
 
@@ -319,9 +319,10 @@ export default function MajorView() {
                     code: courseDetails.code || assignment.code || "N/A",
                     name:
                         courseDetails.title ||
-                        courseDetails.name ||
+                        (courseDetails as any).name ||
                         assignment.title ||
                         assignment.name,
+                    capacity: courseDetails.capacity ?? assignment.capacity ?? 0,
                     color:
                         colors_class[
                             (courseDetails.color ||
@@ -345,7 +346,7 @@ export default function MajorView() {
                     startTime: assignment.startTime,
                     endTime: assignment.endTime,
                     room: assignment.classroom || courseDetails.classroom || "",
-                    subtext: courseDetails.subtext || assignment.subtext,
+                    subtext: (courseDetails as any).subtext || assignment.subtext,
                 };
 
                 const startIndex = timeSlots.findIndex(
@@ -619,6 +620,7 @@ export default function MajorView() {
                 sectionId: originalCourseData.sectionId,
                 code: originalCourseData.code,
                 name: originalCourseData.title,
+                capacity: originalCourseData.capacity ?? 0,
                 color:
                     colors_class[
                         originalCourseData.color as keyof typeof colors_class

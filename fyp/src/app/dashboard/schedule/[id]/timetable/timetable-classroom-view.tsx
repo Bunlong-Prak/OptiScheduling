@@ -980,7 +980,7 @@ export default function TimetableViewClassroom() {
 
                 console.log("=== RAW ASSIGNMENT DEBUG ===");
                 console.log("Assignment keys:", Object.keys(assignmentsData[0] || {}));
-                assignmentsData.slice(0, 3).forEach((assignment, index) => {
+                assignmentsData.slice(0, 3).forEach((assignment: any, index: number) => {
                     console.log(`Assignment ${index}:`, {
                         id: assignment.id,
                         code: assignment.code,
